@@ -9,6 +9,8 @@ import json
 import os
 import time
 
+import docker_state
+
 
 def load(path: str, ttl: float) -> dict | None:
     """Le cache s'il est lisible et encore valable ; None sinon (tout est alors à relire)."""
@@ -66,7 +68,28 @@ def refresh(path: str, ttl: float, read, force: bool | set = False) -> dict:
     return data
 
 
+def update_states(path: str, ip: str, states: dict[str, str]) -> bool:
+    """The status of each container of `ip` refreshed in the cache from a `docker ps -a` read elsewhere (the health pass), the
+    inventory itself untouched; a container that appeared or disappeared marks the machine « stale ». False: nothing cached."""
+    try:
+        with open(path) as f:
+            cache = json.load(f)
+    except (OSError, ValueError, TypeError):
+        return False
+    data = cache.get("data") if isinstance(cache.get("data"), dict) else None
+    if not data or not isinstance(data.get(ip), list):
+        return False
+    data[ip], changed = docker_state.refresh_states(data[ip], states)
+    if changed:
+        cache["stale"] = sorted({*cache.get("stale", []), ip})
+    _write(path, cache)
+    return True
+
+
 def _write(path: str, cache: dict) -> None:
+    """Written in one go (temporary file, then renamed): a reader (the collection, health.py) never sees a half file."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w") as f:
         json.dump(cache, f)
+    os.replace(tmp, path)

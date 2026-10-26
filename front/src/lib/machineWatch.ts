@@ -102,7 +102,10 @@ export function healthItems(h: HealthHost): WatchItem[] {
   }
   if (h.ssh_auth?.available && h.ssh_auth.failed_24h >= SSH_AUTH_WARN_N) add(h.ssh_auth.failed_24h >= SSH_AUTH_CRIT_N ? "bad" : "warn", "ssh_auth", tx("{0} connexions SSH refusées en 24 h", h.ssh_auth.failed_24h));
   if (h.res?.available && (h.res.mem_pct ?? 0) >= 90) add(h.res.mem_pct! >= 97 ? "bad" : "warn", "mem", tx("mémoire utilisée à {0} %", Math.round(h.res.mem_pct!)));
-  if (h.temp?.available && h.temp.celsius! >= 85) add(h.temp.celsius! >= 95 ? "bad" : "warn", "temp", tx("processeur à {0} °C", h.temp.celsius));
+  if (h.temp?.available && h.temp.celsius != null) {   // the server's level: the machine's own threshold, and only once it stays hot (a short peak is not an alert)
+    const level = h.temp.level ?? (h.temp.celsius >= 95 ? "crit" : h.temp.celsius >= 85 ? "warn" : "ok");
+    if (level === "warn" || level === "crit") add(level === "crit" ? "bad" : "warn", "temp", tx("processeur à {0} °C", h.temp.celsius));
+  }
   systemItems(h, add);
   if (h.reboot_required) add("warn", "reboot", tx("redémarrage requis"));
   if (h.apt?.upgradable) add("warn", "updates", tx("{0} mise(s) à jour en attente", h.apt.upgradable));

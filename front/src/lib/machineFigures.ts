@@ -12,10 +12,14 @@ export function fillTone(p: number): FigureTone {
   return p >= 75 ? "warn" : "ok";
 }
 
-/** Tone of a processor temperature, with the thresholds of health.py: orange from 85 °C, red from 95 °C */
-export function tempTone(c: number): FigureTone {
-  if (c >= 95) return "bad";
-  return c >= 85 ? "warn" : "ok";
+type TempReading = { level?: string; warn_c?: number; crit_c?: number; hot_s?: number };
+
+/** Tone of a processor temperature: the level health.py gave (the machine's thresholds, and only once it stays hot),
+ *  else its thresholds or the defaults (orange from 85 °C, red from 95 °C) for a reading without one (Freebox) */
+export function tempTone(c: number, t?: TempReading): FigureTone {
+  if (t?.level) return t.level === "crit" ? "bad" : t.level === "warn" ? "warn" : "ok";
+  if (c >= (t?.crit_c ?? 95)) return "bad";
+  return c >= (t?.warn_c ?? 85) ? "warn" : "ok";
 }
 
 const LEVEL_TONE: Record<string, FigureTone> = { ok: "ok", warn: "warn", crit: "bad", down: "bad" };
@@ -38,8 +42,11 @@ export function machineFigures(h: HealthHost | undefined, uptimeS: number | null
     const free = full.avail_gb != null ? ` · ${tx("{0} Go libres", Math.round(full.avail_gb))}` : "";
     out.push({ key: "disk", label: tx("Disque le plus plein"), value: `${Math.round(full.used_pct)} %`, sub: `${full.mount}${free}`, tone: fillTone(full.used_pct), pct: full.used_pct });
   }
-  const c = h?.temp?.available ? h.temp.celsius : undefined;
-  if (c != null) out.push({ key: "temp", label: tx("Température"), value: `${Math.round(c)} °C`, tone: tempTone(c) });
+  const temp = h?.temp?.available ? h.temp : undefined;
+  if (temp?.celsius != null) {
+    const hot = temp.hot_s ? tx("au-dessus de {0} °C depuis {1}", temp.warn_c ?? 85, dur(temp.hot_s)) : undefined;
+    out.push({ key: "temp", label: tx("Température"), value: `${Math.round(temp.celsius)} °C`, sub: hot, tone: tempTone(temp.celsius, temp) });
+  }
   if (uptimeS) out.push({ key: "uptime", label: tx("En marche depuis"), value: dur(uptimeS), sub: tx("depuis le {0}", dateTime(Date.now() - uptimeS * 1000)), tone: undefined });
   return out;
 }

@@ -100,6 +100,12 @@ describe("à surveiller", () => {
     expect(healthItems(health({ load: { available: true, load_1: 4.5, ncpu: 4 } }))).toEqual([]);
   });
 
+  it("température : le niveau du serveur fait foi (seuil de la machine, chaleur soutenue), les seuils par défaut sans lui", () => {
+    expect(healthItems(health({ temp: { available: true, celsius: 92, level: "ok", hot_s: 60 } }))).toEqual([]);
+    expect(healthItems(health({ temp: { available: true, celsius: 72, level: "warn", warn_c: 70 } })).map((i) => [i.tone, i.kind])).toEqual([["warn", "temp"]]);
+    expect(healthItems(health({ temp: { available: true, celsius: 96 } })).map((i) => [i.tone, i.kind])).toEqual([["bad", "temp"]]);
+  });
+
   it("un contrôle en alerte côté serveur sans détail connu : une phrase générale, jamais un badge muet", () => {
     const items = healthItems(health({ level: "warn", checks: { temp: "warn", disk: "crit" } }));
     expect(items.map((i) => [i.tone, i.kind])).toEqual([["warn", "temp"], ["bad", "disk"]]);

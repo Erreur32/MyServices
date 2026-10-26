@@ -43,11 +43,13 @@ from pathlib import Path
 
 import notify
 from config import CFG, next_timer_run
+import inventory_cache
 from docker_state import allowed_names, intended_stop
 import readers
 from sshmux import SSH_MUX
 
 STATE_FILE = Path(CFG["state_dir"]) / "health.json"
+DOCKER_CACHE = os.path.join(CFG["cache_dir"], "docker.json")   # the collection's Docker inventory (myservices.DOCKER_CACHE): its container states are refreshed here
 CONNECTORS_STATE = Path(CFG["state_dir"]) / "connectors.json"   # shared readings of the connectors (readers.py, the collection)
 OUT_DIR = Path(CFG["web_dir"]) / "health"
 INDEX = OUT_DIR / "index.html"
@@ -115,7 +117,7 @@ def load_hosts(agent_ips: frozenset | set = frozenset()) -> tuple[list[dict], di
         hosts.append({"id": hid, "name": f"{m['name']} · {ip}",  # « Nom · IP » : l'IP est relue par la page
                       "mode": "local" if alias == "local" else "ssh", "target": alias, "vm": bool(m.get("vm")),
                       "os": m.get("os", "linux"), "ip": ip, "off": bool(m.get("off")),
-                      "sources": _list_of(m, "health_sources"), "stopped_ok": _list_of(m, "stopped_ok")})
+                      "sources": _list_of(m, "health_sources"), "stopped_ok": _list_of(m, "stopped_ok"), "temp_warn_c": m.get("temp_warn_c")})
     return hosts, meta
 
 
@@ -280,7 +282,7 @@ def collect_docker(run, stopped_ok=()) -> dict:
     rc, out = run(DOCKER_PS_CMD, timeout=10)
     if rc != 0 or "permission denied" in out.lower() or "cannot connect" in out.lower():
         return {"accessible": False, "reason": out.strip()[:120]}
-    containers, stopped = [], []
+    containers, stopped, states = [], [], {}
     count = dict.fromkeys(("healthy", "unhealthy", "restarting", "exited"), 0)
     for ln in out.strip().splitlines():
         cols = ln.split("|", 2)
@@ -288,6 +290,7 @@ def collect_docker(run, stopped_ok=()) -> dict:
             continue
         name, status, image = cols
         entry = {"name": name, "status": status, "image": image}
+        states[name] = status
         if intended_stop(name, status, allowed):
             stopped.append(entry)
             continue
@@ -304,6 +307,7 @@ def collect_docker(run, stopped_ok=()) -> dict:
         "stopped": len(stopped), "stopped_list": stopped[:10],
         **count, "issues": issues[:10],
         "total_cpu": total_cpu, "avg_cpu": avg_cpu, "top": cstats[:3],
+        "states": states,   # every container with its status: refreshes the Docker inventory cache of the collection (inventory_cache.update_states)
     }
 
 
@@ -430,6 +434,8 @@ def resources_level(res) -> str:
 
 
 TEMP_WARN_C, TEMP_CRIT_C = 85, 95  # °C du processeur ; au-delà, la machine bride ou s'éteint
+TEMP_CRIT_OVER = TEMP_CRIT_C - TEMP_WARN_C   # a machine with its own threshold (temp_warn_c) is critical that many degrees above it
+TEMP_SUSTAIN_S = 600   # hot for less than this (a build, a game loading, a backup): no alert yet, the machine must stay hot
 
 # Capteur du processeur : AMD (k10temp), Intel (coretemp), ARM / Raspberry Pi (cpu_thermal, cpu-thermal), x86_pkg_temp.
 # On ignore acpitz, nvme, amdgpu, wifi : ce ne sont pas le CPU.
@@ -523,11 +529,51 @@ def collect_gpu(run) -> dict:
     return parse_gpu(out) if rc == 0 else {"available": False, "gpus": []}
 
 
+def temp_thresholds(temp) -> tuple[int, int]:
+    """(warn, crit) °C of a machine: its own `warn_c` (machine setting temp_warn_c, put on the reading by track_heat) or the defaults."""
+    warn = temp.get("warn_c") if isinstance(temp, dict) else None
+    warn = warn if isinstance(warn, int) and not isinstance(warn, bool) else TEMP_WARN_C
+    return warn, warn + TEMP_CRIT_OVER
+
+
 def temp_level(temp) -> str:
+    """Level of a processor temperature: « ok » under the machine's threshold, and also while it has been hot for less than
+    TEMP_SUSTAIN_S (`hot_s`, counted by track_heat): a short peak is not an alert, a machine that stays hot is."""
     c = temp.get("celsius") if isinstance(temp, dict) else None
     if not isinstance(c, (int, float)):
         return "na"
-    return "crit" if c >= TEMP_CRIT_C else "warn" if c >= TEMP_WARN_C else "ok"
+    warn, crit = temp_thresholds(temp)
+    if c < warn:
+        return "ok"
+    hot_s = temp.get("hot_s")
+    if isinstance(hot_s, (int, float)) and hot_s < TEMP_SUSTAIN_S:
+        return "ok"
+    return "crit" if c >= crit else "warn"
+
+
+def track_heat(h: dict, warn_c, prev_since, now: float) -> None:
+    """Writes on a machine's temperature what temp_level() and the pages need: its thresholds (`warn_c`, `crit_c`), since when
+    it is above the warning one (`hot_since`, kept from the previous pass through health.json, and `hot_s` the seconds so far)
+    and the resulting `level`. A machine back under the threshold forgets when it was hot."""
+    temp = h.get("temp")
+    if not isinstance(temp, dict):
+        return
+    if isinstance(warn_c, int) and not isinstance(warn_c, bool):
+        temp["warn_c"] = warn_c
+    temp["warn_c"], temp["crit_c"] = temp_thresholds(temp)
+    c = temp.get("celsius")
+    if isinstance(c, (int, float)) and c >= temp["warn_c"]:
+        temp["hot_since"] = prev_since if isinstance(prev_since, (int, float)) else now
+        temp["hot_s"] = max(0, round(now - temp["hot_since"]))
+    else:
+        temp.pop("hot_since", None)
+        temp.pop("hot_s", None)
+    temp["level"] = temp_level(temp)
+
+
+def hot_since_of(hosts: list[dict]) -> dict:
+    """{host id: epoch since when it is hot}, kept in health.json for the next pass (a pass of one machine keeps the others' from stats.json)."""
+    return {h["id"]: h["temp"]["hot_since"] for h in hosts if isinstance(h.get("temp"), dict) and h["temp"].get("hot_since") is not None}
 
 
 def collect_ssh_auth(run) -> dict:
@@ -2121,6 +2167,11 @@ def main() -> int:
         except (OSError, ValueError):
             pass
     asleep = []
+    try:  # état du passage précédent : sans lui, 1er passage = référence, aucun événement
+        prev_state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        prev_state = {}
+    prev_levels, prev_hot, now = prev_state.get("levels", {}), prev_state.get("hot", {}), time.time()
     apis = api_systems(meta, cached_only=bool(only))
     # Beszel is read for a whole pass, or for the one machine asked for (even a « often off » one: Beszel may be telling it is up)
     needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc, agents.get(hc["ip"])) for hc in candidates if not only or hc["ip"] == only)
@@ -2137,6 +2188,11 @@ def main() -> int:
             if hc["off"]:  # poste « souvent éteint » sans relevé : sa fiche reste, grisée, sans alerte ni événement
                 asleep.append(asleep_entry(hc, agents.get(hc["ip"])))
             continue
+        track_heat(h, hc.get("temp_warn_c"), prev_hot.get(h["id"]), now)
+        if not dry and isinstance(h.get("docker"), dict) and h["docker"].get("states"):   # fresh `docker ps -a`: the services keep the real container states between two inventories
+            inventory_cache.update_states(DOCKER_CACHE, hc["ip"], h["docker"]["states"])
+        if h.get("reachable") and "disks" in h:   # the temperature level may have changed with the machine's threshold or the duration
+            h["level"] = host_level(h)
         if h.get("sources"):
             print("  sources : " + " + ".join(h["sources"]))
         print(f"  → {h['level'].upper()}" + ("" if h["reachable"] else " (injoignable)"))
@@ -2158,10 +2214,6 @@ def main() -> int:
         return 0
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    try:  # état du passage précédent : sans lui, 1er passage = référence, aucun événement
-        prev_levels = json.loads(STATE_FILE.read_text(encoding="utf-8")).get("levels", {})
-    except (OSError, ValueError):
-        prev_levels = {}
     record_events(hosts, prev_levels, ts)
     STATS_JSON.write_text(json.dumps(stats, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     INDEX.write_text(render_html(stats), encoding="utf-8")
@@ -2189,7 +2241,7 @@ def main() -> int:
 
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"last_run": ts, "overall_level": overall,
-                                      "levels": {h["id"]: h["level"] for h in hosts}}, indent=2), encoding="utf-8")
+                                      "levels": {h["id"]: h["level"] for h in hosts}, "hot": hot_since_of(hosts)}, indent=2), encoding="utf-8")
     return 0
 
 

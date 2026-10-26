@@ -371,7 +371,8 @@ export interface HealthHost {
   system?: HostSystem;   // services and storage of a Linux machine (SSH or Linux agent); a part not on the machine has available false
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
   gpu?: { available: boolean; gpus: { name: string; util: number | null; temp: number | null; mem_used: number | null; mem_total: number | null; power: number | null }[] };   // nvidia-smi / rocm-smi (SSH or Linux agent)
-  temp?: { available: boolean; celsius?: number; source?: string; virt?: string; sensors?: { name: string; celsius: number }[] };  // température du processeur (capteur de la machine ou Beszel)
+  temp?: { available: boolean; celsius?: number; source?: string; virt?: string; sensors?: { name: string; celsius: number }[];
+    level?: "ok" | "warn" | "crit" | "na"; warn_c?: number; crit_c?: number; hot_since?: number; hot_s?: number };  // processor temperature (machine sensor or Beszel); level by health.py: the machine's thresholds, and only once it stays hot
   ssh_auth?: { failed_24h: number; available: boolean };
   logs?: { available: boolean; files: { path: string; mb: number }[]; journal_mb: number | null };   // biggest files of /var/log and the systemd journal
   smart?: { accessible: boolean; disks: { device: string; healthy: boolean; failed?: boolean }[]; vm?: boolean };
@@ -657,6 +658,7 @@ export interface MachineConf {
   vm?: boolean;
   adguard?: string;
   adguard_sync?: string;
+  temp_warn_c?: number;          // processor warning threshold of this machine (°C); absent: health.py's default
   [k: string]: unknown;
 }
 export interface SshAlias { alias: string; host: string; ip: string | null; user?: string; port?: number }
