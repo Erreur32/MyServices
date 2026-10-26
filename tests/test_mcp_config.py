@@ -88,6 +88,23 @@ class McpMachines(unittest.TestCase):
         self.assertIn("network_get", call(Ctx(), "machines_config", {"action": "help"})["result"]["structuredContent"]["actions"])
 
 
+class McpSettings(unittest.TestCase):
+    def test_settings_config_is_an_admin_tool_off_by_default(self):
+        info = {t["name"]: t for t in mcp_server.tools_info({})}
+        self.assertEqual((info["settings_config"]["level"], info["settings_config"]["enabled"]), ("admin", False))
+
+    def test_settings_config_leaves_out_what_is_sensitive(self):
+        routes = " ".join(path for _, path in mcp_server.CONFIG["settings_config"].values())
+        for left_out in ("export", "import", "logs", "/tokens", "ssh"):
+            self.assertNotIn(left_out, routes)
+
+    def test_settings_config_runs_the_page_routes(self):
+        ctx = Ctx(out={"ok": True})
+        call(ctx, "settings_config", {"action": "mail_set", "params": {"host": "smtp.example.org", "security": "starttls"}})
+        call(ctx, "settings_config", {"action": "channel_test", "params": {"cid": 3}})
+        self.assertEqual(ctx.calls, [("PUT", "/system/mail", {"host": "smtp.example.org", "security": "starttls"}), ("POST", "/alerts/channels/{cid}/test", {"cid": 3})])
+
+
 class McpHealth(unittest.TestCase):
     def test_health_says_why_a_host_is_not_ok(self):
         with tempfile.TemporaryDirectory() as web:

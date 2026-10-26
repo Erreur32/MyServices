@@ -117,6 +117,12 @@ class Tokens(unittest.TestCase):
         self.assertFalse(tool("machines_config", {"action": "list"}).get("isError"))
         self.assertFalse(tool("machines_config", {"action": "network_get"}).get("isError"))
         self.assertIn("ip", tool("machines_config", {"action": "check", "params": {}})["content"][0]["text"])
+        self.c.patch("/myservices/api/v1/tokens/tools/settings_config", json={"enabled": True}, headers=self.h)
+        settings = tool("settings_config", {"action": "help"})["structuredContent"]["actions"]
+        self.assertIn("mail_set", settings)   # each one a real route: help would fail on a wrong path
+        for read in ("mail_get", "tasks_list", "live_get", "updates_get", "alerts_list"):
+            self.assertFalse(tool("settings_config", {"action": read}).get("isError"), read)
+        self.assertIn("cid", tool("settings_config", {"action": "channel_delete", "params": {}})["content"][0]["text"])
         who = {e["username"] for e in self.c.get("/myservices/api/v1/audit").json()["audit"]}
         self.assertIn("mcp:t-mcp-admin", who)   # audited as the token, like from the page
 
