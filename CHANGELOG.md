@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.25.0 (2026-10-26)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **MCP, reading a server without its pages**: a new read tool `get_backups` gives the Backups page as data (each set with its level, why it is not « ok », and every place with its age; problems first, `problems_only`, `query`). `status` now says the running version, the server time and the state of every task (enabled, next run, last result). `get_health` carries SMART per disk and its source, Docker (containers stopped on purpose, issues), temperature and pending updates, with the source each reading came from, and takes a `query`. `list_services` shows the Docker state of the container behind a service and whether it is stopped on purpose, and filters on one `status`. `list_machines` carries the machine's « containers stopped on purpose » and takes a `query`.
 - **MCP, `machines_config` action `patch`** (route `PATCH /machines/settings/{ip}`): change some fields of a declared machine and keep the others. `save` takes the whole record, so a script that only meant to set one option had to send the name, the role and the SSH access again. A field set to null is removed.
