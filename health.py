@@ -109,7 +109,8 @@ def load_hosts(agent_ips: frozenset | set = frozenset()) -> tuple[list[dict], di
         hosts.append({"id": hid, "name": f"{m['name']} · {ip}",  # « Nom · IP » : l'IP est relue par la page
                       "mode": "local" if alias == "local" else "ssh", "target": alias, "vm": bool(m.get("vm")),
                       "os": m.get("os", "linux"), "ip": ip, "off": bool(m.get("off")),
-                      "sources": m.get("health_sources") if isinstance(m.get("health_sources"), list) else []})
+                      "sources": m.get("health_sources") if isinstance(m.get("health_sources"), list) else [],
+                      "stopped_ok": m.get("stopped_ok") if isinstance(m.get("stopped_ok"), list) else []})
     return hosts, meta
 
 
@@ -240,8 +241,10 @@ def collect_systemd(run) -> dict:
     return info
 
 
-def collect_docker(run) -> dict:
-    """Best effort : gracieux si pas d'accès au socket docker (retourne accessible: False)."""
+def collect_docker(run, stopped_ok=()) -> dict:
+    """Best effort : gracieux si pas d'accès au socket docker (retourne accessible: False).
+    stopped_ok : noms de conteneurs que l'on laisse arrêtés exprès (réglage de la machine), quel que soit leur code de sortie."""
+    allowed = {str(n).lower() for n in stopped_ok or ()}
     rc, out = run(DOCKER_PS_CMD, timeout=10)
     if rc != 0 or "permission denied" in out.lower() or "cannot connect" in out.lower():
         return {"accessible": False, "reason": out.strip()[:120]}
@@ -254,7 +257,9 @@ def collect_docker(run) -> dict:
         name, status, image = cols
         # Arrêt voulu : jamais démarré (Created) ou arrêté proprement (docker stop / compose down :
         # code 0, 143 SIGTERM, 137 SIGKILL après délai). Pas une panne, affiché à part.
-        if status.startswith("Created") or re.match(r"Exited \((0|137|143)\)", status):
+        # Un conteneur de la liste « peut rester arrêté » : même un code 1 (appli qui sort en erreur sur SIGTERM) est un arrêt voulu.
+        if (status.startswith("Created") or re.match(r"Exited \((0|137|143)\)", status)
+                or (name.lower() in allowed and status.startswith("Exited"))):
             stopped.append({"name": name, "status": status, "image": image})
             continue
         if "Restarting" in status:
@@ -1580,7 +1585,7 @@ def collect_linux(host: dict, run) -> dict:
     """Santé d'une machine Linux joignable : `run` exécute les commandes (SSH, local) ou les rejoue (relevé d'agent)."""
     disks = collect_disks(run)
     systemd = collect_systemd(run)
-    docker = collect_docker(run)
+    docker = collect_docker(run, host.get("stopped_ok"))
     apt = collect_apt(run)
     kernel = collect_kernel_errors(run)
     reboot_required = collect_reboot_required(run)

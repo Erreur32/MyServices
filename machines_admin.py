@@ -31,6 +31,7 @@ import setup
 # Champs d'une machine réglables depuis la page (le reste du fichier est gardé tel quel)
 FLAGS = ("off", "gateway", "npm", "npm_only", "vm", "disabled")
 TEXT = ("name", "role", "ssh", "adguard", "adguard_sync", "health", "os", "icon")
+STOPPED_OK_MAX = 30  # containers that may stay stopped, per machine
 HEALTH_SOURCES = ("ssh", "agent", "beszel")  # priorité de lecture de la santé (health.py : source_order)
 NAME_MAX = 80
 ROLE_MAX = 200  # le rôle est une liste d'étiquettes (« Docker, SSH, partage SMB ») gardée en texte
@@ -263,6 +264,11 @@ def _clean(m: dict) -> dict:
         if not isinstance(src, list) or any(x not in HEALTH_SOURCES for x in src):
             raise MachineError("priorité de la santé : ssh, agent, beszel")
         out["health_sources"] = list(dict.fromkeys(src))
+    ok = m.get("stopped_ok")
+    if ok:
+        if not isinstance(ok, list) or len(ok) > STOPPED_OK_MAX or any(not isinstance(x, str) or not re.fullmatch(r"[\w][\w.-]{0,127}", x.strip()) for x in ok):
+            raise MachineError(f"conteneurs autorisés à rester arrêtés : {STOPPED_OK_MAX} noms au plus (lettres, chiffres, _ . -)")
+        out["stopped_ok"] = list(dict.fromkeys(x.strip() for x in ok))
     if not out.get("name"):
         raise MachineError("nom requis")
     known = {a["alias"] for a in aliases()} | {"local"}
@@ -349,7 +355,7 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     machines = meta.setdefault("machines", {})
     old = machines.get(ip, {})
     new = _clean(m)
-    keep = {k: v for k, v in old.items() if k not in TEXT + FLAGS + ("health_sources",)}  # réglages hors page (ex. health détaillé)
+    keep = {k: v for k, v in old.items() if k not in TEXT + FLAGS + ("health_sources", "stopped_ok")}  # réglages hors page (ex. health détaillé)
     machines[ip] = {**keep, **new}
     if old.get("ssh") != new.get("ssh"):
         expire_inventory(ip)
