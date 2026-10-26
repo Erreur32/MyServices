@@ -62,11 +62,11 @@ function fullDisk(h: HealthHost): string {
 /** Machines tab filtered on the Santé facet: the machines whose health is not « ok », the ones the menu's dot lists */
 const HEALTH_SEL: Selected = { health: ["warn", "crit", "down"] };
 
-/** What a click on a menu dot filters its page on, by menu entry: exactly what the dot's tooltip lists (the « Alertes » facets of
- *  Machines and Services are wider: the « À surveiller » column, and the services that are OK with a remark), so the dot and the list
- *  agree. An entry absent here (Connecteurs) opens on its address. */
+/** What a click on a menu dot filters its page on, by menu entry: exactly what the dot's tooltip lists, so the dot and the list agree.
+ *  Machines: the Santé facet, not « Alertes » (the wider « À surveiller » column); Services: its « Alertes » facet (down or warning, not
+ *  hidden from the alerts, see tabs/Services alerting). An entry absent here (Connecteurs) opens on its address. */
 export const DOT_FILTER: Partial<Record<string, Selected>> = {
-  machines: HEALTH_SEL, services: { status: ["bad", "warn"] }, network: { alert: ["on"] }, backups: { alerts: ["on"] }, dns: { alerts: ["on"] },
+  machines: HEALTH_SEL, services: { alert: ["on"] }, network: { alert: ["on"] }, backups: { alerts: ["on"] }, dns: { alerts: ["on"] },
 };
 
 /** Liste « à regarder » : rouge d'abord, puis orange, dans l'ordre des onglets. */

@@ -24,7 +24,7 @@ import { ManualActions, ManualService, type ManualInitial } from "../components/
 import { StatTile } from "../components/StatTile";
 import { TargetChanged } from "../components/TargetChanged";
 import { quiet } from "../lib/forms";
-import { figures, liveChecks, mergePorts, toWatch } from "../lib/servicesState";
+import { figures, mergePorts, toWatch } from "../lib/servicesState";
 import { HeadTags } from "../components/HeadTags";
 import { isHidden, serviceKey, setServiceHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidden";
 
@@ -277,13 +277,15 @@ const openService = (r: Host) => { location.hash = servicePage("item", r); };
 
 /** In alert, as the menu's dot counts it: down, in warning or with a point to check, unless hidden from the alerts */
 const alertMark = () => <Dot tone="bad" />;
-const alerting = (r: Host, hidden: HiddenMap) => { const c = status(r)[0]; return (c === "bad" || c === "warn" || liveChecks(r).length > 0) && !isHidden(r, hidden); };
+/** A service in alert, as the menu's dot and the home page count them: down or with a warning, not hidden from the alerts. A service that is
+ *  OK with a remark (certificate, web check…) is under « À vérifier », not here. */
+export const alerting = (r: Host, hidden: HiddenMap): boolean => { const c = status(r)[0]; return (c === "bad" || c === "warn") && !isHidden(r, hidden); };
 
 export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
   const hiddenMap = useServicesHidden();
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const facets = useMemo((): Facet<Host>[] => [
-    { key: "alert", label: tx("Alertes"), get: (r) => (alerting(r, hiddenMap) ? "on" : ""), name: () => tx("en alerte"), mark: alertMark },   // the old « To watch » address (#services/watch); the menu's dot filters on the state (DOT_FILTER)
+    { key: "alert", label: tx("Alertes"), get: (r) => (alerting(r, hiddenMap) ? "on" : ""), name: () => tx("en alerte"), mark: alertMark },   // ticked by the menu's dot (DOT_FILTER) and the old « To watch » address
     { key: "src", label: tx("Source"), get: (r) => (r.type === "local" ? "local" : "npm"), name: (v) => (v === "npm" ? "NPM" : tx("Services")), order: ["npm", "local"],
       mark: (v) => (v === "npm" ? <Logo src={`${import.meta.env.BASE_URL}icons/nginx-proxy-manager.svg`} /> : <Dot tone="info" />) },
     { key: "status", label: tx("État"), get: (r) => status(r)[0], name: (v) => ST_NAME[v] || v, order: ["bad", "warn", "ok", "off"], mark: (v) => <Dot tone={v as Tone} /> },

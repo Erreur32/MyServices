@@ -13,8 +13,8 @@ describe("pastille du menu : le clic montre ce que la bulle liste", () => {
     expect(DOT_FILTER.machines).toEqual({ health: ["warn", "crit", "down"] });   // not the « Alertes » facet (the wider « À surveiller » column)
   });
 
-  it("services : l'état en panne ou avertissement, pas les services OK avec une remarque", () => {
-    expect(DOT_FILTER.services).toEqual({ status: ["bad", "warn"] });
+  it("services : la facette « en alerte » de la page (en panne ou avertissement, non masqué)", () => {
+    expect(DOT_FILTER.services).toEqual({ alert: ["on"] });
   });
 
   it("connecteurs : la pastille va sur l'entrée Connecteurs, un Docker illisible sur Machines", () => {
