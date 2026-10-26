@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.24.0 (2026-10-26)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **MCP, `settings_config`** (admin, off until switched on in Settings › API and MCP): the general settings from an AI assistant, through the routes of the Settings pages: e-mail sending (read, set, send a test), the schedule of each task, the pulse and the fast connectors, the automatic check for updates, and the alerts (channels with a test message, rules, presets). Left out on purpose: the configuration export and import, the container log, the app's SSH key, accounts and tokens. The test e-mail goes to the account that created the token (a token has no address of its own). The `*_config` tools no longer return the 200 KB changelog that the update route carries.
 

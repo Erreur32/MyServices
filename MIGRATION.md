@@ -5,6 +5,14 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.23.0 → 0.24.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **MCP, optional**: a sixth admin tool, `settings_config`, is **off** until you switch it on in Settings › API and MCP (the other `*_config` tools keep the switch you gave them). Its changes are in the audit log as `mcp:<token name>`.
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: a machine whose only kernel notice was the Samba line `CIFS: VFS: Autodisabling the use of server inode numbers` goes back to « ok » at the next health run. Mounting the share with `noserverino` also stops the line at the source.
+
 ## 0.22.1 → 0.23.0
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
