@@ -370,8 +370,8 @@ class Agents(unittest.TestCase):
                           {"p": 8080, "a": "0.0.0.0", "n": "node"}, {"p": 135, "a": "0.0.0.0", "n": "svchost"},
                           {"p": 49670, "a": "0.0.0.0", "n": "lsass"}, {"p": 32400, "a": "::", "n": "Plex Media Server"}, {"p": "x"}]}
         rep = {**REPORT, "data": data}
-        self.assertEqual(agents.ports_of(rep), {445: {"name": "System", "lan": True}, 8080: {"name": "node", "lan": True},
-                                               32400: {"name": "Plex Media Server", "lan": True}})
+        self.assertEqual(agents.ports_of(rep), {445: {"name": "System", "lan": True, "addr": "0.0.0.0"}, 8080: {"name": "node", "lan": True, "addr": "0.0.0.0"},
+                                               32400: {"name": "Plex Media Server", "lan": True, "addr": "::"}})
         s = agents.system_of(rep)
         self.assertEqual((s["os"], s["kernel"]), ("Microsoft Windows 11 Professionnel", "10.0.26100 (build 26100)"))
         self.assertGreater(s["uptime_s"], 0)

@@ -242,6 +242,7 @@ NOISE_PORTS = {135, 139, 5040}
 def ports_of(report: dict | None) -> dict[int, dict]:
     """Ports TCP à l'écoute d'un relevé d'agent : {port: {"name": processus, "lan": joignable depuis le réseau}} (même forme que
     connectors/process.py). Les ports de bouclage seuls ne sont pas « lan » ; les ports dynamiques et le bruit Windows sont écartés."""
+    from connectors import process
     out: dict[int, dict] = {}
     for it in ((report or {}).get("data") or {}).get("ports") or []:
         try:
@@ -250,10 +251,17 @@ def ports_of(report: dict | None) -> dict[int, dict]:
             continue
         if not 1 <= port < 49152 or port in NOISE_PORTS:
             continue
-        lan = not addr.startswith(("127.", "::1"))
-        cur = out.setdefault(port, {"name": name or f"port {port}", "lan": lan})
-        cur["lan"] = cur["lan"] or lan
+        process.bind(out.setdefault(port, {"name": name or f"port {port}", "lan": False}), addr)
     return out
+
+
+def docker_states(report: dict | None) -> dict[str, str] | None:
+    """{container: status} of a Linux agent report (the `docker ps -a` of the health reading, run every minute); None without it."""
+    import docker_state
+    import health
+    data = (report or {}).get("data") or {}
+    got = (data.get("cmds") or {}).get(health.DOCKER_PS_CMD) if data.get("kind") == "linux" else None
+    return docker_state.parse_states(got[1]) if isinstance(got, list) and len(got) == 2 and got[0] == 0 else None
 
 
 def docker_of(report: dict | None) -> list[dict] | None:

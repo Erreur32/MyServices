@@ -596,7 +596,7 @@ class ProcessTests(unittest.TestCase):
                          [("process", "10.0.0.2", "pve"), ("process", "10.0.0.9", "10.0.0.9")])
         c = [c for c in conns if c.type == "process"][0]
         with mock.patch.object(pr.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, out, "")):
-            self.assertEqual(c.collect()["ports"], {8006: {"name": "pveproxy", "lan": True}, 85: {"name": "pvedaemon", "lan": False}})
+            self.assertEqual(c.collect()["ports"], {8006: {"name": "pveproxy", "lan": True, "addr": "0.0.0.0"}, 85: {"name": "pvedaemon", "lan": False, "addr": "127.0.0.1"}})
         with mock.patch.object(pr.subprocess, "run", return_value=subprocess.CompletedProcess([], 255, "", "Permission denied (publickey).")):
             with self.assertRaises(ConnectorError) as e:
                 c.collect()

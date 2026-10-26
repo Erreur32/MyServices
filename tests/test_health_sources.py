@@ -211,3 +211,17 @@ class BeszelExtras(unittest.TestCase):
         self.assertEqual((h["temp"]["celsius"], h["temp"]["sensors"], h["sources"]), (48.0, [{"name": "core", "celsius": 51.0}], ["ssh", "beszel"]))
         h = health.read_host(host, None, sys_, ssh=ssh_ok)
         self.assertEqual((h["temp"]["celsius"], h["temp"]["source"]), (51.0, "Beszel"))
+
+
+@unittest.skipIf(health is None, "dépendances absentes : tests à lancer dans l'image")
+class BeszelSmart(unittest.TestCase):
+    def test_a_disk_beszel_cannot_read_is_not_a_failure(self):
+        """Beszel reports « UNKNOWN » (temperature and hours at 0) for a disk it cannot query: the disk is left out, not counted as failed."""
+        sys_ = {"smart": [{"name": "/dev/nvme0n1", "state": "UNKNOWN", "temp": 0, "hours": 0}]}
+        self.assertEqual(health.smart_from_beszel(sys_), {"accessible": False, "source": "beszel", "disks": []})
+
+    def test_readable_disks_are_kept_next_to_an_unreadable_one(self):
+        sys_ = {"smart": [{"name": "/dev/sda", "state": "PASSED"}, {"name": "/dev/sdb", "state": "FAILED"}, {"name": "/dev/nvme0n1", "state": "UNKNOWN"}]}
+        out = health.smart_from_beszel(sys_)
+        self.assertTrue(out["accessible"])
+        self.assertEqual([(d["device"], d["healthy"], d["failed"]) for d in out["disks"]], [("/dev/sda", True, False), ("/dev/sdb", False, True)])

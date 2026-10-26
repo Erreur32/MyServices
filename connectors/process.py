@@ -50,8 +50,31 @@ def parse_listening(out: str):
         if m and not p and int(m.group(2)) not in NOISE_PORTS:
             hidden.add(int(m.group(2)))
         if m and p and p.group(1) not in NOISE_PROCS:
-            ports.setdefault(int(m.group(2)), {"name": p.group(1), "lan": not m.group(1).startswith(("127.", "[::1]"))})
+            bind(ports.setdefault(int(m.group(2)), {"name": p.group(1), "lan": False}), m.group(1))
     return ports, len(hidden - set(ports))
+
+
+ANY_ADDR = ("*", "0.0.0.0", "[::]", "::", "")   # listens on every interface: reachable through the machine's IP
+LOOPBACK = ("127.", "[::1]", "::1")
+
+
+def bind(port: dict, addr: str) -> dict:
+    """Records the listen address of a port (`addr`) on its entry: `lan` once an address is not loopback, and `addr` the widest
+    one seen (any-address first), so a process bound on a bridge or a container network (172.30.0.3) keeps that address."""
+    loop = addr.startswith(LOOPBACK)
+    port["lan"] = port["lan"] or not loop
+    if "addr" not in port or (addr in ANY_ADDR and port["addr"] not in ANY_ADDR) or (port["addr"].startswith(LOOPBACK) and not loop):
+        port["addr"] = addr
+    return port
+
+
+def internal_bind(addr: str | None, ip: str) -> bool:
+    """True when a port is bound to an address the collector cannot reach through the machine's IP: not any-address, not the
+    machine itself, not loopback (an Apache behind Anubis listening on a Docker bridge). The probe then has nothing to say."""
+    if not addr or addr in ANY_ADDR:
+        return False
+    a = addr.strip("[]").split("%")[0]
+    return a not in (ip, f"::ffff:{ip}") and not a.startswith(LOOPBACK)
 
 
 def host_ports() -> dict:

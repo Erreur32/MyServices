@@ -47,7 +47,7 @@ function Line({ it, go, goFilter }: Readonly<{ it: Attention; go: (t: TabId) => 
       <span className="min-w-0 flex-1 text-sm text-muted"><Rich text={it.text} /></span>
       <span className="hidden rounded-md border border-line px-1.5 py-0.5 text-[11px] text-dim sm:inline">{KIND[it.category]}</span>
       <button type="button" onClick={() => openAttention(it, go, goFilter)}
-        className={`${ACT} ${crit ? "bg-link text-bg hover:brightness-110" : "border border-line bg-bg2 text-txt hover:border-link hover:text-link"}`}>{it.action}</button>
+        className={`${ACT} ${crit ? "bg-accent text-white hover:brightness-110" : "border border-line bg-bg2 text-txt hover:border-link hover:text-link"}`}>{it.action}</button>
     </li>
   );
 }

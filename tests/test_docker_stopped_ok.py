@@ -72,5 +72,40 @@ class StoppedOkSetting(unittest.TestCase):
                 machines_admin._clean({"name": "Jarvis", "stopped_ok": bad})
 
 
+@unittest.skipIf(machines_admin is None, "machines_admin.py needs its dependencies (run in the image)")
+class MachinePatch(unittest.TestCase):
+    """patch() changes some fields and keeps the rest of the record: save() alone takes the whole page record."""
+    JARVIS = {"name": "Jarvis", "role": "Ollama, SSH, Docker", "ssh": "jarvis", "icon": "server", "vm": True, "notes": "kept"}
+
+    def run_patch(self, fields, machines=None):
+        with tempfile.TemporaryDirectory() as t:
+            meta = Path(t) / "meta.json"
+            meta.write_text(json.dumps({"machines": machines or {"10.0.0.2": self.JARVIS}, "process_hosts": {}, "extra": []}), encoding="utf-8")
+            with mock.patch.object(machines_admin.setup, "META", meta), mock.patch.object(machines_admin, "aliases", return_value=[{"alias": "jarvis"}]), \
+                    mock.patch.object(machines_admin, "expire_inventory"):
+                got = machines_admin.patch("10.0.0.2", fields)
+                return got, json.loads(meta.read_text(encoding="utf-8"))["machines"]["10.0.0.2"]
+
+    def test_one_field_changes_and_the_others_stay(self):
+        got, stored = self.run_patch({"stopped_ok": ["koboldcpp"]})
+        self.assertEqual(got, stored)
+        self.assertEqual({k: stored[k] for k in ("name", "role", "ssh", "icon", "vm", "notes")}, self.JARVIS)
+        self.assertEqual(stored["stopped_ok"], ["koboldcpp"])
+
+    def test_null_removes_a_field(self):
+        _, stored = self.run_patch({"icon": None, "role": "Ollama"})
+        self.assertNotIn("icon", stored)
+        self.assertEqual((stored["role"], stored["name"]), ("Ollama", "Jarvis"))
+
+    def test_refusals(self):
+        for fields in ({}, {"colour": "red"}, {"stopped_ok": "koboldcpp"}, None):
+            with self.assertRaises(machines_admin.MachineError, msg=str(fields)):
+                self.run_patch(fields)
+        with self.assertRaises(machines_admin.MachineError):   # a machine nobody declared is not created by a patch
+            self.run_patch({"role": "x"}, machines={"10.0.0.9": self.JARVIS})
+        with self.assertRaises(machines_admin.MachineError):
+            machines_admin.patch("not-an-ip", {"role": "x"})
+
+
 if __name__ == "__main__":
     unittest.main()

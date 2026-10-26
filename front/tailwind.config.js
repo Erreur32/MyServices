@@ -10,7 +10,7 @@ export default {
       colors: {
         bg: v("bg"), bg2: v("bg2"), card: v("card"), line: v("line"),
         txt: v("txt"), muted: v("muted"), dim: v("dim"),
-        ok: v("ok"), warn: v("warn"), bad: v("bad"), link: v("link"),
+        ok: v("ok"), warn: v("warn"), bad: v("bad"), link: v("link"), accent: v("accent"),
         npm: v("npm"), loc: v("loc"), apache: v("apache"),
       },
       fontFamily: { mono: ["ui-monospace", "Menlo", "monospace"] },

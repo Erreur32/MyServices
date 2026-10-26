@@ -45,10 +45,12 @@ from pathlib import Path
 
 import connectors
 import readers
+import docker_state
 from docker_state import allowed_names, intended_stop
 import connectors.base as cbase
 from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
+from connectors import process
 from connectors.process import host_ports
 import esxi_ssh
 import virt_ssh
@@ -1048,6 +1050,10 @@ def main():
                 internal[ip] = inv["internal"]
             if inv["ports"]:
                 agent_ports[ip] = inv["ports"]
+            if dock.get(ip) and (states := agents.docker_states(a["report"])) is not None:   # the report's `docker ps -a`: real states now, inventory kept
+                dock[ip], roster_changed = docker_state.refresh_states(dock[ip], states)
+                if roster_changed:   # a container came or went since the inventory: this machine is read again next time (`changed` is the ping set)
+                    inventory_cache.mark_stale(DOCKER_CACHE, ip)
     # Vhosts Apache : (ip, port, nom) -> vhost ; Apache sert des fichiers locaux derrière NPM
     vhost_by = {}
     for ip, info in hinfo.items():
@@ -1279,6 +1285,9 @@ def main():
                 used.add((ip, port))
                 rows.append(row("local", f"{ip}:{port}", ip, port, name=p["name"],
                                 service=None if p.get("port_only") else {"kind": "process", "name": p["name"]}))
+                if process.internal_bind(p.get("addr"), ip):   # bound to a bridge or container address: the collector cannot reach it, the process is up (seen by ss)
+                    rows[-1].update(internal=True, listen_addr=p["addr"], ssh_active=True,
+                                    machine_role=" · ".join(filter(None, (rows[-1]["machine_role"], f'{p["name"]} écoute seulement sur {p["addr"]}'))))
     for ip, info in hinfo.items():
         if not (info and info.get("apache")):
             continue
@@ -1290,7 +1299,7 @@ def main():
                                 service={"kind": "apache", "name": "apache2" + (" · " + ", ".join(names) if names else ""),
                                          "match": "port"}))
                 addr = info.get("apache_listen_addr", {}).get(str(port))
-                if addr and addr not in ("0.0.0.0", "*", "[::]", ip):  # lié à une IP interne : pas de sonde depuis le collecteur
+                if process.internal_bind(addr, ip):  # lié à une IP interne : pas de sonde depuis le collecteur
                     rows[-1].update(internal=True, listen_addr=addr, ssh_active=True,  # apache2 actif (systemctl, via SSH)
                                     machine_role=rows[-1]["machine_role"] + f" · Apache écoute seulement sur {addr}")
     rows.extend(nginx_rows(hinfo, used))
@@ -1383,6 +1392,11 @@ def main():
         same_target = last_known_services.mark_target_change(r, prev)   # target changed: dated, and the old name is not kept
         if not s and same_target and prev["service"] and r["enabled"] and not r.get("backend", {}).get("up"):
             r["service"] = s = {**prev["service"], "stale": True}  # backend muet : dernière identification connue
+            c = by_name.get(r.get("host_ip") or r["ip"], {}).get(str(s.get("name") or "").lower()) if s.get("kind") == "docker" else None
+            if c:   # the container is still there (stopped, no published port any more): its state now, not the remembered one
+                s["state"] = c["status"]
+                if reason := stopped_on_purpose(r, machine_stopped_ok(r.get("host_ip") or r["ip"])):   # « Created », clean exit: an intended stop, not a failure
+                    r["stopped"] = reason
         m = r.pop("_meta") or meta_for(r)
         r["category"] = m.get("category") or categorize(" ".join(r["domains"]), r.get("name"), s.get("name"),
                                                          s.get("image"), s.get("title"), r["page_title"])

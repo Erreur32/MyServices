@@ -4,7 +4,7 @@
 // Les réglages de chaque machine sont dans sa page (#machines/<ip>) ; ici, trois sous-pages du menu Machines : ajouter et détecter,
 // les appareils vus par les outils et pas suivis, les agents. La clé refusée par une machine est signalée sur la page de la clé SSH.
 import { NetworkSettings } from "./NetworkSettings";
-import { Box, Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Trash2 } from "lucide-react";
+import { Box, Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Thermometer, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -1057,6 +1057,33 @@ function StoppedOkSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
   );
 }
 
+const TEMP_MIN = 50, TEMP_MAX = 110, TEMP_DEFAULT = 85;   // °C, as machines_admin.py accepts them
+
+/** Processor temperature threshold of this machine: health warns above it once the machine stays hot (critical 10 °C higher) */
+function TempSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
+  const { v, ss, autoSave } = ctx;
+  const cur = typeof v.temp_warn_c === "number" ? v.temp_warn_c : null;
+  const [draft, setDraft] = useState(cur == null ? "" : String(cur));
+  useEffect(() => setDraft(cur == null ? "" : String(cur)), [cur]);
+  const commit = () => {
+    const n = draft.trim() === "" ? null : Number(draft);
+    if (n != null && (!Number.isInteger(n) || n < TEMP_MIN || n > TEMP_MAX)) { setDraft(cur == null ? "" : String(cur)); return; }
+    if (n !== cur) void autoSave("temp_warn_c", { temp_warn_c: n ?? undefined });
+  };
+  return (
+    <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4" aria-label={tx("Seuil de température")}>
+      <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Thermometer size={13} className="text-link" aria-hidden />{tx("Seuil de température")}</h4>
+      <InfoNote className="mb-3">{tx("Au-dessus de ce seuil, le processeur met la machine « à surveiller » (critique 10 °C plus haut), mais seulement s'il y reste plus de dix minutes : un pic pendant une compilation ou une sauvegarde ne compte pas. Vide : {0} °C.", TEMP_DEFAULT)}</InfoNote>
+      <label className="inline-flex items-center gap-2 text-sm text-muted">{tx("Avertir à partir de")}
+        <input className={`${input} w-24`} type="number" min={TEMP_MIN} max={TEMP_MAX} step={1} placeholder={String(TEMP_DEFAULT)} value={draft}
+          onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />
+        °C
+      </label>
+      <SavedMark k="temp_warn_c" s={ss} />
+    </section>
+  );
+}
+
 function OptionsTab({ ctx, menu }: Readonly<{ ctx: FlagCtx; menu: OptionsState }>) {
   const groups = flagGroups(ctx.v, ctx.found);
   const count = groups.detected.length + groups.manual.length + groups.missing.length;
@@ -1064,6 +1091,7 @@ function OptionsTab({ ctx, menu }: Readonly<{ ctx: FlagCtx; menu: OptionsState }
     <>
       <QuickSettings ctx={ctx} />
       {ctx.v.os !== "windows" && <StoppedOkSetting ctx={ctx} />}
+      {!ctx.v.vm && <TempSetting ctx={ctx} />}
       {groups.active.length > 0 && (
         <OptionGroup title={tx("Options actives")} hint={tx("Allumées pour cette machine ; les autres sont dans « Options de la machine »")}>
           {groups.active.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}

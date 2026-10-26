@@ -11,6 +11,11 @@ describe("à surveiller", () => {
     expect(worst([])).toBe(0);
   });
 
+  it("SMART : seul un disque en échec est signalé, un disque non lu ne l'est pas", () => {
+    const smart = { accessible: true, disks: [{ device: "sda", healthy: true, failed: false }, { device: "nvme0n1", healthy: false, failed: false }, { device: "sdb", healthy: false, failed: true }] };
+    expect(watchItems(machine(), health({ smart })).map((i) => i.text)).toEqual(["SMART : sdb en défaut"]);
+  });
+
   it("le plus grave d'abord, avec une icône par sujet", () => {
     const h = health({ disks: [{ mount: "/", used_pct: 97, critical: true, warning: true }], reboot_required: true, apt: { upgradable: 4 } });
     const items = watchItems(machine({ down: 2 }), h);
@@ -93,6 +98,12 @@ describe("à surveiller", () => {
     expect(healthItems(health({ load: { available: true, load_1: 13, ncpu: 4 } }))[0]).toMatchObject({ tone: "bad", kind: "load" });
     expect(healthItems(health({ load: { available: true, load_1: 7, ncpu: 4 } }))).toHaveLength(1);
     expect(healthItems(health({ load: { available: true, load_1: 4.5, ncpu: 4 } }))).toEqual([]);
+  });
+
+  it("température : le niveau du serveur fait foi (seuil de la machine, chaleur soutenue), les seuils par défaut sans lui", () => {
+    expect(healthItems(health({ temp: { available: true, celsius: 92, level: "ok", hot_s: 60 } }))).toEqual([]);
+    expect(healthItems(health({ temp: { available: true, celsius: 72, level: "warn", warn_c: 70 } })).map((i) => [i.tone, i.kind])).toEqual([["warn", "temp"]]);
+    expect(healthItems(health({ temp: { available: true, celsius: 96 } })).map((i) => [i.tone, i.kind])).toEqual([["bad", "temp"]]);
   });
 
   it("un contrôle en alerte côté serveur sans détail connu : une phrase générale, jamais un badge muet", () => {

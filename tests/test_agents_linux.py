@@ -236,7 +236,7 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertEqual(inv["containers"], docker_ssh.parse_containers(ps))
         self.assertEqual((inv["containers"][0]["ports"], inv["containers"][0]["local_ports"]), ([(8080, 80)], [3011]))
         self.assertEqual(inv["internal"], {"192.168.1.61": "_host"})
-        self.assertEqual(inv["ports"], {80: {"name": "apache2", "lan": True}})
+        self.assertEqual(inv["ports"], {80: {"name": "apache2", "lan": True, "addr": "0.0.0.0"}})
 
     def test_v4_inventaire_absent_ou_docker_refuse(self):
         from connectors import docker_ssh

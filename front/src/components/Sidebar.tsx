@@ -4,7 +4,6 @@
 import { useEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent } from "react";
 import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Snapshot } from "../api";
-import type { TabId } from "../lib/summary";
 import { activeNav, leaves, navGroups, type NavItem } from "../lib/tabs";
 import { useRoute } from "../lib/route";
 import { HEADER_LOGOS, useFlyout, useHeaderLogo } from "../theme";
@@ -60,9 +59,9 @@ function dotTip(level: Level, why: string[] = []): string {
   return [levelText(level), ...lines, tx("Cliquer pour voir les éléments concernés")].join("\n");
 }
 
-function Badge({ level, tab, why, onBadge }: Readonly<{ level: Level; tab: TabId; why?: string[]; onBadge: (t: TabId) => void }>) {
+function Badge({ level, item, why, onBadge }: Readonly<{ level: Level; item: NavItem; why?: string[]; onBadge: (item: NavItem) => void }>) {
   return (
-    <button type="button" onClick={() => onBadge(tab)} aria-label={level === "crit" ? tx("Voir les problèmes") : tx("Voir ce qui est à surveiller")}
+    <button type="button" onClick={() => onBadge(item)} aria-label={level === "crit" ? tx("Voir les problèmes") : tx("Voir ce qui est à surveiller")}
       title={dotTip(level, why)}
       className="absolute right-8 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full hover:bg-bg">{/* one column for every dot, left of the chevrons */}
       <span className={`h-2.5 w-2.5 rounded-full ${level === "crit" ? "bg-bad" : "bg-warn"}`} />
@@ -163,7 +162,7 @@ function FoldButton({ expanded, onToggle }: Readonly<{ expanded: boolean; onTogg
 }
 
 function NavEntry({ item, active, narrow, badge, why, counts, picked, onPick, onNavigate, onBadge }: Readonly<{
-  item: NavItem; active: string; narrow: boolean; badge?: Level; why?: string[]; counts: Counts; onNavigate: () => void; onBadge: (t: TabId) => void;
+  item: NavItem; active: string; narrow: boolean; badge?: Level; why?: string[]; counts: Counts; onNavigate: () => void; onBadge: (item: NavItem) => void;
   picked: string | null; onPick: (id: string) => void;   // the category opened by hand (one at a time), null: the one of the open page
 }>) {
   const flies = narrow && !!item.subs;   // folded, with sub-pages: they open in a panel
@@ -182,7 +181,7 @@ function NavEntry({ item, active, narrow, badge, why, counts, picked, onPick, on
       <span className="relative flex">
         <EntryLink item={item} open={open} narrow={narrow} flies={flies} flown={!!panel.fly} badge={badge} onClick={click} />
         {badge && narrow && <span aria-hidden className={`pointer-events-none absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2 ${badge === "crit" ? "bg-bad" : "bg-warn"}`} />}
-        {badge && !narrow && <Badge level={badge} tab={item.tab} why={why} onBadge={onBadge} />}
+        {badge && !narrow && <Badge level={badge} item={item} why={why} onBadge={onBadge} />}
         {category && <FoldButton expanded={expanded} onToggle={() => onPick(expanded ? "" : item.id)} />}
       </span>
       {category && expanded && (
@@ -194,7 +193,7 @@ function NavEntry({ item, active, narrow, badge, why, counts, picked, onPick, on
 }
 
 export function Sidebar({ snap, badges, why = {}, onNavigate, onBadge, mobileOpen, onClose }: Readonly<{
-  snap: Snapshot; badges: Partial<Record<TabId, Level>>; why?: Partial<Record<TabId, string[]>>; onNavigate: () => void; onBadge: (t: TabId) => void; mobileOpen: boolean; onClose: () => void;
+  snap: Snapshot; badges: Partial<Record<string, Level>>; why?: Partial<Record<string, string[]>>; onNavigate: () => void; onBadge: (item: NavItem) => void; mobileOpen: boolean; onClose: () => void;   // badges and why: by menu entry id
 }>) {
   const [collapsed, setCollapsed] = useState(savedCollapsed);
   const route = useRoute();
@@ -229,7 +228,7 @@ export function Sidebar({ snap, badges, why = {}, onNavigate, onBadge, mobileOpe
                 ? <span aria-hidden className="mx-auto my-2 h-px w-8 bg-line" />
                 : <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-widest text-dim">{g.label}</p>}
               {g.items.map((i) => (
-                <NavEntry key={i.id} item={i} active={active} narrow={narrow} badge={i.id === i.tab ? badges[i.tab] : undefined} why={why[i.tab]} counts={counts}
+                <NavEntry key={i.id} item={i} active={active} narrow={narrow} badge={badges[i.id]} why={why[i.id]} counts={counts}
                   picked={picked} onPick={setPicked} onNavigate={onNavigate} onBadge={onBadge} />
               ))}
             </div>

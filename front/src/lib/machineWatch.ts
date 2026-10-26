@@ -95,14 +95,17 @@ export function healthItems(h: HealthHost): WatchItem[] {
   if (dk?.issues?.length) add("warn", "docker", tx("Docker : {0}", dk.issues.map((c) => typeof c === "string" ? c : `${c.name} (${c.status})`).join(", ")));
   if (dk?.loops?.length) add("warn", "docker", tx("Docker : redémarre en boucle : {0}", dk.loops.map((c) => `${c.name} (${c.restarts})`).join(", ")));
   if (h.kernel?.has_errors) add("warn", "kernel", tx("erreurs noyau récentes"), h.kernel.samples);
-  for (const d of h.smart?.disks || []) if (d.failed || !d.healthy) add("bad", "smart", tx("SMART : {0} en défaut", d.device));
+  for (const d of h.smart?.disks || []) if (d.failed) add("bad", "smart", tx("SMART : {0} en défaut", d.device));
   if (h.load?.available) {
     if (h.load.cpu_pct != null) { if (h.load.cpu_pct >= CPU_WARN_PCT) add("warn", "load", tx("processeur à {0} %", Math.round(h.load.cpu_pct))); }   // Windows: instant CPU
     else if (h.load.load_1 >= LOAD_WARN_MULT * h.load.ncpu) add(h.load.load_1 >= LOAD_CRIT_MULT * h.load.ncpu ? "bad" : "warn", "load", tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu));
   }
   if (h.ssh_auth?.available && h.ssh_auth.failed_24h >= SSH_AUTH_WARN_N) add(h.ssh_auth.failed_24h >= SSH_AUTH_CRIT_N ? "bad" : "warn", "ssh_auth", tx("{0} connexions SSH refusées en 24 h", h.ssh_auth.failed_24h));
   if (h.res?.available && (h.res.mem_pct ?? 0) >= 90) add(h.res.mem_pct! >= 97 ? "bad" : "warn", "mem", tx("mémoire utilisée à {0} %", Math.round(h.res.mem_pct!)));
-  if (h.temp?.available && h.temp.celsius! >= 85) add(h.temp.celsius! >= 95 ? "bad" : "warn", "temp", tx("processeur à {0} °C", h.temp.celsius));
+  if (h.temp?.available && h.temp.celsius != null) {   // the server's level: the machine's own threshold, and only once it stays hot (a short peak is not an alert)
+    const level = h.temp.level ?? (h.temp.celsius >= 95 ? "crit" : h.temp.celsius >= 85 ? "warn" : "ok");
+    if (level === "warn" || level === "crit") add(level === "crit" ? "bad" : "warn", "temp", tx("processeur à {0} °C", h.temp.celsius));
+  }
   systemItems(h, add);
   if (h.reboot_required) add("warn", "reboot", tx("redémarrage requis"));
   if (h.apt?.upgradable) add("warn", "updates", tx("{0} mise(s) à jour en attente", h.apt.upgradable));

@@ -31,6 +31,8 @@ import setup
 # Champs d'une machine réglables depuis la page (le reste du fichier est gardé tel quel)
 FLAGS = ("off", "gateway", "npm", "npm_only", "vm", "disabled")
 TEXT = ("name", "role", "ssh", "adguard", "adguard_sync", "health", "os", "icon")
+PAGE = TEXT + FLAGS + ("health_sources", "stopped_ok", "temp_warn_c")   # every field the Machines page (and machines_config) may set
+TEMP_WARN_MIN, TEMP_WARN_MAX = 50, 110   # °C: a processor warning threshold a machine may set for itself (default: health.TEMP_WARN_C)
 STOPPED_OK_MAX = 30  # containers that may stay stopped, per machine
 HEALTH_SOURCES = ("ssh", "agent", "beszel")  # priorité de lecture de la santé (health.py : source_order)
 NAME_MAX = 80
@@ -269,6 +271,11 @@ def _clean(m: dict) -> dict:
         if not isinstance(ok, list) or len(ok) > STOPPED_OK_MAX or any(not isinstance(x, str) or not re.fullmatch(r"[\w][\w.-]{0,127}", x.strip()) for x in ok):
             raise MachineError(f"conteneurs autorisés à rester arrêtés : {STOPPED_OK_MAX} noms au plus (lettres, chiffres, _ . -)")
         out["stopped_ok"] = list(dict.fromkeys(x.strip() for x in ok))
+    t = m.get("temp_warn_c")
+    if t not in (None, ""):
+        if isinstance(t, bool) or not str(t).strip().isdigit() or not TEMP_WARN_MIN <= int(t) <= TEMP_WARN_MAX:
+            raise MachineError(f"seuil de température : un entier entre {TEMP_WARN_MIN} et {TEMP_WARN_MAX} °C")
+        out["temp_warn_c"] = int(t)
     if not out.get("name"):
         raise MachineError("nom requis")
     known = {a["alias"] for a in aliases()} | {"local"}
@@ -355,7 +362,7 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     machines = meta.setdefault("machines", {})
     old = machines.get(ip, {})
     new = _clean(m)
-    keep = {k: v for k, v in old.items() if k not in TEXT + FLAGS + ("health_sources", "stopped_ok")}  # réglages hors page (ex. health détaillé)
+    keep = {k: v for k, v in old.items() if k not in PAGE}  # réglages hors page (ex. health détaillé)
     machines[ip] = {**keep, **new}
     if old.get("ssh") != new.get("ssh"):
         expire_inventory(ip)
@@ -364,6 +371,24 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     with contextlib.redirect_stdout(io.StringIO()):
         setup.save(setup.META, meta)
     return machines[ip]
+
+
+def patch(ip: str, fields: dict) -> dict:
+    """Change some fields of a declared machine and keep the others: save() takes the whole page record, so a script that
+    only means to set one option would drop the role or the SSH access. A field set to null is removed."""
+    try:
+        ip = str(ipaddress.ip_address(ip))
+    except ValueError:
+        raise MachineError("IP invalide") from None
+    old = _meta().get("machines", {}).get(ip)
+    if old is None:
+        raise MachineError("machine non déclarée : l'enregistrer d'abord")
+    if not isinstance(fields, dict) or not fields:
+        raise MachineError("champs à changer : " + ", ".join(PAGE))
+    if bad := sorted(set(fields) - set(PAGE)):
+        raise MachineError("champ inconnu : " + ", ".join(bad))
+    merged = {**{k: v for k, v in old.items() if k in PAGE}, **fields}
+    return save(ip, {k: v for k, v in merged.items() if v is not None})
 
 
 def publish(ip: str, m: dict) -> None:

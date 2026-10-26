@@ -5,6 +5,15 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.24.2 → 0.25.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Optional, `services-meta.json`**: a machine can now carry `"temp_warn_c": 75`, its own processor warning threshold in °C (50 to 110; critical is 10 °C higher). It is set on the machine's page (Options › Temperature threshold) or through the MCP `machines_config` action `patch`. Without it, the thresholds stay 85 / 95 °C.
+- **MCP**: the new read tool `get_backups` follows the switch of the read tools; `machines_config patch` and `settings_config task_run` follow the switch of their tool. Nothing to switch on again.
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: a machine above its temperature threshold is only flagged after ten minutes (`health.json` gains a `hot` key); container states on the Services and Machines pages follow the health reading between two inventories, so a container stopped since the last inventory may change state at the first health run after the update; a process bound to a bridge or container address becomes « internal » (up, not probed) at the next collection; a disk Beszel cannot read is no longer shown « in fault ».
+
 ## 0.24.1 → 0.24.2
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.

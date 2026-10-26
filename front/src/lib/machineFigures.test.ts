@@ -14,6 +14,11 @@ describe("tempTone", () => {
   it("is green, then orange from 85 °C, red from 95 °C", () => {
     expect([tempTone(60), tempTone(85), tempTone(95)]).toEqual(["ok", "warn", "bad"]);
   });
+  it("follows the level health.py gave, else the machine's own thresholds", () => {
+    expect(tempTone(90, { level: "ok", hot_s: 30 })).toBe("ok");         // hot for 30 s only: not an alert yet
+    expect(tempTone(90, { level: "crit" })).toBe("bad");
+    expect([tempTone(69, { warn_c: 70, crit_c: 80 }), tempTone(70, { warn_c: 70, crit_c: 80 }), tempTone(80, { warn_c: 70, crit_c: 80 })]).toEqual(["ok", "warn", "bad"]);
+  });
 });
 
 describe("machineFigures", () => {
