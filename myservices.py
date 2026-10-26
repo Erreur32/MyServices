@@ -45,6 +45,7 @@ from pathlib import Path
 
 import connectors
 import readers
+from docker_state import allowed_names, intended_stop
 import connectors.base as cbase
 from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
@@ -882,6 +883,14 @@ def docker_service(c, how):
     return svc
 
 
+def stopped_on_purpose(row: dict, stopped_ok=None) -> str:
+    """The docker status of the row's container when it is stopped on purpose (see docker_state), else ""."""
+    svc = row.get("service") or {}
+    state = svc.get("state") or ""
+    ok = svc.get("kind") == "docker" and intended_stop(svc.get("name") or "", state, allowed_names(stopped_ok))
+    return state if ok else ""
+
+
 WEBCHECK_CACHE = os.path.join(CFG["cache_dir"], "webcheck.json")
 WEBCHECK_MAX_AGE = 23 * 3600  # chaque site au plus une fois par jour
 
@@ -1302,7 +1311,9 @@ def main():
         mip = r.get("host_ip") or r.get("ip")
         if mip in MACHINES_OFF and not pings.get(mip):  # éteinte volontairement : rien à sonder
             r["machine_off"] = True
-    probed = [i for i, r in enumerate(rows) if not r.get("paused") and not r.get("machine_off")]
+        if reason := stopped_on_purpose(r, MACHINES.get(mip, {}).get("stopped_ok")):  # son conteneur est arrêté exprès : rien à sonder
+            r["stopped"] = reason
+    probed = [i for i, r in enumerate(rows) if not r.get("paused") and not r.get("machine_off") and not r.get("stopped")]
     # IP docker internes : joignables seulement depuis NPM, pas de sonde directe depuis le collecteur
     direct = [i for i in probed if rows[i].get("ip") and not rows[i].get("internal")]
     named = [i for i in probed if rows[i]["domains"]]
@@ -1413,7 +1424,7 @@ def main():
             "containers": webservers.container_list(dock.get(ip)) if ip in dock else None,   # every container, with or without a service
             "agent": ({**agent_sys[ip], "via": "agent"} if agent_sys.get(ip) else None),  # système lu par l'agent (info = lu par SSH)
             "services": len(rs), "npm": sum(1 for r in rs if r["type"] != "local"),
-            "down": sum(1 for r in rs if r.get("enabled") and not r.get("paused") and not r.get("machine_off")
+            "down": sum(1 for r in rs if r.get("enabled") and not r.get("paused") and not r.get("machine_off") and not r.get("stopped")
                         and (r.get("backend") or {}).get("up") is False),
         })
 

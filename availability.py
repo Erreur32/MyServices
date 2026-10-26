@@ -50,7 +50,7 @@ def points(data: dict) -> list[dict]:
     off = {m["ip"] for m in data.get("machine_list") or [] if m.get("off") or m.get("disabled") or not m.get("ping")}
     for r in data.get("hosts") or []:
         b = r.get("backend") or {}
-        if not r.get("enabled", True) or r.get("paused") or r.get("machine_off") or b.get("up") is None or r.get("type") in ("redirect", "dead"):
+        if not r.get("enabled", True) or r.get("paused") or r.get("machine_off") or r.get("stopped") or b.get("up") is None or r.get("type") in ("redirect", "dead"):
             continue
         if not b.get("up") and (r.get("host_ip") or r.get("ip")) in off:
             continue   # its machine is down or off: the machine's own line already says it

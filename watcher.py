@@ -95,7 +95,7 @@ def label(r: dict) -> str:
 def status(r: dict) -> str:
     """ok / warn / bad / off, calqué sur status() de la page."""
     p, b = r.get("public") or {}, r.get("backend") or {}
-    if not r.get("enabled") or r.get("paused") or r.get("machine_off"):  # en pause / machine éteinte voulue : jamais signalé
+    if not r.get("enabled") or r.get("paused") or r.get("machine_off") or r.get("stopped"):  # en pause / machine éteinte ou conteneur arrêté voulu : jamais signalé
         return "off"
     t = r["type"]
     if t == "local" and b.get("internal"):  # écoute sur une IP interne : seul l'état SSH compte
