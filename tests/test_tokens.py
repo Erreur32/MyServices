@@ -124,6 +124,7 @@ class Tokens(unittest.TestCase):
         self.assertIn("mail_set", settings)   # each one a real route: help would fail on a wrong path
         for read in ("mail_get", "tasks_list", "live_get", "updates_get", "alerts_list"):
             self.assertFalse(tool("settings_config", {"action": read}).get("isError"), read)
+        self.assertNotIn("changelog", tool("settings_config", {"action": "updates_get"})["structuredContent"])   # 200 KB of no use here
         self.assertIn("cid", tool("settings_config", {"action": "channel_delete", "params": {}})["content"][0]["text"])
         self.assertIn("jeton", tool("settings_config", {"action": "mail_test"})["content"][0]["text"])   # creator has no address yet
         api.STORE.set_email("admin", "admin@example.test")

@@ -211,7 +211,10 @@ def config_tool(name: str):
         status, out = ctx["route"](*actions[action], params)
         if status >= 400:
             raise ToolError(f"HTTP {status}: {(out or {}).get('error') or (out or {}).get('detail') or out}")
-        return out if isinstance(out, dict) else {"result": out}
+        if not isinstance(out, dict):
+            return {"result": out}
+        out.pop("changelog", None)   # /about carries the whole changelog (200 KB): useless to set anything
+        return out
     return run
 
 
