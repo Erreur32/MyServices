@@ -55,6 +55,12 @@ class Rows(unittest.TestCase):
         self.assertEqual(myservices.stopped_on_purpose(self.row("Exited (0)", kind="process")), "")   # only docker containers
         self.assertEqual(myservices.stopped_on_purpose({"type": "proxy"}), "")
 
+    def test_the_machine_list_comes_from_the_services_meta(self):
+        with mock.patch.object(myservices, "META_RAW", {"machines": {"10.0.0.2": {"name": "Jarvis", "stopped_ok": ["llamacpp"]}, "10.0.0.3": {"name": "Tower"}}}):
+            self.assertEqual(myservices.machine_stopped_ok("10.0.0.2"), ["llamacpp"])
+            self.assertEqual(myservices.machine_stopped_ok("10.0.0.3"), [])
+            self.assertEqual(myservices.machine_stopped_ok("10.0.0.9"), [])   # a machine the file does not know
+
     def test_status_is_off_and_nothing_is_sampled(self):
         down = self.row("Up 3 days")
         self.assertEqual(watcher.status(down), "bad")

@@ -883,6 +883,11 @@ def docker_service(c, how):
     return svc
 
 
+def machine_stopped_ok(ip) -> list:
+    """The containers the machine may leave stopped (« stopped_ok » of its services-meta.json entry)."""
+    return META_RAW.get("machines", {}).get(ip, {}).get("stopped_ok") or []
+
+
 def stopped_on_purpose(row: dict, stopped_ok=None) -> str:
     """The docker status of the row's container when it is stopped on purpose (see docker_state), else ""."""
     svc = row.get("service") or {}
@@ -1311,7 +1316,7 @@ def main():
         mip = r.get("host_ip") or r.get("ip")
         if mip in MACHINES_OFF and not pings.get(mip):  # éteinte volontairement : rien à sonder
             r["machine_off"] = True
-        if reason := stopped_on_purpose(r, MACHINES.get(mip, {}).get("stopped_ok")):  # son conteneur est arrêté exprès : rien à sonder
+        if reason := stopped_on_purpose(r, machine_stopped_ok(mip)):  # son conteneur est arrêté exprès : rien à sonder
             r["stopped"] = reason
     probed = [i for i, r in enumerate(rows) if not r.get("paused") and not r.get("machine_off") and not r.get("stopped")]
     # IP docker internes : joignables seulement depuis NPM, pas de sonde directe depuis le collecteur
