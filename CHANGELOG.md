@@ -12,7 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
-- **MCP, `settings_config`** (admin, off until switched on in Settings › API and MCP): the general settings from an AI assistant, through the routes of the Settings pages: e-mail sending (read, set, send a test), the schedule of each task, the pulse and the fast connectors, the automatic check for updates, and the alerts (channels with a test message, rules, presets). Left out on purpose: the configuration export and import, the container log, the app's SSH key, accounts and tokens.
+- **MCP, `settings_config`** (admin, off until switched on in Settings › API and MCP): the general settings from an AI assistant, through the routes of the Settings pages: e-mail sending (read, set, send a test), the schedule of each task, the pulse and the fast connectors, the automatic check for updates, and the alerts (channels with a test message, rules, presets). Left out on purpose: the configuration export and import, the container log, the app's SSH key, accounts and tokens. The test e-mail goes to the account that created the token (a token has no address of its own).
 
 ### Changed
 - **Kernel errors**: the notice a Linux machine logs when it mounts a Samba share that does not give inode numbers (`CIFS: VFS: Autodisabling the use of server inode numbers…`) is no longer counted as a kernel error, so a machine that mounts such a share no longer flips between « ok » and « warn ». The MCP `get_health` shows the journal lines behind a kernel warn (`kernel_errors`).

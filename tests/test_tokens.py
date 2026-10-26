@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
@@ -15,6 +16,7 @@ try:
     import agents
     import api
     import auth
+    import mailer  # noqa: F401  (patched by name)
     import server
     import tokens
 except ImportError:
@@ -123,6 +125,12 @@ class Tokens(unittest.TestCase):
         for read in ("mail_get", "tasks_list", "live_get", "updates_get", "alerts_list"):
             self.assertFalse(tool("settings_config", {"action": read}).get("isError"), read)
         self.assertIn("cid", tool("settings_config", {"action": "channel_delete", "params": {}})["content"][0]["text"])
+        self.assertIn("jeton", tool("settings_config", {"action": "mail_test"})["content"][0]["text"])   # creator has no address yet
+        api.STORE.set_email("admin", "admin@example.test")
+        with mock.patch.dict(server.CFG, {"smtp_host": "smtp.example.test", "smtp_from": "ms@example.test"}), \
+                mock.patch("mailer.send") as sent:
+            self.assertFalse(tool("settings_config", {"action": "mail_test"}).get("isError"))
+        self.assertEqual(sent.call_args.args[1], "admin@example.test")   # a token writes to its creator
         who = {e["username"] for e in self.c.get("/myservices/api/v1/audit").json()["audit"]}
         self.assertIn("mcp:t-mcp-admin", who)   # audited as the token, like from the page
 
