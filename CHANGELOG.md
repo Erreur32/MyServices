@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.24.1 (2026-10-26)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **Containers stopped on purpose** (machine › Options › « Containers stopped on purpose », `stopped_ok` in `services-meta.json`, also set by the MCP `machines_config` save): a container stopped by hand or by a script with an exit code other than 0, 137 or 143 (an app that exits with 1 when it receives the stop signal, for example) counted as a Docker failure and turned the machine to « warn ». The names listed for a machine are now filed with the intended stops, without a warning. A container restarting in a loop is still reported. Applies to Linux machines read over SSH or by an agent.
+
 ## v0.24.0 (2026-10-26)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

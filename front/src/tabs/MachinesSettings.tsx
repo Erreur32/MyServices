@@ -4,7 +4,7 @@
 // Les réglages de chaque machine sont dans sa page (#machines/<ip>) ; ici, trois sous-pages du menu Machines : ajouter et détecter,
 // les appareils vus par les outils et pas suivis, les agents. La clé refusée par une machine est signalée sur la page de la clé SSH.
 import { NetworkSettings } from "./NetworkSettings";
-import { Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Trash2 } from "lucide-react";
+import { Box, Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -1042,12 +1042,28 @@ function OptionsMenuBody({ groups, ctx, menu }: Readonly<{
   );
 }
 
+/** Containers this machine may leave stopped: one stopped on purpose (even with an exit code 1) is not a Docker failure */
+function StoppedOkSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
+  const { v, ss, autoSave } = ctx;
+  const names = Array.isArray(v.stopped_ok) ? (v.stopped_ok as string[]) : [];
+  return (
+    <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4" aria-label={tx("Conteneurs arrêtés exprès")}>
+      <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Box size={13} className="text-link" aria-hidden />{tx("Conteneurs arrêtés exprès")}</h4>
+      <InfoNote className="mb-3">{tx("Un conteneur arrêté avec un code d'erreur (par exemple 1, quand une appli sort en erreur à l'arrêt) compte comme une panne Docker. Un nom ajouté ici est rangé avec les arrêts voulus : plus d'avertissement, mais un conteneur qui redémarre en boucle reste signalé.")}</InfoNote>
+      <TagInput label={tx("Peuvent rester arrêtés")} value={names.join(", ")} max={600} placeholder={tx("nom du conteneur, ex. koboldcpp")}
+        onChange={(text) => void autoSave("stopped_ok", { stopped_ok: text.split(",").map((t) => t.trim()).filter(Boolean) })} />
+      <SavedMark k="stopped_ok" s={ss} />
+    </section>
+  );
+}
+
 function OptionsTab({ ctx, menu }: Readonly<{ ctx: FlagCtx; menu: OptionsState }>) {
   const groups = flagGroups(ctx.v, ctx.found);
   const count = groups.detected.length + groups.manual.length + groups.missing.length;
   return (
     <>
       <QuickSettings ctx={ctx} />
+      {ctx.v.os !== "windows" && <StoppedOkSetting ctx={ctx} />}
       {groups.active.length > 0 && (
         <OptionGroup title={tx("Options actives")} hint={tx("Allumées pour cette machine ; les autres sont dans « Options de la machine »")}>
           {groups.active.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}
