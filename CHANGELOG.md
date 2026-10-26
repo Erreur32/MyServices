@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.23.0 (2026-10-26)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **MCP, `machines_config`** (admin, off until switched on in Settings › API and MCP, like the other `*_config` tools): list the declared machines, add or change one (SSH access, role), remove it, check it (SSH, Docker, AdGuard, health), re-read a single machine, and set the automatic network search. It runs the routes of the Settings pages, so the checks and the audit log (`mcp:<token name>`) are the same.
 

@@ -5,6 +5,14 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.22.1 → 0.23.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **MCP, optional**: a fifth admin tool, `machines_config`, is **off** until you switch it on in Settings › API and MCP (the other `*_config` tools keep the switch you gave them). Its changes are in the audit log as `mcp:<token name>`.
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: the health file now carries the state of the connectors read by the health task (Beszel); a Beszel that does not answer is listed as failing in the MCP `status`.
+
 ## 0.22.0 → 0.22.1
 
 **Nothing to do.** Same app as 0.22.0, whose image was never published: from 0.21.0, read the 0.21.0 → 0.22.0 section below.
