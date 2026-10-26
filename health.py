@@ -2103,18 +2103,18 @@ def main() -> int:
     if ssh_first:
         print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire" + (" (un point pour les courbes)" if agent_figures(ssh_first[0], agents.get(only), ts) else ""))
         return 0
-    previous, previous_asleep = [], []
+    previous, previous_asleep, previous_connectors = [], [], []
     if only:
         try:
             last = json.loads(STATS_JSON.read_text(encoding="utf-8"))
-            previous, previous_asleep = last.get("hosts", []), last.get("asleep", [])
+            previous, previous_asleep, previous_connectors = last.get("hosts", []), last.get("asleep", []), last.get("connectors", [])
         except (OSError, ValueError):
             pass
     asleep = []
     apis = api_systems(meta, cached_only=bool(only))
     # Beszel is read for a whole pass, or for the one machine asked for (even a « often off » one: Beszel may be telling it is up)
     needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc, agents.get(hc["ip"])) for hc in candidates if not only or hc["ip"] == only)
-    besz, _ = beszel_systems(meta) if (not only or needs_beszel or only in meta.get("machines", {})) else ({}, [])
+    besz, besz_status = beszel_systems(meta) if (not only or needs_beszel or only in meta.get("machines", {})) else ({}, [])
     awake = awake_ips(besz)
     if awake - set(agents):   # a « often off » machine that Beszel sees up is read like the others, from Beszel
         candidates, meta = load_hosts(set(agents) | awake)
@@ -2139,7 +2139,8 @@ def main() -> int:
         if h.get("reachable") and "disks" in h:
             h["checks"] = {k: v for k, v in host_checks(h).items() if v in ("warn", "crit")}
     overall = worst(*(h["level"] for h in hosts))
-    stats = {"timestamp": ts, "hosts": hosts, "asleep": asleep, "overall_level": overall}
+    connectors = [{"type": st.type, "name": st.name, "ok": st.ok, "message": st.message} for st in besz_status] or previous_connectors   # a pass of one machine reads no Beszel: it keeps the last states
+    stats = {"timestamp": ts, "hosts": hosts, "asleep": asleep, "overall_level": overall, "connectors": connectors}
     print(f"→ global={overall.upper()}")
 
     if dry:

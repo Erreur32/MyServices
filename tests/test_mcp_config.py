@@ -86,6 +86,16 @@ class McpHealth(unittest.TestCase):
         self.assertEqual(hosts[0]["checks"], {"docker": "warn"})
         self.assertEqual(hosts[1]["checks"], {})   # a healthy host: an empty answer, not a missing key
 
+    def test_status_lists_a_health_connector_that_fails(self):
+        with tempfile.TemporaryDirectory() as web:
+            (Path(web) / "health").mkdir()
+            (Path(web) / "data.json").write_text(json.dumps({"connectors": [{"type": "npm", "name": "npm", "ok": True, "message": "OK"}]}), encoding="utf-8")
+            (Path(web) / "health" / "stats.json").write_text(json.dumps({"connectors": [
+                {"type": "beszel", "name": "beszel", "ok": False, "message": "injoignable"},
+                {"type": "npm", "name": "npm", "ok": False, "message": "doublon ignoré"}]}), encoding="utf-8")
+            out = mcp_server.t_status(SimpleNamespace(WEB=web, status=lambda: {}), {}, Ctx())["connectors"]
+        self.assertEqual([(c["type"], c["ok"]) for c in out], [("npm", True), ("beszel", False)])   # the collection's line wins, Beszel is added
+
 
 if __name__ == "__main__":
     unittest.main()

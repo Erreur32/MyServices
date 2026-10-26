@@ -35,10 +35,12 @@ def _health(core) -> dict:
 
 def t_status(core, args, ctx):
     d, st = _data(core), core.status()
+    seen = {(c["type"], c["name"]) for c in d.get("connectors", [])}
+    health_connectors = [c for c in _health(core).get("connectors", []) if (c["type"], c["name"]) not in seen]   # Beszel is read by the health task, not by the collection
     return {"data_generated": d.get("generated"), "next_run": d.get("next_run"), "collect": st,
             "machines": len(d.get("machine_list", [])), "services": len(d.get("hosts", [])),
             "connectors": [{"type": c["type"], "name": c["name"], "ok": c["ok"], "message": c.get("message")}
-                           for c in d.get("connectors", [])]}
+                           for c in [*d.get("connectors", []), *health_connectors]]}
 
 
 def t_machines(core, args, ctx):
@@ -218,7 +220,7 @@ CONFIG_HELP = " L'action « help » liste chaque action et ses paramètres (sch�
 TOOLS = {
     "status": ("read", "État général : fraîcheur des données, passage en cours, nombre de machines et services, "
                "état de chaque connecteur.", {**OBJ, "properties": {}}, t_status),
-    "list_machines": ("read", "Machines suivies : nom, IP, rôle, ping, accès SSH, système, conteneurs, services en panne.",
+    "list_machines": ("read", "Machines suivies : nom, IP, rôle, ping, accès SSH, système, conteneurs en marche, services en panne.",
                       {**OBJ, "properties": {}}, t_machines),
     "list_services": ("read", "Services (proxy NPM, conteneurs, process) avec leur état ok / warn / bad / off, "
                       "problèmes d'abord.",
