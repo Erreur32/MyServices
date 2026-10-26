@@ -44,13 +44,18 @@ def t_status(core, args, ctx):
 
 
 def t_machines(core, args, ctx):
+    import watcher
+    problems: dict[str, list[dict]] = {}   # per machine: which services are behind « services_down »
+    for r in _data(core).get("hosts", []):
+        if (st := watcher.status(r)) in ("bad", "warn"):
+            problems.setdefault(r.get("ip"), []).append({"name": watcher.label(r), "status": st})
     out = []
     for m in _data(core).get("machine_list", []):
         i = m.get("info") or {}
         out.append({"name": m["name"], "ip": m["ip"], "role": m.get("role"), "ping": m.get("ping"),
                     "off_on_purpose": bool(m.get("off")), "ssh": bool(m.get("ssh")), "ssh_ok": bool(m.get("info")),
                     "os": i.get("os"), "uptime_s": i.get("uptime_s"), "containers": i.get("docker"),
-                    "services": m.get("services"), "services_down": m.get("down")})
+                    "services": m.get("services"), "services_down": m.get("down"), "problems": problems.get(m["ip"], [])})
     return {"machines": out}
 
 
@@ -220,7 +225,7 @@ CONFIG_HELP = " L'action « help » liste chaque action et ses paramètres (sch�
 TOOLS = {
     "status": ("read", "État général : fraîcheur des données, passage en cours, nombre de machines et services, "
                "état de chaque connecteur.", {**OBJ, "properties": {}}, t_status),
-    "list_machines": ("read", "Machines suivies : nom, IP, rôle, ping, accès SSH, système, conteneurs en marche, services en panne.",
+    "list_machines": ("read", "Machines suivies : nom, IP, rôle, ping, accès SSH, système, conteneurs en marche, services en panne avec leur nom.",
                       {**OBJ, "properties": {}}, t_machines),
     "list_services": ("read", "Services (proxy NPM, conteneurs, process) avec leur état ok / warn / bad / off, "
                       "problèmes d'abord.",

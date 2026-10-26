@@ -96,6 +96,15 @@ class McpHealth(unittest.TestCase):
             out = mcp_server.t_status(SimpleNamespace(WEB=web, status=lambda: {}), {}, Ctx())["connectors"]
         self.assertEqual([(c["type"], c["ok"]) for c in out], [("npm", True), ("beszel", False)])   # the collection's line wins, Beszel is added
 
+    def test_machines_name_their_services_in_trouble(self):
+        row = lambda ip, up: {"type": "local", "enabled": True, "ip": ip, "port": 80, "backend": {"up": up}, "service": {"name": "web"}}
+        with tempfile.TemporaryDirectory() as web:
+            (Path(web) / "data.json").write_text(json.dumps({"machine_list": [{"name": "A", "ip": "10.0.0.1", "down": 1}, {"name": "B", "ip": "10.0.0.2", "down": 0}],
+                                                              "hosts": [row("10.0.0.1", False), row("10.0.0.2", True)]}), encoding="utf-8")
+            out = mcp_server.t_machines(SimpleNamespace(WEB=web), {}, Ctx())["machines"]
+        self.assertEqual([x["status"] for x in out[0]["problems"]], ["bad"])
+        self.assertEqual(out[1]["problems"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
