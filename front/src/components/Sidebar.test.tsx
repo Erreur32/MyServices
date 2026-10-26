@@ -23,6 +23,13 @@ describe("Sidebar", () => {
     const html = renderToStaticMarkup(<Sidebar snap={snap()} badges={{ backups: "crit" }} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);
     expect(html).toContain("Voir les problèmes");
   });
+  it("une pastille sur l'entrée Connecteurs quand un connecteur est en alerte, et aucune sur l'onglet", () => {
+    const html = renderToStaticMarkup(<Sidebar snap={snap()} badges={{ connectors: "warn" }} why={{ connectors: ["Connecteur **npm** (npm) : boom"] }} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);
+    const dot = html.indexOf("Voir ce qui est à surveiller");
+    expect(dot).toBeGreaterThan(html.indexOf("Connecteurs"));
+    expect(html.slice(dot)).toContain("Connecteur npm (npm) : boom");   // the tooltip lists the alert, without the bold marks
+    expect(renderToStaticMarkup(<Sidebar snap={snap()} badges={{ settings: "warn" }} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />)).not.toContain("Voir ce qui est à surveiller");
+  });
   it("en tiroir (téléphone) : un fond qui ferme le menu", () => {
     const html = renderToStaticMarkup(<Sidebar snap={snap()} badges={{}} onNavigate={noop} onBadge={noop} mobileOpen onClose={noop} />);
     expect(html).toContain("Fermer le menu");

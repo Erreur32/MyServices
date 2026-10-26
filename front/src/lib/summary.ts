@@ -19,6 +19,7 @@ export interface Attention {
   action: string;   // the button's label: where the line leads (« Voir la machine », « Voir le jeu »…)
   sel?: Selected;   // filter applied on arrival in the tab (the line lands on what it talks about)
   href?: string;  // adresse exacte (ex. « settings/machines ») quand l'onglet ne suffit pas
+  dot?: string;   // the menu entry that carries the dot when it is not the tab's own entry (« connectors » for a connector in trouble)
 }
 
 export interface Inputs {
@@ -58,8 +59,15 @@ function fullDisk(h: HealthHost): string {
   return d ? tx(" (disque {0} à {1} %)", d.mount, d.used_pct) : "";
 }
 
-/** Machines tab filtered on the ones with a red or orange point (same filter as the tab badge) */
-const HEALTH_SEL: Selected = { alert: ["bad", "warn"] };
+/** Machines tab filtered on the Santé facet: the machines whose health is not « ok », the ones the menu's dot lists */
+const HEALTH_SEL: Selected = { health: ["warn", "crit", "down"] };
+
+/** What a click on a menu dot filters its page on, by menu entry: exactly what the dot's tooltip lists (the « Alertes » facets of
+ *  Machines and Services are wider: the « À surveiller » column, and the services that are OK with a remark), so the dot and the list
+ *  agree. An entry absent here (Connecteurs) opens on its address. */
+export const DOT_FILTER: Partial<Record<string, Selected>> = {
+  machines: HEALTH_SEL, services: { status: ["bad", "warn"] }, network: { alert: ["on"] }, backups: { alerts: ["on"] }, dns: { alerts: ["on"] },
+};
 
 /** Liste « à regarder » : rouge d'abord, puis orange, dans l'ordre des onglets. */
 export function attention({ data, health, backups }: Inputs): Attention[] {
@@ -94,9 +102,9 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
     out.push({ category: "sauvegardes", level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups", action: tx("Voir le jeu"), sel: i.set_id ? { alerts: ["on"] } : { state: ["crit", "down", "warn"] } });   // a set: the sets on Alerts; a machine (disk, unreachable): the machines in trouble
   const dockerOff = (data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
   if (dockerOff.length)
-    out.push({ category: "connecteurs", level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "settings", action: tx("Voir l'accès"), href: "settings/machines" });
+    out.push({ category: "connecteurs", level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "settings", action: tx("Voir l'accès"), dot: "machines", href: "settings/machines" });
   for (const c of data.connectors || [])
-    if (!c.ok && c.type !== "docker") out.push({ category: "connecteurs", level: "warn", text: tx("Connecteur **{0}** ({1}) : {2}", c.name, c.type, short(c.message)), tab: "settings", action: tx("Voir le connecteur"), href: "settings/connectors" });
+    if (!c.ok && c.type !== "docker") out.push({ category: "connecteurs", level: "warn", text: tx("Connecteur **{0}** ({1}) : {2}", c.name, c.type, short(c.message)), tab: "settings", action: tx("Voir le connecteur"), dot: "connectors", href: "settings/connectors" });
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "crit" ? -1 : 1));
 }
 

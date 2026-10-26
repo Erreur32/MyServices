@@ -283,7 +283,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const hiddenMap = useServicesHidden();
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const facets = useMemo((): Facet<Host>[] => [
-    { key: "alert", label: tx("Alertes"), get: (r) => (alerting(r, hiddenMap) ? "on" : ""), name: () => tx("en alerte"), mark: alertMark },   // ticked by the menu's dot
+    { key: "alert", label: tx("Alertes"), get: (r) => (alerting(r, hiddenMap) ? "on" : ""), name: () => tx("en alerte"), mark: alertMark },   // the old « To watch » address (#services/watch); the menu's dot filters on the state (DOT_FILTER)
     { key: "src", label: tx("Source"), get: (r) => (r.type === "local" ? "local" : "npm"), name: (v) => (v === "npm" ? "NPM" : tx("Services")), order: ["npm", "local"],
       mark: (v) => (v === "npm" ? <Logo src={`${import.meta.env.BASE_URL}icons/nginx-proxy-manager.svg`} /> : <Dot tone="info" />) },
     { key: "status", label: tx("État"), get: (r) => status(r)[0], name: (v) => ST_NAME[v] || v, order: ["bad", "warn", "ok", "off"], mark: (v) => <Dot tone={v as Tone} /> },

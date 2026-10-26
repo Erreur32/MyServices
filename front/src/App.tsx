@@ -7,7 +7,7 @@ import { ScanBar } from "./components/ScanBar";
 import { Sidebar } from "./components/Sidebar";
 import { tabFromHash, visible } from "./lib/tabs";
 import type { Selected } from "./lib/filter";
-import { attention, type TabId } from "./lib/summary";
+import { attention, DOT_FILTER, type TabId } from "./lib/summary";
 import { Backups } from "./tabs/Backups";
 import { Dns } from "./tabs/Dns";
 import { Security } from "./tabs/Security";
@@ -113,13 +113,14 @@ export default function App() {
     return <p className="p-8 text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
   const items = attention({ ...snap, data: { ...snap.data, hosts: snap.data.hosts.filter((r) => !isHidden(r, hiddenServices)) }, now });   // a service hidden from « To watch » leaves the tab's dot and the home page too
-  const badges: Partial<Record<TabId, "crit" | "warn">> = {};
-  const why: Partial<Record<TabId, string[]>> = {};   // the alerts behind each dot, listed in its tooltip
+  const badges: Partial<Record<string, "crit" | "warn">> = {};   // by menu entry: the tab's own entry, or the one the alert names (dot)
+  const why: Partial<Record<string, string[]>> = {};   // the alerts behind each dot, listed in its tooltip
   for (const a of items) {
-    if (badges[a.tab] !== "crit") { badges[a.tab] = a.level; }
-    const list = why[a.tab] ?? [];
+    const entry = a.dot ?? a.tab;
+    if (badges[entry] !== "crit") { badges[entry] = a.level; }
+    const list = why[entry] ?? [];
     list.push(a.text);
-    why[a.tab] = list;
+    why[entry] = list;
   }
   const current = visible(tab, snap) ? tab : "home";
   if (hash.startsWith("#assistant") && snap.me.role === "admin") return <><ScanBar onFinished={load} /><Assistant snap={snap} /></>;
@@ -137,7 +138,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen">
       <Sidebar snap={snap} badges={badges} why={why} onNavigate={navigated} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)}
-        onBadge={(t) => { setMenuOpen(false); if (t === "machines") goFilter("machines", { alert: ["bad", "warn"] }); else if (t === "backups" || t === "dns") goFilter(t, { alerts: ["on"] }); else if (t === "services" || t === "network") goFilter(t, { alert: ["on"] }); else go(t); }} />
+        onBadge={(item) => { setMenuOpen(false); const sel = DOT_FILTER[item.id]; if (sel) goFilter(item.tab, sel); else location.hash = `#${item.hash}`; }} />
       <div className="min-w-0 flex-1 px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />
       <Header snap={snap} now={now} onMenu={() => setMenuOpen(true)} />
