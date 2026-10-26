@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Kernel errors**: the notice a Linux machine logs when it mounts a Samba share that does not give inode numbers (`CIFS: VFS: Autodisabling the use of server inode numbers…`) is no longer counted as a kernel error, so a machine that mounts such a share no longer flips between « ok » and « warn ». The MCP `get_health` shows the journal lines behind a kernel warn (`kernel_errors`).
+
 ## v0.23.0 (2026-10-26)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

@@ -1,4 +1,4 @@
-"""Kernel errors (health.py collect_kernel_errors): the samples are the most recent lines, not the oldest.
+"""Kernel errors (health.py collect_kernel_errors): the samples are the most recent lines, not the oldest; a CIFS mount notice is not an error.
 
   À lancer dans l'image : python3 -m unittest discover -s tests
 """
@@ -26,6 +26,19 @@ class KernelErrors(unittest.TestCase):
     def test_no_entries_is_clean(self):
         got = health.collect_kernel_errors(lambda cmd, timeout=0: (0, "-- No entries --"))
         self.assertEqual(got, {"has_errors": False, "samples": []})
+
+    NOTICE = ["oct. 26 12:56:47 host kernel: CIFS: VFS: Autodisabling the use of server inode numbers on \\\\10.0.0.6\\home",
+              "oct. 26 12:56:47 host kernel: CIFS: VFS: The server doesn't seem to support them properly or the files might be on different servers (DFS)",
+              "oct. 26 12:56:47 host kernel: CIFS: VFS: Hardlinks will not be recognized on this mount. Consider mounting with the \"noserverino\" option"]
+
+    def test_cifs_mount_notice_is_not_a_kernel_error(self):
+        got = health.collect_kernel_errors(lambda cmd, timeout=0: (0, "\n".join(self.NOTICE)))
+        self.assertEqual(got, {"has_errors": False, "samples": []})
+
+    def test_a_real_error_is_kept_beside_the_notice(self):
+        real = "oct. 26 13:00:00 host kernel: EXT4-fs error (device sda1): ext4_find_entry:1455: inode #2: comm ls: reading directory lblock 0"
+        got = health.collect_kernel_errors(lambda cmd, timeout=0: (0, "\n".join([*self.NOTICE, real])))
+        self.assertEqual(got, {"has_errors": True, "samples": [real]})
 
 
 if __name__ == "__main__":
