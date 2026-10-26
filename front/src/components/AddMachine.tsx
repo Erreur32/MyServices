@@ -117,7 +117,7 @@ export function AddMachine({ st, onDone, onCancel }: Readonly<{ st: State; onDon
 /** One step: number, title, then the body (current step) or a one-line summary with « Modifier » (done step) */
 function StepShell({ n, step, title, summary, onEdit, children }: Readonly<{ n: Step; step: Step; title: string; summary: ReactNode; onEdit?: () => void; children: ReactNode }>) {
   const current = step === n, done = step > n;
-  const bubble = current ? "bg-link text-white" : done ? "bg-ok/15 text-ok" : "bg-bg2 text-dim";
+  const bubble = current ? "bg-accent text-white" : done ? "bg-ok/15 text-ok" : "bg-bg2 text-dim";
   return (
     <section aria-current={current ? "step" : undefined} className={`rounded-lg border p-3 ${current ? "border-link/60 bg-card" : "border-line/60"} ${!current && !done ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">

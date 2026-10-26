@@ -18,6 +18,9 @@
   --npm: 214 128 10; --loc: 8 140 196; --apache: 147 84 220;
   color-scheme: light;
 }
+/* Filled buttons and active marks (lib/forms.ts « primary »…): the link colour, except on the themes whose links are too light under
+   white text (Dracula, Ayu Mirage), which give them a deeper colour of their own */
+:root, [class*="theme-"] { --accent: var(--link); }
 /* Other dark themes (Réglages → Apparence), after their public palettes; the state colours are picked to stay apart */
 :root.theme-github-dark, .theme-github-dark {
   --bg: 13 17 23; --bg2: 1 4 9; --card: 22 27 34; --line: 48 54 61;
@@ -36,6 +39,7 @@
   --txt: 204 202 194; --muted: 138 145 153; --dim: 92 103 115;
   --ok: 135 217 108; --warn: 255 204 102; --bad: 255 102 102; --link: 115 208 255;
   --npm: 255 166 89; --loc: 149 230 203; --apache: 223 191 255;
+  --accent: 31 120 196;   /* deep blue: the light cyan of the links is unreadable under white text */
 }
 :root.theme-one-dark, .theme-one-dark {
   --bg: 40 44 52; --bg2: 33 37 43; --card: 44 49 58; --line: 62 68 81;
@@ -54,6 +58,7 @@
   --txt: 248 248 242; --muted: 182 185 201; --dim: 98 114 164;
   --ok: 80 250 123; --warn: 255 184 108; --bad: 255 121 198; --link: 139 233 253;
   --npm: 241 250 140; --loc: 105 195 255; --apache: 189 147 249;
+  --accent: 124 92 214;   /* deep purple: the cyan of the links is unreadable under white text */
 }
 
 /* App icons drawn only in black: white on the dark theme, kept black on the light one (one line per file of public/icons) */

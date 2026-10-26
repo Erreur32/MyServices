@@ -15,8 +15,8 @@ export interface Look {
 }
 
 const LOGO_OPTIONS: IconOption<HeaderLogo>[] = [
-  { value: "favicon", label: tx("Favicon (grille sur fond)"), hint: tx("Le favicon tel quel : grille de services sur un carré sombre"), icon: <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-9 w-9" /> },
   { value: "grid", label: tx("Grille sans fond"), hint: tx("La même grille, sans le carré sombre : lisible sur clair comme sur sombre"), icon: <img src={`${import.meta.env.BASE_URL}logo-grid.svg`} alt="" className="h-9 w-9" /> },
+  { value: "favicon", label: tx("Favicon (grille sur fond)"), hint: tx("Le favicon tel quel : grille de services sur un carré sombre"), icon: <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-9 w-9" /> },
 ];
 
 const FLYOUT_OPTIONS: IconOption<FlyoutMode>[] = [

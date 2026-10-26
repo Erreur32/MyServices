@@ -25,7 +25,7 @@ import { InfoNote } from "../components/InfoNote";
 const confide = (local: AssistantProgress) => void send("PUT", "assistant", local).catch(() => undefined);   // confie au serveur la progression de ce navigateur
 
 const stepDot = (now: boolean, done: boolean, skipped: boolean) => {
-  if (now) return "border-link bg-link text-white";
+  if (now) return "border-accent bg-accent text-white";
   if (done) return "border-ok/60 bg-ok/15 text-ok";
   if (skipped) return "border-dim/50 bg-bg2 text-dim";
   return "border-line bg-card text-muted hover:border-link";

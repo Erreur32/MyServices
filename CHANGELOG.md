@@ -16,6 +16,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **MCP, `machines_config` action `patch`** (route `PATCH /machines/settings/{ip}`): change some fields of a declared machine and keep the others. `save` takes the whole record, so a script that only meant to set one option had to send the name, the role and the SSH access again. A field set to null is removed.
 - **MCP, `settings_config` action `task_run`**: run a task now (backups, health…) through the route of the Tasks page, instead of waiting for its schedule.
 
+### Changed
+- **Filled buttons on Dracula and Ayu Mirage** (« + Machine », the current step of the assistant, the filter counter, the home page's red action): they took the link colour, a light cyan on these two themes, unreadable under white text. They now take an accent colour of their own (`--accent`: deep purple on Dracula, deep blue on Ayu Mirage), and the link colour on the other themes as before.
+- **Application icon**: the browser tab's icon (favicon) now follows the logo chosen in Profile › Appearance, and the grid without background is the default and first in the choice (a saved choice is kept).
+
 ### Fixed
 - **Menu dots: the click now shows what the dot's tooltip lists**: the Machines dot filtered the page on the « Alertes » facet (the whole « À surveiller » column: services down, updates, SMART, flagged devices…) while its tooltip counted the health alerts, so « 2 machines » in the tooltip became 6 in the list; the Services dot filtered on « en alerte », which also kept services that are OK with a remark, all unfolded. The Machines dot now filters on the Santé facet (à surveiller, critique, injoignable) and the Services dot on the state (en panne, avertissement), like the « Voir la santé » lines of the home page (`DOT_FILTER`, one table for every dot).
 - **Connectors in trouble had no menu dot**: their alerts belong to the Settings tab, which no menu entry carries, so they only showed on the home page. The dot is now on the entry the alert names: « Connecteurs » for a connector that fails, « Machines » for a Docker that cannot be read; its click opens that entry.
