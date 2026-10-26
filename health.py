@@ -91,6 +91,11 @@ KERNEL_IGNORE_RE = re.compile(
 )
 # ───────────── Machines surveillées ─────────────
 
+def _list_of(m: dict, key: str) -> list:
+    """Réglage de machine attendu sous forme de liste (sinon vide)."""
+    return m[key] if isinstance(m.get(key), list) else []
+
+
 def load_hosts(agent_ips: frozenset | set = frozenset()) -> tuple[list[dict], dict]:
     """Machines de services-meta.json hors « off » et « health »: false, et le services-meta lu.
     Accès : « health » (alias dédié), sinon « ssh », sinon l'alias de process_hosts ; sans accès
@@ -109,8 +114,7 @@ def load_hosts(agent_ips: frozenset | set = frozenset()) -> tuple[list[dict], di
         hosts.append({"id": hid, "name": f"{m['name']} · {ip}",  # « Nom · IP » : l'IP est relue par la page
                       "mode": "local" if alias == "local" else "ssh", "target": alias, "vm": bool(m.get("vm")),
                       "os": m.get("os", "linux"), "ip": ip, "off": bool(m.get("off")),
-                      "sources": m.get("health_sources") if isinstance(m.get("health_sources"), list) else [],
-                      "stopped_ok": m.get("stopped_ok") if isinstance(m.get("stopped_ok"), list) else []})
+                      "sources": _list_of(m, "health_sources"), "stopped_ok": _list_of(m, "stopped_ok")})
     return hosts, meta
 
 
@@ -241,6 +245,42 @@ def collect_systemd(run) -> dict:
     return info
 
 
+def _intended_stop(name: str, status: str, allowed: set) -> bool:
+    """Arrêt voulu : jamais démarré (Created) ou arrêté proprement (docker stop / compose down : code 0, 143 SIGTERM,
+    137 SIGKILL après délai). Un conteneur de la liste « peut rester arrêté » l'est aussi, même avec un code 1 (appli qui
+    sort en erreur sur SIGTERM). Pas une panne, affiché à part."""
+    if status.startswith("Created") or re.match(r"Exited \((0|137|143)\)", status):
+        return True
+    return name.lower() in allowed and status.startswith("Exited")
+
+
+def _docker_state(status: str) -> str:
+    """healthy, unhealthy, restarting ou exited (un conteneur « Dead » compte comme arrêté en erreur)."""
+    if "Restarting" in status:
+        return "restarting"
+    if "Exited" in status or "Dead" in status:
+        return "exited"
+    return "unhealthy" if "unhealthy" in status.lower() else "healthy"
+
+
+def _percent(text: str) -> float:
+    try:
+        return float(text.rstrip("%").replace(",", "."))
+    except ValueError:
+        return 0.0
+
+
+def _docker_stats(run) -> list[dict]:
+    """Stats CPU/mem : un seul échantillon, pour repérer les conteneurs gourmands (le plus gourmand d'abord)."""
+    rc, out = run(DOCKER_STATS_CMD, timeout=25)
+    cstats = []
+    for ln in out.strip().splitlines() if rc == 0 else ():
+        cols = ln.split("|")
+        if len(cols) >= 4:
+            cstats.append({"name": cols[0], "cpu": _percent(cols[1]), "mem_usage": cols[2].strip(), "mem_pct": _percent(cols[3])})
+    return sorted(cstats, key=lambda c: c["cpu"], reverse=True)
+
+
 def collect_docker(run, stopped_ok=()) -> dict:
     """Best effort : gracieux si pas d'accès au socket docker (retourne accessible: False).
     stopped_ok : noms de conteneurs que l'on laisse arrêtés exprès (réglage de la machine), quel que soit leur code de sortie."""
@@ -249,57 +289,28 @@ def collect_docker(run, stopped_ok=()) -> dict:
     if rc != 0 or "permission denied" in out.lower() or "cannot connect" in out.lower():
         return {"accessible": False, "reason": out.strip()[:120]}
     containers, stopped = [], []
-    healthy = unhealthy = restarting = exited = 0
+    count = dict.fromkeys(("healthy", "unhealthy", "restarting", "exited"), 0)
     for ln in out.strip().splitlines():
         cols = ln.split("|", 2)
         if len(cols) < 3:
             continue
         name, status, image = cols
-        # Arrêt voulu : jamais démarré (Created) ou arrêté proprement (docker stop / compose down :
-        # code 0, 143 SIGTERM, 137 SIGKILL après délai). Pas une panne, affiché à part.
-        # Un conteneur de la liste « peut rester arrêté » : même un code 1 (appli qui sort en erreur sur SIGTERM) est un arrêt voulu.
-        if (status.startswith("Created") or re.match(r"Exited \((0|137|143)\)", status)
-                or (name.lower() in allowed and status.startswith("Exited"))):
-            stopped.append({"name": name, "status": status, "image": image})
+        entry = {"name": name, "status": status, "image": image}
+        if _intended_stop(name, status, allowed):
+            stopped.append(entry)
             continue
-        if "Restarting" in status:
-            restarting += 1
-        elif "Exited" in status or "Dead" in status:
-            exited += 1
-        elif "unhealthy" in status.lower():
-            unhealthy += 1
-        else:
-            healthy += 1
-        containers.append({"name": name, "status": status, "image": image})
+        count[_docker_state(status)] += 1
+        containers.append(entry)
     issues = [c for c in containers if "Exited" in c["status"] or "Restarting" in c["status"]
               or "unhealthy" in c["status"].lower()]
-
-    # Stats CPU/mem : un seul échantillon, pour repérer les conteneurs gourmands.
-    cstats = []
-    rc2, out2 = run(DOCKER_STATS_CMD, timeout=25)
-    if rc2 == 0:
-        for ln in out2.strip().splitlines():
-            cols = ln.split("|")
-            if len(cols) < 4:
-                continue
-            try:
-                cpu_v = float(cols[1].rstrip("%").replace(",", "."))
-            except ValueError:
-                cpu_v = 0.0
-            try:
-                mem_v = float(cols[3].rstrip("%").replace(",", "."))
-            except ValueError:
-                mem_v = 0.0
-            cstats.append({"name": cols[0], "cpu": cpu_v, "mem_usage": cols[2].strip(), "mem_pct": mem_v})
-    cstats.sort(key=lambda c: c["cpu"], reverse=True)
+    cstats = _docker_stats(run)
     total_cpu = round(sum(c["cpu"] for c in cstats), 1)
     avg_cpu = round(total_cpu / len(cstats), 1) if cstats else 0.0
 
     return {
         "accessible": True, "total": len(containers),  # hors conteneurs arrêtés volontairement
         "stopped": len(stopped), "stopped_list": stopped[:10],
-        "healthy": healthy, "unhealthy": unhealthy, "restarting": restarting, "exited": exited,
-        "issues": issues[:10],
+        **count, "issues": issues[:10],
         "total_cpu": total_cpu, "avg_cpu": avg_cpu, "top": cstats[:3],
     }
 
