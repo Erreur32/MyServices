@@ -11,6 +11,11 @@ describe("à surveiller", () => {
     expect(worst([])).toBe(0);
   });
 
+  it("SMART : seul un disque en échec est signalé, un disque non lu ne l'est pas", () => {
+    const smart = { accessible: true, disks: [{ device: "sda", healthy: true, failed: false }, { device: "nvme0n1", healthy: false, failed: false }, { device: "sdb", healthy: false, failed: true }] };
+    expect(watchItems(machine(), health({ smart })).map((i) => i.text)).toEqual(["SMART : sdb en défaut"]);
+  });
+
   it("le plus grave d'abord, avec une icône par sujet", () => {
     const h = health({ disks: [{ mount: "/", used_pct: 97, critical: true, warning: true }], reboot_required: true, apt: { upgradable: 4 } });
     const items = watchItems(machine({ down: 2 }), h);

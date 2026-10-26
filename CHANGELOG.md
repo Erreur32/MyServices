@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+- **SMART « in fault » on a disk nobody could read**: when a machine's SMART was taken from Beszel (the agent has no `sudo` rule for `smartctl`), a disk Beszel could not query (state `UNKNOWN`, temperature and hours at 0) was shown as « SMART: /dev/nvme0n1 in fault » by the pages, while the health check counted it as fine. Such a disk is now left out, and the pages report a disk only when it is really `failed`, like the health check.
+
 ## v0.24.2 (2026-10-26)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

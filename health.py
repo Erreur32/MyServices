@@ -1333,7 +1333,8 @@ def docker_from_beszel(containers) -> dict:
 
 
 def smart_from_beszel(sys_: dict) -> dict:
-    devs = sys_.get("smart") or []
+    """A disk Beszel could not read (state UNKNOWN, temperature and hours at 0) is left out: it is not a failure."""
+    devs = [d for d in sys_.get("smart") or [] if str(d.get("state")).upper() in ("PASSED", "FAILED")]
     return {"accessible": bool(devs), "source": "beszel",
             "disks": [{"device": d.get("name") or "?", "healthy": str(d.get("state")).upper() == "PASSED",
                        "failed": str(d.get("state")).upper() == "FAILED", "temp": d.get("temp"), "hours": d.get("hours")}

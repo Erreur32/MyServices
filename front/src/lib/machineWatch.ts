@@ -95,7 +95,7 @@ export function healthItems(h: HealthHost): WatchItem[] {
   if (dk?.issues?.length) add("warn", "docker", tx("Docker : {0}", dk.issues.map((c) => typeof c === "string" ? c : `${c.name} (${c.status})`).join(", ")));
   if (dk?.loops?.length) add("warn", "docker", tx("Docker : redémarre en boucle : {0}", dk.loops.map((c) => `${c.name} (${c.restarts})`).join(", ")));
   if (h.kernel?.has_errors) add("warn", "kernel", tx("erreurs noyau récentes"), h.kernel.samples);
-  for (const d of h.smart?.disks || []) if (d.failed || !d.healthy) add("bad", "smart", tx("SMART : {0} en défaut", d.device));
+  for (const d of h.smart?.disks || []) if (d.failed) add("bad", "smart", tx("SMART : {0} en défaut", d.device));
   if (h.load?.available) {
     if (h.load.cpu_pct != null) { if (h.load.cpu_pct >= CPU_WARN_PCT) add("warn", "load", tx("processeur à {0} %", Math.round(h.load.cpu_pct))); }   // Windows: instant CPU
     else if (h.load.load_1 >= LOAD_WARN_MULT * h.load.ncpu) add(h.load.load_1 >= LOAD_CRIT_MULT * h.load.ncpu ? "bad" : "warn", "load", tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu));
