@@ -78,7 +78,7 @@ def t_health(core, args, ctx):
     h = _health(core)
     keep = ("name", "level", "reachable")
     return {"generated": h.get("timestamp"), "overall": h.get("overall_level"),
-            "hosts": [{**{k: x.get(k) for k in keep},
+            "hosts": [{**{k: x.get(k) for k in keep}, "checks": x.get("checks") or {},   # the controls in warn or crit: why the level is not « ok »
                        "disks": [{"mount": d.get("mount"), "used_pct": d.get("used_pct")} for d in x.get("disks") or []]}
                       for x in h.get("hosts", [])]}
 
@@ -225,7 +225,7 @@ TOOLS = {
                       {**OBJ, "properties": {"query": {"type": "string", "description": "texte cherché (nom, machine, image)"},
                                              "problems_only": {"type": "boolean", "description": "seulement warn et bad"},
                                              "limit": {"type": "integer", "minimum": 1, "maximum": 500}}}, t_services),
-    "get_health": ("read", "Santé des machines (disques, niveau global) relevée par la tâche santé.",
+    "get_health": ("read", "Santé des machines (disques, niveau global, contrôles en alerte avec leur niveau) relevée par la tâche santé.",
                    {**OBJ, "properties": {}}, t_health),
     "list_events": ("read", "Historique : pannes, rétablissements, machines hors ligne, santé… sur les N dernières heures.",
                     {**OBJ, "properties": {"hours": {"type": "integer", "minimum": 1, "maximum": 8760},

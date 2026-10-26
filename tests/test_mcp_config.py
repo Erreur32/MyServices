@@ -2,9 +2,12 @@
 
   Runs without FastAPI: the REST side is a fake ctx["route"].
 """
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import mcp_server  # noqa: E402
@@ -70,6 +73,18 @@ class McpConfig(unittest.TestCase):
         s = mcp_server.config_schema("agents_config")
         self.assertEqual(s["properties"]["action"]["enum"][0], "help")
         self.assertIn("revoke", s["properties"]["action"]["enum"])
+
+
+class McpHealth(unittest.TestCase):
+    def test_health_says_why_a_host_is_not_ok(self):
+        with tempfile.TemporaryDirectory() as web:
+            (Path(web) / "health").mkdir()
+            (Path(web) / "health" / "stats.json").write_text(json.dumps({"timestamp": "t", "overall_level": "warn", "hosts": [
+                {"name": "A · 10.0.0.1", "level": "warn", "reachable": True, "disks": [], "checks": {"docker": "warn"}},
+                {"name": "B · 10.0.0.2", "level": "ok", "reachable": True, "disks": []}]}), encoding="utf-8")
+            hosts = mcp_server.t_health(SimpleNamespace(WEB=web), {}, Ctx())["hosts"]
+        self.assertEqual(hosts[0]["checks"], {"docker": "warn"})
+        self.assertEqual(hosts[1]["checks"], {})   # a healthy host: an empty answer, not a missing key
 
 
 if __name__ == "__main__":
