@@ -43,6 +43,7 @@ from pathlib import Path
 
 import notify
 from config import CFG, next_timer_run
+from docker_state import allowed_names, intended_stop
 import readers
 from sshmux import SSH_MUX
 
@@ -245,15 +246,6 @@ def collect_systemd(run) -> dict:
     return info
 
 
-def _intended_stop(name: str, status: str, allowed: set) -> bool:
-    """Arrêt voulu : jamais démarré (Created) ou arrêté proprement (docker stop / compose down : code 0, 143 SIGTERM,
-    137 SIGKILL après délai). Un conteneur de la liste « peut rester arrêté » l'est aussi, même avec un code 1 (appli qui
-    sort en erreur sur SIGTERM). Pas une panne, affiché à part."""
-    if status.startswith("Created") or re.match(r"Exited \((0|137|143)\)", status):
-        return True
-    return name.lower() in allowed and status.startswith("Exited")
-
-
 def _docker_state(status: str) -> str:
     """healthy, unhealthy, restarting ou exited (un conteneur « Dead » compte comme arrêté en erreur)."""
     if "Restarting" in status:
@@ -284,7 +276,7 @@ def _docker_stats(run) -> list[dict]:
 def collect_docker(run, stopped_ok=()) -> dict:
     """Best effort : gracieux si pas d'accès au socket docker (retourne accessible: False).
     stopped_ok : noms de conteneurs que l'on laisse arrêtés exprès (réglage de la machine), quel que soit leur code de sortie."""
-    allowed = {str(n).lower() for n in stopped_ok or ()}
+    allowed = allowed_names(stopped_ok)
     rc, out = run(DOCKER_PS_CMD, timeout=10)
     if rc != 0 or "permission denied" in out.lower() or "cannot connect" in out.lower():
         return {"accessible": False, "reason": out.strip()[:120]}
@@ -296,7 +288,7 @@ def collect_docker(run, stopped_ok=()) -> dict:
             continue
         name, status, image = cols
         entry = {"name": name, "status": status, "image": image}
-        if _intended_stop(name, status, allowed):
+        if intended_stop(name, status, allowed):
             stopped.append(entry)
             continue
         count[_docker_state(status)] += 1

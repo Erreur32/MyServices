@@ -36,6 +36,7 @@ export function status(r: Host): [StatusClass, string, string] {
   const p = r.public || {}, b = r.backend || {};
   if (r.paused) return ["off", tx("en pause"), r.paused];
   if (r.machine_off) return ["off", tx("machine éteinte"), tx("{0} coupée volontairement · non testé", r.machine || r.ip)];
+  if (r.stopped) return ["off", tx("arrêté exprès"), tx("conteneur arrêté exprès ({0}) · non testé", r.stopped)];
   if (!r.enabled) return ["off", tx("désactivé"), r.type === "redirect" ? tx("redirection désactivée dans NPM")
     : r.type === "dead" ? tx("host 404 désactivé dans NPM") : tx("désactivé dans NPM · backend {0}", b.up ? tx("toujours joignable") : tx("éteint"))];
   if (r.type === "dead") return p.code === 404 ? ["ok", tx("OK · 404 voulu"), tx("NPM répond 404 comme prévu")]
@@ -87,7 +88,7 @@ export function checks(r: Host): Check[] {
   const p = r.public || {}, b = r.backend || {}, c: Check[] = [];
   if (!r.enabled) return r.type === "proxy" && b.up === false ? ["obsolete"] : [];
   if (r.paused) return ["pause"];
-  if (r.machine_off) return [];
+  if (r.machine_off || r.stopped) return [];
   if (status(r)[0] === "bad") c.push("down");
   if (p.err === "gaierror") c.push("dns");
   else if (p.err === "RemoteDisconnected") { if (!r.closes_root) c.push("closed"); }
@@ -113,6 +114,7 @@ export function noIdentity(r: Host): string | null {
   if (!r.enabled) return tx("désactivé");
   if (r.paused) return tx("en pause");
   if (r.machine_off) return tx("machine éteinte");
+  if (r.stopped) return tx("arrêté exprès");
   if (status(r)[0] === "bad") return tx("backend injoignable");
   return null;
 }

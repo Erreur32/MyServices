@@ -538,6 +538,8 @@ export const EN: Record<string, string> = {
   "en ligne, sans SSH": "online, no SSH",
   "en panne": "down",
   "en pause": "paused",
+  "arrêté exprès": "stopped on purpose",
+  "conteneur arrêté exprès ({0}) · non testé": "container stopped on purpose ({0}) · not tested",
   "en plus : demander un passage de la collecte": "plus: request a collection run",
   "en plus : réglages (alertes, connecteurs, machines) ; jamais les comptes ni les jetons": "plus: settings (alerts, connectors, machines); never accounts or tokens",
   "en retard": "late",

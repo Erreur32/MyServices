@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.24.2 (2026-10-26)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+- **A service whose container is stopped on purpose is grey, not red**: the Services page, the watcher alerts, the MCP and the machine counts now follow the rule the health reading already used (`docker_state.py`): a container that never started, one stopped cleanly (exit 0, 143 or 137) or one listed in the machine's « Containers stopped on purpose » no longer turns its service to « down ». The row reads « stopped on purpose », is not probed, is not a point to fix and sends no alert; it returns to normal by itself when the container runs again, and a crash (exit 1, not listed) is still red. The « stop following » button stays for services that are not in Docker.
+
 ## v0.24.1 (2026-10-26)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

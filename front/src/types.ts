@@ -81,6 +81,7 @@ export interface Host {
   listen_addr?: string;
   machine?: string;
   machine_off?: boolean;
+  stopped?: string;   // docker status of its container when that one is stopped on purpose (not probed, never an alert)
   paused?: string;
   public?: Probe;
   backend?: Backend;

@@ -5,6 +5,13 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.24.1 → 0.24.2
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: a service whose Docker container is stopped on purpose (never started, exit 0, 137 or 143, or listed in the machine's « Containers stopped on purpose ») shows « off » instead of « down » at the next collection, and no longer sends an alert.
+
 ## 0.24.0 → 0.24.1
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
