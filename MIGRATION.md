@@ -5,6 +5,14 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.24.0 → 0.24.1
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Optional, `services-meta.json`**: a machine can now carry `"stopped_ok": ["container-name"]`, the containers that may stay stopped (even with an exit code other than 0, 137 or 143). It is set on the machine's page (Options › Containers stopped on purpose) or through the MCP `machines_config` save. Without it, nothing changes.
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: nothing.
+
 ## 0.23.0 → 0.24.0
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
