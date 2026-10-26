@@ -3,7 +3,7 @@
 // (backups, NPM, AdGuard, a hypervisor). Each access is set on a page of its own (#settings/machines/ssh/<ip>, « + » for a new one: the
 // other machines are not listed meanwhile). The app's key is the band on top, and each row tells which key the machine signs in with.
 import { Cpu, Plus, Terminal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
 import type { AgentInfo, MachinesSettings, SystemState } from "../types";
 import { AppKeyBand, keyOf } from "../components/AppKey";
@@ -28,13 +28,15 @@ const STATE: Record<SshState, [Tone, string]> = {
   off: ["off", tx("coupée à la main")],
 };
 
-/** Whether SSH is still needed: with an agent and nothing that needs SSH, it is optional; without an agent, the agent is offered */
-function AgentAdvice({ ip, agent, uses }: Readonly<{ ip: string; agent: boolean; uses: string[] }>) {
+/** Whether SSH is still needed: with an agent and nothing that needs SSH, it is optional; without an agent, the agent is offered.
+ *  An agent that reports (working) is a link to its page */
+function AgentAdvice({ ip, agent, working, uses }: Readonly<{ ip: string; agent: boolean; working: boolean; uses: string[] }>) {
   if (!agent) return <a href={`#machines/${ip}/access`} className="inline-flex items-center gap-1 text-xs text-link hover:underline"><Cpu size={13} aria-hidden />{tx("Installer l'agent")} ›</a>;
-  if (uses.length) return <span className="text-xs text-muted" title={tx("L'agent ne lit pas cela : gardez le SSH")}>{tx("agent installé · SSH utile : {0}", useText(uses))}</span>;
+  const toAgent = (node: ReactNode) => working ? <a href={`#settings/agents/${ip}`} className="hover:underline" title={tx("L'agent envoie sa santé : ouvrir sa page")}>{node}</a> : node;
+  if (uses.length) return <span className="text-xs text-muted" title={tx("L'agent ne lit pas cela : gardez le SSH")}>{toAgent(tx("agent installé · SSH utile : {0}", useText(uses)))}</span>;
   return (
     <span className="text-xs">
-      <Badge tone="info">{tx("SSH facultatif : l'agent suffit")}</Badge>{" "}
+      {toAgent(<Badge tone="info">{tx("SSH facultatif : l'agent suffit")}</Badge>)}{" "}
       <a href={`#settings/machines/ssh/${ip}`} className="text-link hover:underline">{tx("Couper le SSH")} ›</a>
     </span>
   );
@@ -56,6 +58,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
     read<SystemState>("system").then((r) => setKey(r.ssh)).catch(() => undefined);
   }, []);
   const withAgent = new Set(agents.filter((a) => a.state !== "révoqué").map((a) => a.ip));
+  const working = new Set(agents.filter((a) => a.state === "actif").map((a) => a.ip));
   const list = snap.data.machine_list ?? [];
   const rows = sshRows(st.machines, st.aliases, list, snap.data.connectors ?? []);
   const count = (s: SshState) => rows.filter((r) => r.state === s).length;
@@ -95,7 +98,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
                       <td className="px-3 py-2 font-mono text-xs">{r.access || <Dim>-</Dim>}</td>
                       <td className="px-3 py-2">{r.state === "off" || !seen?.ssh ? <Dim>-</Dim> : <Badge tone={keyTone} title={seen.ssh.key_fp ?? undefined}>{keyLabel}</Badge>}</td>
                       <td className="px-3 py-2"><Badge tone={tone} title={r.message || undefined}>{label}</Badge></td>
-                      <td className="px-3 py-2"><AgentAdvice ip={r.ip} agent={withAgent.has(r.ip)} uses={st.ssh_uses?.[r.ip] ?? []} /></td>
+                      <td className="px-3 py-2"><AgentAdvice ip={r.ip} agent={withAgent.has(r.ip)} working={working.has(r.ip)} uses={st.ssh_uses?.[r.ip] ?? []} /></td>
                       <td className="px-3 py-2 text-right"><SettingsLink href={`#settings/machines/ssh/${r.ip}`} of={r.name} /></td>
                     </tr>
                   );

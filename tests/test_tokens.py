@@ -111,6 +111,12 @@ class Tokens(unittest.TestCase):
         bad = tool("agents_config", {"action": "revoke", "params": {}})
         self.assertIn("aid", bad["content"][0]["text"])
         self.assertIn("switch", tool("connectors_config", {"action": "help"})["structuredContent"]["actions"])
+        self.c.patch("/myservices/api/v1/tokens/tools/machines_config", json={"enabled": True}, headers=self.h)
+        machines = tool("machines_config", {"action": "help"})["structuredContent"]["actions"]
+        self.assertEqual(set(machines), {"list", "save", "delete", "check", "refresh", "network_get", "network_set"})   # each one a real route
+        self.assertFalse(tool("machines_config", {"action": "list"}).get("isError"))
+        self.assertFalse(tool("machines_config", {"action": "network_get"}).get("isError"))
+        self.assertIn("ip", tool("machines_config", {"action": "check", "params": {}})["content"][0]["text"])
         who = {e["username"] for e in self.c.get("/myservices/api/v1/audit").json()["audit"]}
         self.assertIn("mcp:t-mcp-admin", who)   # audited as the token, like from the page
 

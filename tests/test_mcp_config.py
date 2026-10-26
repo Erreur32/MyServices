@@ -2,9 +2,12 @@
 
   Runs without FastAPI: the REST side is a fake ctx["route"].
 """
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import mcp_server  # noqa: E402
@@ -70,6 +73,50 @@ class McpConfig(unittest.TestCase):
         s = mcp_server.config_schema("agents_config")
         self.assertEqual(s["properties"]["action"]["enum"][0], "help")
         self.assertIn("revoke", s["properties"]["action"]["enum"])
+
+
+class McpMachines(unittest.TestCase):
+    def test_machines_config_is_an_admin_tool_off_by_default(self):
+        info = {t["name"]: t for t in mcp_server.tools_info({})}
+        self.assertEqual((info["machines_config"]["level"], info["machines_config"]["enabled"]), ("admin", False))
+
+    def test_machines_config_runs_the_page_routes(self):
+        ctx = Ctx(out={"machines": []})
+        call(ctx, "machines_config", {"action": "refresh", "params": {"ip": "10.0.0.9"}})
+        call(ctx, "machines_config", {"action": "network_set", "params": {"every_h": 6}})
+        self.assertEqual(ctx.calls, [("POST", "/machines/settings/{ip}/refresh", {"ip": "10.0.0.9"}), ("PUT", "/network/settings", {"every_h": 6})])
+        self.assertIn("network_get", call(Ctx(), "machines_config", {"action": "help"})["result"]["structuredContent"]["actions"])
+
+
+class McpHealth(unittest.TestCase):
+    def test_health_says_why_a_host_is_not_ok(self):
+        with tempfile.TemporaryDirectory() as web:
+            (Path(web) / "health").mkdir()
+            (Path(web) / "health" / "stats.json").write_text(json.dumps({"timestamp": "t", "overall_level": "warn", "hosts": [
+                {"name": "A · 10.0.0.1", "level": "warn", "reachable": True, "disks": [], "checks": {"docker": "warn"}},
+                {"name": "B · 10.0.0.2", "level": "ok", "reachable": True, "disks": []}]}), encoding="utf-8")
+            hosts = mcp_server.t_health(SimpleNamespace(WEB=web), {}, Ctx())["hosts"]
+        self.assertEqual(hosts[0]["checks"], {"docker": "warn"})
+        self.assertEqual(hosts[1]["checks"], {})   # a healthy host: an empty answer, not a missing key
+
+    def test_status_lists_a_health_connector_that_fails(self):
+        with tempfile.TemporaryDirectory() as web:
+            (Path(web) / "health").mkdir()
+            (Path(web) / "data.json").write_text(json.dumps({"connectors": [{"type": "npm", "name": "npm", "ok": True, "message": "OK"}]}), encoding="utf-8")
+            (Path(web) / "health" / "stats.json").write_text(json.dumps({"connectors": [
+                {"type": "beszel", "name": "beszel", "ok": False, "message": "injoignable"},
+                {"type": "npm", "name": "npm", "ok": False, "message": "doublon ignoré"}]}), encoding="utf-8")
+            out = mcp_server.t_status(SimpleNamespace(WEB=web, status=lambda: {}), {}, Ctx())["connectors"]
+        self.assertEqual([(c["type"], c["ok"]) for c in out], [("npm", True), ("beszel", False)])   # the collection's line wins, Beszel is added
+
+    def test_machines_name_their_services_in_trouble(self):
+        row = lambda ip, up: {"type": "local", "enabled": True, "ip": ip, "port": 80, "backend": {"up": up}, "service": {"name": "web"}}
+        with tempfile.TemporaryDirectory() as web:
+            (Path(web) / "data.json").write_text(json.dumps({"machine_list": [{"name": "A", "ip": "10.0.0.1", "down": 1}, {"name": "B", "ip": "10.0.0.2", "down": 0}],
+                                                              "hosts": [row("10.0.0.1", False), row("10.0.0.2", True)]}), encoding="utf-8")
+            out = mcp_server.t_machines(SimpleNamespace(WEB=web), {}, Ctx())["machines"]
+        self.assertEqual([x["status"] for x in out[0]["problems"]], ["bad"])
+        self.assertEqual(out[1]["problems"], [])
 
 
 if __name__ == "__main__":

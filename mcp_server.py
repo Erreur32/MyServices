@@ -35,20 +35,27 @@ def _health(core) -> dict:
 
 def t_status(core, args, ctx):
     d, st = _data(core), core.status()
+    seen = {(c["type"], c["name"]) for c in d.get("connectors", [])}
+    health_connectors = [c for c in _health(core).get("connectors", []) if (c["type"], c["name"]) not in seen]   # Beszel is read by the health task, not by the collection
     return {"data_generated": d.get("generated"), "next_run": d.get("next_run"), "collect": st,
             "machines": len(d.get("machine_list", [])), "services": len(d.get("hosts", [])),
             "connectors": [{"type": c["type"], "name": c["name"], "ok": c["ok"], "message": c.get("message")}
-                           for c in d.get("connectors", [])]}
+                           for c in [*d.get("connectors", []), *health_connectors]]}
 
 
 def t_machines(core, args, ctx):
+    import watcher
+    problems: dict[str, list[dict]] = {}   # per machine: which services are behind « services_down »
+    for r in _data(core).get("hosts", []):
+        if (st := watcher.status(r)) in ("bad", "warn"):
+            problems.setdefault(r.get("ip"), []).append({"name": watcher.label(r), "status": st})
     out = []
     for m in _data(core).get("machine_list", []):
         i = m.get("info") or {}
         out.append({"name": m["name"], "ip": m["ip"], "role": m.get("role"), "ping": m.get("ping"),
                     "off_on_purpose": bool(m.get("off")), "ssh": bool(m.get("ssh")), "ssh_ok": bool(m.get("info")),
                     "os": i.get("os"), "uptime_s": i.get("uptime_s"), "containers": i.get("docker"),
-                    "services": m.get("services"), "services_down": m.get("down")})
+                    "services": m.get("services"), "services_down": m.get("down"), "problems": problems.get(m["ip"], [])})
     return {"machines": out}
 
 
@@ -78,7 +85,7 @@ def t_health(core, args, ctx):
     h = _health(core)
     keep = ("name", "level", "reachable")
     return {"generated": h.get("timestamp"), "overall": h.get("overall_level"),
-            "hosts": [{**{k: x.get(k) for k in keep},
+            "hosts": [{**{k: x.get(k) for k in keep}, "checks": x.get("checks") or {},   # the controls in warn or crit: why the level is not « ok »
                        "disks": [{"mount": d.get("mount"), "used_pct": d.get("used_pct")} for d in x.get("disks") or []]}
                       for x in h.get("hosts", [])]}
 
@@ -146,6 +153,15 @@ CONFIG = {
         "vzdump_follow": ("PUT", "/backups/vzdump"),
         "ha_check": ("POST", "/backups/ha/check"),
         "ha_follow": ("PUT", "/backups/ha"),
+    },
+    "machines_config": {
+        "list": ("GET", "/machines/settings"),
+        "save": ("PUT", "/machines/settings/{ip}"),
+        "delete": ("DELETE", "/machines/settings/{ip}"),
+        "check": ("POST", "/machines/settings/{ip}/check"),
+        "refresh": ("POST", "/machines/settings/{ip}/refresh"),
+        "network_get": ("GET", "/network/settings"),
+        "network_set": ("PUT", "/network/settings"),
     },
     "agents_config": {
         "list": ("GET", "/agents"),
@@ -218,14 +234,14 @@ CONFIG_HELP = " L'action « help » liste chaque action et ses paramètres (sch�
 TOOLS = {
     "status": ("read", "État général : fraîcheur des données, passage en cours, nombre de machines et services, "
                "état de chaque connecteur.", {**OBJ, "properties": {}}, t_status),
-    "list_machines": ("read", "Machines suivies : nom, IP, rôle, ping, accès SSH, système, conteneurs, services en panne.",
+    "list_machines": ("read", "Machines suivies : nom, IP, rôle, ping, accès SSH, système, conteneurs en marche, services en panne avec leur nom.",
                       {**OBJ, "properties": {}}, t_machines),
     "list_services": ("read", "Services (proxy NPM, conteneurs, process) avec leur état ok / warn / bad / off, "
                       "problèmes d'abord.",
                       {**OBJ, "properties": {"query": {"type": "string", "description": "texte cherché (nom, machine, image)"},
                                              "problems_only": {"type": "boolean", "description": "seulement warn et bad"},
                                              "limit": {"type": "integer", "minimum": 1, "maximum": 500}}}, t_services),
-    "get_health": ("read", "Santé des machines (disques, niveau global) relevée par la tâche santé.",
+    "get_health": ("read", "Santé des machines (disques, niveau global, contrôles en alerte avec leur niveau) relevée par la tâche santé.",
                    {**OBJ, "properties": {}}, t_health),
     "list_events": ("read", "Historique : pannes, rétablissements, machines hors ligne, santé… sur les N dernières heures.",
                     {**OBJ, "properties": {"hours": {"type": "integer", "minimum": 1, "maximum": 8760},
@@ -240,6 +256,9 @@ TOOLS = {
     "backups_config": ("admin", "Réglages des sauvegardes : dossiers par SSH, Veeam, distant (SFTP…), Synology, PBS, agents, "
                        "vzdump, Home Assistant ; copies, seuils d'âge, arrêt du suivi." + CONFIG_HELP, config_schema("backups_config"),
                        config_tool("backups_config")),
+    "machines_config": ("admin", "Machines : lister, ajouter ou modifier (accès SSH, rôle), retirer, vérifier (SSH, Docker, AdGuard, santé), "
+                        "relire une seule machine, et régler la recherche réseau automatique." + CONFIG_HELP, config_schema("machines_config"),
+                        config_tool("machines_config")),
     "agents_config": ("admin", "Agents de santé : lister, créer (commande d'installation affichée une seule fois), mise à jour "
                       "automatique, mise à jour immédiate, nom de poste confirmé, révoquer, effacer." + CONFIG_HELP, config_schema("agents_config"),
                       config_tool("agents_config")),
@@ -248,7 +267,7 @@ TOOLS = {
                                                "type": VALIDATE_TYPE}}, t_validate),
 }
 # Tools that change the configuration: off until an admin switches them on in Settings -> API and MCP
-OFF_BY_DEFAULT = {"connectors_config", "backups_config", "agents_config", "validate_config"}
+OFF_BY_DEFAULT = {"connectors_config", "backups_config", "machines_config", "agents_config", "validate_config"}
 
 
 def enabled(states: dict[str, bool], name: str) -> bool:
