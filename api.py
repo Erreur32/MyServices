@@ -1348,6 +1348,19 @@ def machines_delete(ip: str, request: Request):
     return machine_call(request, "machine retirée", ip, go)
 
 
+class MachinePatch(BaseModel):
+    fields: dict   # only these fields change; null removes one
+
+
+@app.patch(API + "/machines/settings/{ip}", tags=["machines"], summary="Changer quelques champs d'une machine, le reste est gardé (admin)")
+def machines_patch(ip: str, body: MachinePatch, request: Request):
+    def go(m):
+        saved = m.patch(ip, body.fields)
+        m.publish(ip, saved)
+        return {"ok": True, "machine": saved, "message": "enregistrée : prise en compte au prochain passage de la collecte"}
+    return machine_call(request, "machine modifiée", ip, go)
+
+
 @app.post(API + "/machines/settings/{ip}/check", tags=["machines"], summary="Vérifier une machine (SSH, Docker, AdGuard, santé) (admin)")
 def machines_check(ip: str, request: Request):
     return machine_call(request, "", "", lambda m: m.check(ip))

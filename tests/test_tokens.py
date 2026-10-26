@@ -115,13 +115,14 @@ class Tokens(unittest.TestCase):
         self.assertIn("switch", tool("connectors_config", {"action": "help"})["structuredContent"]["actions"])
         self.c.patch("/myservices/api/v1/tokens/tools/machines_config", json={"enabled": True}, headers=self.h)
         machines = tool("machines_config", {"action": "help"})["structuredContent"]["actions"]
-        self.assertEqual(set(machines), {"list", "save", "delete", "check", "refresh", "network_get", "network_set"})   # each one a real route
+        self.assertEqual(set(machines), {"list", "save", "patch", "delete", "check", "refresh", "network_get", "network_set"})   # each one a real route
         self.assertFalse(tool("machines_config", {"action": "list"}).get("isError"))
         self.assertFalse(tool("machines_config", {"action": "network_get"}).get("isError"))
         self.assertIn("ip", tool("machines_config", {"action": "check", "params": {}})["content"][0]["text"])
         self.c.patch("/myservices/api/v1/tokens/tools/settings_config", json={"enabled": True}, headers=self.h)
         settings = tool("settings_config", {"action": "help"})["structuredContent"]["actions"]
         self.assertIn("mail_set", settings)   # each one a real route: help would fail on a wrong path
+        self.assertIn("task_run", settings)
         for read in ("mail_get", "tasks_list", "live_get", "updates_get", "alerts_list"):
             self.assertFalse(tool("settings_config", {"action": read}).get("isError"), read)
         self.assertNotIn("changelog", tool("settings_config", {"action": "updates_get"})["structuredContent"])   # 200 KB of no use here

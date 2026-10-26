@@ -366,6 +366,25 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     return machines[ip]
 
 
+def patch(ip: str, fields: dict) -> dict:
+    """Change some fields of a declared machine and keep the others: save() takes the whole page record, so a script that
+    only means to set one option would drop the role or the SSH access. A field set to null is removed."""
+    try:
+        ip = str(ipaddress.ip_address(ip))
+    except ValueError:
+        raise MachineError("IP invalide") from None
+    old = _meta().get("machines", {}).get(ip)
+    if old is None:
+        raise MachineError("machine non déclarée : l'enregistrer d'abord")
+    page = TEXT + FLAGS + ("health_sources", "stopped_ok")
+    if not isinstance(fields, dict) or not fields:
+        raise MachineError("champs à changer : " + ", ".join(page))
+    if bad := sorted(set(fields) - set(page)):
+        raise MachineError("champ inconnu : " + ", ".join(bad))
+    merged = {**{k: v for k, v in old.items() if k in page}, **fields}
+    return save(ip, {k: v for k, v in merged.items() if v is not None})
+
+
 def publish(ip: str, m: dict) -> None:
     """Name and role tags written into the published data.json at once, so the pages show them without waiting for the next
     collection (which rewrites the whole file from services-meta.json anyway). Nothing to do before the first collection."""

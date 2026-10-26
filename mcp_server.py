@@ -12,7 +12,9 @@ checks, same audit, same side effects. Each tool has a switch in Settings -> API
 from __future__ import annotations
 
 import json
+import os
 import time
+from datetime import datetime
 from pathlib import Path
 
 PROTOCOL = "2025-06-18"
@@ -37,14 +39,28 @@ def t_status(core, args, ctx):
     d, st = _data(core), core.status()
     seen = {(c["type"], c["name"]) for c in d.get("connectors", [])}
     health_connectors = [c for c in _health(core).get("connectors", []) if (c["type"], c["name"]) not in seen]   # Beszel is read by the health task, not by the collection
-    return {"data_generated": d.get("generated"), "next_run": d.get("next_run"), "collect": st,
+    return {"version": os.environ.get("MYSERVICES_VERSION", "dev"), "server_time": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "data_generated": d.get("generated"), "next_run": d.get("next_run"), "collect": st,
+            "tasks": {name: {"enabled": core.enabled(name), "next": core.next_run(name), "ended": t["end"], "result": t["result"], "running": t["proc"] is not None}
+                      for name, t in core.TASKS.items()},
             "machines": len(d.get("machine_list", [])), "services": len(d.get("hosts", [])),
             "connectors": [{"type": c["type"], "name": c["name"], "ok": c["ok"], "message": c.get("message")}
                            for c in [*d.get("connectors", []), *health_connectors]]}
 
 
+def _stopped_ok() -> dict:
+    """{ip: containers the machine may leave stopped}, from the machines' settings; nothing when they cannot be read."""
+    try:
+        import machines_admin
+        return {ip: m["stopped_ok"] for ip, m in machines_admin._meta().get("machines", {}).items() if m.get("stopped_ok")}   # the file alone: listing() also resolves every SSH alias
+    except (ImportError, OSError, ValueError):
+        return {}
+
+
 def t_machines(core, args, ctx):
     import watcher
+    q = str(args.get("query") or "").casefold()
+    stopped_ok = _stopped_ok()
     problems: dict[str, list[dict]] = {}   # per machine: which services are behind « services_down »
     for r in _data(core).get("hosts", []):
         if (st := watcher.status(r)) in ("bad", "warn"):
@@ -52,10 +68,13 @@ def t_machines(core, args, ctx):
     out = []
     for m in _data(core).get("machine_list", []):
         i = m.get("info") or {}
+        if q and q not in f"{m['name']} {m['ip']} {m.get('role')}".casefold():
+            continue
         out.append({"name": m["name"], "ip": m["ip"], "role": m.get("role"), "ping": m.get("ping"),
                     "off_on_purpose": bool(m.get("off")), "ssh": bool(m.get("ssh")), "ssh_ok": bool(m.get("info")),
                     "os": i.get("os"), "uptime_s": i.get("uptime_s"), "containers": i.get("docker"),
-                    "services": m.get("services"), "services_down": m.get("down"), "problems": problems.get(m["ip"], [])})
+                    "services": m.get("services"), "services_down": m.get("down"), "problems": problems.get(m["ip"], []),
+                    **({"stopped_ok": stopped_ok[m["ip"]]} if m["ip"] in stopped_ok else {})})
     return {"machines": out}
 
 
@@ -63,11 +82,12 @@ def t_services(core, args, ctx):
     import watcher
     q = str(args.get("query") or "").casefold()
     only = bool(args.get("problems_only"))
+    want = args.get("status")
     limit = max(1, min(int(args.get("limit") or 100), 500))
     out = []
     for r in _data(core).get("hosts", []):
         st = watcher.status(r)
-        if only and st not in ("bad", "warn"):
+        if (only and st not in ("bad", "warn")) or (want and st != want):
             continue
         name = watcher.label(r)
         svc = r.get("service") or {}
@@ -75,20 +95,64 @@ def t_services(core, args, ctx):
             continue
         out.append({"name": name, "type": r["type"], "status": st, "machine": r.get("machine"), "ip": r.get("ip"),
                     "port": r.get("port"), "category": r.get("category"), "container": svc.get("name"),
-                    "image": svc.get("image"), "http": (r.get("public") or {}).get("code"),
+                    "image": svc.get("image"), "container_state": svc.get("state"), "stopped_on_purpose": bool(r.get("stopped")),
+                    "http": (r.get("public") or {}).get("code"),
                     "error": (r.get("public") or {}).get("err") or (r.get("backend") or {}).get("err")})
     out.sort(key=lambda x: ({"bad": 0, "warn": 1, "ok": 2, "off": 3}.get(x["status"], 4), x["name"]))
     return {"count": len(out), "services": out[:limit]}
 
 
+def _host_health(x: dict) -> dict:
+    """One machine of health/stats.json for the assistant: the level and the controls behind it, SMART and Docker with their source."""
+    keep = ("name", "level", "reachable", "source", "sources", "read_at", "reboot_required")
+    out = {**{k: x.get(k) for k in keep}, "checks": x.get("checks") or {},   # the controls in warn or crit: why the level is not « ok »
+           **({"kernel_errors": k["samples"]} if (k := x.get("kernel") or {}).get("has_errors") else {}),   # the journal lines behind a « kernel » warn
+           "disks": [{"mount": d.get("mount"), "used_pct": d.get("used_pct")} for d in x.get("disks") or []]}
+    sm = x.get("smart") or {}
+    out["smart"] = ({"accessible": True, "source": sm.get("source") or x.get("source"),
+                     "disks": [{"device": d.get("device"), "healthy": d.get("healthy"), "failed": d.get("failed")} for d in sm.get("disks") or []]}
+                    if sm.get("accessible") else {"accessible": False, **({"vm": True} if sm.get("vm") else {})})
+    dk = x.get("docker") or {}
+    if dk.get("accessible"):
+        out["docker"] = {"total": dk.get("total"), "stopped_on_purpose": [c.get("name") for c in dk.get("stopped_list") or []],
+                         "unhealthy": dk.get("unhealthy"), "restarting": dk.get("restarting"), "exited": dk.get("exited"),
+                         "issues": [f"{c.get('name')} ({c.get('status')})" if isinstance(c, dict) else c for c in dk.get("issues") or []]}
+    if (t := x.get("temp") or {}).get("available"):
+        out["temperature_c"] = t.get("celsius")
+    if (n := (x.get("apt") or {}).get("upgradable")) is not None:
+        out["updates"] = n
+    return out
+
+
 def t_health(core, args, ctx):
     h = _health(core)
-    keep = ("name", "level", "reachable")
+    q = str(args.get("query") or "").casefold()
     return {"generated": h.get("timestamp"), "overall": h.get("overall_level"),
-            "hosts": [{**{k: x.get(k) for k in keep}, "checks": x.get("checks") or {},   # the controls in warn or crit: why the level is not « ok »
-                       **({"kernel_errors": k["samples"]} if (k := x.get("kernel") or {}).get("has_errors") else {}),   # the journal lines behind a « kernel » warn
-                       "disks": [{"mount": d.get("mount"), "used_pct": d.get("used_pct")} for d in x.get("disks") or []]}
-                      for x in h.get("hosts", [])]}
+            "hosts": [_host_health(x) for x in h.get("hosts", []) if not q or q in str(x.get("name")).casefold()]}
+
+
+def t_backups(core, args, ctx):
+    """The Backups page as data: for each set its level, why it is not « ok », and every place (source, copy) with its age. Problems first."""
+    try:
+        d = json.loads((Path(core.WEB) / "backups.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"tracked": False, "message": "sauvegardes non suivies, ou pas encore lues par la tâche sauvegardes"}
+    q = str(args.get("query") or "").casefold()
+    only = bool(args.get("problems_only"))
+    rank = {"crit": 0, "warn": 1, "ok": 2, "off": 3, "archive": 4}
+    sets = []
+    for s in d.get("sets", []):
+        if only and s.get("level") not in ("crit", "warn"):
+            continue
+        if q and q not in f"{s.get('id')} {s.get('label')} {s.get('origin')}".casefold():
+            continue
+        sets.append({**{k: s.get(k) for k in ("id", "label", "origin", "level", "why", "schedule", "retention", "max_age_days", "offsite", "expect_offsite")},
+                     "locations": [{**{k: loc.get(k) for k in ("host", "role", "level", "detail", "via", "path", "count", "age")},
+                                    "newest": (loc.get("newest") or {}).get("name"), "newest_at": (loc.get("newest") or {}).get("mtime")}
+                                   for loc in s.get("locations", [])]})
+    sets.sort(key=lambda x: (rank.get(x["level"], 5), x["id"]))
+    return {"tracked": True, "generated": d.get("generated"), "summary": d.get("summary"), "issues": d.get("issues"), "count": len(sets),
+            "sets": sets[:max(1, min(int(args.get("limit") or 100), 300))]}
 
 
 def t_events(core, args, ctx):
@@ -158,6 +222,7 @@ CONFIG = {
     "machines_config": {
         "list": ("GET", "/machines/settings"),
         "save": ("PUT", "/machines/settings/{ip}"),
+        "patch": ("PATCH", "/machines/settings/{ip}"),
         "delete": ("DELETE", "/machines/settings/{ip}"),
         "check": ("POST", "/machines/settings/{ip}/check"),
         "refresh": ("POST", "/machines/settings/{ip}/refresh"),
@@ -170,6 +235,7 @@ CONFIG = {
         "mail_test": ("POST", "/system/mail/test"),
         "tasks_list": ("GET", "/tasks"),
         "task_schedule": ("PUT", "/system/tasks/{name}/schedule"),
+        "task_run": ("POST", "/system/tasks/{name}/run"),
         "live_get": ("GET", "/system/live-checks"),
         "live_set": ("PUT", "/system/live-checks"),
         "updates_get": ("GET", "/about"),
@@ -259,15 +325,22 @@ CONFIG_HELP = " L'action « help » liste chaque action et ses paramètres (sch�
 TOOLS = {
     "status": ("read", "État général : fraîcheur des données, passage en cours, nombre de machines et services, "
                "état de chaque connecteur.", {**OBJ, "properties": {}}, t_status),
-    "list_machines": ("read", "Machines suivies : nom, IP, rôle, ping, accès SSH, système, conteneurs en marche, services en panne avec leur nom.",
-                      {**OBJ, "properties": {}}, t_machines),
+    "list_machines": ("read", "Machines suivies : nom, IP, rôle, ping, accès SSH, système, conteneurs en marche, services en panne avec leur nom, "
+                      "conteneurs autorisés à rester arrêtés.",
+                      {**OBJ, "properties": {"query": {"type": "string", "description": "texte cherché (nom, IP, rôle)"}}}, t_machines),
     "list_services": ("read", "Services (proxy NPM, conteneurs, process) avec leur état ok / warn / bad / off, "
-                      "problèmes d'abord.",
+                      "l'état Docker du conteneur lié et « arrêté exprès » ; problèmes d'abord.",
                       {**OBJ, "properties": {"query": {"type": "string", "description": "texte cherché (nom, machine, image)"},
                                              "problems_only": {"type": "boolean", "description": "seulement warn et bad"},
+                                             "status": {"type": "string", "enum": ["ok", "warn", "bad", "off"], "description": "un seul état"},
                                              "limit": {"type": "integer", "minimum": 1, "maximum": 500}}}, t_services),
-    "get_health": ("read", "Santé des machines (disques, niveau global, contrôles en alerte avec leur niveau, lignes d'erreur noyau) relevée par la tâche santé.",
-                   {**OBJ, "properties": {}}, t_health),
+    "get_health": ("read", "Santé des machines (disques, niveau global, contrôles en alerte avec leur niveau, lignes d'erreur noyau, SMART par disque, "
+                   "Docker, source de lecture) relevée par la tâche santé.",
+                   {**OBJ, "properties": {"query": {"type": "string", "description": "texte cherché dans le nom de la machine"}}}, t_health),
+    "get_backups": ("read", "Page Sauvegardes : chaque jeu avec son niveau, pourquoi il n'est pas « ok », et chaque emplacement (source, copies) avec son âge ; problèmes d'abord.",
+                    {**OBJ, "properties": {"query": {"type": "string", "description": "texte cherché (identifiant, nom, origine)"},
+                                           "problems_only": {"type": "boolean", "description": "seulement warn et crit"},
+                                           "limit": {"type": "integer", "minimum": 1, "maximum": 300}}}, t_backups),
     "list_events": ("read", "Historique : pannes, rétablissements, machines hors ligne, santé… sur les N dernières heures.",
                     {**OBJ, "properties": {"hours": {"type": "integer", "minimum": 1, "maximum": 8760},
                                            "kind": {"type": "string", "description": "genre (panne, retabli, hors_ligne…)"},
@@ -281,10 +354,10 @@ TOOLS = {
     "backups_config": ("admin", "Réglages des sauvegardes : dossiers par SSH, Veeam, distant (SFTP…), Synology, PBS, agents, "
                        "vzdump, Home Assistant ; copies, seuils d'âge, arrêt du suivi." + CONFIG_HELP, config_schema("backups_config"),
                        config_tool("backups_config")),
-    "machines_config": ("admin", "Machines : lister, ajouter ou modifier (accès SSH, rôle), retirer, vérifier (SSH, Docker, AdGuard, santé), "
+    "machines_config": ("admin", "Machines : lister, ajouter ou modifier (accès SSH, rôle), changer un seul champ sans toucher aux autres (patch), retirer, vérifier (SSH, Docker, AdGuard, santé), "
                         "relire une seule machine, et régler la recherche réseau automatique." + CONFIG_HELP, config_schema("machines_config"),
                         config_tool("machines_config")),
-    "settings_config": ("admin", "Réglages généraux : envoi d'e-mails (SMTP, essai), horaires des tâches, pouls et connecteurs rapides, "
+    "settings_config": ("admin", "Réglages généraux : envoi d'e-mails (SMTP, essai), horaires des tâches, lancer une tâche maintenant, pouls et connecteurs rapides, "
                         "vérification des mises à jour, alertes (canaux, règles, préréglages)." + CONFIG_HELP, config_schema("settings_config"),
                         config_tool("settings_config")),
     "agents_config": ("admin", "Agents de santé : lister, créer (commande d'installation affichée une seule fois), mise à jour "
@@ -328,7 +401,7 @@ def handle(msg: dict, ctx: dict, core, states: dict[str, bool]) -> dict | None:
                    "capabilities": {"tools": {"listChanged": False}},
                    "serverInfo": {"name": "myservices", "title": "MyServices", "version": "2"},
                    "instructions": "Inventaire et état d'un réseau domestique / homelab : machines, services, santé, "
-                                   "historique. Lecture, run_collect (niveau runs) ; réglages des connecteurs, sauvegardes et agents "
+                                   "historique, sauvegardes. Lecture, run_collect (niveau runs) ; réglages des connecteurs, sauvegardes et agents "
                                    "par les outils *_config (niveau admin, action « help » d'abord)."})
     if method == "ping":
         return ok({})
