@@ -3059,9 +3059,12 @@ def mail_test(request: Request, body: MailConf | None = None):
     import system
     if denied := admin_write(request):
         return denied
-    to = store().email_of(request.state.user["username"])
+    u = request.state.user
+    owner = (u["token"].get("created_by") or "") if u.get("token") else u["username"]  # a token writes to its creator
+    to = store().email_of(owner)
     if not to:
-        return deny(400, "votre compte n'a pas d'adresse e-mail : l'ajouter dans Profil")
+        return deny(400, "votre compte n'a pas d'adresse e-mail : l'ajouter dans Profil" if not u.get("token")
+                    else "le compte qui a créé ce jeton n'a pas d'adresse e-mail : l'ajouter dans Profil")
     try:
         cfg = system.mail_trial(core.CFG, body.host, body.port, body.security, body.user, body.password, body.sender, body.page_url) if body and body.host else core.CFG
     except ValueError as e:

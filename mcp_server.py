@@ -86,6 +86,7 @@ def t_health(core, args, ctx):
     keep = ("name", "level", "reachable")
     return {"generated": h.get("timestamp"), "overall": h.get("overall_level"),
             "hosts": [{**{k: x.get(k) for k in keep}, "checks": x.get("checks") or {},   # the controls in warn or crit: why the level is not « ok »
+                       **({"kernel_errors": k["samples"]} if (k := x.get("kernel") or {}).get("has_errors") else {}),   # the journal lines behind a « kernel » warn
                        "disks": [{"mount": d.get("mount"), "used_pct": d.get("used_pct")} for d in x.get("disks") or []]}
                       for x in h.get("hosts", [])]}
 
@@ -116,7 +117,7 @@ class ToolError(Exception):
 
 
 # Settings reachable by the *_config tools: action -> (method, REST route under api/v1). Left out on purpose: showing a
-# saved secret, installing npm-api.sh on a machine, accounts, tokens, the configuration import.
+# saved secret, installing npm-api.sh on a machine, accounts, tokens, the configuration export and import, the container log, the app's SSH key.
 CONFIG = {
     "connectors_config": {
         "list": ("GET", "/connectors/settings"),
@@ -163,6 +164,27 @@ CONFIG = {
         "network_get": ("GET", "/network/settings"),
         "network_set": ("PUT", "/network/settings"),
     },
+    "settings_config": {
+        "mail_get": ("GET", "/system/mail"),
+        "mail_set": ("PUT", "/system/mail"),
+        "mail_test": ("POST", "/system/mail/test"),
+        "tasks_list": ("GET", "/tasks"),
+        "task_schedule": ("PUT", "/system/tasks/{name}/schedule"),
+        "live_get": ("GET", "/system/live-checks"),
+        "live_set": ("PUT", "/system/live-checks"),
+        "updates_get": ("GET", "/about"),
+        "updates_check": ("POST", "/about/check"),
+        "updates_set": ("PUT", "/about/settings"),
+        "alerts_list": ("GET", "/alerts"),
+        "channel_add": ("POST", "/alerts/channels"),
+        "channel_update": ("PATCH", "/alerts/channels/{cid}"),
+        "channel_delete": ("DELETE", "/alerts/channels/{cid}"),
+        "channel_test": ("POST", "/alerts/channels/{cid}/test"),
+        "rule_add": ("POST", "/alerts/rules"),
+        "rule_update": ("PATCH", "/alerts/rules/{rid}"),
+        "rule_delete": ("DELETE", "/alerts/rules/{rid}"),
+        "presets_add": ("POST", "/alerts/presets"),
+    },
     "agents_config": {
         "list": ("GET", "/agents"),
         "create": ("POST", "/agents"),
@@ -189,7 +211,10 @@ def config_tool(name: str):
         status, out = ctx["route"](*actions[action], params)
         if status >= 400:
             raise ToolError(f"HTTP {status}: {(out or {}).get('error') or (out or {}).get('detail') or out}")
-        return out if isinstance(out, dict) else {"result": out}
+        if not isinstance(out, dict):
+            return {"result": out}
+        out.pop("changelog", None)   # /about carries the whole changelog (200 KB): useless to set anything
+        return out
     return run
 
 
@@ -241,7 +266,7 @@ TOOLS = {
                       {**OBJ, "properties": {"query": {"type": "string", "description": "texte cherché (nom, machine, image)"},
                                              "problems_only": {"type": "boolean", "description": "seulement warn et bad"},
                                              "limit": {"type": "integer", "minimum": 1, "maximum": 500}}}, t_services),
-    "get_health": ("read", "Santé des machines (disques, niveau global, contrôles en alerte avec leur niveau) relevée par la tâche santé.",
+    "get_health": ("read", "Santé des machines (disques, niveau global, contrôles en alerte avec leur niveau, lignes d'erreur noyau) relevée par la tâche santé.",
                    {**OBJ, "properties": {}}, t_health),
     "list_events": ("read", "Historique : pannes, rétablissements, machines hors ligne, santé… sur les N dernières heures.",
                     {**OBJ, "properties": {"hours": {"type": "integer", "minimum": 1, "maximum": 8760},
@@ -259,6 +284,9 @@ TOOLS = {
     "machines_config": ("admin", "Machines : lister, ajouter ou modifier (accès SSH, rôle), retirer, vérifier (SSH, Docker, AdGuard, santé), "
                         "relire une seule machine, et régler la recherche réseau automatique." + CONFIG_HELP, config_schema("machines_config"),
                         config_tool("machines_config")),
+    "settings_config": ("admin", "Réglages généraux : envoi d'e-mails (SMTP, essai), horaires des tâches, pouls et connecteurs rapides, "
+                        "vérification des mises à jour, alertes (canaux, règles, préréglages)." + CONFIG_HELP, config_schema("settings_config"),
+                        config_tool("settings_config")),
     "agents_config": ("admin", "Agents de santé : lister, créer (commande d'installation affichée une seule fois), mise à jour "
                       "automatique, mise à jour immédiate, nom de poste confirmé, révoquer, effacer." + CONFIG_HELP, config_schema("agents_config"),
                       config_tool("agents_config")),
@@ -267,7 +295,7 @@ TOOLS = {
                                                "type": VALIDATE_TYPE}}, t_validate),
 }
 # Tools that change the configuration: off until an admin switches them on in Settings -> API and MCP
-OFF_BY_DEFAULT = {"connectors_config", "backups_config", "machines_config", "agents_config", "validate_config"}
+OFF_BY_DEFAULT = {"connectors_config", "backups_config", "machines_config", "settings_config", "agents_config", "validate_config"}
 
 
 def enabled(states: dict[str, bool], name: str) -> bool:

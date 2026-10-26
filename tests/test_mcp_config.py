@@ -88,15 +88,35 @@ class McpMachines(unittest.TestCase):
         self.assertIn("network_get", call(Ctx(), "machines_config", {"action": "help"})["result"]["structuredContent"]["actions"])
 
 
+class McpSettings(unittest.TestCase):
+    def test_settings_config_is_an_admin_tool_off_by_default(self):
+        info = {t["name"]: t for t in mcp_server.tools_info({})}
+        self.assertEqual((info["settings_config"]["level"], info["settings_config"]["enabled"]), ("admin", False))
+
+    def test_settings_config_leaves_out_what_is_sensitive(self):
+        routes = " ".join(path for _, path in mcp_server.CONFIG["settings_config"].values())
+        for left_out in ("export", "import", "logs", "/tokens", "ssh"):
+            self.assertNotIn(left_out, routes)
+
+    def test_settings_config_runs_the_page_routes(self):
+        ctx = Ctx(out={"ok": True})
+        call(ctx, "settings_config", {"action": "mail_set", "params": {"host": "smtp.example.org", "security": "starttls"}})
+        call(ctx, "settings_config", {"action": "channel_test", "params": {"cid": 3}})
+        self.assertEqual(ctx.calls, [("PUT", "/system/mail", {"host": "smtp.example.org", "security": "starttls"}), ("POST", "/alerts/channels/{cid}/test", {"cid": 3})])
+
+
 class McpHealth(unittest.TestCase):
     def test_health_says_why_a_host_is_not_ok(self):
         with tempfile.TemporaryDirectory() as web:
             (Path(web) / "health").mkdir()
             (Path(web) / "health" / "stats.json").write_text(json.dumps({"timestamp": "t", "overall_level": "warn", "hosts": [
-                {"name": "A · 10.0.0.1", "level": "warn", "reachable": True, "disks": [], "checks": {"docker": "warn"}},
+                {"name": "A · 10.0.0.1", "level": "warn", "reachable": True, "disks": [], "checks": {"docker": "warn"},
+                 "kernel": {"has_errors": True, "samples": ["kernel: CIFS: VFS: boom"]}},
                 {"name": "B · 10.0.0.2", "level": "ok", "reachable": True, "disks": []}]}), encoding="utf-8")
             hosts = mcp_server.t_health(SimpleNamespace(WEB=web), {}, Ctx())["hosts"]
         self.assertEqual(hosts[0]["checks"], {"docker": "warn"})
+        self.assertEqual(hosts[0]["kernel_errors"], ["kernel: CIFS: VFS: boom"])
+        self.assertNotIn("kernel_errors", hosts[1])
         self.assertEqual(hosts[1]["checks"], {})   # a healthy host: an empty answer, not a missing key
 
     def test_status_lists_a_health_connector_that_fails(self):
