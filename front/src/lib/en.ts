@@ -2290,6 +2290,7 @@ export const EN: Record<string, string> = {
   "Toutes les machines suivies ont déjà une connexion SSH. Une machine nouvelle s'ajoute dans Machines, « Ajouter une machine ».": "Every followed machine already has an SSH connection. A new machine is added in Machines, « Add a machine ».",
   "sauvegardes": "backups",
   "L'agent ne lit pas cela : gardez le SSH": "The agent does not read this: keep SSH",
+  "L'agent envoie sa santé : ouvrir sa page": "The agent reports its health: open its page",
   "agent installé · SSH utile : {0}": "agent installed · SSH useful for: {0}",
   "SSH facultatif : l'agent suffit": "SSH optional: the agent is enough",
   "Couper le SSH": "Turn SSH off",

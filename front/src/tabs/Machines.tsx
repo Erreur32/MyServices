@@ -1329,11 +1329,11 @@ function dockerValue(m: Machine): React.ReactNode {
 }
 
 /** The services count of a machine, its NPM ones and those down, each a filter link when the page can filter */
-function ServicesValue({ m, onFilter }: Readonly<{ m: Machine; onFilter?: (sel: Selected) => void }>) {
+function ServicesValue({ m, down, onFilter }: Readonly<{ m: Machine; down?: string[]; onFilter?: (sel: Selected) => void }>) {
   return (
     <>
       {onFilter && m.services > 0 ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services")} onClick={() => onFilter({ machine: [m.ip] })}>{m.services}</button> : m.services}
-      {m.npm > 0 && <Dim> · {onFilter ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services NPM")} onClick={() => onFilter({ machine: [m.ip], src: ["npm"] })}>{m.npm} NPM</button> : `${m.npm} NPM`}</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}
+      {m.npm > 0 && <Dim> · {onFilter ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services NPM")} onClick={() => onFilter({ machine: [m.ip], src: ["npm"] })}>{m.npm} NPM</button> : `${m.npm} NPM`}</Dim>}{m.down > 0 && <span className="text-bad" title={down?.length ? down.join("\n") : undefined}> · {m.down} {tx("en panne")}</span>}
     </>
   );
 }
@@ -1347,7 +1347,7 @@ const noSoftware = (m: Machine): boolean =>
 function SoftwareSection({ m, down, hosts, npmIps, ha, from, onFilter }: Readonly<{ down?: string[]; onFilter?: (sel: Selected) => void; m: Machine; hosts: Host[]; npmIps?: Record<string, string>; ha?: ServiceStatus; from: Origin[] }>) {
   return (
       <Section sec="services" icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from}>
-        <Row k={tx("Services")}><ServicesValue m={m} onFilter={onFilter} /></Row>
+        <Row k={tx("Services")}><ServicesValue m={m} down={down} onFilter={onFilter} /></Row>
         {down?.map((d) => <Row key={d} k=""><span className="text-[11px] text-bad">• {d}</span></Row>)}
         <WebServersTable m={m} hosts={hosts} npmIps={npmIps} />
         <SitePaths m={m} hosts={hosts} />

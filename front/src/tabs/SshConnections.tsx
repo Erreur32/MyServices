@@ -32,7 +32,7 @@ const STATE: Record<SshState, [Tone, string]> = {
  *  An agent that reports (working) is a link to its page */
 function AgentAdvice({ ip, agent, working, uses }: Readonly<{ ip: string; agent: boolean; working: boolean; uses: string[] }>) {
   if (!agent) return <a href={`#machines/${ip}/access`} className="inline-flex items-center gap-1 text-xs text-link hover:underline"><Cpu size={13} aria-hidden />{tx("Installer l'agent")} ›</a>;
-  const toAgent = (node: ReactNode) => working ? <a href={`#settings/agents/${ip}`} className="hover:underline">{node}</a> : node;
+  const toAgent = (node: ReactNode) => working ? <a href={`#settings/agents/${ip}`} className="hover:underline" title={tx("L'agent envoie sa santé : ouvrir sa page")}>{node}</a> : node;
   if (uses.length) return <span className="text-xs text-muted" title={tx("L'agent ne lit pas cela : gardez le SSH")}>{toAgent(tx("agent installé · SSH utile : {0}", useText(uses)))}</span>;
   return (
     <span className="text-xs">
