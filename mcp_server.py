@@ -154,6 +154,15 @@ CONFIG = {
         "ha_check": ("POST", "/backups/ha/check"),
         "ha_follow": ("PUT", "/backups/ha"),
     },
+    "machines_config": {
+        "list": ("GET", "/machines/settings"),
+        "save": ("PUT", "/machines/settings/{ip}"),
+        "delete": ("DELETE", "/machines/settings/{ip}"),
+        "check": ("POST", "/machines/settings/{ip}/check"),
+        "refresh": ("POST", "/machines/settings/{ip}/refresh"),
+        "network_get": ("GET", "/network/settings"),
+        "network_set": ("PUT", "/network/settings"),
+    },
     "agents_config": {
         "list": ("GET", "/agents"),
         "create": ("POST", "/agents"),
@@ -247,6 +256,9 @@ TOOLS = {
     "backups_config": ("admin", "Réglages des sauvegardes : dossiers par SSH, Veeam, distant (SFTP…), Synology, PBS, agents, "
                        "vzdump, Home Assistant ; copies, seuils d'âge, arrêt du suivi." + CONFIG_HELP, config_schema("backups_config"),
                        config_tool("backups_config")),
+    "machines_config": ("admin", "Machines : lister, ajouter ou modifier (accès SSH, rôle), retirer, vérifier (SSH, Docker, AdGuard, santé), "
+                        "relire une seule machine, et régler la recherche réseau automatique." + CONFIG_HELP, config_schema("machines_config"),
+                        config_tool("machines_config")),
     "agents_config": ("admin", "Agents de santé : lister, créer (commande d'installation affichée une seule fois), mise à jour "
                       "automatique, mise à jour immédiate, nom de poste confirmé, révoquer, effacer." + CONFIG_HELP, config_schema("agents_config"),
                       config_tool("agents_config")),
@@ -255,7 +267,7 @@ TOOLS = {
                                                "type": VALIDATE_TYPE}}, t_validate),
 }
 # Tools that change the configuration: off until an admin switches them on in Settings -> API and MCP
-OFF_BY_DEFAULT = {"connectors_config", "backups_config", "agents_config", "validate_config"}
+OFF_BY_DEFAULT = {"connectors_config", "backups_config", "machines_config", "agents_config", "validate_config"}
 
 
 def enabled(states: dict[str, bool], name: str) -> bool:

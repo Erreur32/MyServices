@@ -75,6 +75,19 @@ class McpConfig(unittest.TestCase):
         self.assertIn("revoke", s["properties"]["action"]["enum"])
 
 
+class McpMachines(unittest.TestCase):
+    def test_machines_config_is_an_admin_tool_off_by_default(self):
+        info = {t["name"]: t for t in mcp_server.tools_info({})}
+        self.assertEqual((info["machines_config"]["level"], info["machines_config"]["enabled"]), ("admin", False))
+
+    def test_machines_config_runs_the_page_routes(self):
+        ctx = Ctx(out={"machines": []})
+        call(ctx, "machines_config", {"action": "refresh", "params": {"ip": "10.0.0.9"}})
+        call(ctx, "machines_config", {"action": "network_set", "params": {"every_h": 6}})
+        self.assertEqual(ctx.calls, [("POST", "/machines/settings/{ip}/refresh", {"ip": "10.0.0.9"}), ("PUT", "/network/settings", {"every_h": 6})])
+        self.assertIn("network_get", call(Ctx(), "machines_config", {"action": "help"})["result"]["structuredContent"]["actions"])
+
+
 class McpHealth(unittest.TestCase):
     def test_health_says_why_a_host_is_not_ok(self):
         with tempfile.TemporaryDirectory() as web:
