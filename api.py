@@ -2308,18 +2308,64 @@ def machines_history(hours: int = 24):
             "cpu": metrics.average(db, "cpu", h), "mem": metrics.average(db, "mem", h)}
 
 
-@app.get(API + "/network/history", tags=["historique"], summary="Historique des cadres de la page Réseau (équipements, clients, appareils en ligne) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+@app.get(API + "/network/history", tags=["historique"], summary="Historique des cadres de la page Réseau (équipements, clients, appareils en ligne, débit de la Freebox et d'UniFi) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def network_history(hours: int = 24):
+    import bandwidth
     import tile_history
     h = hours if hours in HISTORY_HOURS else 24
-    return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.NETWORK}}
+    db = db_path(core.CFG)
+    return {"hours": h, **{k.split(".")[1]: tile_history.series(db, k, h) for k in tile_history.NETWORK},
+            "bw": {k.removeprefix("bw."): tile_history.series(db, k, h) for k in bandwidth.KEYS}}
 
 
-@app.get(API + "/services/history", tags=["historique"], summary="Historique des cadres de la page Services (en ligne, en panne) sur 24 h, 72 h ou 7 jours : [heure, répondent, total] par relevé")
+@app.get(API + "/backups/history", tags=["historique"], summary="Historique des cadres de la page Sauvegardes (à jour, en retard, absentes ou en erreur) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+def backups_history(hours: int = 24):
+    import tile_history
+    h = hours if hours in HISTORY_HOURS else 24
+    return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.BACKUPS}}
+
+
+@app.get(API + "/agents/history", tags=["historique"], summary="Historique des cadres de la page Agents (actifs, à mettre à jour) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé (admin)")
+def agents_history(request: Request, hours: int = 24):
+    import tile_history
+    if denied := admin_write(request):
+        return denied
+    h = hours if hours in HISTORY_HOURS else 24
+    return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.AGENTS}}
+
+
+@app.get(API + "/ai/history", tags=["historique"], summary="Historique des cadres de la page IA et agents (GPU, mémoire, moteurs, modèles, agents) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+def ai_history(hours: int = 24):
+    import tile_history
+    h = hours if hours in HISTORY_HOURS else 24
+    return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.AI}}
+
+
+@app.get(API + "/virtualization/history", tags=["historique"], summary="Historique des cadres de la page Virtualisation (hôtes, machines, processeur, mémoire, stockage, sauvegardes) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+def virtualization_history(hours: int = 24):
+    import tile_history
+    h = hours if hours in HISTORY_HOURS else 24
+    return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.VIRT}}
+
+
+@app.get(API + "/dns/history", tags=["historique"], summary="Historique des cadres de la page DNS (serveurs qui répondent, latence des DNS publics) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+def dns_history(hours: int = 24):
+    import dns_probe
+    import tile_history
+    h = hours if hours in HISTORY_HOURS else 24
+    db = db_path(core.CFG)
+    return {"hours": h, "local": tile_history.series(db, dns_probe.LOCAL, h),
+            "external": [{"name": name, "ip": ip, "ms": tile_history.series(db, dns_probe.ext_keys(ip)[0], h), "up": tile_history.series(db, dns_probe.ext_keys(ip)[1], h)}
+                         for name, ip in dns_probe.EXTERNAL]}
+
+
+@app.get(API + "/services/history", tags=["historique"], summary="Historique des cadres de la page Services (en ligne, en panne, avertissement) sur 24 h, 72 h ou 7 jours : [heure, répondent, total] par relevé")
 def services_history(hours: int = 24):
     import availability
+    import tile_history
     h = hours if hours in HISTORY_HOURS else 24
-    return {"hours": h, "up": availability.service_series(db_path(core.CFG), h)}
+    return {"hours": h, "up": availability.service_series(db_path(core.CFG), h), "warn": tile_history.series(db_path(core.CFG), tile_history.SERVICES_WARN, h),
+            "health": tile_history.series(db_path(core.CFG), tile_history.SERVICES_HEALTH, h)}
 
 
 @app.get(API + "/machines/{ip}/metrics", tags=["historique"], summary="Processeur, mémoire, disque le plus plein et température d'une machine sur 24 h")

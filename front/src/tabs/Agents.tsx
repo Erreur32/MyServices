@@ -10,7 +10,11 @@ import { AgentInstall, type AgentKind, type InstallTarget } from "../components/
 import { act, danger, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim, Loading } from "../components/ui";
 import { StatTile } from "../components/StatTile";
-import { agentSummary } from "../lib/accessLists";
+import { HistoryTile, useAgentsHistory } from "../components/HistoryTile";
+import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import type { TilePoint } from "../lib/tileHistory";
+import { agentHealth, agentSummary } from "../lib/accessLists";
+import { scoreTone } from "../lib/figureTones";
 import { dateTime } from "../lib/format";
 import type { AgentInfo, AgentsState, MachineConf } from "../types";
 import { tx } from "../lib/i18n";
@@ -25,6 +29,21 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 };
 
 const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border disabled:opacity-40";
+
+/** The health of an agent as a bar and its figure out of 100 (green from 80, orange from 50); the pointer tells what is missing */
+const healthTone = (n: number) => scoreTone(n, 80, 50);
+const FILL = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad" };
+function HealthBar({ a }: Readonly<{ a: AgentInfo }>) {
+  const h = agentHealth(a);
+  if (!h) return <Dim>-</Dim>;
+  const tone = healthTone(h.score), why = h.why.length ? h.why.join(" · ") : tx("relevés à l'heure, script à jour, machine reconnue");
+  return (
+    <span className="flex min-w-[8rem] items-center gap-2" title={why}>
+      <span className="h-2.5 flex-1 overflow-hidden rounded-full border border-line bg-bg2"><span className={`block h-full ${FILL[tone]}`} style={{ width: `${h.score}%` }} /></span>
+      <b className="w-[3ch] text-right font-mono text-xs tabular-nums">{h.score}</b>
+    </span>
+  );
+}
 
 const VersionMark = ({ outdated }: Readonly<{ outdated: boolean }>) => outdated
   ? <ArrowUpCircle size={13} className="text-warn" aria-hidden />
@@ -153,10 +172,11 @@ function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: M
       <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
       <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1">{a.version ? <>v{a.version}<VersionMark outdated={!!a.outdated} /></> : "-"}</span></td>
+      <td className="px-3 py-2"><HealthBar a={a} /></td>
       <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
       <td className="px-3 py-2"><AgentActions a={a} kind={a.kind ?? "windows"} onChanged={onChanged} onInstall={setInstall} /></td>
     </tr>
-    {install && <tr><td colSpan={6} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
+    {install && <tr><td colSpan={7} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
     </>
   );
 }
@@ -168,8 +188,10 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const reload = useCallback(() => { read<AgentsState>("agents").then(setSt).catch(() => undefined); }, []);
   useEffect(reload, [reload]);
+  const [hours, setHours] = usePeriod(), s = agentSummary(st?.agents ?? []);
+  const hist = useAgentsHistory(hours, `${s.active}.${s.outdated.length}`), now = Math.floor(Date.now() / 1000), ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, late = (p: TilePoint) => p[2] - p[1];
   if (!st) return <Loading />;
-  const s = agentSummary(st.agents);
+  const scores = s.live.map((a) => agentHealth(a)?.score ?? 0), avg = scores.length ? Math.round(scores.reduce((t, n) => t + n, 0) / scores.length) : null;
   const updateLate = async () => {
     setBusy(true);
     await act(() => Promise.all(s.outdated.map((a) => send("POST", `agents/${a.id}/update`))), tx("demandée pour {0} agent(s) : chacun se met à jour à son prochain relevé", s.outdated.length), setNote);
@@ -178,11 +200,13 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
   };
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2.5 overflow-x-auto pb-1">
-        <StatTile n={s.active} label={tx("Actifs")} tone="ok" />
+      <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
+      <div className="flex flex-wrap gap-2.5 pb-1">
+        <HistoryTile n={s.active} label={tx("Actifs")} tone="ok" kind="curve" points={hist?.running ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
+        <HistoryTile n={avg ?? "-"} label={tx("Santé des agents")} tone={avg == null ? undefined : healthTone(avg)} fact={tx("moyenne sur 100")} scale={100} kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]} / 100`} goodHigh />
         <StatTile n={s.silent} label={tx("Silencieux")} tone={s.silent ? "warn" : undefined} />
         <StatTile n={s.pending} label={tx("En attente")} />
-        <StatTile n={s.outdated.length} label={tx("À mettre à jour")} tone={s.outdated.length ? "warn" : undefined} />
+        <HistoryTile n={s.outdated.length} label={tx("À mettre à jour")} tone={s.outdated.length ? "warn" : undefined} kind="strip" points={hist?.late ?? null} hours={hours} now={now} figure={late} fmt={(p) => tx("{0} à mettre à jour", late(p))} goodHigh={false} />
       </div>
       {install && <AgentInstall key={`${install.ip}-auto`} target={install} onChanged={reload} onClose={() => setInstall(null)} />}
       <Card>
@@ -198,7 +222,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
             <table className="w-full min-w-[720px] border-collapse text-sm">
               <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
                 <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Type")}</th><th className="px-3 py-2">{tx("État")}</th>
-                <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
+                <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Santé")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
               </tr></thead>
               <tbody>{s.live.map((a) => <AgentRow key={a.id} a={a} conf={machines[a.ip]} onChanged={reload} lit={open === a.ip} />)}</tbody>
             </table>

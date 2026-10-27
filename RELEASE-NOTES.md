@@ -1,25 +1,25 @@
-# Release notes: MyServices 0.26.0
+# Release notes: MyServices 0.26.1
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.26.0** (27 October 2026) puts a history in the figure tiles of the main pages, gives every list page the same head, adds a Collection group to the menu, and lets a backup copy say how often it runs.
+**0.26.1** (27 October 2026) adds the speed of your Internet link to the Network page and extends the tiles with a history to Backups and Services.
 
 ## For everyone
 
 **What's new?**
-- **Tiles with a history**: on **Machines**, **Services**, **Network** and **Security**, the figure tiles draw what happened over the last 24 hours, 3 days or 7 days (one switch at the top of the page, remembered by your browser). Reachable and Unreachable machines are a strip of states, health, services online, clients and devices are curves, bans are bars. Point at a chart to read one moment. On Machines, a click on a tile lists the machines behind it.
-- **Processor and Memory tiles** on Machines: the average of your machines, the most loaded one under the figure, and a curve from 0 to 100 %. A click lists the machines over 80 %.
-- **Network** history starts empty and fills at each collection: give it a few minutes before the curves appear.
-- **One head for every list page**: the title and its tags on one line, and the actions of the page (period, Connectors link, buttons) at the far right. Backups gets an **Add backups** button, Network a **Connectors** link.
-- **Menu**: a new **Collection** group holds Connectors, Discovery and Tasks and schedules. Clicking the name of a category opens its main page and unfolds it.
-- **Backups, rhythm of a copy**: a copy that does not run every day, such as a weekly rsync to a NAS, can say so (**Rhythm**, in days). It is no longer reported « late » between two runs.
+- **Download and Upload** on the Network page: the rate of your Internet link for the Freebox (red) and the UniFi gateway (blue), each with its own curve and its own value. Click a name in the legend to hide its curve. The Freebox page shows the Freebox only. A source that does not report a rate is left out.
+- **Backups tiles with a history**: up to date (a curve), late and missing or failing (strips), over the period switch (24 h, 3 days, 7 days).
+- **Services**: the Warning tile draws a strip of the services in warning.
+- **Sources tile** of the Network page is now small and shows the short names of the sources.
+- Tiles keep the same room for their figure, so the charts line up from one tile to the next.
+- **Development**: a herdr pane « PR et git » shows the release chain, main and the open branches (for people running the dev setup).
 
-**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change, see [MIGRATION.md](MIGRATION.md).
+**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change, see [MIGRATION.md](MIGRATION.md). The new curves start empty and fill by themselves.
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.26.0` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
-- **API**: new `GET /services/history`, `GET /network/history`; `GET /machines/history` carries `cpu` and `mem`; all take `hours=24|72|168`. Backup copies accept `every_days` (1 to 31).
-- **Storage**: `tile_samples` (machines health and Network figures, one point per 9 minutes at most, 7 days); `metric_samples` now kept 7 days instead of 24 h.
-- **Migration**: nothing required from 0.25.0, see [MIGRATION.md](MIGRATION.md).
+- **Image**: `ghcr.io/erreur32/myservices:0.26.1` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **API**: new `GET /backups/history`; `GET /services/history` carries `warn`; `GET /network/history` carries `bw` (rates in kbit/s and link capacity per source and direction). All take `hours=24|72|168`.
+- **Storage**: `tile_samples` gains the keys `backups.*`, `services.warn`, `bw.*` (7 days). A `bandwidth` thread reads the link rate every 2 minutes at most, reusing the connector readers' reading (Freebox) and the UniFi cards cache (30 s).
+- **Migration**: nothing required from 0.26.0, see [MIGRATION.md](MIGRATION.md).
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).

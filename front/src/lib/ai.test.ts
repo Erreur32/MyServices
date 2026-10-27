@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
 import type { Host, ServiceStatus } from "../types";
-import { addrOf, aiAlerts, aiCards, aiGpus, aiLinks, aiModels, hasAi } from "./ai";
+import { addrOf, aiAlerts, aiCards, aiFigures, aiGpus, aiLinks, aiModels, hasAi } from "./ai";
 
 const host = (h: Partial<Host>): Host => ({ id: 1, type: "local", enabled: true, domains: [], backend: { up: true, ms: 1 }, ...h } as Host);
 const conn = (c: Partial<ServiceStatus>): ServiceStatus => ({ connector: "x", name: "x", label: "X", ok: true, stale: false, message: "OK", ...c });
@@ -93,5 +93,13 @@ describe("AI page", () => {
       ["warn", "GPU de Jarvis à 95 % de mémoire"],
       ["off", "LM Studio sur Tower : contenu non lu"],
     ]);
+  });
+
+  it("the live figures of the overview tiles", () => {
+    const sn = snap([], [ollama, llama, hermes, gpu]);
+    Object.assign(sn, { health: { hosts: [{ name: "Jarvis \u00b7 10.0.0.10", res: { mem_pct: 41.6 } }, { name: "Tower \u00b7 10.0.0.9", res: { mem_pct: 5 } }] } });
+    Object.assign(gpu, { machines: [{ name: "Win", online: true, ips: ["10.0.0.10"], gpus: [{ util: 30, temp: 55, mem_used: 5000, mem_total: 10000, power: 120, power_limit: 300 }, { util: 50, temp: 65, mem_used: 5000, mem_total: 10000, power: 60, power_limit: 300 }], models: [], processes: [] },
+      { name: "Off", online: false, ips: ["10.0.0.9"], gpus: [{ util: 99, temp: 99, mem_used: 1, mem_total: 1, power: 999 }], models: [], processes: [] }] });
+    expect(aiFigures(sn)).toMatchObject({ gpu: 40, vram: 50, temp: 65, power: 180, powerLimit: 600, ram: 42, engines: 2, platforms: 1, platformsUp: 0 });
   });
 });

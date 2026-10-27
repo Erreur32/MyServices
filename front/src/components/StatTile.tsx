@@ -6,6 +6,8 @@ export const COLOR = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
 type TileProps = Readonly<{
   n: string | number; label: string; sub?: string; hint?: string; tone?: "ok" | "warn" | "bad"; small?: boolean; children?: ReactNode;
   aside?: ReactNode;   // right of the figure (a small curve)
+  compact?: boolean;   // a small tile that keeps its own size instead of sharing the row
+  wide?: boolean;   // a tile with two sources: twice the room of the others
   onClick?: () => void; pressed?: boolean;   // a tile that filters the list under it
 }>;
 
@@ -15,17 +17,23 @@ function room(small: boolean, hasChart: boolean): string {
   return `${hasChart ? "min-w-[13rem]" : "min-w-[8rem]"} px-3 py-2.5`;
 }
 
-export function StatTile({ n, label, sub, hint, tone, small = false, children, aside, onClick, pressed }: TileProps) {   // hint: what the figure counts, on hover   // small: a row of figures sharing its line; children: under the fact (a small curve, a time)
+/** How a tile shares the row: its own size, twice the room, or an equal share */
+const grow = (wide: boolean, compact: boolean): string => {
+  if (compact) return "flex-none";
+  return wide ? "flex-[2]" : "flex-1";
+};
+
+export function StatTile({ n, label, sub, hint, tone, small = false, children, aside, wide = false, compact = false, onClick, pressed }: TileProps) {   // hint: what the figure counts, on hover   // small: a row of figures sharing its line; children: under the fact (a small curve, a time)
   const figure = <div className={`whitespace-nowrap font-mono font-bold ${small ? "text-base leading-tight" : "text-xl"} ${tone ? COLOR[tone] : ""}`}>{n}</div>;
   const body = (
     <>
       <div className={`${small ? "text-[11px]" : "text-xs"} text-muted`}>{label}</div>
-      {aside ? <div className="flex items-end justify-between gap-6">{figure}{aside}</div> : figure}
+      {aside ? <div className="flex items-end gap-6"><div className="min-w-[4.5rem] shrink-0">{figure}</div>{aside}</div> : figure}   {/* the figure keeps its room, so the charts of all the tiles start at the same place */}
       {sub && <div className={`truncate ${small ? "text-[11px]" : "text-xs"} text-dim`} title={sub}>{sub}</div>}
       {children}
     </>
   );
-  const frame = `flex flex-1 flex-col rounded-xl border bg-card ${room(small, !!aside)}`;
+  const frame = `flex ${grow(wide, compact)} flex-col rounded-xl border bg-card ${room(small || compact, !!aside)}`;
   if (onClick)
     return (
       <button type="button" onClick={onClick} aria-pressed={pressed} title={hint} className={`${frame} text-left hover:border-link ${pressed ? "border-link ring-1 ring-link/50" : "border-line"}`}>{body}</button>

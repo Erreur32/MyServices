@@ -33,11 +33,14 @@ const NO_CURVE: Curve = { line: "", area: "", dips: "", last: null };
 /** The stepped curve (a figure jumps by whole machines): the line, its filling, the stretches below the total, and the last point, in a box of w × h.
  *  The scale goes from 0 to the biggest total seen, so a machine lost shows as a drop. It starts at the first point when the history is younger
  *  than the period, so a few minutes are not squeezed into the last pixels. Empty with fewer than two points.
- *  `scale`: a level out of that value (a percentage), not a count of machines: fixed top, no stretch under the total. */
-export function curve(points: TilePoint[], hours: Period, now: number, w = 120, h = 34, scale?: number): Curve {
+ *  `scale`: a level out of that value (a percentage), not a count of machines: fixed top, no stretch under the total.
+ *  `from`: the start of the axis when several curves share it (each would otherwise start at its own first point).
+ *  `hold`: the last value is carried on to `now` (the right edge), so curves read at different moments end side by side. */
+export interface CurveOptions { scale?: number; from?: number; hold?: boolean }
+export function curve(points: TilePoint[], hours: Period, now: number, w = 120, h = 34, { scale, from, hold = false }: CurveOptions = {}): Curve {
   const kept = inPeriod(points, hours, now);
   if (kept.length < 2) return NO_CURVE;
-  const start = kept[0][0], span = Math.max(now - start, 1), top = scale ?? Math.max(1, ...kept.map((p) => p[2]));
+  const start = from ?? kept[0][0], span = Math.max(now - start, 1), top = scale ?? Math.max(1, ...kept.map((p) => p[2]));
   const x = (t: number) => ((t - start) / span) * w;
   const y = (v: number) => h - 2 - (Math.min(Math.max(v, 0), top) / top) * (h - 4);
   let line = "", area = "", dips = "";
@@ -61,8 +64,14 @@ export function curve(points: TilePoint[], hours: Period, now: number, w = 120, 
     }
   });
   const last = kept.at(-1)!;
-  area += closeRun(last[0], kept[runStart][0], x, h);
-  return { line, area, dips, last: [x(last[0]), y(last[1])] };
+  const endT = hold && now - last[0] <= GAP_S ? now : last[0];
+  if (endT > last[0]) {
+    const carry = `L${x(endT).toFixed(1)} ${y(last[1]).toFixed(1)}`;
+    line += carry;
+    area += carry;
+  }
+  area += closeRun(endT, kept[runStart][0], x, h);
+  return { line, area, dips, last: [x(endT), y(last[1])] };
 }
 
 /** Closes the filling of a run down to the bottom of the box */
@@ -76,10 +85,10 @@ export function delta(points: TilePoint[], hours: Period, now: number, figure: (
 
 /** The reading nearest to a place of the chart (0 left edge, 1 right edge); null when none is within two hours of it.
  *  `fit`: the chart starts at the first reading (a curve) instead of at the start of the period (a strip). */
-export function nearest(points: TilePoint[], hours: Period, now: number, frac: number, fit = false): TilePoint | null {
+export function nearest(points: TilePoint[], hours: Period, now: number, frac: number, fit = false, from?: number): TilePoint | null {
   const kept = inPeriod(points, hours, now);
   if (!kept.length) return null;
-  const start = fit ? kept[0][0] : now - hours * 3600;
+  const start = fit ? (from ?? kept[0][0]) : now - hours * 3600;
   const at = start + Math.min(Math.max(frac, 0), 1) * (now - start);
   const best = kept.reduce((a, b) => (Math.abs(b[0] - at) < Math.abs(a[0] - at) ? b : a), kept[0]);
   return Math.abs(best[0] - at) <= 2 * 3600 ? best : null;

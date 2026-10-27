@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentSummary, sshRows, sshTarget } from "./accessLists";
+import { agentHealth, agentSummary, sshRows, sshTarget } from "./accessLists";
 import type { AgentInfo, Connector, Machine, MachineConf, SshAlias } from "../types";
 
 const agent = (id: number, name: string, state: AgentInfo["state"], more: Partial<AgentInfo> = {}): AgentInfo => ({
@@ -18,6 +18,18 @@ describe("agentSummary", () => {
     const s = agentSummary([agent(1, "a", "actif"), agent(2, "z", "actif", { outdated: true }), agent(3, "y", "actif", { outdated: true, update_requested: true })]);
     expect(s.outdated.map((a) => a.name)).toEqual(["z"]);
     expect(s.live[0].name).toBe("y");
+  });
+});
+
+describe("agentHealth", () => {
+  it("is out of 100 in three parts, 0 before the first report, none when revoked", () => {
+    expect(agentHealth(agent(1, "a", "actif"))?.score).toBe(100);
+    expect(agentHealth(agent(2, "b", "actif", { outdated: true }))?.score).toBe(70);
+    expect(agentHealth(agent(3, "c", "actif", { host_pending: "autre" }))?.score).toBe(80);
+    expect(agentHealth(agent(4, "d", "silencieux"))?.score).toBe(50);
+    expect(agentHealth(agent(5, "e", "en attente"))?.score).toBe(0);
+    expect(agentHealth(agent(6, "f", "révoqué"))).toBeNull();
+    expect(agentHealth(agent(7, "g", "silencieux", { outdated: true }))?.why).toHaveLength(2);
   });
 });
 

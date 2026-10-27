@@ -11,6 +11,54 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.26.1 (2026-10-27)
+
+> **Young but working: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### README
+- The README (English and French) now says the project is young but working, marks the connectors proven on a real network (in bold) and says the others were written from the documentation and tried against simulated servers only. The connector table lists the whole family (about 60), and the menu paths are the current ones (Collection › Connectors, Collection › Discovery).
+
+### Tiles read more often
+- The tiles whose figure moves are now kept **almost live**, without a call more to the services: the **Internet rate** is kept every minute (it was 2), the **GPU** tiles (load, memory, temperature, power) every time the GpuViewR connector reads again (a point only per new reading, taken from the readers' shared state), and the **DNS answers and latency** every minute (one UDP packet to each server). The rest (health, services, agents, backups, storage, virtualization, engines and models) stays at each collection, every 15 minutes. How often a connector is read is still its own setting (Settings › Connectors, « Read every ... min »): set GpuViewR to 1 minute for a GPU curve that moves.
+- Fixed with it: the history store kept points at least 9 minutes apart for every key; the keys read every minute now keep points 55 seconds apart.
+
+### Virtualization
+- Six **tiles with a history** above the hosts (period switch 24 h, 3 days, 7 days), for every hypervisor read together: **hosts online** (strip), **machines running** (templates left out), **average processor** and **average memory** of the hosts online, the **fullest storage** (its name below), and **backups up to date** (the vzdump sets followed in Backups, a strip). Under them, one pill per tool (Proxmox, vCenter, ESXi…) with its hosts and machines. Counted on the server like the page (`tile_history.virt_points`, keys `virt.*`, `GET /virtualization/history`). Veeam is not a hypervisor read here, so it is not in this row.
+
+### DNS
+- A **real DNS query** (an A record) is sent at each collection to every DNS server of the page and to Cloudflare (1.1.1.1) and Google (8.8.8.8), in parallel, with the latency measured (`dns_probe.py`, `GET /dns/history`). The **DNS servers** tile gets the strip of the answers, and a new **External DNS latency** tile draws one curve per public resolver (legend that hides a curve, the same tile as Download and Upload). A line under the tiles gives the share of answers over the period. The list of public resolvers is fixed for now.
+
+### Services
+- Fixed: the history of the tiles was not kept when a service redirect had no final code (`follow.code` empty): the sampling stopped at that error, so no point was stored for the Services, Agents, AI, Virtualization and DNS tiles. Each history is now kept on its own, a failure in one leaves the others alone.
+- New **Services health** tile: the share of the services followed that are neither in warning nor down (a percentage on a 0 to 100 scale), with the warnings and the services down written below. Counted on the server with the rule of the page (`services.health`).
+
+### AI and agents
+- The overview has **two rows of tiles with a history** and the period switch (24 h, 3 days, 7 days). Row 1, the machine: **GPU load**, **GPU memory** (the orange warning from 90 % stays), **GPU temperature** (the hottest) and **Power** (limit in the sub line). Row 2, the content: **Engines online** (strip), **Models loaded**, **Agents** (platforms connected, strip) and the **memory of the AI machine** (the RAM of the machines that carry a GPU, from the health reads). Only the GPUs of machines that answer are counted.
+- Counted on the server like the page (`tile_history.ai_points`, keys `ai.*`, `GET /ai/history`), one point per collection, kept 7 days. Tokens per second are not read by the current connectors, so there is no tile for them.
+
+### Agents
+- New **Health** tile and column: a score out of 100 per agent, shown as a bar (green from 80, orange from 50), in three parts: 50 for reports on time, 30 for an up-to-date script, 20 for a recognized machine (no pending host name). 0 before the first report. The tile shows the average with its history (`agents.health`); the pointer on a bar says what is missing.
+- The **Running** and **To update** tiles of Settings › Machines › Agents draw their history (a curve and a strip) with the period switch. Counted on the server like the page, one point per collection, kept 7 days (`agents.running`, `agents.late`, `GET /agents/history`, admin).
+
+### Network
+- New **Download** and **Upload** tiles: the rate of the Internet link per source, the Freebox (red) and the UniFi gateway (blue), each with its own curve on a shared scale and its own value under the figure. The legend switches a curve off (kept by the browser). On the Freebox sub-page only the Freebox is shown. Nothing is shown for a source that gives no rate (UniFi needs MynetworK 0.11.1+ or a local account for its port table).
+- Rates come from what is already read: the Freebox from the connector readers' shared reading (`connectors.json`, MynetworK `freebox.connection`), UniFi from the UniFi cards (WAN port of the gateway, shared 30 s). A new thread `bandwidth` stores one point per source and direction every 2 minutes at most (`bandwidth.py`, `tile_samples` keys `bw.*`, kbit/s and link capacity, 7 days). `GET /network/history` carries them as `bw`.
+- Download and Upload curves share one time axis: they start at the same moment (the oldest reading both sources have) and end side by side at the right edge, each carrying its last value on, instead of stopping at its own last reading.
+- The orange stretches under the curve of **Devices online** are gone (the total is never reached there, so the whole curve was orange).
+- The **Sources** tile is a compact tile with the short names of the sources (MynetworK, UniFi, Freebox), and the tiles go to a second line on a narrow page.
+
+### Services
+- The **Warning** tile draws a strip of the services in warning over the period switch. They are counted on the server with the rule of the page (`status()`); the services hidden from « To watch » are counted like the others. `GET /services/history` now also carries `warn` (`tile_samples` key `services.warn`).
+
+### Tiles
+- The figure of a tile with a chart keeps a minimum width, so the charts of all the tiles start at the same place even with a one-digit figure.
+
+### Development
+- `scripts/dev-status.sh`: a herdr pane « PR et git » (`dev-status.sh open` puts it above « MyServices dev ») showing the release chain of the version as a colour bar, the main branch (lag, CI, Sonar, tag, Docker) and the branches with an open pull request, like the gitstat mod.
+
+### Backups
+- The tiles **Up to date** (curve), **Late** and **Missing or failing** (strips) of the Backups page keep their history over the period switch (24 h, 72 h, 7 days). New `GET /backups/history?hours=24|72|168`. The sets are counted like the page (not archived; late = `warn`; missing or failing = `crit` or `down`) after each collection (`tile_samples` table, 7 days kept).
+
 ## v0.26.0 (2026-10-27)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

@@ -10,6 +10,11 @@ import { tx } from "../lib/i18n";
 import type { BackupSet, Machine, VirtualizationConnector } from "../types";
 import { Badge, Card, Count, Dim, Empty, GradientFill } from "../components/ui";
 import { PbsCard } from "../components/InfraCards";
+import { HistoryTile, useVirtHistory } from "../components/HistoryTile";
+import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import { virtFigures } from "../lib/virtFigures";
+import { levelTone, shareTone } from "../lib/figureTones";
+import type { TilePoint } from "../lib/tileHistory";
 
 const HYPERVISORS = ["proxmox", "pulse", "esxi", "vcenter", "pdm", "unraid", "libvirt", "incus", "lxd", "virtualbox", "hyperv"];
 /** How a host was read, shown as a badge */
@@ -196,10 +201,37 @@ export function Virtualization({ snap, onMachine }: { snap: Snapshot; onMachine:
   const toggleHide = () => { setHide(!hideStopped); try { localStorage.setItem(HIDE_KEY, hideStopped ? "0" : "1"); } catch { /* private window: fine */ } };
   const virt = snap.data.virtualization ?? [];
   const pve = virt.filter((c) => HYPERVISORS.includes(c.connector)), pbs = virt.filter((c) => c.connector === "proxmox-backup");
+  const [hours, setHours] = usePeriod(), hist = useVirtHistory(hours, snap.data.generated), now = Math.floor(Date.now() / 1000);
+  const fig = virtFigures(pve, snap.backups?.sets), common = { hours, now } as const;
+  const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1], level = (p: TilePoint) => `${p[1]} %`, hot = levelTone;
+  const tools = [...new Map(pve.map((c) => [c.connector, c.label || c.connector])).entries()].map(([id, label]) => {
+    const of = pve.filter((c) => c.connector === id);
+    return { id, label, hosts: of.reduce((n, c) => n + (c.nodes ?? []).length, 0), guests: of.reduce((n, c) => n + (c.guests ?? []).filter((g) => !g.template).length, 0), down: of.filter((c) => !c.ok).length };
+  });
   if (!pve.length && !pbs.length) return <Empty>{tx("Aucun hyperviseur trouvé : Proxmox VE, VMware ESXi, KVM / libvirt, Incus / LXD ou VirtualBox lus par SSH apparaissent ici tout seuls, Hyper-V par l'agent Windows, vCenter, Unraid et Proxmox Datacenter Manager par leur connecteur.")}</Empty>;
   const stopped = pve.reduce((n, c) => n + (c.guests ?? []).filter((g) => !g.template && g.status !== "running").length, 0);
   return (
     <div className="flex flex-col gap-4 py-1">
+      {pve.length > 0 && (
+        <>
+          <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
+          <div className="flex flex-wrap gap-2.5 pb-1">
+            <HistoryTile n={`${fig.hostsUp}/${fig.hosts}`} label={tx("Hôtes en ligne")} tone={shareTone(fig.hostsUp, fig.hosts, "bad")} kind="strip" points={hist?.hosts ?? null} {...common} figure={missing} fmt={(p) => tx("{0} hôte(s) hors ligne", missing(p))} goodHigh />
+            <HistoryTile n={`${fig.running}/${fig.guests}`} label={tx("Machines en marche")} fact={tx("{0} machines suivies, modèles exclus", fig.guests)} dips={false} kind="curve" points={hist?.guests ?? null} {...common} figure={(p) => p[1]} fmt={ratio} goodHigh />
+            <HistoryTile n={fig.cpu == null ? "-" : `${fig.cpu} %`} label={tx("Processeur moyen")} tone={hot(fig.cpu, 80)} fact={tx("des hôtes en ligne")} scale={100} kind="curve" points={hist?.cpu ?? null} {...common} figure={(p) => p[1]} fmt={level} goodHigh={false} />
+            <HistoryTile n={fig.mem == null ? "-" : `${fig.mem} %`} label={tx("Mémoire moyenne")} tone={hot(fig.mem, 80)} fact={tx("des hôtes en ligne")} scale={100} kind="curve" points={hist?.mem ?? null} {...common} figure={(p) => p[1]} fmt={level} goodHigh={false} />
+            <HistoryTile n={fig.storage == null ? "-" : `${fig.storage} %`} label={tx("Stockage le plus plein")} tone={hot(fig.storage, 80)} fact={fig.storageName} scale={100} kind="curve" points={hist?.storage ?? null} {...common} figure={(p) => p[1]} fmt={level} goodHigh={false} />
+            {fig.backups > 0 && <HistoryTile n={`${fig.backupsOk}/${fig.backups}`} label={tx("Sauvegardes à jour")} tone={fig.backupsOk < fig.backups ? "warn" : "ok"} fact={tx("vzdump suivis dans Sauvegardes")} kind="strip" points={hist?.backups ?? null} {...common} figure={missing} fmt={(p) => tx("{0} en retard ou en échec", missing(p))} goodHigh />}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {tools.map((t) => (
+              <span key={t.id} className={`rounded-full border px-3 py-0.5 text-xs ${t.down ? "border-bad/40 text-bad" : "border-line text-muted"}`}>
+                <b className="text-txt">{t.label}</b> {tx("{0} hôte(s) · {1} machine(s)", t.hosts, t.guests)}{t.down ? ` · ${tx("illisible")}` : ""}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
       {stopped > 0 && (
         <div className="flex justify-end">
           <button type="button" onClick={toggleHide} aria-pressed={hideStopped} title={tx("Cache les machines virtuelles arrêtées")}

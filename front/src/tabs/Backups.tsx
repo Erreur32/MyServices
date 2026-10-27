@@ -16,6 +16,9 @@ import { primary, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { SettingsLink } from "../components/SettingsLink";
 import { StatTile } from "../components/StatTile";
+import { HistoryTile, useBackupsHistory } from "../components/HistoryTile";
+import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import type { TilePoint } from "../lib/tileHistory";
 import { cronsOf, figures, newestOf, rank, sourceOf, unclaimedCrons } from "../lib/backupsState";
 import { HeadTags } from "../components/HeadTags";
 import { PageHead } from "../components/PageHead";
@@ -301,18 +304,19 @@ export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; ini
   const { alerts, ...hostSel } = initial ?? {};   // « alerts »: the sets on Alerts; the rest filters the machines
   const view = usePageView(route, "backups", VIEWS, defaultView(!!alerts));
   const [setsFrom, setSetsFrom] = useState<{ sel: Selected; n: number }>({ sel: {}, n: 0 });   // the machine filter brought by « Sets produced » (By machine)
+  const [hours, setHours] = usePeriod(), hist = useBackupsHistory(hours, b?.generated ?? ""), now = Math.floor(Date.now() / 1000);
   if (!b) return <Empty>{tx("Sauvegardes pas encore relevées.")}</Empty>;
-  const sm = b.summary, fig = figures(b);
+  const sm = b.summary, fig = figures(b), ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1];
   const all = [...(b.sets ?? [])].sort((a, x) => Number(a.archived) - Number(x.archived) || rank(x.level) - rank(a.level) || a.label.localeCompare(x.label));   // archived sets last, kept visible here
   const sources = [...new Set((b.hosts ?? []).map((h) => h.kind).filter(Boolean))];
   return (
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={HardDrive} title={tx("Sauvegardes")} tags={<HeadTags counts={[tx("{0} jeux", sm.sets), { text: tx("{0} machines", sm.hosts), title: sources.join(", ") || undefined }]} at={b.generated} />}
-        actions={snap.me.role === "admin" && <a href="#settings/backups/add" className={`${primary} py-1 no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter des sauvegardes")}</a>} />
+        actions={<><PeriodSwitch value={hours} onChange={setHours} />{snap.me.role === "admin" && <a href="#settings/backups/add" className={`${primary} py-1 no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter des sauvegardes")}</a>}</>} />
       <div className="flex gap-2.5 overflow-x-auto pb-1">
-        <StatTile n={fig.ok} label={tx("À jour")} tone="ok" sub={fig.offsiteExpected ? tx("copie ailleurs : {0} sur {1}", fig.offsiteOk, fig.offsiteExpected) : undefined} />
-        <StatTile n={fig.warn} label={tx("En retard")} tone={fig.warn ? "warn" : undefined} />
-        <StatTile n={fig.bad} label={tx("Absente ou en erreur")} tone={fig.bad ? "bad" : undefined} sub={sm.no_offsite ? tx("{0} sans copie hors machine", sm.no_offsite) : undefined} />
+        <HistoryTile n={fig.ok} label={tx("À jour")} tone="ok" fact={fig.offsiteExpected ? tx("copie ailleurs : {0} sur {1}", fig.offsiteOk, fig.offsiteExpected) : undefined} kind="curve" points={hist?.ok ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
+        <HistoryTile n={fig.warn} label={tx("En retard")} tone={fig.warn ? "warn" : undefined} kind="strip" points={hist?.late ?? null} hours={hours} now={now} figure={missing} fmt={(p) => tx("{0} en retard", missing(p))} goodHigh={false} />
+        <HistoryTile n={fig.bad} label={tx("Absente ou en erreur")} tone={fig.bad ? "bad" : undefined} fact={sm.no_offsite ? tx("{0} sans copie hors machine", sm.no_offsite) : undefined} kind="strip" points={hist?.bad ?? null} hours={hours} now={now} figure={missing} fmt={(p) => tx("{0} absente(s) ou en erreur", missing(p))} goodHigh={false} />
         <StatTile n={fig.last ? dateTime(fig.last.mtime * 1000) : "-"} label={tx("Dernière archive")} sub={fig.last ? `${short(fig.last.set.label)} · ${fig.last.name}` : tx("aucune archive vue")} />
       </div>
 
