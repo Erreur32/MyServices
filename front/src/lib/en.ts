@@ -572,7 +572,6 @@ export const EN: Record<string, string> = {
   "fixé par la variable d'environnement du conteneur": "set by the container's environment variable",
   "garde LAN (advanced_config)": "LAN guard (advanced_config)",
   "Go libres": "GB free",
-  "Historique": "History",
   "Historique illisible :": "History unreadable:",
   "horaire enregistré": "schedule saved",
   "horaire par défaut": "default schedule",

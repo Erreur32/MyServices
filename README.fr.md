@@ -28,8 +28,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-history.png" alt="Page Historique › Événements de MyServices : les événements sur 24 h (noms de domaine et adresse publique floutés)" width="900"><br>
-  <sub>Historique › Événements : ce qui est tombé, revenu, apparu ou disparu (noms de domaine et adresse publique floutés).</sub>
+  <img src="docs/screenshot-history.png" alt="Page Accueil › Événements de MyServices : les événements sur 24 h (noms de domaine et adresse publique floutés)" width="900"><br>
+  <sub>Accueil › Événements : ce qui est tombé, revenu, apparu ou disparu (noms de domaine et adresse publique floutés).</sub>
 </p>
 
 > ## Jeune, mais ça marche
@@ -108,7 +108,7 @@ Un menu à gauche réunit toutes les pages, en quatre groupes ; les vues d'une p
 
 | Groupe | Pages |
 |---|---|
-| **En bref** | **Accueil** (tableau de bord : ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; statistiques), **Historique** (les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur ; disponibilité) |
+| **En bref** | **Accueil** (tableau de bord : ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; puis l'historique : les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur, et la disponibilité ; statistiques) |
 | **Inventaire** | **Machines** (chaque machine, avec sa page et ses réglages ; appareils vus par vos outils mais pas suivis ; agents ; connexions SSH et clé SSH de l'app), **Services** (hôtes NPM et services locaux, chacun avec sa page, lue et modifiée sur place ; nouveaux services ; déclarer un service), **Réseau** (UniFi, Freebox, scan, équipements et appareils, diagnostic), **DNS** (AdGuard Home : serveurs, détails), **Virtualisation**, **IA et agents** (vue d'ensemble, modèles, agents et MCP, GPU ; visible dès qu'un service ou un connecteur IA existe), **Vidéo et caméras** (vue d'ensemble, caméras, flux, enregistrements ; visible dès qu'un service Stream ou un connecteur vidéo existe), **Infra** (services lus par leur API, conteneurs), **Schémas** |
 | **Protection** | **Sauvegardes** (par machine, jeux, ajouter des sauvegardes, à relier, copies ailleurs, emplacements cherchés), **Sécurité** (vue d'ensemble, sites exposés, accès SSH, ports du réseau, certificats, Fail2ban, Wazuh) |
 | **Collecte** | **Connecteurs** (les miens, disponibles, détectés à relier, déjà lus par SSH ou agent), **Découverte** (mode automatique, à faire, autres suggestions), **Tâches et horaires** |

@@ -28,8 +28,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-history.png" alt="MyServices, History › Events page: events over 24 hours (domain names and public address blurred)" width="900"><br>
-  <sub>History › Events: what fell, came back, appeared or disappeared (domain names and public address blurred).</sub>
+  <img src="docs/screenshot-history.png" alt="MyServices, Home › Events page: events over 24 hours (domain names and public address blurred)" width="900"><br>
+  <sub>Home › Events: what fell, came back, appeared or disappeared (domain names and public address blurred).</sub>
 </p>
 
 > ## Young, but it works
@@ -107,7 +107,7 @@ One menu on the left holds every page, in four groups; the views of a page are i
 
 | Group | Pages |
 |---|---|
-| **Overview** | **Home** (dashboard: what needs your attention, then counters that open the page already filtered; statistics), **History** (events of the last 24 h to one year as dots, bars, curve or heat map; availability) |
+| **Overview** | **Home** (dashboard: what needs your attention, then counters that open the page already filtered; then the history: events of the last 24 h to one year as dots, bars, curve or heat map, and availability; statistics) |
 | **Inventory** | **Machines** (every machine, each with its own page and settings; devices seen by your tools but not followed; agents; SSH connections and the app's SSH key), **Services** (NPM hosts and local services, each with its page, read and edited in place; new services; declare a service), **Network** (UniFi, Freebox, scan, devices, diagnostic), **DNS** (AdGuard Home: servers, details), **Virtualization**, **AI and agents** (overview, models, agents and MCP, GPU; shown once an AI service or connector exists), **Video and cameras** (overview, cameras, streams, recordings; shown once a Stream service or a video connector exists), **Infra** (services read through their API, containers), **Diagrams** |
 | **Protection** | **Backups** (by machine, sets, add backups, to link, copies elsewhere, paths searched), **Security** (overview, exposed sites, SSH access, network ports, certificates, Fail2ban, Wazuh) |
 | **Collection** | **Connectors** (mine, available, found to link, already read over SSH or by an agent), **Discovery** (automatic mode, what to do, other suggestions), **Tasks and schedules** |
