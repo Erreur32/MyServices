@@ -65,7 +65,7 @@ export function HistoryTile({ label, n, tone, hint, kind, points, hours, now, fi
   onClick?: () => void; pressed?: boolean;
 }>) {
   const [at, setAt] = useState<number | null>(null);
-  const shown = points && at !== null ? nearest(points, hours, now, at) : null;
+  const shown = points && at !== null ? nearest(points, hours, now, at, kind === "curve") : null;
   const change = points ? delta(points, hours, now, figure) : null;
   let sub: string;
   if (shown) sub = `${when(shown[0])} : ${fmt(shown)}`;

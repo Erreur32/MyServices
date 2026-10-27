@@ -31,12 +31,13 @@ export interface Curve { line: string; area: string; dips: string; last: [number
 const NO_CURVE: Curve = { line: "", area: "", dips: "", last: null };
 
 /** The stepped curve (a figure jumps by whole machines): the line, its filling, the stretches below the total, and the last point, in a box of w × h.
- *  The scale goes from 0 to the biggest total seen, so a machine lost shows as a drop. Empty with fewer than two points. */
+ *  The scale goes from 0 to the biggest total seen, so a machine lost shows as a drop. It starts at the first point when the history is younger
+ *  than the period, so a few minutes are not squeezed into the last pixels. Empty with fewer than two points. */
 export function curve(points: TilePoint[], hours: Period, now: number, w = 120, h = 34): Curve {
   const kept = inPeriod(points, hours, now);
   if (kept.length < 2) return NO_CURVE;
-  const start = now - hours * 3600, top = Math.max(1, ...kept.map((p) => p[2]));
-  const x = (t: number) => ((t - start) / (hours * 3600)) * w;
+  const start = kept[0][0], span = Math.max(now - start, 1), top = Math.max(1, ...kept.map((p) => p[2]));
+  const x = (t: number) => ((t - start) / span) * w;
   const y = (v: number) => h - 2 - (Math.min(Math.max(v, 0), top) / top) * (h - 4);
   let line = "", area = "", dips = "";
   let runStart = 0;
@@ -72,11 +73,13 @@ export function delta(points: TilePoint[], hours: Period, now: number, figure: (
   return kept.length < 2 ? null : figure(kept[kept.length - 1]) - figure(kept[0]);
 }
 
-/** The reading nearest to a place of the chart (0 left edge, 1 right edge); null when none is within two hours of it */
-export function nearest(points: TilePoint[], hours: Period, now: number, frac: number): TilePoint | null {
+/** The reading nearest to a place of the chart (0 left edge, 1 right edge); null when none is within two hours of it.
+ *  `fit`: the chart starts at the first reading (a curve) instead of at the start of the period (a strip). */
+export function nearest(points: TilePoint[], hours: Period, now: number, frac: number, fit = false): TilePoint | null {
   const kept = inPeriod(points, hours, now);
   if (!kept.length) return null;
-  const at = now - hours * 3600 + Math.min(Math.max(frac, 0), 1) * hours * 3600;
+  const start = fit ? kept[0][0] : now - hours * 3600;
+  const at = start + Math.min(Math.max(frac, 0), 1) * (now - start);
   const best = kept.reduce((a, b) => (Math.abs(b[0] - at) < Math.abs(a[0] - at) ? b : a));
   return Math.abs(best[0] - at) <= 2 * 3600 ? best : null;
 }

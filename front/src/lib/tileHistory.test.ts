@@ -27,6 +27,8 @@ describe("lib/tileHistory", () => {
     expect(nearest(pts, 24, NOW, 0.79)?.[1]).toBe(9);   // about 5 hours before the end
     expect(nearest([pt(23, 11)], 24, NOW, 1)).toBeNull();   // nothing within two hours of that place
     expect(nearest([], 24, NOW, 0.5)).toBeNull();
+    expect(nearest([pt(2, 10), pt(1, 9)], 24, NOW, 0, true)).toEqual(pt(2, 10));   // a curve starts at its first reading when the history is young
+    expect(nearest([pt(2, 10), pt(1, 9)], 24, NOW, 0)).toBeNull();   // a strip starts at the start of the period: nothing there
   });
   it("curve : en escalier, creux sous le total, rupture après une heure sans lecture", () => {
     expect(curve([pt(1, 9)], 24, NOW).line).toBe("");
@@ -38,5 +40,8 @@ describe("lib/tileHistory", () => {
     expect(c.last).not.toBeNull();
     const broken = curve([pt(10, 11), pt(5, 11)], 24, NOW);   // five hours without a reading
     expect(broken.line.match(/M/g)).toHaveLength(2);
+    const young = curve([pt(0.3, 9), pt(0.1, 9)], 24, NOW);   // 20 minutes of history: drawn over the whole width, not in the last pixels
+    expect(young.line.startsWith("M0.0")).toBe(true);
+    expect(Math.round(young.last?.[0] ?? 0)).toBe(80);   // its last reading is 6 of the 18 minutes known, the right edge being now
   });
 });

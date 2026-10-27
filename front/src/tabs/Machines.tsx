@@ -70,6 +70,9 @@ function MachinesHead({ snap, health, watching, sel, onSel }: Readonly<{ snap: S
   const hist = useMachinesHistory(hours, snap.data.generated);
   const now = Math.floor(Date.now() / 1000);
   const pick = (k: keyof typeof TILE_SEL) => ({ pressed: sameSel(sel, TILE_SEL[k]), onClick: () => onSel(sameSel(sel, TILE_SEL[k]) ? {} : TILE_SEL[k]) });
+  // The server counts the machines of its health passes; the tile adds those read through UniFi or the Freebox. The history keeps the machines in
+  // trouble and puts them against the total of the tile, so the last point of the curve is the figure of the tile.
+  const healthPts = hist?.health.map(([t, value, total]): TilePoint => [t, Math.max(0, read.length - (total - value)), read.length]) ?? null;
   const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1];
   return (
     <div className="flex flex-col gap-4 pb-1 pt-3">
@@ -82,7 +85,7 @@ function MachinesHead({ snap, health, watching, sel, onSel }: Readonly<{ snap: S
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <HistoryTile n={`${up}/${ms.length - off}`} label={tx("Joignables")} tone={down ? "warn" : "ok"} kind="strip" points={hist?.reach ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh {...pick("reach")} />
         {read.length > 0 && <HistoryTile n={`${ok}/${read.length}`} label={tx("Santé")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ok === read.length ? "ok" : "warn"}
-          kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh {...pick("health")} />}
+          kind="curve" points={healthPts} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh {...pick("health")} />}
         <StatTile n={watch} label={tx("À surveiller")} tone={watch ? "warn" : undefined} {...pick("watch")} />
         <HistoryTile n={down} label={tx("Injoignables")} tone={down ? "bad" : undefined} kind="strip" points={hist?.reach ?? null} hours={hours} now={now} figure={missing} fmt={(p) => String(missing(p))} goodHigh={false} {...pick("down")} />
         <StatTile n={off} label={tx("Éteintes")} sub={tx("souvent éteintes, au repos")} {...pick("off")} />
