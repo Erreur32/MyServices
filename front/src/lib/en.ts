@@ -3230,7 +3230,6 @@ export const EN: Record<string, string> = {
   "{0} appli(s) à activer": "{0} app(s) to activate",
   "Ce que personne ne lit encore d'abord, puis ce qui est déjà couvert": "What nobody reads yet first, then what is already covered",
   "En bref": "At a glance",
-  "Activité": "Activity",
   "Clé de l'app": "App key",
   "copiée": "copied",
   "Copier la commande": "Copy the command",
@@ -3272,7 +3271,7 @@ export const EN: Record<string, string> = {
   "Pour un agent, vérifiez dans Machines › Agents qu'il a envoyé un premier relevé. Pour SSH, autorisez la clé de l'app sur la machine (Machines › Connexions SSH) et vérifiez le compte et le port.": "For an agent, check in Machines › Agents that it sent a first report. For SSH, authorize the app's key on the machine (Machines › SSH connections) and check the account and the port.",
   "La collecte passe à heures fixes : Collecte › Tâches et horaires, bouton « Relancer », ou le bouton d'actualisation de la page.": "Collection runs at set times: Collection › Tasks and schedules, « Rerun » button, or the page's refresh button.",
   "C'est normal : les nouveautés et les disparitions sont notées dans l'Historique (« Nouveau », « Disparu »).": "That is normal: what is new and what is gone are noted in History (« New », « Gone »).",
-  "Activité › Journal d'audit liste chaque action des comptes (et des jetons MCP), filtrable et exportable en CSV. Activité › Journaux montre ce que le conteneur écrit.": "Activity › Audit log lists each action of the accounts (and of MCP tokens), filterable and exportable as CSV. Activity › Logs shows what the container writes.",
+  "Application › Journal d'audit liste chaque action des comptes (et des jetons MCP), filtrable et exportable en CSV. Application › Journaux montre ce que le conteneur écrit.": "Application › Audit log lists each action of the accounts (and of MCP tokens), filterable and exportable as CSV. Application › Logs shows what the container writes.",
   // « IA et agents » page
   "dernier relevé conservé": "last reading kept",
   "à regarder": "to look at",

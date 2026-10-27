@@ -15,6 +15,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Young but working: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Menu
+- **Requests**, **Audit log** and **Logs** moved from their own **Activity** item to the **Application** item of Settings (Updates, E-mail, Export and import, Requests, Audit log, Logs, Information). The addresses (`#settings/requests`, `#settings/requests/audit`, `#settings/requests/logs`) do not change. The README and the help text follow.
+
 ### README
 - The README (English and French) now says the project is young but working, marks the connectors proven on a real network (in bold) and says the others were written from the documentation and tried against simulated servers only. The connector table lists the whole family (about 60), and the menu paths are the current ones (Collection › Connectors, Collection › Discovery).
 

@@ -14,7 +14,7 @@ describe("lib/tabs", () => {
     const collect = NAV.find((g) => g.id === "collect")!.items;   // what feeds the app, apart from the Administration
     expect(collect.map((i) => i.id)).toEqual(["connectors", "discovery", "tasks"]);
     expect(collect.filter((i) => !i.subs).map((i) => i.hash)).toEqual(["settings/discovery", "settings/tasks"]);   // one page each: the name opens it
-    expect(NAV.find((g) => g.id === "admin")!.items.map((i) => i.id)).toEqual(["alerts", "access", "app", "activity"]);
+    expect(NAV.find((g) => g.id === "admin")!.items.map((i) => i.id)).toEqual(["alerts", "access", "app"]);
     const security = NAV.flatMap((g) => g.items).find((i) => i.id === "security")!;
     expect(security.subs!.map((x) => x.id)).toContain("fail2ban");
     const hashes = NAV.flatMap((g) => g.items.flatMap(leaves)).flatMap((i) => [i.hash, ...(i.also ?? [])]);   // also: Machines settings (buttons of « All machines »), the page of a set (« Sets »)
