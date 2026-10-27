@@ -3173,6 +3173,8 @@ export const EN: Record<string, string> = {
   "ex. rsync 04:00, tar, Syncthing": "e.g. rsync 04:00, tar, Syncthing",
   "Chiffré": "Encrypted",
   "archives chiffrées ici : leur taille n'est pas comparée à la source": "archives encrypted here: their size is not compared with the source",
+  "Rythme": "Rhythm",
+  "jours entre deux passages de cette copie (1 = chaque jour, 7 = chaque semaine) : entre deux passages, elle n'est pas en retard": "days between two runs of this copy (1 = every day, 7 = every week): between two runs it is not late",
   "Modifier la copie {0}": "Edit the copy {0}",
   "Modifier cette copie": "Edit this copy",
   "Modifier l'emplacement": "Edit the place",

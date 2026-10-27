@@ -10,8 +10,8 @@ import { tx } from "../lib/i18n";
 
 export interface CopyRow { index: number; host: string; path: string; offsite: boolean }
 /** One place of a set (0 = the source, then its copies), as the settings page edits it */
-export interface LocRow { index: number; host: string; ip?: string | null; path: string | null; pattern: string; depth: number; via: string; encrypted: boolean; offsite: boolean; editable: boolean; remote?: boolean }
-type LocChange = Partial<{ ip: string; path: string; pattern: string; depth: number; via: string; encrypted: boolean }>;
+export interface LocRow { index: number; host: string; ip?: string | null; path: string | null; pattern: string; depth: number; via: string; encrypted: boolean; every_days?: number; offsite: boolean; editable: boolean; remote?: boolean }
+type LocChange = Partial<{ ip: string; path: string; pattern: string; depth: number; via: string; encrypted: boolean; every_days: number }>;
 export interface SshMachine { ip: string; name: string }
 export interface CopyGuess { set_id: string; set_label: string; ip: string; name: string; path: string; archive: string; network: boolean; offsite: boolean }
 interface Folder { path: string; readable: boolean }
@@ -25,15 +25,16 @@ function LocField({ k, children }: Readonly<{ k: string; children: ReactNode }>)
   return <label className="grid gap-1 sm:grid-cols-[9rem_1fr] sm:items-center"><span className="text-dim">{k}</span>{children}</label>;
 }
 
-/** Every setting of one folder place of a set (the source or a copy): machine, folder, archive names read, depth, how it gets there, encrypted;
+/** Every setting of one folder place of a set (the source or a copy): machine, folder, archive names read, depth, how it gets there, encrypted, and for a copy its rhythm in days;
  *  only what changed is sent, the server reads the set again after */
 export function LocationForm({ setId, loc, machines, busy, onDone, onCancel, setNote }: Readonly<{
   setId: string; loc: LocRow; machines: SshMachine[]; busy: boolean; onDone: () => void; onCancel: () => void; setNote: (n: Note) => void;
 }>) {
-  const [v, setV] = useState({ ip: loc.ip ?? "", path: loc.path ?? "", pattern: loc.pattern, depth: String(loc.depth), via: loc.via, encrypted: loc.encrypted });
+  const [v, setV] = useState({ ip: loc.ip ?? "", path: loc.path ?? "", pattern: loc.pattern, depth: String(loc.depth), via: loc.via, encrypted: loc.encrypted, every_days: String(loc.every_days ?? 1) });
   const [saving, setSaving] = useState(false);
   const put = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
-  const depth = Number(v.depth), ok = v.path.trim().startsWith("/") && v.pattern.trim() !== "" && !v.pattern.includes("/") && Number.isInteger(depth) && depth >= 1 && depth <= 5;
+  const depth = Number(v.depth), every = Number(v.every_days), ok = v.path.trim().startsWith("/") && v.pattern.trim() !== "" && !v.pattern.includes("/") && Number.isInteger(depth) && depth >= 1 && depth <= 5
+    && Number.isInteger(every) && every >= 1 && every <= 31;
   const save = async () => {
     const body: LocChange = {};
     if (v.ip && v.ip !== loc.ip) body.ip = v.ip;
@@ -42,6 +43,7 @@ export function LocationForm({ setId, loc, machines, busy, onDone, onCancel, set
     if (depth !== loc.depth) body.depth = depth;
     if (v.via.trim() !== loc.via) body.via = v.via.trim();
     if (v.encrypted !== loc.encrypted) body.encrypted = v.encrypted;
+    if (every !== (loc.every_days ?? 1)) body.every_days = every;
     if (!Object.keys(body).length) { onCancel(); return; }
     setSaving(true);
     const done = await act(() => send("PATCH", `backups/settings/${setId}/locations/${loc.index}`, body), tx("emplacement modifié : relevé en cours"), setNote);
@@ -67,6 +69,8 @@ export function LocationForm({ setId, loc, machines, busy, onDone, onCancel, set
       <LocField k={tx("Moyen")}><input className={`${input} py-1 text-xs`} value={v.via} maxLength={80} placeholder={tx("ex. rsync 04:00, tar, Syncthing")} onChange={put("via")} aria-label={tx("Moyen")} /></LocField>
       <LocField k={tx("Chiffré")}><span className="flex items-center gap-2"><input type="checkbox" checked={v.encrypted} onChange={(e) => setV({ ...v, encrypted: e.target.checked })} aria-label={tx("Chiffré")} />
         <Dim>{tx("archives chiffrées ici : leur taille n'est pas comparée à la source")}</Dim></span></LocField>
+      {loc.index > 0 && <LocField k={tx("Rythme")}><span className="flex items-center gap-2"><input type="number" min={1} max={31} className={`${input.replace("w-full", "w-16")} py-1 text-xs`} value={v.every_days} onChange={put("every_days")} aria-label={tx("Rythme")} />
+        <Dim>{tx("jours entre deux passages de cette copie (1 = chaque jour, 7 = chaque semaine) : entre deux passages, elle n'est pas en retard")}</Dim></span></LocField>}
       <div className="flex items-center gap-2">
         <button type="button" className={`${primary} py-1 text-xs`} disabled={busy || saving || !ok} onClick={() => void save()}>{saving && <Loader2 size={12} className="animate-spin" aria-hidden />}{tx("Enregistrer")}</button>
         <button type="button" className={`${quiet} py-1 text-xs`} onClick={onCancel}>{tx("Annuler")}</button>

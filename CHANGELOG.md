@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Backups
+- A copy that does not run every day (a weekly rsync to a NAS, say) can now say so: **Rhythm** (days between two runs) in the form of a copy, `every_days` in `backups-meta.json`, also settable through `PATCH /backups/settings/{set_id}/locations/{index}`. Between two runs such a copy is no longer reported as late on the source; it is judged on the newest archive old enough for its next run to have passed. Default is 1 (daily), nothing changes for existing sets.
+- Machines tab: the disk usage and free space figures are right-aligned, so they line up from one disk to the next.
+
 ## v0.25.0 (2026-10-26)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

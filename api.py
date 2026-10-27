@@ -2103,12 +2103,13 @@ class BackupLocationChange(BaseModel):
     depth: int | None = Field(None, ge=1, le=5, description="Sub-folder levels searched")
     via: str | None = Field(None, max_length=80, description="How the archives get there, free text (« rsync 04:00 »)")
     encrypted: bool | None = None
+    every_days: int | None = Field(None, ge=1, le=31, description="Days between two runs of this copy (1 = daily, 7 = weekly): a copy that runs less often is not late between two runs")
 
 
 @app.patch(API + "/backups/settings/{set_id}/locations/{index}", tags=["sauvegardes"], summary="Modifier un emplacement d'un jeu (0 = la source, puis ses copies) : machine, dossier, fichiers lus, profondeur, moyen, chiffré (admin)")
 def backups_location_update(set_id: str, index: int, body: BackupLocationChange, request: Request):
     def go(b):
-        b.update_location(set_id, index, body.ip, body.path, body.pattern, body.depth, body.via, body.encrypted)
+        b.update_location(set_id, index, body.ip, body.path, body.pattern, body.depth, body.via, body.encrypted, body.every_days)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
         return {"ok": True}
     return backups_call(request, "emplacement de sauvegarde modifié", set_id, go)

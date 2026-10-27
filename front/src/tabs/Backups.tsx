@@ -179,8 +179,8 @@ function ByMachine({ b, initial, onSets }: Readonly<{ b: BackupsData; initial?: 
       {h.disks.map((d) => (
         <span key={d.mount} className="flex items-center gap-2 text-xs">
           <span className="w-20 truncate font-mono" title={d.mount}>{d.mount}</span>
-          <Fill pct={d.pct} /><Pct value={d.pct} />
-          <span className="whitespace-nowrap"><Dim>{bytes(d.avail)} {tx("libres")}</Dim></span>
+          <Fill pct={d.pct} /><span className="w-10 text-right tabular-nums"><Pct value={d.pct} /></span>
+          <span className="w-28 whitespace-nowrap text-right tabular-nums"><Dim>{bytes(d.avail)} {tx("libres")}</Dim></span>
         </span>
       ))}
     </div>

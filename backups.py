@@ -43,8 +43,16 @@ SSH_OPTS = [*SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "Se
 TIMEOUT = 240
 DISK_WARN, DISK_CRIT = 80, 90
 GRACE_H = 6  # une copie a ce délai pour rattraper une archive toute neuve
+EVERY_DAYS_MAX = 31   # a copy that runs less often than monthly is not followed on its rhythm
 RANK = {"ok": 0, "archive": 0, "na": 0, "off": 0, "warn": 1, "crit": 2, "down": 3}   # off: its connector switched off in Settings, nothing read, no alert
 STOPPED = "coupé dans Réglages"   # end of the message of a machine read by a connector switched off
+
+def copy_grace_s(loc: dict) -> int:
+    """Seconds a copy has to catch up with a fresh archive: a few hours, plus the days between two runs of a copy that is not daily (every_days)."""
+    days = loc.get("every_days")
+    extra = days * 86400 if isinstance(days, int) and 1 < days <= EVERY_DAYS_MAX else 0
+    return GRACE_H * 3600 + extra
+
 
 # ───────────── Agent exécuté sur chaque machine (python3 -) ─────────────
 
@@ -699,11 +707,13 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     cmap = {}
                     for f in files:
                         cmap.setdefault(key(f), f)
-                    ref = src_files if each else src_files[:1]
+                    grace = copy_grace_s(loc)
+                    # a copy that runs weekly never holds the newest archive: judged on the newest one old enough for its next run to have passed
+                    ref = src_files if each else src_files[:1] if grace == GRACE_H * 3600 else [f for f in src_files if now - f["mtime"] >= grace][:1]
                     seen, late = set(), []
                     for f in ref:
                         n = key(f)
-                        if n in seen or now - f["mtime"] < GRACE_H * 3600:
+                        if n in seen or now - f["mtime"] < grace:
                             continue
                         seen.add(n)
                         c = cmap.get(n)
