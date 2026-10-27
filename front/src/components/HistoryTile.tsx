@@ -1,4 +1,4 @@
-// A figure tile with its history: a strip of states under the figure (reachability) or a stepped curve at its right (health), over the
+// A figure tile with its history at the right of the figure: a strip of states (reachability) or a stepped curve (health), over the
 // period chosen for the row. The pointer reads one moment of it; a click filters the list under the tiles.
 import { useEffect, useState, type MouseEvent } from "react";
 import { read } from "../api";
@@ -32,7 +32,7 @@ const when = (t: number) => new Date(t * 1000).toLocaleString(undefined, { weekd
 function Strip({ points, hours, now, onMove, onLeave }: Readonly<{ points: TilePoint[]; hours: Period; now: number; onMove: (f: number) => void; onLeave: () => void }>) {
   const cells = stripCells(points, hours, now);
   return (
-    <div aria-hidden className="mt-1 grid h-5 cursor-crosshair items-stretch gap-px" style={{ gridTemplateColumns: `repeat(${cells.length}, 1fr)` }}
+    <div aria-hidden className="grid h-6 min-w-[70px] max-w-[150px] flex-1 cursor-crosshair items-stretch gap-px" style={{ gridTemplateColumns: `repeat(${cells.length}, 1fr)` }}
       {...hover(onMove, onLeave)}>
       {cells.map((c) => <i key={c.t} className={`rounded-[1.5px] ${c.level === null ? "bg-bg2" : CELL[c.level]}`} />)}
     </div>
@@ -72,10 +72,11 @@ export function HistoryTile({ label, n, tone, hint, kind, points, hours, now, fi
   else if (change === 0) sub = tx("stable sur {0}", periodLabel(hours));
   else sub = tx("{0} en {1}", `${change > 0 ? "+" : "−"}${Math.abs(change)}`, periodLabel(hours));
   const ready = !!points && change !== null;
-  const chart = ready && kind === "curve" ? <Curve points={points} hours={hours} now={now} good={goodHigh} onMove={setAt} onLeave={() => setAt(null)} /> : null;
+  const leave = () => setAt(null);
+  let chart = null;   // right of the figure: a strip of states, or a curve
+  if (ready) chart = kind === "strip" ? <Strip points={points} hours={hours} now={now} onMove={setAt} onLeave={leave} /> : <Curve points={points} hours={hours} now={now} good={goodHigh} onMove={setAt} onLeave={leave} />;
   return (
     <StatTile n={n} label={label} tone={tone} hint={hint} aside={chart} onClick={onClick} pressed={pressed}>
-      {ready && kind === "strip" && <Strip points={points} hours={hours} now={now} onMove={setAt} onLeave={() => setAt(null)} />}
       <div className="truncate text-xs text-dim" title={sub}>{sub}</div>
     </StatTile>
   );
