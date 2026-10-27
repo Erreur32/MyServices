@@ -5,6 +5,14 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.26.0 → 0.27.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: the Backups, Services warning and Network tiles draw their history, and the Network page gains **Download** and **Upload** tiles. They start empty and fill at each collection (`tile_samples` table, a few thousand more rows, 7 days kept). A new background thread reads the Internet link rate every 2 minutes at most: the Freebox from the connector readers' shared reading (no extra call), the UniFi gateway from the UniFi cards (one MynetworK or controller call at most every 30 s, shared with the pages). UniFi's rate needs MynetworK 0.11.1+ or a UniFi connector with a local account; without it only the Freebox is drawn.
+- **Optional**: the Freebox rate is read every `fast_every` seconds (300 by default); lower it for the MynetworK connector in Settings → Connectors for a finer curve.
+
 ## 0.25.0 → 0.26.0
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.

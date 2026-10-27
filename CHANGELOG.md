@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.27.0 (2026-10-27)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ## Unreleased (next version, not tagged yet)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
