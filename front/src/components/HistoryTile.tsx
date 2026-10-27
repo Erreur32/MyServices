@@ -21,7 +21,7 @@ export function useMachinesHistory(hours: Period, stamp: string): MachinesHistor
   return got?.hours === hours ? got : null;
 }
 
-const CELL = ["bg-ok/25", "bg-warn", "bg-bad"];   // all answered, one missing, two or more
+const CELL = ["bg-ok/40", "bg-warn", "bg-bad"];   // all answered, one missing, two or more
 /** Mouse handlers of a chart: where the pointer is along it (0 left edge, 1 right edge), and when it leaves */
 const hover = (onMove: (f: number) => void, onLeave: () => void) => ({
   onMouseMove: (e: MouseEvent<Element>) => { const r = e.currentTarget.getBoundingClientRect(); onMove((e.clientX - r.left) / r.width); },
@@ -29,12 +29,13 @@ const hover = (onMove: (f: number) => void, onLeave: () => void) => ({
 });
 const when = (t: number) => new Date(t * 1000).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
 
-function Strip({ points, hours, now, onMove, onLeave }: Readonly<{ points: TilePoint[]; hours: Period; now: number; onMove: (f: number) => void; onLeave: () => void }>) {
+function Strip({ points, hours, now, at, onMove, onLeave }: Readonly<{ points: TilePoint[]; hours: Period; now: number; at: number | null; onMove: (f: number) => void; onLeave: () => void }>) {
   const cells = stripCells(points, hours, now);
+  const hot = at === null ? -1 : Math.min(cells.length - 1, Math.floor(at * cells.length));   // the column under the pointer
   return (
-    <div aria-hidden className="grid h-6 min-w-[70px] max-w-[150px] flex-1 cursor-crosshair items-stretch gap-px" style={{ gridTemplateColumns: `repeat(${cells.length}, 1fr)` }}
+    <div aria-hidden className="grid h-6 min-w-[90px] max-w-[220px] flex-1 cursor-crosshair items-stretch gap-px" style={{ gridTemplateColumns: `repeat(${cells.length}, 1fr)` }}
       {...hover(onMove, onLeave)}>
-      {cells.map((c) => <i key={c.t} className={`rounded-[1.5px] ${c.level === null ? "bg-bg2" : CELL[c.level]}`} />)}
+      {cells.map((c, i) => <i key={c.t} className={`rounded-[1.5px] ${c.level === null ? "bg-bg2" : CELL[c.level]} ${i === hot ? "outline outline-1 outline-offset-1 outline-txt" : ""}`} />)}
     </div>
   );
 }
@@ -74,7 +75,7 @@ export function HistoryTile({ label, n, tone, hint, kind, points, hours, now, fi
   const ready = !!points && change !== null;
   const leave = () => setAt(null);
   let chart = null;   // right of the figure: a strip of states, or a curve
-  if (ready) chart = kind === "strip" ? <Strip points={points} hours={hours} now={now} onMove={setAt} onLeave={leave} /> : <Curve points={points} hours={hours} now={now} good={goodHigh} onMove={setAt} onLeave={leave} />;
+  if (ready) chart = kind === "strip" ? <Strip points={points} hours={hours} now={now} at={at} onMove={setAt} onLeave={leave} /> : <Curve points={points} hours={hours} now={now} good={goodHigh} onMove={setAt} onLeave={leave} />;
   return (
     <StatTile n={n} label={label} tone={tone} hint={hint} aside={chart} onClick={onClick} pressed={pressed}>
       <div className="truncate text-xs text-dim" title={sub}>{sub}</div>
