@@ -31,6 +31,7 @@ import { HeadTags } from "../components/HeadTags";
 import { StatTile } from "../components/StatTile";
 import { HistoryTile, useMachinesHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import { PageHead } from "../components/PageHead";
 import type { TilePoint } from "../lib/tileHistory";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
@@ -59,6 +60,7 @@ const sameSel = (a: Selected, b: Selected) => {
 /** Head of the Machines list, as the other pages: the title and its counts, then the figures (reachable, health OK, to watch, unreachable, off),
  *  each with its history over the period chosen, and a click on one filters the list under it */
 function MachinesHead({ snap, health, watching, sel, onSel }: Readonly<{ snap: Snapshot; health: Map<string, HealthHost>; watching: (m: Machine) => boolean; sel: Selected; onSel: (s: Selected) => void }>) {
+  const admin = snap.me.role === "admin";
   const ms = snap.data.machine_list.filter((m) => !m.disabled), st = ms.map((m) => mState(m));
   const down = st.filter((x) => x === "down").length, off = st.filter((x) => x === "off").length, up = ms.length - down - off;
   const read = ms.map((m) => health.get(m.ip)).filter((h): h is HealthHost => !!h && h.level !== "na");
@@ -71,11 +73,12 @@ function MachinesHead({ snap, health, watching, sel, onSel }: Readonly<{ snap: S
   const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1];
   return (
     <div className="flex flex-col gap-4 pb-1 pt-3">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-bold"><Monitor size={18} aria-hidden />{tx("Machines")}</h1>
-        <HeadTags counts={[tx("{0} machines", ms.length), tx("{0} lues par SSH", ssh), tx("{0} avec agent", agents)]} at={snap.data.generated} />
-        <PeriodSwitch value={hours} onChange={setHours} />
-      </div>
+      <PageHead icon={Monitor} title={tx("Machines")} tags={<HeadTags counts={[tx("{0} machines", ms.length), tx("{0} lues par SSH", ssh), tx("{0} avec agent", agents)]} at={snap.data.generated} />}
+        actions={<>
+          <PeriodSwitch value={hours} onChange={setHours} />
+          {admin && <a href="#settings/machines/redetect" className={`${quiet} no-underline`} title={tx("Relit toutes les machines et propose les écarts (rôles, système, services hors Docker)")}><RefreshCw size={14} aria-hidden />{tx("Redétecter")}</a>}
+          {admin && <a href="#settings/machines/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</a>}{/* the page « Add and detect », its form or the redetection open */}
+        </>} />
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <HistoryTile n={`${up}/${ms.length - off}`} label={tx("Joignables")} tone={down ? "warn" : "ok"} kind="strip" points={hist?.reach ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh {...pick("reach")} />
         {read.length > 0 && <HistoryTile n={`${ok}/${read.length}`} label={tx("Santé")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ok === read.length ? "ok" : "warn"}
@@ -1753,8 +1756,6 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
         ]}
         extra={<>
-          {admin && <a href="#settings/machines/redetect" className={`${quiet} no-underline`} title={tx("Relit toutes les machines et propose les écarts (rôles, système, services hors Docker)")}><RefreshCw size={14} aria-hidden />{tx("Redétecter")}</a>}
-          {admin && <a href="#settings/machines/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</a>}{/* the page « Add and detect », its form or the redetection open */}
           <ViewToggle view={view} onPick={pickView} />
         </>} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (

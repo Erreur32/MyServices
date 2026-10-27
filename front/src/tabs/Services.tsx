@@ -23,9 +23,10 @@ import { NewServices } from "../components/NewServices";
 import { ManualActions, ManualService, type ManualInitial } from "../components/ManualService";
 import { StatTile } from "../components/StatTile";
 import { TargetChanged } from "../components/TargetChanged";
-import { quiet } from "../lib/forms";
+import { primary, quiet } from "../lib/forms";
 import { figures, mergePorts, toWatch } from "../lib/servicesState";
 import { HeadTags } from "../components/HeadTags";
+import { PageHead } from "../components/PageHead";
 import { isHidden, serviceKey, setServiceHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidden";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
@@ -326,11 +327,8 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   if (view !== "watch" && view !== "all" && view !== "fresh") return <Empty>{tx("Ce service n'existe plus.")} <a href="#services/all" className="text-link hover:underline">{tx("Tous les services")}</a></Empty>;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-bold"><Boxes size={18} aria-hidden />{tx("Services")}</h1>
-        <HeadTags counts={[tx("{0} services", every.total), tx("{0} avec domaine", every.withDomain), tx("{0} locaux", every.local), tx("{0} machines", every.machines)]} at={snap.data.generated} />
-        {admin && <a href="#services/new" className={`${quiet} ml-auto py-1 no-underline`} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</a>}
-      </div>
+      <PageHead icon={Boxes} title={tx("Services")} tags={<HeadTags counts={[tx("{0} services", every.total), tx("{0} avec domaine", every.withDomain), tx("{0} locaux", every.local), tx("{0} machines", every.machines)]} at={snap.data.generated} />}
+        actions={admin && <a href="#services/new" className={`${primary} py-1 no-underline`} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</a>} />
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <StatTile n={fig.ok} label={tx("En ligne")} tone="ok" />
         <StatTile n={fig.bad} label={tx("En panne")} tone={fig.bad ? "bad" : undefined} />

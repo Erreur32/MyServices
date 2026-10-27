@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Page heads
+- One head for the list pages (Machines, Services, Network, DNS, Backups, Security, AI and agents, Video and cameras): the title with its icon, the tags and, at the far right on the same line, the actions of the page (history period, link to the connectors, buttons with the main one last). The line wraps by itself on a narrow screen.
+- Machines: **Re-detect** and **Add a machine** move from the search bar up to the head. Services: **+ Service** is now a main button. Backups: new **Add backups** button for admins. Network: new **Connectors** link for admins.
+
 ### Machines
 - The figure tiles of the Machines page now draw their history over a period chosen once for the whole row (24 h, 72 h or 7 days, kept by the browser): a strip of states for **Reachable** and **Unreachable** (one column per slot, orange or red where a machine did not answer) and a stepped curve for **Health**, with the change over the period under the figure and the reading at the pointer on hover. A click on a tile filters the list under it (a second click clears it).
 - New `GET /machines/history?hours=24|72|168`: the readings behind those tiles, `[time, value, total]` each. Reachability comes from the availability history; the health count is kept from now on (`tile_samples` table, 7 days), so the Health curve builds up after the update.

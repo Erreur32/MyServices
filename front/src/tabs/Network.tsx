@@ -20,6 +20,7 @@ import { NetworkDiagnostic } from "./NetworkDiagnostic";
 import { NetworkScanStats } from "./NetworkScanStats";
 import { UnifiCards } from "./UnifiCards";
 import { HeadTags } from "../components/HeadTags";
+import { ConnectorsLink, PageHead } from "../components/PageHead";
 
 const INTERNET = ["freebox", "opnsense", "speedtest-tracker"];
 type Kind = "gear" | "wifi" | "wired" | "device";
@@ -299,10 +300,7 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
 
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-bold"><NetworkIcon size={18} aria-hidden />{tx("Réseau")}</h1>
-        <HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />
-      </div>
+      <PageHead icon={NetworkIcon} title={tx("Réseau")} tags={<HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />} actions={snap.me.role === "admin" && <ConnectorsLink />} />
       <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={sourceNames} failing={failing} />
 
       {current === "unifi" && <UnifiCards />}
