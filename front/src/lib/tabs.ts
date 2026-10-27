@@ -32,11 +32,9 @@ export const NAV: NavGroup[] = [
   { id: "overview", label: tx("En bref"), items: [   // « Vue d'ensemble » is Security's page alone
     { id: "home", hash: "", tab: "home", icon: House, label: tx("Accueil"), subs: [
       { ...sub("home-overview", "", "home", LayoutDashboard, tx("Tableau de bord")), also: ["home"] },
-      sub("home-stats", "stats", "home", BarChart3, tx("Statistiques")),
-    ] },
-    { id: "history", hash: "history", tab: "home", icon: History, label: tx("Historique"), subs: [
-      sub("history-events", "history/events", "home", ListOrdered, tx("Événements")),
+      sub("history-events", "history/events", "home", ListOrdered, tx("Événements")),   // the History pages, under the dashboard (#history keeps its address)
       sub("history-availability", "history/availability", "home", Activity, tx("Disponibilité")),
+      sub("home-stats", "stats", "home", BarChart3, tx("Statistiques")),
     ] },
   ] },
   { id: "inventory", label: tx("Inventaire"), items: [
@@ -127,12 +125,10 @@ export const NAV: NavGroup[] = [
       sub("updates", "settings/updates", "settings", RefreshCw, tx("Mises à jour")),
       sub("mail", "settings/mail", "settings", Mail, tx("E-mail")),
       sub("export", "settings/export", "settings", ArrowDownUp, tx("Export et import")),
-      sub("about", "about", "settings", Info, tx("Informations")),
-    ] },
-    { id: "activity", hash: "settings/requests", tab: "settings", icon: Activity, label: tx("Activité"), subs: [   // what the app does, apart from its settings
-      sub("requests", "settings/requests", "settings", Activity, tx("Requêtes")),
+      sub("requests", "settings/requests", "settings", Activity, tx("Requêtes")),   // what the app does (calls, audit, logs), a page apart of the settings
       sub("audit", "settings/requests/audit", "settings", ScrollText, tx("Journal d'audit")),
       sub("logs", "settings/requests/logs", "settings", FileText, tx("Journaux")),
+      sub("about", "about", "settings", Info, tx("Informations")),
     ] },
   ] },
 ];

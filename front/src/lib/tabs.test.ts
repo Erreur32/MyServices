@@ -14,7 +14,7 @@ describe("lib/tabs", () => {
     const collect = NAV.find((g) => g.id === "collect")!.items;   // what feeds the app, apart from the Administration
     expect(collect.map((i) => i.id)).toEqual(["connectors", "discovery", "tasks"]);
     expect(collect.filter((i) => !i.subs).map((i) => i.hash)).toEqual(["settings/discovery", "settings/tasks"]);   // one page each: the name opens it
-    expect(NAV.find((g) => g.id === "admin")!.items.map((i) => i.id)).toEqual(["alerts", "access", "app", "activity"]);
+    expect(NAV.find((g) => g.id === "admin")!.items.map((i) => i.id)).toEqual(["alerts", "access", "app"]);
     const security = NAV.flatMap((g) => g.items).find((i) => i.id === "security")!;
     expect(security.subs!.map((x) => x.id)).toContain("fail2ban");
     const hashes = NAV.flatMap((g) => g.items.flatMap(leaves)).flatMap((i) => [i.hash, ...(i.also ?? [])]);   // also: Machines settings (buttons of « All machines »), the page of a set (« Sets »)
@@ -40,7 +40,7 @@ describe("lib/tabs", () => {
   it("navGroups : un débutant ne voit que les pages qui ont du contenu, un groupe vide disparaît", () => {
     const ids = (sn: Snapshot) => navGroups(sn).flatMap((g) => g.items.map((i) => i.id));
     const bare = ids(snap({}, { role: "viewer" }));
-    expect(bare).toEqual(["home", "history", "machines", "services", "diagrams"]);
+    expect(bare).toEqual(["home", "machines", "services", "diagrams"]);
     expect(navGroups(snap({}, { role: "viewer" })).map((g) => g.id)).toEqual(["overview", "inventory"]);
     expect(ids(snap())).toEqual(expect.arrayContaining(["alerts", "connectors", "access", "app"]));   // admin: Alertes and the Administration
     const subs = (sn: Snapshot, id: string) => navGroups(sn).flatMap((g) => g.items).find((i) => i.id === id)?.subs?.map((x) => x.id);

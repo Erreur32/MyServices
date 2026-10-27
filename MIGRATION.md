@@ -5,6 +5,13 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.26.1 → 0.26.2
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: only the place of some menu items (History under Home; Requests, Audit log and Logs under Application). The addresses of every page are the same, so bookmarks keep working.
+
 ## 0.26.0 → 0.26.1
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.

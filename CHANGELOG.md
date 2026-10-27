@@ -11,6 +11,17 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.26.2 (2026-10-28)
+
+> **Young but working: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Menu
+- **Requests**, **Audit log** and **Logs** moved from their own **Activity** item to the **Application** item of Settings (Updates, E-mail, Export and import, Requests, Audit log, Logs, Information). The addresses (`#settings/requests`, `#settings/requests/audit`, `#settings/requests/logs`) do not change. The README and the help text follow.
+- The **History** item (Events, Availability) is now part of **Home**, right under the dashboard (Dashboard, Events, Availability, Statistics). The addresses (`#history/events`, `#history/availability`) do not change.
+
+### Development
+- The herdr pane « PR et git » finds the pull request of a version by its tagged commit (a title without the version number no longer shows the chain as unfinished), shows the pull request line and always shows the working branch `next`.
+
 ## v0.26.1 (2026-10-27)
 
 > **Young but working: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

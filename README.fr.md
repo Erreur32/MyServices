@@ -28,8 +28,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-history.png" alt="Page Historique › Événements de MyServices : les événements sur 24 h (noms de domaine et adresse publique floutés)" width="900"><br>
-  <sub>Historique › Événements : ce qui est tombé, revenu, apparu ou disparu (noms de domaine et adresse publique floutés).</sub>
+  <img src="docs/screenshot-history.png" alt="Page Accueil › Événements de MyServices : les événements sur 24 h (noms de domaine et adresse publique floutés)" width="900"><br>
+  <sub>Accueil › Événements : ce qui est tombé, revenu, apparu ou disparu (noms de domaine et adresse publique floutés).</sub>
 </p>
 
 > ## Jeune, mais ça marche
@@ -50,7 +50,7 @@
 > - **Les retours sont les bienvenus** : [questions et idées](https://github.com/Erreur32/MyServices/discussions), bugs et demandes de
 >   connecteur (voir plus bas). Les pull requests ne sont pas encore traitées.
 >
-> Chaque version est étiquetée et publiée comme image Docker. Les numéros restent **sous la 2.0.0** tant que le projet n'est pas déclaré stable (`0.26.1`, `0.27.0`…).
+> Chaque version est étiquetée et publiée comme image Docker. Les numéros restent **sous la 2.0.0** tant que le projet n'est pas déclaré stable (`0.26.2`, `0.27.1`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (en anglais).
 
 ## En bref
@@ -85,7 +85,7 @@ Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anci
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.26.1` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.26.2` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---
@@ -108,11 +108,11 @@ Un menu à gauche réunit toutes les pages, en quatre groupes ; les vues d'une p
 
 | Groupe | Pages |
 |---|---|
-| **En bref** | **Accueil** (tableau de bord : ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; statistiques), **Historique** (les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur ; disponibilité) |
+| **En bref** | **Accueil** (tableau de bord : ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; puis l'historique : les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur, et la disponibilité ; statistiques) |
 | **Inventaire** | **Machines** (chaque machine, avec sa page et ses réglages ; appareils vus par vos outils mais pas suivis ; agents ; connexions SSH et clé SSH de l'app), **Services** (hôtes NPM et services locaux, chacun avec sa page, lue et modifiée sur place ; nouveaux services ; déclarer un service), **Réseau** (UniFi, Freebox, scan, équipements et appareils, diagnostic), **DNS** (AdGuard Home : serveurs, détails), **Virtualisation**, **IA et agents** (vue d'ensemble, modèles, agents et MCP, GPU ; visible dès qu'un service ou un connecteur IA existe), **Vidéo et caméras** (vue d'ensemble, caméras, flux, enregistrements ; visible dès qu'un service Stream ou un connecteur vidéo existe), **Infra** (services lus par leur API, conteneurs), **Schémas** |
 | **Protection** | **Sauvegardes** (par machine, jeux, ajouter des sauvegardes, à relier, copies ailleurs, emplacements cherchés), **Sécurité** (vue d'ensemble, sites exposés, accès SSH, ports du réseau, certificats, Fail2ban, Wazuh) |
 | **Collecte** | **Connecteurs** (les miens, disponibles, détectés à relier, déjà lus par SSH ou agent), **Découverte** (mode automatique, à faire, autres suggestions), **Tâches et horaires** |
-| **Administration** | **Notifications** (canaux, règles d'alerte, mes notifications, exemples, derniers envois), **Comptes et accès** (comptes et sessions, jetons API et MCP), **Application** (mises à jour, e-mail, export et import, informations), **Activité** (requêtes, journal d'audit, journaux) |
+| **Administration** | **Notifications** (canaux, règles d'alerte, mes notifications, exemples, derniers envois), **Comptes et accès** (comptes et sessions, jetons API et MCP), **Application** (mises à jour, e-mail, export et import, requêtes, journal d'audit, journaux, informations) |
 
 Profil, Aide et À propos sont dans le menu du compte, en haut à droite.
 
