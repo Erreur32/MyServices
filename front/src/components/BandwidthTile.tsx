@@ -26,7 +26,7 @@ export function BandwidthTile({ label, sources, hours, now }: Readonly<{ label: 
   const kept = shown.map((s) => inPeriod(s.points!, hours, now));
   const from = Math.max(...kept.map((k) => k[0][0])), end = Math.max(...kept.map((k) => k.at(-1)![0]));
   const clipped = (points: TilePoint[]): TilePoint[] => {
-    const before = points.findLast((p) => p[0] <= from);
+    const before = points.filter((p) => p[0] <= from).at(-1);
     return [...(before ? [[from, before[1], before[2]] as TilePoint] : []), ...points.filter((p) => p[0] > from)];
   };
   const reading = (s: BandwidthSource): TilePoint | null => (at !== null && s.points ? nearest(clipped(s.points), hours, end, at, true, from) : lastOf(s.points));
