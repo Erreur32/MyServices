@@ -15,6 +15,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Services
+- The **Warning** tile draws a strip of the services in warning over the period switch. They are counted on the server with the rule of the page (`status()`); the services hidden from « To watch » are counted like the others. `GET /services/history` now also carries `warn` (`tile_samples` key `services.warn`).
+
+### Tiles
+- The figure of a tile with a chart keeps a minimum width, so the charts of all the tiles start at the same place even with a one-digit figure.
+
+### Development
+- `scripts/dev-status.sh`: a herdr pane « PR et git » (`dev-status.sh open` puts it above « MyServices dev ») showing the release chain of the version as a colour bar, the main branch (lag, CI, Sonar, tag, Docker) and the branches with an open pull request, like the gitstat mod.
+
 ### Backups
 - The tiles **Up to date** (curve), **Late** and **Missing or failing** (strips) of the Backups page keep their history over the period switch (24 h, 72 h, 7 days). New `GET /backups/history?hours=24|72|168`. The sets are counted like the page (not archived; late = `warn`; missing or failing = `crit` or `down`) after each collection (`tile_samples` table, 7 days kept).
 
