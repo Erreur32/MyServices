@@ -5,6 +5,14 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.25.0 → 0.26.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Optional, `backups-meta.json`**: a copy of a backup can now carry `"every_days": 7`, the days between two runs (1 to 31) for a copy that does not run every day, such as a weekly rsync to a NAS. It is set in the form of the copy (**Rhythm**), or through the MCP tool `backups_config`. Without it a copy is expected daily, as before.
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: the Machines, Services, Network and Security tiles draw their history. The Network history starts empty and fills at each collection, the Machines health and Network points are kept 7 days (`tile_samples` table, a few thousand rows), and the machines' readings (`metric_samples`) are kept 7 days instead of 24 h (about 40 000 rows for 15 machines). The menu has a new **Collection** group (Connectors, Discovery, Tasks and schedules); bookmarks to those pages keep working.
+
 ## 0.24.2 → 0.25.0
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.

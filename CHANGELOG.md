@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.26.0 (2026-10-27)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Page heads
 - One head for the list pages (Machines, Services, Network, DNS, Backups, Security, AI and agents, Video and cameras): the title with its icon, the tags and, at the far right on the same line, the actions of the page (history period, link to the connectors, buttons with the main one last). The line wraps by itself on a narrow screen.
 - Machines: **Re-detect** and **Add a machine** move from the search bar up to the head. Services: **+ Service** is now a main button. Backups: new **Add backups** button for admins. Network: new **Connectors** link for admins.
@@ -18,7 +22,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Machines
 - The figure tiles of the Machines page now draw their history over a period chosen once for the whole row (24 h, 72 h or 7 days, kept by the browser): a strip of states for **Reachable** and **Unreachable** (one column per slot, orange or red where a machine did not answer) and a stepped curve for **Health**, with the change over the period under the figure and the reading at the pointer on hover. A click on a tile filters the list under it (a second click clears it).
 - New `GET /machines/history?hours=24|72|168`: the readings behind those tiles, `[time, value, total]` each. Reachability comes from the availability history; the health count is kept from now on (`tile_samples` table, 7 days), so the Health curve builds up after the update.
+- **Processor and Memory** tiles: the average of the machines that report it, the most loaded one under the figure, a 0 to 100 % curve over the chosen period. A click lists the machines over 80 % (new **Load** filter). `GET /machines/history` now also carries `cpu` and `mem` (one point per 10 minutes, the average and the number of machines). The machines' readings (`metric_samples`) are kept 7 days instead of 24 h; the machine page still draws the last 24 h.
 - The icon and settings header cells of the machines table had no bottom border or background, which cut the line under the header; they now use the same header cell as the other columns.
+
+### Services, Network and Security
+- **Services**: the **Online** tile draws a curve and the **Down** tile a strip, over the same period switch. New `GET /services/history?hours=24|72|168`, read from the availability history (nothing new is stored).
+- **Network**: **Equipment online** (strip), **Clients** and **Devices online** (curves) keep their history, over the same period switch. New `GET /network/history?hours=24|72|168`. The figures are taken from `data.json` after each collection with the same merge by MAC as the page (`tile_samples` table, one point per 9 minutes at most, 7 days kept).
+- **Security**: the **Fail2ban, 24 h** tile and the two ban tiles of the Fail2ban page draw the bans per hour and per day that the LogviewR connector already gives (no new storage).
+- Tiles with a chart keep 24 px between the figure and the chart and a wider minimum size, so a chart never overflows its tile; the Machines tiles go to a second line on a narrow page.
 
 ### Menu
 - New **Collection** group between Protection and Administration: **Connectors**, **Discovery** and **Tasks and schedules** are now entries of their own instead of sitting under Administration, which keeps the settings and information of the app (Notifications, Accounts and access, Application, Activity). Addresses do not change.
