@@ -300,11 +300,13 @@ def fast_loop() -> None:
 
 
 def keep_availability() -> None:
-    """Availability of each service, machine and Kuma monitor after a collection (Historique → Disponibilité)."""
+    """Availability of each service, machine and Kuma monitor after a collection (Historique → Disponibilité), and the Network tiles figures."""
     import availability
+    import tile_history
     from auth import db_path
     try:
         n = availability.sample(db_path(CFG), WEB / "data.json")
+        tile_history.sample_network(db_path(CFG), WEB / "data.json")
     except Exception as e:  # base unavailable: only the availability history misses a point
         log(f"⚠ disponibilité : {e}")
         return

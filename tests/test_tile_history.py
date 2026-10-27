@@ -53,5 +53,31 @@ class TileHistory(unittest.TestCase):
         self.assertEqual(th.sample(self.db, Path(self.tmp.name) / "none.json", now=NOW), 0)
 
 
+class NetworkPoints(unittest.TestCase):
+    DATA = {"generated": "2026-10-27T20:00:00+00:00",
+            "network": [{"label": "MynetworK", "unifi": {"devices": [{"mac": "AA", "name": "ap", "online": True}, {"mac": "BB", "name": "sw", "state": "Offline"}],
+                                                          "clients": [{"mac": "C1", "wired": False}, {"mac": "C2", "wired": True}]},
+                         "devices": [{"ip": "10.0.0.2", "status": "online"}, {"ip": "10.0.0.3", "status": "offline"}]}],
+            "services_status": [{"connector": "unifi", "label": "UniFi", "unifi": {"devices": [{"mac": "bb", "state": "connected"}], "clients": [{"mac": "c3"}]}}]}
+
+    def test_merged_by_mac_the_connector_being_fresher(self):
+        got = th.network_points(self.DATA)
+        self.assertEqual(got[th.NET_GEAR], (2, 2))   # BB came back online in the direct connector, same MAC in another case
+        self.assertEqual(got[th.NET_CLIENTS], (3, 3))
+        self.assertEqual(got[th.NET_DEVICES], (1, 2))
+
+    def test_a_missing_source_leaves_its_figure_out(self):
+        self.assertEqual(th.network_points({"network": [{"label": "x"}]}), {})
+
+    def test_sampled_once_per_gap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f, db = Path(tmp) / "data.json", Path(tmp) / "t.db"
+            f.write_text(json.dumps(self.DATA), encoding="utf-8")
+            ts = int(th.datetime.fromisoformat(self.DATA["generated"]).timestamp())
+            self.assertEqual(th.sample_network(db, f, now=ts), 3)
+            self.assertEqual(th.sample_network(db, f, now=ts), 0)
+            self.assertEqual(th.series(db, th.NET_GEAR, 24, now=ts), [[ts, 2, 2]])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3179,6 +3179,7 @@ export const EN: Record<string, string> = {
   "historique en cours": "history building up",
   "stable sur {0}": "steady over {0}",
   "{0} en {1}": "{0} in {1}",
+  "{0} client(s)": "{0} client(s)",
   "par heure": "per hour",
   "par jour": "per day",
   "{0} : {1} bannissement(s)": "{0}: {1} ban(s)",

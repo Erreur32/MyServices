@@ -10,6 +10,7 @@ import { tx } from "../lib/i18n";
 /** What /machines/history and /services/history answer for a period */
 interface MachinesHistory { hours: Period; reach: TilePoint[]; health: TilePoint[] }
 interface ServicesHistory { hours: Period; up: TilePoint[] }
+interface NetworkHistory { hours: Period; gear: TilePoint[]; clients: TilePoint[]; devices: TilePoint[] }
 
 /** The history of the tiles of a page for a period; read again at each collection (`stamp`). null while it loads or when it cannot be read. */
 function useHistory<T extends { hours: Period }>(path: string, hours: Period, stamp: string): T | null {
@@ -23,6 +24,7 @@ function useHistory<T extends { hours: Period }>(path: string, hours: Period, st
 }
 
 export const useMachinesHistory = (hours: Period, stamp: string) => useHistory<MachinesHistory>("machines/history", hours, stamp);
+export const useNetworkHistory = (hours: Period, stamp: string) => useHistory<NetworkHistory>("network/history", hours, stamp);
 export const useServicesHistory = (hours: Period, stamp: string) => useHistory<ServicesHistory>("services/history", hours, stamp);
 
 const CELL = ["bg-ok/40", "bg-warn", "bg-bad"];   // all answered, one missing, two or more
@@ -59,8 +61,9 @@ function Curve({ points, hours, now, good, onMove, onLeave }: Readonly<{ points:
   );
 }
 
-export function HistoryTile({ label, n, tone, hint, kind, points, hours, now, figure, fmt, goodHigh, onClick, pressed }: Readonly<{
+export function HistoryTile({ label, n, tone, hint, fact, kind, points, hours, now, figure, fmt, goodHigh, onClick, pressed }: Readonly<{
   label: string; n: string | number; tone?: "ok" | "warn" | "bad"; hint?: string; kind: "strip" | "curve";
+  fact?: string;   // what the tile says under the figure instead of the change over the period (the pointer still reads a moment)
   points: TilePoint[] | null;   // null: not read (yet)
   hours: Period; now: number;
   figure: (p: TilePoint) => number;   // the number the tile counts, for the change over the period
@@ -73,6 +76,7 @@ export function HistoryTile({ label, n, tone, hint, kind, points, hours, now, fi
   const change = points ? delta(points, hours, now, figure) : null;
   let sub: string;
   if (shown) sub = `${when(shown[0])} : ${fmt(shown)}`;
+  else if (fact !== undefined) sub = fact;
   else if (change === null) sub = tx("historique en cours");
   else if (change === 0) sub = tx("stable sur {0}", periodLabel(hours));
   else sub = tx("{0} en {1}", `${change > 0 ? "+" : "−"}${Math.abs(change)}`, periodLabel(hours));
