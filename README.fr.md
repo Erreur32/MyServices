@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://github.com/Erreur32/MyServices/releases/latest"><img alt="Version" src="https://img.shields.io/github/v/release/Erreur32/MyServices?label=version&color=3da9fc"></a>
-  <img alt="Stade" src="https://img.shields.io/badge/stade-en%20ligne%20%C2%B7%20pr%C3%A9coce-f59e0b">
+  <img alt="Stade" src="https://img.shields.io/badge/stade-jeune%20mais%20fonctionnel-f59e0b">
   <img alt="Lecture seule" src="https://img.shields.io/badge/acc%C3%A8s-lecture%20seule-22c55e">
   <a href="https://github.com/Erreur32/MyServices/pkgs/container/myservices"><img alt="Image Docker" src="https://img.shields.io/badge/image-ghcr.io%2Ferreur32%2Fmyservices-2496ED?logo=docker&logoColor=white"></a>
   <img alt="Architectures" src="https://img.shields.io/badge/arch-amd64%20%7C%20arm64-555">
@@ -32,17 +32,25 @@
   <sub>Historique › Événements : ce qui est tombé, revenu, apparu ou disparu (noms de domaine et adresse publique floutés).</sub>
 </p>
 
-> ## Encore en développement
+> ## Jeune, mais ça marche
 >
-> MyServices est **en plein développement** (`0.x`) et **n'est pas encore prêt pour un usage au quotidien**. Les écrans, les réglages et les
-> données enregistrées changent d'une version à l'autre, et plusieurs parties n'ont été essayées que sur un seul PC ou contre des serveurs
-> simulés (agent Windows, Veeam, Proxmox, Prometheus, Healthchecks, Netdata, Jellyfin, sauvegardes de Home Assistant). **Il ne fait que lire
-> vos machines** : l'essayer présente peu de risque, mais ne vous y fiez pas pour quelque chose d'important. Si vous l'essayez quand même,
-> gardez une copie de `config/` et `data/` avant chaque mise à jour et laissez-le sur votre réseau local (jamais exposé directement sur Internet).
+> MyServices est un **jeune projet (`0.x`) qui fait déjà son travail** : il lit vos machines et vos services, montre leur état sur une seule
+> page, garde un historique et lève des alertes. Il est maintenant ouvert à tous, et il **évolue encore vite** : les écrans, les réglages et
+> les données enregistrées peuvent changer d'une version à l'autre.
 >
-> Comme il évolue vite, **les pull requests et les issues ne sont pas traitées pour le moment** : merci de les garder pour une version stable.
+> - **Ce qui est solide** : le cœur (collecte, santé, historique, alertes, comptes, API et MCP) et les connecteurs utilisés tous les jours sur
+>   le réseau de l'auteur : **Nginx Proxy Manager, AdGuard Home, Beszel, Dockhand, Dozzle, Frigate, Glances, GpuViewR, Hermes Agent, Home
+>   Assistant, LogviewR, MynetworK (et, par lui, UniFi et la Freebox), Uptime Kuma, Wazuh et Web-Check**.
+> - **Ce qui est moins testé** : les autres connecteurs ont été écrits d'après la documentation de chaque service et essayés seulement contre
+>   des serveurs simulés ; ils peuvent donc ne pas correspondre à toutes les versions ou installations. C'est pareil pour l'agent Windows
+>   (un seul PC pour l'instant). Le [tableau des connecteurs](#connecteurs) plus bas dit lesquels sont lesquels. Si l'un ne correspond pas à
+>   votre vrai service, dites-le-nous.
+> - **Il ne fait que lire** vos machines : l'essayer présente peu de risque. Gardez une copie de `config/` et `data/` avant chaque mise à
+>   jour, et laissez-le sur votre réseau local (jamais exposé directement sur Internet).
+> - **Les retours sont les bienvenus** : [questions et idées](https://github.com/Erreur32/MyServices/discussions), bugs et demandes de
+>   connecteur (voir plus bas). Les pull requests ne sont pas encore traitées.
 >
-> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.27.0`, `0.27.1`…).
+> Chaque version est étiquetée et publiée comme image Docker. Les numéros restent **sous la 2.0.0** tant que le projet n'est pas déclaré stable (`0.26.1`, `0.27.0`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (en anglais).
 
 ## En bref
@@ -55,7 +63,8 @@ signale ce qui demande votre attention.
 - **Un seul conteneur** : collecte, veille, santé, sauvegardes, comptes, API et page web.
 - Un **assistant de démarrage** : une décision à la fois, qui recommande la façon la plus simple de lire chaque machine.
 - **Machines** lues par SSH (Linux), par un agent PowerShell (Windows), par l'API d'une appli, ou simplement par ping.
-- **Plus de 50 connecteurs** : Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel, Ollama…
+- **Environ 60 connecteurs** : Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, UniFi, MynetworK, Beszel, Ollama, Frigate… (lesquels sont éprouvés : voir [Connecteurs](#connecteurs)).
+- **Cadres en direct avec historique** : joignabilité, santé, processeur et mémoire, services, sauvegardes, et le débit de votre accès Internet (Freebox et UniFi), sur 24 heures, 3 jours ou 7 jours.
 - **Un historique** de chaque événement, avec ce qui l'a détecté et d'où vient l'information.
 - **Schémas** générés pour vous (réseau, accès aux machines, sauvegardes, alertes, et d'autres en un clic).
 - **Alertes et notifications** sur Discord, Telegram et webhook.
@@ -76,7 +85,7 @@ Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anci
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.27.0` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.26.1` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---
@@ -88,7 +97,7 @@ Mise à jour : `docker compose pull && docker compose up -d` (réglages et donn�
 - **Un nouveau connecteur** (un service que MyServices devrait lire) : lire [Comment demander un connecteur](docs/CONNECTOR-REQUESTS.md)
   (en anglais), puis utiliser le formulaire d'issue « Connector request ».
 
-Les pull requests ne sont pas traitées pour le moment (voir l'avertissement en haut).
+Les pull requests ne sont pas encore traitées (voir l'avertissement en haut).
 
 ## En savoir plus
 
@@ -176,31 +185,34 @@ Pour les machines Linux, l'agent Linux (Python 3.6+, systemd) donne les mêmes i
 
 </details>
 
-Les machines trouvées mais pas suivies, les clés SSH à autoriser et les agents pas encore installés sont listés dans **Réseau › Découverte** et comptés dans la cloche de l'en-tête.
+Les machines trouvées mais pas suivies, les clés SSH à autoriser et les agents pas encore installés sont listés dans **Collecte › Découverte** et comptés dans la cloche de l'en-tête.
 
 </details>
 
 <details>
-<summary><b>Connecteurs (plus de 50)</b></summary>
+<a id="connecteurs"></a>
+<summary><b>Connecteurs (environ 60)</b></summary>
 
-Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** : donnez-lui une clé ou un compte qui ne peut rien modifier. Administration › Connecteurs › Mes connecteurs les liste, teste chacun (bouton **Tester**) et montre ce que la dernière collecte a lu. La sous-page **Détectés à relier** propose ceux qu'il a reconnus sur votre réseau, avec le formulaire déjà rempli ; **Déjà lus par SSH ou agent** liste les outils qu'une machine suivie donne déjà.
+Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** : donnez-lui une clé ou un compte qui ne peut rien modifier. Collecte › Connecteurs › Mes connecteurs les liste, teste chacun (bouton **Tester**) et montre ce que la dernière collecte a lu. La sous-page **Détectés à relier** propose ceux qu'il a reconnus sur votre réseau, avec le formulaire déjà rempli ; **Déjà lus par SSH ou agent** liste les outils qu'une machine suivie donne déjà.
 
 | Famille | Connecteurs |
 |---|---|
-| **Web et proxys** | Nginx Proxy Manager, Web-Check |
-| **DNS** | AdGuard Home, Pi-hole, Technitium DNS |
-| **Supervision** | Beszel, Uptime Kuma, Dozzle, Prometheus, Healthchecks, Netdata, LogviewR |
-| **Maison et médias** | Home Assistant, Jellyfin, Sonarr / Radarr / Prowlarr… |
-| **Vidéo et caméras** | Frigate, Shinobi, go2rtc, MediaMTX, Owncast |
-| **IA** | Ollama, llama.cpp, Open WebUI, API compatible OpenAI (vLLM, LM Studio, LocalAI, KoboldCpp, LiteLLM), Hermes Agent, GpuViewR |
-| **Réseau** | MynetworK, UniFi Network, Tailscale / Headscale, OPNsense |
-| **Sécurité** | CrowdSec |
-| **Virtualisation et conteneurs** | Proxmox VE, Dockhand, Portainer |
-| **Stockage et sauvegardes** | Proxmox Backup Server, Veeam Backup & Replication, TrueNAS, Synology DSM |
+| **Web et proxys** | **Nginx Proxy Manager**, **Web-Check** |
+| **Applis** | **Home Assistant**, Nextcloud, Jellyfin, Tautulli, Overseerr / Jellyseerr, Sonarr / Radarr / Prowlarr…, Bazarr, qBittorrent, Transmission |
+| **DNS** | **AdGuard Home**, Pi-hole, Technitium DNS |
+| **Supervision** | **Beszel**, **Uptime Kuma**, **Dozzle**, **Glances**, **LogviewR**, Prometheus, Healthchecks, Netdata, Pulse, Speedtest Tracker, Webmin, Umami, Rybbit |
+| **Réseau** | **MynetworK** (UniFi et Freebox par lui), UniFi Network (direct), Tailscale / Headscale, OPNsense, NetAlertX |
+| **Sécurité** | **Wazuh**, CrowdSec |
+| **Virtualisation et conteneurs** | **Dockhand**, Proxmox VE, Proxmox Datacenter Manager, VMware vCenter, Portainer, Arcane, Unraid |
+| **Stockage et sauvegardes** | Proxmox Backup Server, Veeam Backup & Replication, Veeam pour Microsoft 365, Backrest, borgmatic, UrBackup, TrueNAS, Synology DSM, dossier distant (FTP, FTPS, Samba) |
 | **Énergie** | Onduleur (NUT) |
+| **IA** | **Hermes Agent**, **GpuViewR**, Ollama, llama.cpp, Open WebUI, API compatible OpenAI (vLLM, LM Studio, LocalAI, KoboldCpp, LiteLLM) |
+| **Vidéo et caméras** | **Frigate**, Shinobi, go2rtc, MediaMTX, Owncast |
 | **Canaux** | Discord, Telegram, webhook |
 
-> Les plus récents ont été écrits d'après la documentation de chaque service et **essayés seulement contre de faux serveurs**. MynetworK est le seul utilisé sur un vrai réseau pour l'instant. Dites-nous ce qui ne correspond pas à vos vrais services.
+> **En gras : utilisés tous les jours sur le réseau de l'auteur.** Les autres ont été écrits d'après la documentation de chaque service et
+> **essayés seulement contre des serveurs simulés** : ils devraient marcher, mais n'ont pas encore rencontré une vraie installation (Proxmox,
+> Veeam et Synology attendent un testeur). Si l'un ne correspond pas à votre vrai service, dites-le dans une issue.
 
 Écrire un connecteur : [docs/CONNECTEURS.md](docs/CONNECTEURS.md). Idées d'autres connecteurs : [docs/IDEES-CONNECTEURS.md](docs/IDEES-CONNECTEURS.md).
 
