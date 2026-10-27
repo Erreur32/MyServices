@@ -15,6 +15,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Network
+- New **Download** and **Upload** tiles: the rate of the Internet link per source, the Freebox (red) and the UniFi gateway (blue), each with its own curve on a shared scale and its own value under the figure. The legend switches a curve off (kept by the browser). On the Freebox sub-page only the Freebox is shown. Nothing is shown for a source that gives no rate (UniFi needs MynetworK 0.11.1+ or a local account for its port table).
+- Rates come from what is already read: the Freebox from the connector readers' shared reading (`connectors.json`, MynetworK `freebox.connection`), UniFi from the UniFi cards (WAN port of the gateway, shared 30 s). A new thread `bandwidth` stores one point per source and direction every 2 minutes at most (`bandwidth.py`, `tile_samples` keys `bw.*`, kbit/s and link capacity, 7 days). `GET /network/history` carries them as `bw`.
+- The **Sources** tile is a compact tile with the short names of the sources (MynetworK, UniFi, Freebox), and the tiles go to a second line on a narrow page.
+
 ### Services
 - The **Warning** tile draws a strip of the services in warning over the period switch. They are counted on the server with the rule of the page (`status()`); the services hidden from « To watch » are counted like the others. `GET /services/history` now also carries `warn` (`tile_samples` key `services.warn`).
 

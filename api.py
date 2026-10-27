@@ -2308,11 +2308,14 @@ def machines_history(hours: int = 24):
             "cpu": metrics.average(db, "cpu", h), "mem": metrics.average(db, "mem", h)}
 
 
-@app.get(API + "/network/history", tags=["historique"], summary="Historique des cadres de la page Réseau (équipements, clients, appareils en ligne) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+@app.get(API + "/network/history", tags=["historique"], summary="Historique des cadres de la page Réseau (équipements, clients, appareils en ligne, débit de la Freebox et d'UniFi) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def network_history(hours: int = 24):
+    import bandwidth
     import tile_history
     h = hours if hours in HISTORY_HOURS else 24
-    return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.NETWORK}}
+    db = db_path(core.CFG)
+    return {"hours": h, **{k.split(".")[1]: tile_history.series(db, k, h) for k in tile_history.NETWORK},
+            "bw": {k.removeprefix("bw."): tile_history.series(db, k, h) for k in bandwidth.KEYS}}
 
 
 @app.get(API + "/backups/history", tags=["historique"], summary="Historique des cadres de la page Sauvegardes (à jour, en retard, absentes ou en erreur) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")

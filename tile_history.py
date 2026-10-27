@@ -174,14 +174,14 @@ def sample_network(db_path: str | Path, data_file: Path, now: float | None = Non
     return sum(store(db_path, key, (ts, *vt), now) for key, vt in network_points(data).items())
 
 
-def store(db_path: str | Path, key: str, pt: tuple[int, int, int], now: float | None = None) -> int:
-    """One point (time, value, total) unless the key has one less than MIN_GAP s older; purges what is past KEEP_S."""
+def store(db_path: str | Path, key: str, pt: tuple[int, int, int], now: float | None = None, gap: int = MIN_GAP) -> int:
+    """One point (time, value, total) unless the key has one less than `gap` s older; purges what is past KEEP_S."""
     ts, value, total = pt
     oldest = int((now or time.time()) - KEEP_S)
     with _db(db_path) as db:
         db.execute("DELETE FROM tile_samples WHERE ts < ?", (oldest,))
         last = db.execute("SELECT MAX(ts) FROM tile_samples WHERE key = ?", (key,)).fetchone()[0]
-        if ts < oldest or (last is not None and ts < last + MIN_GAP):
+        if ts < oldest or (last is not None and ts < last + gap):
             return 0
         return db.execute("INSERT OR IGNORE INTO tile_samples (key, ts, value, total) VALUES (?, ?, ?, ?)", (key, ts, value, total)).rowcount
 

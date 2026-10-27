@@ -284,6 +284,24 @@ def pulse_loop() -> None:
         time.sleep(max(1.0, (every or 5) - (time.time() - t0)))
 
 
+BANDWIDTH_EVERY = 120   # s, between two readings of the Internet link rate (Freebox through the shared reading, UniFi through the cards)
+
+
+def bandwidth_loop() -> None:
+    """The rate of the Internet link, for the Download and Upload tiles of the Network page (bandwidth.py)."""
+    import bandwidth
+    import unifi_cards
+    from auth import db_path
+    while True:
+        t0 = time.time()
+        try:
+            devices = unifi_cards.read(CFG)["devices"]
+            bandwidth.sample(db_path(CFG), Path(CFG["state_dir"]) / "connectors.json", devices)
+        except Exception as e:  # base or source unavailable: only the curves miss a point
+            log(f"⚠ débit Internet : {e}")
+        time.sleep(max(30.0, BANDWIDTH_EVERY - (time.time() - t0)))
+
+
 def fast_loop() -> None:
     """One reader per connector (readers.py): every few seconds the connectors that are due are read, their readings go to the shared
     state, and live.json is derived from it for the page. `fast_every` (Settings → System) is the default period, 0 = off."""
@@ -759,6 +777,7 @@ def main() -> int:
     threading.Thread(target=scheduler, daemon=True).start()
     threading.Thread(target=pulse_loop, daemon=True, name="pulse").start()
     threading.Thread(target=fast_loop, daemon=True, name="fast").start()
+    threading.Thread(target=bandwidth_loop, daemon=True, name="bandwidth").start()
     threading.Thread(target=first_runs, daemon=True).start()
     import uvicorn
 
