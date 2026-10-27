@@ -99,7 +99,7 @@ export function BarsTile({ label, n, tone, sub, values, perDay = false }: Readon
   const top = Math.max(1, ...values);
   const hot = at === null ? -1 : Math.min(values.length - 1, Math.floor(at * values.length));
   const slotOf = (i: number) => {
-    const d = new Date(Date.now() - (values.length - 1 - i) * (perDay ? 86_400_000 : 3600_000));
+    const d = new Date(Date.now() - (values.length - 1 - i) * (perDay ? 86_400_000 : 3_600_000));
     return perDay ? d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" }) : `${String(d.getHours()).padStart(2, "0")} h`;
   };
   const bars = (

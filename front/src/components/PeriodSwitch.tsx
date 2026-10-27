@@ -26,11 +26,12 @@ export function usePeriod(): [Period, (p: Period) => void] {
 
 export function PeriodSwitch({ value, onChange }: Readonly<{ value: Period; onChange: (p: Period) => void }>) {
   return (
-    <div role="group" aria-label={tx("Période des cadres")} className="inline-flex overflow-hidden rounded-lg border border-line bg-card text-xs">
+    <fieldset className="m-0 inline-flex min-w-0 overflow-hidden rounded-lg border border-line bg-card p-0 text-xs">
+      <legend className="sr-only">{tx("Période des cadres")}</legend>
       {PERIODS.map((p) => (
         <button key={p} type="button" aria-pressed={p === value} onClick={() => onChange(p)}
           className={`px-3 py-1 ${p === value ? "bg-link/15 font-semibold text-link" : "text-muted hover:text-txt"}`}>{periodLabel(p)}</button>
       ))}
-    </div>
+    </fieldset>
   );
 }

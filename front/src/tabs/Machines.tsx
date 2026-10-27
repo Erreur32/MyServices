@@ -56,7 +56,7 @@ const TILE_SEL: Record<"reach" | "health" | "watch" | "down" | "off" | "cpu" | "
 };
 const sameSel = (a: Selected, b: Selected) => {
   const ka = Object.keys(a), kb = Object.keys(b);
-  return ka.length === kb.length && ka.every((k) => b[k] && a[k].length === b[k].length && a[k].every((v) => b[k].includes(v)));
+  return ka.length === kb.length && ka.every((k) => b[k]?.length === a[k].length && a[k].every((v) => b[k].includes(v)));
 };
 
 /** Head of the Machines list, as the other pages: the title and its counts, then the figures (reachable, health OK, to watch, unreachable, off),
@@ -1772,9 +1772,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
         ]}
-        extra={<>
-          <ViewToggle view={view} onPick={pickView} />
-        </>} />
+        extra={<ViewToggle view={view} onPick={pickView} />} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           {view === "table" && <Table fit head={<>

@@ -65,13 +65,8 @@ def _gear_up(g: dict) -> bool:
     return not re.search(r"offline|disconnect|interrupt|isolat", str(g.get("state") or "online"), re.I)
 
 
-def network_points(data: dict) -> dict[str, tuple[int, int]]:
-    """{key: (value, total)} of the Network tiles from data.json: equipment online / equipment, clients (wifi + wired, same count as total),
-    devices online / devices. UniFi lists of MynetworK then of the UniFi connector are merged by MAC (the later one fresher), like the page.
-    A figure the sources do not give is left out."""
-    net = [c for c in data.get("network") or [] if isinstance(c, dict)]
-    lists = [(str(c.get("label")), c.get("unifi")) for c in net]
-    lists += [(str(c.get("label")), c.get("unifi")) for c in data.get("services_status") or [] if isinstance(c, dict) and c.get("connector") == "unifi"]
+def _merge_unifi(lists: list[tuple[str, object]]) -> tuple[dict[str, dict], dict[str, dict]]:
+    """The UniFi equipment and clients of several sources merged by MAC (the later source wins field by field)."""
     gear: dict[str, dict] = {}
     clients: dict[str, dict] = {}
     for source, u in lists:
@@ -83,6 +78,17 @@ def network_points(data: dict) -> dict[str, tuple[int, int]]:
         for c in u.get("clients") or []:
             k = str(c.get("mac") or "").lower() or f"{c.get('ip')}/{c.get('name')}"
             clients[k] = {**clients.get(k, {}), **c}
+    return gear, clients
+
+
+def network_points(data: dict) -> dict[str, tuple[int, int]]:
+    """{key: (value, total)} of the Network tiles from data.json: equipment online / equipment, clients (wifi + wired, same count as total),
+    devices online / devices. UniFi lists of MynetworK then of the UniFi connector are merged by MAC (the later one fresher), like the page.
+    A figure the sources do not give is left out."""
+    net = [c for c in data.get("network") or [] if isinstance(c, dict)]
+    lists = [(str(c.get("label")), c.get("unifi")) for c in net]
+    lists += [(str(c.get("label")), c.get("unifi")) for c in data.get("services_status") or [] if isinstance(c, dict) and c.get("connector") == "unifi"]
+    gear, clients = _merge_unifi(lists)
     out: dict[str, tuple[int, int]] = {}
     if gear:
         out[NET_GEAR] = (sum(1 for g in gear.values() if _gear_up(g)), len(gear))

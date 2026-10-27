@@ -405,6 +405,17 @@ def _move_location(meta: dict, s: dict, index: int, ip: str, path: str | None) -
         s["origin"] = hid
 
 
+def _set_every_days(loc: dict, every_days: int) -> None:
+    """The rhythm of a copy, in days between two runs; daily is the default and is not stored."""
+    from backups import EVERY_DAYS_MAX
+    if not 1 <= int(every_days) <= EVERY_DAYS_MAX:
+        raise BackupError(f"rythme de la copie : de 1 à {EVERY_DAYS_MAX} jours")
+    if int(every_days) == 1:
+        loc.pop("every_days", None)
+    else:
+        loc["every_days"] = int(every_days)
+
+
 def _location_fields(loc: dict, path: str | None, pattern: str | None, depth: int | None, via: str | None, encrypted: bool | None,
                      every_days: int | None = None) -> None:
     """The other fields of a folder place, each checked; None leaves a field as it is."""
@@ -425,13 +436,7 @@ def _location_fields(loc: dict, path: str | None, pattern: str | None, depth: in
     if encrypted is not None:
         loc["encrypted"] = bool(encrypted)
     if every_days is not None:
-        from backups import EVERY_DAYS_MAX
-        if not 1 <= int(every_days) <= EVERY_DAYS_MAX:
-            raise BackupError(f"rythme de la copie : de 1 à {EVERY_DAYS_MAX} jours")
-        if int(every_days) == 1:
-            loc.pop("every_days", None)   # daily is the default: nothing stored
-        else:
-            loc["every_days"] = int(every_days)
+        _set_every_days(loc, every_days)
 
 
 def update_location(set_id: str, index: int, ip: str | None = None, path: str | None = None, pattern: str | None = None,

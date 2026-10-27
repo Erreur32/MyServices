@@ -60,7 +60,7 @@ export function curve(points: TilePoint[], hours: Period, now: number, w = 120, 
       dips += `M${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}L${x(end).toFixed(1)} ${y(p[1]).toFixed(1)}`;
     }
   });
-  const last = kept[kept.length - 1];
+  const last = kept.at(-1)!;
   area += closeRun(last[0], kept[runStart][0], x, h);
   return { line, area, dips, last: [x(last[0]), y(last[1])] };
 }
@@ -71,7 +71,7 @@ const closeRun = (endT: number, startT: number, x: (t: number) => number, h: num
 /** The change of the figure over the period (last minus first), null with fewer than two points */
 export function delta(points: TilePoint[], hours: Period, now: number, figure: (p: TilePoint) => number): number | null {
   const kept = inPeriod(points, hours, now);
-  return kept.length < 2 ? null : figure(kept[kept.length - 1]) - figure(kept[0]);
+  return kept.length < 2 ? null : figure(kept.at(-1)!) - figure(kept[0]);
 }
 
 /** The reading nearest to a place of the chart (0 left edge, 1 right edge); null when none is within two hours of it.
@@ -81,7 +81,7 @@ export function nearest(points: TilePoint[], hours: Period, now: number, frac: n
   if (!kept.length) return null;
   const start = fit ? kept[0][0] : now - hours * 3600;
   const at = start + Math.min(Math.max(frac, 0), 1) * (now - start);
-  const best = kept.reduce((a, b) => (Math.abs(b[0] - at) < Math.abs(a[0] - at) ? b : a));
+  const best = kept.reduce((a, b) => (Math.abs(b[0] - at) < Math.abs(a[0] - at) ? b : a), kept[0]);
   return Math.abs(best[0] - at) <= 2 * 3600 ? best : null;
 }
 

@@ -47,6 +47,17 @@ EVERY_DAYS_MAX = 31   # a copy that runs less often than monthly is not followed
 RANK = {"ok": 0, "archive": 0, "na": 0, "off": 0, "warn": 1, "crit": 2, "down": 3}   # off: its connector switched off in Settings, nothing read, no alert
 STOPPED = "coupé dans Réglages"   # end of the message of a machine read by a connector switched off
 
+
+def _reference_files(src_files: list, each: bool, grace: float, now: float) -> list:
+    """The source files a copy is judged against: all of them when each is checked, else the newest one (for a copy that runs weekly, the newest
+    one old enough for its next run to have passed)."""
+    if each:
+        return src_files
+    if grace == GRACE_H * 3600:
+        return src_files[:1]
+    return [f for f in src_files if now - f["mtime"] >= grace][:1]
+
+
 def copy_grace_s(loc: dict) -> int:
     """Seconds a copy has to catch up with a fresh archive: a few hours, plus the days between two runs of a copy that is not daily (every_days)."""
     days = loc.get("every_days")
@@ -709,7 +720,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                         cmap.setdefault(key(f), f)
                     grace = copy_grace_s(loc)
                     # a copy that runs weekly never holds the newest archive: judged on the newest one old enough for its next run to have passed
-                    ref = src_files if each else src_files[:1] if grace == GRACE_H * 3600 else [f for f in src_files if now - f["mtime"] >= grace][:1]
+                    ref = _reference_files(src_files, each, grace, now)
                     seen, late = set(), []
                     for f in ref:
                         n = key(f)
