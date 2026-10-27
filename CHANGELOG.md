@@ -13,15 +13,19 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## v0.26.1 (2026-10-27)
 
-> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+> **Young but working: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
-## Unreleased (next version, not tagged yet)
+### README
+- The README (English and French) now says the project is young but working, marks the connectors proven on a real network (in bold) and says the others were written from the documentation and tried against simulated servers only. The connector table lists the whole family (about 60), and the menu paths are the current ones (Collection › Connectors, Collection › Discovery).
 
-> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+### Agents
+- The **Running** and **To update** tiles of Settings › Machines › Agents draw their history (a curve and a strip) with the period switch. Counted on the server like the page, one point per collection, kept 7 days (`agents.running`, `agents.late`, `GET /agents/history`, admin).
 
 ### Network
 - New **Download** and **Upload** tiles: the rate of the Internet link per source, the Freebox (red) and the UniFi gateway (blue), each with its own curve on a shared scale and its own value under the figure. The legend switches a curve off (kept by the browser). On the Freebox sub-page only the Freebox is shown. Nothing is shown for a source that gives no rate (UniFi needs MynetworK 0.11.1+ or a local account for its port table).
 - Rates come from what is already read: the Freebox from the connector readers' shared reading (`connectors.json`, MynetworK `freebox.connection`), UniFi from the UniFi cards (WAN port of the gateway, shared 30 s). A new thread `bandwidth` stores one point per source and direction every 2 minutes at most (`bandwidth.py`, `tile_samples` keys `bw.*`, kbit/s and link capacity, 7 days). `GET /network/history` carries them as `bw`.
+- Download and Upload curves share one time axis: they start at the same moment (the oldest reading both sources have) and end side by side at the right edge, each carrying its last value on, instead of stopping at its own last reading.
+- The orange stretches under the curve of **Devices online** are gone (the total is never reached there, so the whole curve was orange).
 - The **Sources** tile is a compact tile with the short names of the sources (MynetworK, UniFi, Freebox), and the tiles go to a second line on a narrow page.
 
 ### Services

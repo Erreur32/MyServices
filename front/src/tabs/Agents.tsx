@@ -10,6 +10,9 @@ import { AgentInstall, type AgentKind, type InstallTarget } from "../components/
 import { act, danger, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim, Loading } from "../components/ui";
 import { StatTile } from "../components/StatTile";
+import { HistoryTile, useAgentsHistory } from "../components/HistoryTile";
+import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import type { TilePoint } from "../lib/tileHistory";
 import { agentSummary } from "../lib/accessLists";
 import { dateTime } from "../lib/format";
 import type { AgentInfo, AgentsState, MachineConf } from "../types";
@@ -168,8 +171,9 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const reload = useCallback(() => { read<AgentsState>("agents").then(setSt).catch(() => undefined); }, []);
   useEffect(reload, [reload]);
+  const [hours, setHours] = usePeriod(), s = agentSummary(st?.agents ?? []);
+  const hist = useAgentsHistory(hours, `${s.active}.${s.outdated.length}`), now = Math.floor(Date.now() / 1000), ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, late = (p: TilePoint) => p[2] - p[1];
   if (!st) return <Loading />;
-  const s = agentSummary(st.agents);
   const updateLate = async () => {
     setBusy(true);
     await act(() => Promise.all(s.outdated.map((a) => send("POST", `agents/${a.id}/update`))), tx("demandée pour {0} agent(s) : chacun se met à jour à son prochain relevé", s.outdated.length), setNote);
@@ -178,11 +182,12 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
   };
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2.5 overflow-x-auto pb-1">
-        <StatTile n={s.active} label={tx("Actifs")} tone="ok" />
+      <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
+      <div className="flex flex-wrap gap-2.5 pb-1">
+        <HistoryTile n={s.active} label={tx("Actifs")} tone="ok" kind="curve" points={hist?.running ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
         <StatTile n={s.silent} label={tx("Silencieux")} tone={s.silent ? "warn" : undefined} />
         <StatTile n={s.pending} label={tx("En attente")} />
-        <StatTile n={s.outdated.length} label={tx("À mettre à jour")} tone={s.outdated.length ? "warn" : undefined} />
+        <HistoryTile n={s.outdated.length} label={tx("À mettre à jour")} tone={s.outdated.length ? "warn" : undefined} kind="strip" points={hist?.late ?? null} hours={hours} now={now} figure={late} fmt={(p) => tx("{0} à mettre à jour", late(p))} goodHigh={false} />
       </div>
       {install && <AgentInstall key={`${install.ip}-auto`} target={install} onChanged={reload} onClose={() => setInstall(null)} />}
       <Card>

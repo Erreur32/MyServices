@@ -125,5 +125,22 @@ class ServicesWarn(unittest.TestCase):
             self.assertEqual(th.series(db, th.SERVICES_WARN, 24, now=ts), [[ts, 3, 7]])
 
 
+class AgentsPoints(unittest.TestCase):
+    AGENTS = [{"state": "actif"}, {"state": "actif", "outdated": True}, {"state": "actif", "outdated": True, "update_requested": True},
+              {"state": "silencieux"}, {"state": "en attente"}, {"state": "révoqué", "outdated": True}]
+
+    def test_counted_like_the_page(self):
+        # five agents followed (the revoked one is out): three running, one late (the other one has its update asked for)
+        self.assertEqual(th.agents_points(self.AGENTS), {th.AGENTS_RUNNING: (3, 5), th.AGENTS_LATE: (4, 5)})
+        self.assertEqual(th.agents_points([{"state": "révoqué"}]), {})
+
+    def test_sampled_once_per_gap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "t.db"
+            self.assertEqual(th.sample_agents(db, self.AGENTS, now=10_000), 2)
+            self.assertEqual(th.sample_agents(db, self.AGENTS, now=10_060), 0)
+            self.assertEqual(th.series(db, th.AGENTS_RUNNING, 24, now=10_060), [[10_000, 3, 5]])
+
+
 if __name__ == "__main__":
     unittest.main()

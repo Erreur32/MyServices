@@ -23,6 +23,8 @@ NETWORK = (NET_GEAR, NET_CLIENTS, NET_DEVICES)
 BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD = "backups.ok", "backups.late", "backups.bad"
 BACKUPS = (BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD)
 SERVICES_WARN = "services.warn"
+AGENTS_RUNNING, AGENTS_LATE = "agents.running", "agents.late"
+AGENTS = (AGENTS_RUNNING, AGENTS_LATE)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tile_samples (key TEXT NOT NULL, ts INTEGER NOT NULL, value INTEGER NOT NULL, total INTEGER NOT NULL,
@@ -140,6 +142,23 @@ def sample_services(db_path: str | Path, data_file: Path, now: float | None = No
     except (OSError, ValueError):
         return 0
     return sum(store(db_path, key, (ts, *vt), now) for key, vt in services_points(data).items())
+
+
+def agents_points(agents: list[dict]) -> dict[str, tuple[int, int]]:
+    """{key: (value, total)} of the Agents tiles, counted like the page: the agents not revoked; « running » is the ones answering in time, « late »
+    the ones with an older script that no update was asked for yet (as the value of its key the ones that are not, so a strip counts the late ones)."""
+    live = [a for a in agents if a.get("state") != "révoqué"]
+    if not live:
+        return {}
+    n = len(live)
+    late = sum(1 for a in live if a.get("outdated") and not a.get("update_requested"))
+    return {AGENTS_RUNNING: (sum(1 for a in live if a.get("state") == "actif"), n), AGENTS_LATE: (n - late, n)}
+
+
+def sample_agents(db_path: str | Path, agents: list[dict], now: float | None = None) -> int:
+    """The state of the agents as of now, one point per key at each collection."""
+    now = now or time.time()
+    return sum(store(db_path, key, (int(now), *vt), now) for key, vt in agents_points(agents).items())
 
 
 def backups_points(data: dict) -> dict[str, tuple[int, int]]:

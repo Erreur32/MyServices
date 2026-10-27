@@ -10,6 +10,7 @@ import { tx } from "../lib/i18n";
 /** What /machines/history and /services/history answer for a period */
 interface MachinesHistory { hours: Period; reach: TilePoint[]; health: TilePoint[]; cpu: TilePoint[]; mem: TilePoint[] }
 interface BackupsHistory { hours: Period; ok: TilePoint[]; late: TilePoint[]; bad: TilePoint[] }
+interface AgentsHistory { hours: Period; running: TilePoint[]; late: TilePoint[] }
 interface ServicesHistory { hours: Period; up: TilePoint[]; warn: TilePoint[] }
 interface NetworkHistory { hours: Period; gear: TilePoint[]; clients: TilePoint[]; devices: TilePoint[]; bw?: Record<"fbx.down" | "fbx.up" | "unifi.down" | "unifi.up", TilePoint[]> }
 
@@ -27,6 +28,7 @@ function useHistory<T extends { hours: Period }>(path: string, hours: Period, st
 export const useMachinesHistory = (hours: Period, stamp: string) => useHistory<MachinesHistory>("machines/history", hours, stamp);
 export const useNetworkHistory = (hours: Period, stamp: string) => useHistory<NetworkHistory>("network/history", hours, stamp);
 export const useBackupsHistory = (hours: Period, stamp: string) => useHistory<BackupsHistory>("backups/history", hours, stamp);
+export const useAgentsHistory = (hours: Period, stamp: string) => useHistory<AgentsHistory>("agents/history", hours, stamp);
 export const useServicesHistory = (hours: Period, stamp: string) => useHistory<ServicesHistory>("services/history", hours, stamp);
 
 const CELL = ["bg-ok/40", "bg-warn", "bg-bad"];   // all answered, one missing, two or more
@@ -48,7 +50,7 @@ function Strip({ points, hours, now, at, onMove, onLeave }: Readonly<{ points: T
   );
 }
 
-function Curve({ points, hours, now, good, scale, onMove, onLeave }: Readonly<{ points: TilePoint[]; hours: Period; now: number; good: boolean; scale?: number; onMove: (f: number) => void; onLeave: () => void }>) {
+function Curve({ points, hours, now, good, scale, dips, onMove, onLeave }: Readonly<{ points: TilePoint[]; hours: Period; now: number; good: boolean; scale?: number; dips: boolean; onMove: (f: number) => void; onLeave: () => void }>) {
   const c = curve(points, hours, now, 120, 34, scale);
   if (!c.last) return null;
   const tone = good ? "rgb(var(--ok))" : "rgb(var(--warn))";
@@ -57,14 +59,15 @@ function Curve({ points, hours, now, good, scale, onMove, onLeave }: Readonly<{ 
       {...hover(onMove, onLeave)}>
       <path d={c.area} fill={tone} opacity="0.12" />
       <path d={c.line} fill="none" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" className="text-dim" opacity="0.7" />
-      {c.dips && <path d={c.dips} fill="none" stroke="rgb(var(--warn))" strokeWidth="2.2" vectorEffect="non-scaling-stroke" />}
+      {dips && c.dips && <path d={c.dips} fill="none" stroke="rgb(var(--warn))" strokeWidth="2.2" vectorEffect="non-scaling-stroke" />}
       <path d={`M${c.last[0].toFixed(1)} ${c.last[1].toFixed(1)}h0.01`} stroke={tone} strokeWidth="6" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
 
-export function HistoryTile({ label, n, tone, hint, fact, scale, kind, points, hours, now, figure, fmt, goodHigh, onClick, pressed }: Readonly<{
+export function HistoryTile({ label, n, tone, hint, fact, scale, dips = true, kind, points, hours, now, figure, fmt, goodHigh, onClick, pressed }: Readonly<{
   label: string; n: string | number; tone?: "ok" | "warn" | "bad"; hint?: string; kind: "strip" | "curve";
+  dips?: boolean;   // the stretches of a curve below the total drawn in orange; off when the total is never reached (devices online)
   scale?: number;   // a curve of levels out of this value (100 for a percentage), not of machines out of a total
   fact?: string;   // what the tile says under the figure instead of the change over the period (the pointer still reads a moment)
   points: TilePoint[] | null;   // null: not read (yet)
@@ -86,7 +89,7 @@ export function HistoryTile({ label, n, tone, hint, fact, scale, kind, points, h
   const ready = !!points && change !== null;
   const leave = () => setAt(null);
   let chart = null;   // right of the figure: a strip of states, or a curve
-  if (ready) chart = kind === "strip" ? <Strip points={points} hours={hours} now={now} at={at} onMove={setAt} onLeave={leave} /> : <Curve points={points} hours={hours} now={now} good={goodHigh} scale={scale} onMove={setAt} onLeave={leave} />;
+  if (ready) chart = kind === "strip" ? <Strip points={points} hours={hours} now={now} at={at} onMove={setAt} onLeave={leave} /> : <Curve points={points} hours={hours} now={now} good={goodHigh} scale={scale} dips={dips} onMove={setAt} onLeave={leave} />;
   return (
     <StatTile n={n} label={label} tone={tone} hint={hint} aside={chart} onClick={onClick} pressed={pressed}>
       <div className="truncate text-xs text-dim" title={sub}>{sub}</div>

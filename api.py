@@ -2325,6 +2325,15 @@ def backups_history(hours: int = 24):
     return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.BACKUPS}}
 
 
+@app.get(API + "/agents/history", tags=["historique"], summary="Historique des cadres de la page Agents (actifs, à mettre à jour) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé (admin)")
+def agents_history(request: Request, hours: int = 24):
+    import tile_history
+    if denied := admin_write(request):
+        return denied
+    h = hours if hours in HISTORY_HOURS else 24
+    return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.AGENTS}}
+
+
 @app.get(API + "/services/history", tags=["historique"], summary="Historique des cadres de la page Services (en ligne, en panne, avertissement) sur 24 h, 72 h ou 7 jours : [heure, répondent, total] par relevé")
 def services_history(hours: int = 24):
     import availability

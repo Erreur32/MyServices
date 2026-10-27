@@ -203,7 +203,7 @@ function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll
       <StatTile n={b.n} label={tx("Accès Internet")} tone={b.tone} sub={b.sub} />
       <HistoryTile n={g.n} label={tx("Équipements en ligne")} tone={g.tone} fact={g.sub} kind="strip" points={hist?.gear ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
       <HistoryTile n={wifi + wired} label={tx("Clients")} fact={tx("{0} wifi · {1} filaires", wifi, wired)} kind="curve" points={hist?.clients ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => tx("{0} client(s)", p[1])} goodHigh />
-      <HistoryTile n={d.n} label={tx("Appareils en ligne")} tone={d.tone} fact={d.sub} kind="curve" points={hist?.devices ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
+      <HistoryTile n={d.n} label={tx("Appareils en ligne")} tone={d.tone} fact={d.sub} kind="curve" dips={false} points={hist?.devices ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
       {(["down", "up"] as const).map((dir) => {
         const sources = [{ id: "fbx", name: "Freebox", color: "rgb(var(--bad))", points: hist?.bw?.[`fbx.${dir}`] ?? null },
           ...(onlyFreebox ? [] : [{ id: "unifi", name: "UniFi", color: "rgb(var(--link))", points: hist?.bw?.[`unifi.${dir}`] ?? null }])];
