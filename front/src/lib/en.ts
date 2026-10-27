@@ -3293,7 +3293,6 @@ export const EN: Record<string, string> = {
   "interface": "interface",
   "autre": "other",
   "Aucun service IA pour l'instant : un service de catégorie « IA » dans Services, ou un connecteur IA, fait apparaître cette page.": "No AI service yet: a service of category « IA » in Services, or an AI connector, brings this page up.",
-  "Ce que contiennent vos services IA : modèles, agents, GPU. Leur état (en ligne, en panne, en pause) vient de Services, sans sonde en plus. Pour ajouter ou modifier un service, passez par Services ou Connecteurs.": "What your AI services hold: models, agents, GPUs. Their state (online, down, paused) comes from Services, with no extra probe. To add or change a service, go through Services or Connectors.",
   "aucune plateforme lue": "no platform read",
   "Mémoire GPU": "GPU memory",
   "{0} GPU, lus par GpuViewR": "{0} GPU, read by GpuViewR",

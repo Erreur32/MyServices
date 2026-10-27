@@ -58,7 +58,6 @@ function Overview({ snap, cards, models, gpus, admin }: Readonly<{ snap: Snapsho
   const common = { hours, now } as const;
   return (
     <>
-      <InfoNote>{tx("Ce que contiennent vos services IA : modèles, agents, GPU. Leur état (en ligne, en panne, en pause) vient de Services, sans sonde en plus. Pour ajouter ou modifier un service, passez par Services ou Connecteurs.")}</InfoNote>
       <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
       {gpus.length > 0 && (
         <div className="flex flex-wrap gap-2.5 pb-1">
