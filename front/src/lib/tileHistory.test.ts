@@ -48,4 +48,11 @@ describe("lib/tileHistory", () => {
     expect(sumSeries([[1, 2, 3], [10, 20]])).toEqual([1, 12, 23]);
     expect(sumSeries([])).toEqual([]);
   });
+
+  it("carries the last value on to the right edge when asked, on an axis shared by several curves", () => {
+    const pts: TilePoint[] = [[1000, 5, 0], [1300, 7, 0]];
+    expect(curve(pts, 24, 1600, 120, 34, 10, 1000).last![0]).toBeCloseTo(60, 5);
+    expect(curve(pts, 24, 1600, 120, 34, 10, 1000, true).last![0]).toBeCloseTo(120, 5);
+    expect(curve(pts, 24, 1600, 120, 34, 10, 1000, true).line.endsWith("L120.0 " + curve(pts, 24, 1600, 120, 34, 10, 1000).last![1].toFixed(1))).toBe(true);
+  });
 });

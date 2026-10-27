@@ -22,14 +22,17 @@ export function BandwidthTile({ label, sources, hours, now }: Readonly<{ label: 
   };
   const shown = sources.filter((s) => !hidden.includes(s.id) && inPeriod(s.points ?? [], hours, now).length >= 2);
   const top = topOf(shown.map((s) => s.points));
-  const reading = (s: BandwidthSource): TilePoint | null => (at !== null && s.points ? nearest(s.points, hours, now, at, true) : lastOf(s.points));
+  // one axis for every curve, from the oldest first reading to the newest last one: no empty stretch on the right, curves line up in time
+  const kept = shown.map((s) => inPeriod(s.points!, hours, now));
+  const from = Math.min(...kept.map((k) => k[0][0])), end = Math.max(...kept.map((k) => k.at(-1)![0]));
+  const reading = (s: BandwidthSource): TilePoint | null => (at !== null && s.points ? nearest(s.points, hours, end, at, true, from) : lastOf(s.points));
   const live = sources.filter((s) => !hidden.includes(s.id)).map((s) => lastOf(s.points)?.[1]).filter((v): v is number => v !== undefined);
   const first = at !== null ? shown.map((s) => reading(s)).find(Boolean) : null;
   const chart = shown.length === 0 ? null : (
     <svg aria-hidden viewBox="0 0 120 34" preserveAspectRatio="none" className="h-[34px] min-w-[90px] flex-1 cursor-crosshair overflow-visible"
       onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAt((e.clientX - r.left) / r.width); }} onMouseLeave={() => setAt(null)}>
       {shown.map((s) => {
-        const c = curve(s.points!, hours, now, 120, 34, top);
+        const c = curve(s.points!, hours, end, 120, 34, top, from, true);
         return c.last && (
           <g key={s.id} style={{ color: s.color }}>
             <path d={c.area} fill="currentColor" opacity="0.10" />
