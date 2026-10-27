@@ -108,13 +108,14 @@ class ServicesWarn(unittest.TestCase):
         {"type": "dead", "enabled": True, "public": {"code": 502}},                                                  # 404 expected: warning
         {"type": "redirect", "enabled": True, "public": {"code": 301}, "follow": {"code": 503}},                     # final page failing: warning
         {"type": "proxy", "enabled": True, "paused": "x", "public": {"err": "gaierror"}},                            # paused: not followed
+        {"type": "redirect", "enabled": True, "public": {"code": 301}, "follow": {"code": None}},                    # redirect not followed to the end: fine
         {"type": "local", "enabled": True, "backend": {"internal": True}},                                           # internal only: not followed
     ]
 
     def test_counted_like_the_page(self):
         # seven followed services, four in warning
-        # seven followed, two healthy (the one down and the four in warning are not)
-        self.assertEqual(th.services_points({"hosts": self.HOSTS}), {th.SERVICES_WARN: (3, 7), th.SERVICES_HEALTH: (29, 100)})
+        # eight followed, three healthy (the one down and the four in warning are not)
+        self.assertEqual(th.services_points({"hosts": self.HOSTS}), {th.SERVICES_WARN: (4, 8), th.SERVICES_HEALTH: (38, 100)})
         self.assertEqual(th.services_points({"hosts": []}), {})
 
     def test_sampled_at_the_time_of_the_collection(self):
@@ -123,7 +124,7 @@ class ServicesWarn(unittest.TestCase):
             f.write_text(json.dumps({"generated": "2026-10-27T20:00:00+00:00", "hosts": self.HOSTS}), encoding="utf-8")
             ts = int(th.datetime.fromisoformat("2026-10-27T20:00:00+00:00").timestamp())
             self.assertEqual(th.sample_services(db, f, now=ts), 2)
-            self.assertEqual(th.series(db, th.SERVICES_WARN, 24, now=ts), [[ts, 3, 7]])
+            self.assertEqual(th.series(db, th.SERVICES_WARN, 24, now=ts), [[ts, 4, 8]])
 
 
 class AgentsPoints(unittest.TestCase):

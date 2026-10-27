@@ -119,7 +119,7 @@ def _service_warns(h: dict) -> bool | None:
     if kind == "stream":
         return False
     if kind == "redirect":
-        return bool(p.get("code")) and (h.get("follow") or {}).get("code", 0) >= 500
+        return bool(p.get("code")) and ((h.get("follow") or {}).get("code") or 0) >= 500
     if kind == "local":
         return None if b.get("internal") and not b.get("up") else False
     if b.get("internal") or b.get("up") is False or (p.get("code") or 0) >= 500:

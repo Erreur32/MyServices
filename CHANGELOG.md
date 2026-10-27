@@ -25,6 +25,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - A **real DNS query** (an A record) is sent at each collection to every DNS server of the page and to Cloudflare (1.1.1.1) and Google (8.8.8.8), in parallel, with the latency measured (`dns_probe.py`, `GET /dns/history`). The **DNS servers** tile gets the strip of the answers, and a new **External DNS latency** tile draws one curve per public resolver (legend that hides a curve, the same tile as Download and Upload). A line under the tiles gives the share of answers over the period. The list of public resolvers is fixed for now.
 
 ### Services
+- Fixed: the history of the tiles was not kept when a service redirect had no final code (`follow.code` empty): the sampling stopped at that error, so no point was stored for the Services, Agents, AI, Virtualization and DNS tiles. Each history is now kept on its own, a failure in one leaves the others alone.
 - New **Services health** tile: the share of the services followed that are neither in warning nor down (a percentage on a 0 to 100 scale), with the warnings and the services down written below. Counted on the server with the rule of the page (`services.health`).
 
 ### AI and agents

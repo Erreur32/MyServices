@@ -327,26 +327,32 @@ def local_dns_servers() -> list[str]:
 
 
 def keep_availability() -> None:
-    """Availability of each service, machine and Kuma monitor after a collection (Historique → Disponibilité), the Network and Backups tiles figures."""
+    """Availability of each service, machine and Kuma monitor after a collection (Historique → Disponibilité), and the figures of the tiles with a
+    history (Network, Backups, Services, Agents, AI, Virtualization, DNS). Each one is kept on its own: one that fails leaves the others alone."""
     import agents
     import availability
     import dns_probe
     import tile_history
     from auth import db_path
-    try:
-        n = availability.sample(db_path(CFG), WEB / "data.json")
-        tile_history.sample_network(db_path(CFG), WEB / "data.json")
-        tile_history.sample_backups(db_path(CFG), WEB / "backups.json")
-        tile_history.sample_services(db_path(CFG), WEB / "data.json")
-        tile_history.sample_agents(db_path(CFG), agents.Agents(db_path(CFG)).listing())
-        tile_history.sample_ai(db_path(CFG), WEB / "data.json", WEB / "health" / "stats.json")
-        tile_history.sample_virt(db_path(CFG), WEB / "data.json", WEB / "backups.json")
-        dns_probe.sample(db_path(CFG), local_dns_servers())
-    except Exception as e:  # base unavailable: only the availability history misses a point
-        log(f"⚠ disponibilité : {e}")
-        return
-    if n:
-        log(f"disponibilité : {n} point(s)")
+    db = db_path(CFG)
+    steps = {
+        "disponibilité": lambda: availability.sample(db, WEB / "data.json"),
+        "cadres Réseau": lambda: tile_history.sample_network(db, WEB / "data.json"),
+        "cadres Sauvegardes": lambda: tile_history.sample_backups(db, WEB / "backups.json"),
+        "cadres Services": lambda: tile_history.sample_services(db, WEB / "data.json"),
+        "cadres Agents": lambda: tile_history.sample_agents(db, agents.Agents(db).listing()),
+        "cadres IA": lambda: tile_history.sample_ai(db, WEB / "data.json", WEB / "health" / "stats.json"),
+        "cadres Virtualisation": lambda: tile_history.sample_virt(db, WEB / "data.json", WEB / "backups.json"),
+        "cadres DNS": lambda: dns_probe.sample(db, local_dns_servers()),
+    }
+    for name, step in steps.items():
+        try:
+            n = step()
+        except Exception as e:  # base unavailable or a bug: only this history misses a point
+            log(f"⚠ {name} : {e}")
+            continue
+        if name == "disponibilité" and n:
+            log(f"disponibilité : {n} point(s)")
 
 
 def keep_metrics() -> None:
