@@ -113,7 +113,8 @@ class ServicesWarn(unittest.TestCase):
 
     def test_counted_like_the_page(self):
         # seven followed services, four in warning
-        self.assertEqual(th.services_points({"hosts": self.HOSTS}), {th.SERVICES_WARN: (3, 7)})
+        # seven followed, two healthy (the one down and the four in warning are not)
+        self.assertEqual(th.services_points({"hosts": self.HOSTS}), {th.SERVICES_WARN: (3, 7), th.SERVICES_HEALTH: (29, 100)})
         self.assertEqual(th.services_points({"hosts": []}), {})
 
     def test_sampled_at_the_time_of_the_collection(self):
@@ -121,7 +122,7 @@ class ServicesWarn(unittest.TestCase):
             f, db = Path(tmp) / "data.json", Path(tmp) / "t.db"
             f.write_text(json.dumps({"generated": "2026-10-27T20:00:00+00:00", "hosts": self.HOSTS}), encoding="utf-8")
             ts = int(th.datetime.fromisoformat("2026-10-27T20:00:00+00:00").timestamp())
-            self.assertEqual(th.sample_services(db, f, now=ts), 1)
+            self.assertEqual(th.sample_services(db, f, now=ts), 2)
             self.assertEqual(th.series(db, th.SERVICES_WARN, 24, now=ts), [[ts, 3, 7]])
 
 
@@ -177,6 +178,27 @@ class AiPoints(unittest.TestCase):
     def test_what_is_not_read_leaves_its_key_out(self):
         self.assertEqual(th.ai_points({"services_status": []}), {})
         self.assertNotIn("ai.ram", th.ai_points(self.DATA))
+
+
+class VirtPoints(unittest.TestCase):
+    DATA = {"virtualization": [
+        {"connector": "proxmox", "nodes": [{"online": True, "cpu_pct": 20, "mem_pct": 60}, {"online": True, "cpu_pct": 40, "mem_pct": 80}, {"online": False, "cpu_pct": 99, "mem_pct": 99}],
+         "guests": [{"status": "running"}, {"status": "stopped"}, {"status": "running", "template": True}], "storage": [{"used_pct": 40}, {"used_pct": 81.4}]},
+        {"connector": "proxmox-backup", "datastores": []}]}
+    BACKUPS = {"sets": [{"level": "ok", "locations": [{"vzdump": "qemu/100"}]}, {"level": "warn", "locations": [{"vzdump": "lxc/101"}]},
+                        {"level": "ok", "archived": True, "locations": [{"vzdump": "qemu/102"}]}, {"level": "ok", "locations": [{"path": "/x"}]}]}
+
+    def test_counted_like_the_page(self):
+        p = th.virt_points(self.DATA, self.BACKUPS)
+        self.assertEqual(p["virt.hosts"], (2, 3))
+        self.assertEqual(p["virt.guests"], (1, 2))   # the template is out
+        self.assertEqual((p["virt.cpu"], p["virt.mem"]), ((30, 100), (70, 100)))   # the host that is off is out of the means
+        self.assertEqual(p["virt.storage"], (81, 100))
+        self.assertEqual(p["virt.backups"], (1, 2))   # archived sets and sets that are not a vzdump are out
+
+    def test_what_is_not_read_leaves_its_key_out(self):
+        self.assertEqual(th.virt_points({"virtualization": []}), {})
+        self.assertNotIn("virt.backups", th.virt_points(self.DATA))
 
 
 if __name__ == "__main__":

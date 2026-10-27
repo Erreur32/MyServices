@@ -11,8 +11,10 @@ import { tx } from "../lib/i18n";
 interface MachinesHistory { hours: Period; reach: TilePoint[]; health: TilePoint[]; cpu: TilePoint[]; mem: TilePoint[] }
 interface BackupsHistory { hours: Period; ok: TilePoint[]; late: TilePoint[]; bad: TilePoint[] }
 interface AgentsHistory { hours: Period; running: TilePoint[]; late: TilePoint[]; health: TilePoint[] }
+interface VirtHistory { hours: Period; hosts: TilePoint[]; guests: TilePoint[]; cpu: TilePoint[]; mem: TilePoint[]; storage: TilePoint[]; backups: TilePoint[] }
+interface DnsHistory { hours: Period; local: TilePoint[]; external: { name: string; ip: string; ms: TilePoint[]; up: TilePoint[] }[] }
 interface AiHistory { hours: Period; gpu: TilePoint[]; vram: TilePoint[]; temp: TilePoint[]; power: TilePoint[]; engines: TilePoint[]; models: TilePoint[]; agents: TilePoint[]; ram: TilePoint[] }
-interface ServicesHistory { hours: Period; up: TilePoint[]; warn: TilePoint[] }
+interface ServicesHistory { hours: Period; up: TilePoint[]; warn: TilePoint[]; health: TilePoint[] }
 interface NetworkHistory { hours: Period; gear: TilePoint[]; clients: TilePoint[]; devices: TilePoint[]; bw?: Record<"fbx.down" | "fbx.up" | "unifi.down" | "unifi.up", TilePoint[]> }
 
 /** The history of the tiles of a page for a period; read again at each collection (`stamp`). null while it loads or when it cannot be read. */
@@ -30,6 +32,8 @@ export const useMachinesHistory = (hours: Period, stamp: string) => useHistory<M
 export const useNetworkHistory = (hours: Period, stamp: string) => useHistory<NetworkHistory>("network/history", hours, stamp);
 export const useBackupsHistory = (hours: Period, stamp: string) => useHistory<BackupsHistory>("backups/history", hours, stamp);
 export const useAgentsHistory = (hours: Period, stamp: string) => useHistory<AgentsHistory>("agents/history", hours, stamp);
+export const useVirtHistory = (hours: Period, stamp: string) => useHistory<VirtHistory>("virtualization/history", hours, stamp);
+export const useDnsHistory = (hours: Period, stamp: string) => useHistory<DnsHistory>("dns/history", hours, stamp);
 export const useAiHistory = (hours: Period, stamp: string) => useHistory<AiHistory>("ai/history", hours, stamp);
 export const useServicesHistory = (hours: Period, stamp: string) => useHistory<ServicesHistory>("services/history", hours, stamp);
 

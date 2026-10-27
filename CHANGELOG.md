@@ -18,6 +18,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### README
 - The README (English and French) now says the project is young but working, marks the connectors proven on a real network (in bold) and says the others were written from the documentation and tried against simulated servers only. The connector table lists the whole family (about 60), and the menu paths are the current ones (Collection › Connectors, Collection › Discovery).
 
+### Virtualization
+- Six **tiles with a history** above the hosts (period switch 24 h, 3 days, 7 days), for every hypervisor read together: **hosts online** (strip), **machines running** (templates left out), **average processor** and **average memory** of the hosts online, the **fullest storage** (its name below), and **backups up to date** (the vzdump sets followed in Backups, a strip). Under them, one pill per tool (Proxmox, vCenter, ESXi…) with its hosts and machines. Counted on the server like the page (`tile_history.virt_points`, keys `virt.*`, `GET /virtualization/history`). Veeam is not a hypervisor read here, so it is not in this row.
+
+### DNS
+- A **real DNS query** (an A record) is sent at each collection to every DNS server of the page and to Cloudflare (1.1.1.1) and Google (8.8.8.8), in parallel, with the latency measured (`dns_probe.py`, `GET /dns/history`). The **DNS servers** tile gets the strip of the answers, and a new **External DNS latency** tile draws one curve per public resolver (legend that hides a curve, the same tile as Download and Upload). A line under the tiles gives the share of answers over the period. The list of public resolvers is fixed for now.
+
+### Services
+- New **Services health** tile: the share of the services followed that are neither in warning nor down (a percentage on a 0 to 100 scale), with the warnings and the services down written below. Counted on the server with the rule of the page (`services.health`).
+
 ### AI and agents
 - The overview has **two rows of tiles with a history** and the period switch (24 h, 3 days, 7 days). Row 1, the machine: **GPU load**, **GPU memory** (the orange warning from 90 % stays), **GPU temperature** (the hottest) and **Power** (limit in the sub line). Row 2, the content: **Engines online** (strip), **Models loaded**, **Agents** (platforms connected, strip) and the **memory of the AI machine** (the RAM of the machines that carry a GPU, from the health reads). Only the GPUs of machines that answer are counted.
 - Counted on the server like the page (`tile_history.ai_points`, keys `ai.*`, `GET /ai/history`), one point per collection, kept 7 days. Tokens per second are not read by the current connectors, so there is no tile for them.

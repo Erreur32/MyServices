@@ -9,12 +9,15 @@ import type { Snapshot } from "../api";
 import type { Dns, Host, Rewrite } from "../types";
 import { dnsSync, hostName } from "../lib/status";
 import type { Selected } from "../lib/filter";
-import { Badge, Empty, TableCard, type Tone } from "../components/ui";
+import { Badge, Dim, Empty, TableCard, type Tone } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 import { hm } from "../lib/format";
 import { usePageView, useRoute } from "../lib/route";
 import { StatTile } from "../components/StatTile";
+import { HistoryTile, useDnsHistory } from "../components/HistoryTile";
+import { BandwidthTile } from "../components/BandwidthTile";
+import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import { dnsFigures, dnsWatch, serverUp, type DnsFigures } from "../lib/dnsState";
 import { HeadTags } from "../components/HeadTags";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
@@ -79,7 +82,10 @@ function errorsText(s: { errors_24h?: number; errors_open?: number; last_error?:
 const MACHINE_STATE: Record<string, [Tone, string]> = { ok: ["ok", tx("résout vers la machine")], ailleurs: ["warn", tx("résout ailleurs")], absent: ["off", tx("pas de nom DNS")] };
 
 /** The four figures: resolution, DNS servers, sync, rewrites */
-function Figures({ g, fig, st, last }: Readonly<{ g: Dns; fig: DnsFigures; st: { cls: RowTone; label: string }; last: number | null }>) {
+function Figures({ g, fig, st, last, stamp }: Readonly<{ g: Dns; fig: DnsFigures; st: { cls: RowTone; label: string }; last: number | null; stamp: string }>) {
+  const [hours, setHours] = usePeriod(), hist = useDnsHistory(hours, stamp), now = Math.floor(Date.now() / 1000);
+  const answered = (hist?.local ?? []).reduce((n, p) => n + p[1], 0), asked = (hist?.local ?? []).reduce((n, p) => n + p[2], 0);
+  const sources = (hist?.external ?? []).map((e, i) => ({ id: e.ip, name: `${e.name} ${e.ip}`, color: i ? "rgb(var(--link))" : "rgb(var(--bad))", points: e.ms.length ? e.ms : null }));
   let resTone: "ok" | "warn" | undefined;
   if (fig.domains) resTone = fig.domainsOk === fig.domains ? "ok" : "warn";
   let syncSub = tx("adguardhome-sync absent");
@@ -91,12 +97,17 @@ function Figures({ g, fig, st, last }: Readonly<{ g: Dns; fig: DnsFigures; st: {
     rwSub = fig.diff ? tx("{0} différence(s) entre instances", fig.diff) : tx("identiques sur chaque instance");
   }
   return (
-    <div className="flex gap-2.5 overflow-x-auto pb-1">
+    <>
+    <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
+    <div className="flex flex-wrap gap-2.5 pb-1">
       <StatTile n={fig.domains ? `${fig.domainsOk}/${fig.domains}` : "-"} label={tx("Résolution")} tone={resTone} sub={tx("domaines NPM qui résolvent comme attendu")} />
-      <StatTile n={`${fig.serversUp}/${fig.servers}`} label={tx("Serveurs DNS")} tone={fig.serversUp === fig.servers ? "ok" : "bad"} sub={g.resolver ? tx("résolveur du conteneur, aucun outil branché") : tx("instances AdGuard qui répondent")} />
+      <HistoryTile n={`${fig.serversUp}/${fig.servers}`} label={tx("Serveurs DNS")} tone={fig.serversUp === fig.servers ? "ok" : "bad"} fact={g.resolver ? tx("résolveur du conteneur, aucun outil branché") : tx("instances AdGuard qui répondent")} kind="strip" points={hist?.local ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0}/{1} répondent", p[1], p[2])} goodHigh />
       <StatTile n={st.label} label={tx("Synchro")} tone={g.resolver ? undefined : st.cls} sub={syncSub} />
       <StatTile n={fig.rewrites ?? "-"} label={tx("Réécritures")} tone={rwTone} sub={rwSub} />
+      {sources.some((x) => x.points) && <BandwidthTile label={tx("Latence DNS externe")} sources={sources} hours={hours} now={now} format={(v) => `${v} ms`} best="min" storeKey="ms.dnslatency.hidden" />}
     </div>
+    {asked > 0 && <Dim>{tx("Test d'une vraie requête DNS à chaque collecte : les serveurs ont répondu {0} % du temps sur la période.", (Math.round((answered / asked) * 1000) / 10).toString().replace(".", ","))}</Dim>}
+    </>
   );
 }
 
@@ -205,7 +216,7 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
   return (
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={NetworkIcon} title={tx("DNS")} tags={<HeadTags counts={[tx("{0} domaine(s) contrôlé(s)", fig.domains), machines.length > 0 ? tx("{0} nom(s) de machine", machines.length) : ""]} sources={[tools]} at={snap.data.generated} />} actions={snap.me.role === "admin" && <ConnectorsLink />} />
-      <Figures g={g} fig={fig} st={st} last={last} />
+      <Figures g={g} fig={fig} st={st} last={last} stamp={String(at ?? "")} />
       {view === "servers" && servers}
       {(view === "all" || view === "watch") && <>
         <fieldset className="flex flex-wrap items-center gap-1.5" aria-label={tx("Afficher")}>

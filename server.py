@@ -317,10 +317,20 @@ def fast_loop() -> None:
         time.sleep(max(5.0, READERS_TICK - (time.time() - t0)))
 
 
+def local_dns_servers() -> list[str]:
+    """The DNS servers of the DNS page (data.json, `dns.servers`): the ones the tiles test for an answer."""
+    try:
+        servers = (json.loads((WEB / "data.json").read_text(encoding="utf-8")).get("dns") or {}).get("servers") or {}
+    except (OSError, ValueError):
+        return []
+    return [ip for ip in servers if isinstance(ip, str)]
+
+
 def keep_availability() -> None:
     """Availability of each service, machine and Kuma monitor after a collection (Historique → Disponibilité), the Network and Backups tiles figures."""
     import agents
     import availability
+    import dns_probe
     import tile_history
     from auth import db_path
     try:
@@ -330,6 +340,8 @@ def keep_availability() -> None:
         tile_history.sample_services(db_path(CFG), WEB / "data.json")
         tile_history.sample_agents(db_path(CFG), agents.Agents(db_path(CFG)).listing())
         tile_history.sample_ai(db_path(CFG), WEB / "data.json", WEB / "health" / "stats.json")
+        tile_history.sample_virt(db_path(CFG), WEB / "data.json", WEB / "backups.json")
+        dns_probe.sample(db_path(CFG), local_dns_servers())
     except Exception as e:  # base unavailable: only the availability history misses a point
         log(f"⚠ disponibilité : {e}")
         return

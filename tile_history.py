@@ -22,9 +22,10 @@ NET_GEAR, NET_CLIENTS, NET_DEVICES = "network.gear", "network.clients", "network
 NETWORK = (NET_GEAR, NET_CLIENTS, NET_DEVICES)
 BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD = "backups.ok", "backups.late", "backups.bad"
 BACKUPS = (BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD)
-SERVICES_WARN = "services.warn"
+SERVICES_WARN, SERVICES_HEALTH = "services.warn", "services.health"
 AGENTS_RUNNING, AGENTS_LATE, AGENTS_HEALTH = "agents.running", "agents.late", "agents.health"
 AGENTS = (AGENTS_RUNNING, AGENTS_LATE, AGENTS_HEALTH)
+VIRT = ("virt.hosts", "virt.guests", "virt.cpu", "virt.mem", "virt.storage", "virt.backups")
 AI = ("ai.gpu", "ai.vram", "ai.temp", "ai.power", "ai.engines", "ai.models", "ai.agents", "ai.ram")
 
 SCHEMA = """
@@ -128,11 +129,29 @@ def _service_warns(h: dict) -> bool | None:
     return bool(p.get("err"))
 
 
+def _service_down(h: dict) -> bool:
+    """True when a service followed is « down » (front lib/status.ts, class bad): backend or stream unreachable, a server error, a redirect with no answer."""
+    p, b = h.get("public") or {}, h.get("backend") or {}
+    kind = h.get("type")
+    if kind == "dead":
+        return False
+    if kind == "stream" or (kind == "local" and not b.get("internal")):
+        return not b.get("up")
+    if kind == "redirect":
+        return not p.get("code")
+    if b.get("internal"):
+        return not p.get("code") or p["code"] >= 500
+    return b.get("up") is False or (p.get("code") or 0) >= 500
+
+
 def services_points(data: dict) -> dict[str, tuple[int, int]]:
     """{key: (value, total)} of the Services « Warning » tile: the services followed that are not in warning, out of the services followed
     (so a strip counts the ones in warning). The services the user hid from « To watch » are counted like the others."""
-    states = [w for h in data.get("hosts") or [] if isinstance(h, dict) and (w := _service_warns(h)) is not None]
-    return {SERVICES_WARN: (states.count(False), len(states))} if states else {}
+    followed = [(h, w) for h in data.get("hosts") or [] if isinstance(h, dict) and (w := _service_warns(h)) is not None]
+    if not followed:
+        return {}
+    healthy = sum(1 for h, w in followed if not w and not _service_down(h))
+    return {SERVICES_WARN: (sum(1 for _, w in followed if not w), len(followed)), SERVICES_HEALTH: (round(healthy / len(followed) * 100), 100)}
 
 
 def sample_services(db_path: str | Path, data_file: Path, now: float | None = None) -> int:
@@ -232,6 +251,44 @@ def sample_ai(db_path: str | Path, data_file: Path, stats_file: Path, now: float
     except (OSError, ValueError):
         stats = None
     return sum(store(db_path, key, (int(now), *vt), now) for key, vt in ai_points(data, stats).items())
+
+
+def virt_points(data: dict, backups: dict | None = None) -> dict[str, tuple[int, int]]:
+    """{key: (value, total)} of the Virtualization tiles from data.json (the hosts and machines every hypervisor read gives) and backups.json
+    (the sets that are the vzdump of a machine), counted like the page: hosts online, machines running (templates out), the mean processor and
+    memory of the hosts online, the fullest volume, and the vzdump sets up to date."""
+    rows = [c for c in data.get("virtualization") or [] if isinstance(c, dict)]
+    nodes = [n for c in rows for n in c.get("nodes") or [] if isinstance(n, dict)]
+    guests = [g for c in rows for g in c.get("guests") or [] if isinstance(g, dict) and not g.get("template")]
+    out: dict[str, tuple[int, int]] = {}
+    if nodes:
+        up = [n for n in nodes if n.get("online")]
+        out["virt.hosts"] = (len(up), len(nodes))
+        for key, field in (("virt.cpu", "cpu_pct"), ("virt.mem", "mem_pct")):
+            if (avg := _mean([n[field] for n in up if n.get(field) is not None])) is not None:
+                out[key] = (avg, 100)
+    if guests:
+        out["virt.guests"] = (sum(1 for g in guests if g.get("status") == "running"), len(guests))
+    if used := [st["used_pct"] for c in rows for st in c.get("storage") or [] if isinstance(st, dict) and st.get("used_pct") is not None]:
+        out["virt.storage"] = (round(max(used)), 100)
+    sets = [x for x in (backups or {}).get("sets") or [] if isinstance(x, dict) and not x.get("archived") and ((x.get("locations") or [{}])[0] or {}).get("vzdump")]
+    if sets:
+        out["virt.backups"] = (sum(1 for x in sets if x.get("level") == "ok"), len(sets))
+    return out
+
+
+def sample_virt(db_path: str | Path, data_file: Path, backups_file: Path, now: float | None = None) -> int:
+    """The Virtualization tiles as of now, one point per key at each collection; the backups figure needs backups.json, the rest only data.json."""
+    now = now or time.time()
+    try:
+        data = json.loads(data_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    try:
+        backups = json.loads(backups_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        backups = None
+    return sum(store(db_path, key, (int(now), *vt), now) for key, vt in virt_points(data, backups).items())
 
 
 def backups_points(data: dict) -> dict[str, tuple[int, int]]:

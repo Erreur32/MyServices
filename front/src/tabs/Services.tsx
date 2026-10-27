@@ -320,7 +320,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const groups = useMemo(() => (grouped ? groupByMachine(sort.sorted) : [{ name: "", ip: "", rows: sort.sorted }]), [grouped, sort.sorted]);
 
   const [hours, setHours] = usePeriod(), hist = useServicesHistory(hours, snap.data.generated), now = Math.floor(Date.now() / 1000);
-  const every = figures(snap.data.hosts), fig = figures(snap.data.hosts.filter((r) => !isHidden(r, hiddenMap))), watchAll = toWatch(snap.data.hosts), admin = snap.me.role === "admin";   // the tiles leave out the services hidden from « To watch », the header counts them all
+  const every = figures(snap.data.hosts), followed = every.ok + every.warn + every.bad, health = followed ? Math.round((every.ok / followed) * 100) : 0, fig = figures(snap.data.hosts.filter((r) => !isHidden(r, hiddenMap))), watchAll = toWatch(snap.data.hosts), admin = snap.me.role === "admin";   // the tiles leave out the services hidden from « To watch », the header counts them all
   const watchKeys = new Set(watchAll.map(keyOfRow));
   const view = usePageView(route, "services", SERVICE_VIEWS, "all");   // « To watch » is no longer a page: the alerts are a filter of the list
   const pageKey = decodeURIComponent(route.split("/")[2] ?? "");
@@ -336,6 +336,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
         <HistoryTile n={fig.ok} label={tx("En ligne")} tone="ok" kind="curve" points={hist?.up ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]}/${p[2]}`} goodHigh />
         <HistoryTile n={fig.bad} label={tx("En panne")} tone={fig.bad ? "bad" : undefined} kind="strip" points={hist?.up ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0} en panne", p[2] - p[1])} goodHigh={false} />
         <HistoryTile n={fig.warn} label={tx("Avertissement")} tone={fig.warn ? "warn" : undefined} fact={fig.warnWhy.join(", ")} kind="strip" points={hist?.warn ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0} en avertissement", p[2] - p[1])} goodHigh={false} />
+        <HistoryTile n={followed ? `${health} %` : "-"} label={tx("Santé des services")} tone={followed ? (health >= 90 ? "ok" : health >= 70 ? "warn" : "bad") : undefined} fact={tx("{0} en avertissement · {1} en panne", every.warn, every.bad)} scale={100} kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]} %`} goodHigh />
         <StatTile n={fig.toCheck} label={tx("À vérifier")} tone={fig.toCheck ? "warn" : undefined} sub={fig.checkWhy.map((k) => CHECK[k][0]).join(", ") || tx("rien à confirmer")} />
       </div>
       {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}
