@@ -3179,6 +3179,8 @@ export const EN: Record<string, string> = {
   "historique en cours": "history building up",
   "stable sur {0}": "steady over {0}",
   "{0} en {1}": "{0} in {1}",
+  "par heure": "per hour",
+  "par jour": "per day",
   "{0} : {1} bannissement(s)": "{0}: {1} ban(s)",
   "jours entre deux passages de cette copie (1 = chaque jour, 7 = chaque semaine) : entre deux passages, elle n'est pas en retard": "days between two runs of this copy (1 = every day, 7 = every week): between two runs it is not late",
   "Modifier la copie {0}": "Edit the copy {0}",

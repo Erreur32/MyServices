@@ -144,11 +144,20 @@ def report(db_path: str | Path, days: int = 30, now: float | None = None) -> dic
     return {"days": days, "step": "hour" if days == 1 else "day", "items": out}
 
 
-def reach_series(db_path: str | Path, hours: int, now: float | None = None) -> list[list[int]]:
-    """[[time, machines that answered, machines sampled], ...] of the last `hours`, one per collection, oldest first
-    (the figures behind the « Reachable » and « Unreachable » tiles of the Machines page)."""
+def sampled_series(db_path: str | Path, prefix: str, hours: int, now: float | None = None) -> list[list[int]]:
+    """[[time, items that answered, items sampled], ...] of the last `hours` for the keys starting with `prefix`, one per collection, oldest first."""
     now = now or time.time()
     with _db(db_path) as db:
-        rows = db.execute("SELECT ts, SUM(up), COUNT(*) FROM avail_samples WHERE key LIKE 'machine:%' AND ts >= ? GROUP BY ts ORDER BY ts",
-                          (int(now - min(max(int(hours), 1), SAMPLE_DAYS * 24) * 3600),)).fetchall()
+        rows = db.execute("SELECT ts, SUM(up), COUNT(*) FROM avail_samples WHERE key LIKE ? AND ts >= ? GROUP BY ts ORDER BY ts",
+                          (prefix + "%", int(now - min(max(int(hours), 1), SAMPLE_DAYS * 24) * 3600))).fetchall()
     return [list(r) for r in rows]
+
+
+def reach_series(db_path: str | Path, hours: int, now: float | None = None) -> list[list[int]]:
+    """The machines that answered per collection (the figures behind the « Reachable » and « Unreachable » tiles of the Machines page)."""
+    return sampled_series(db_path, "machine:", hours, now)
+
+
+def service_series(db_path: str | Path, hours: int, now: float | None = None) -> list[list[int]]:
+    """The services whose backend answered per collection (the figures behind the tiles of the Services page)."""
+    return sampled_series(db_path, "svc:", hours, now)

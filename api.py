@@ -2305,6 +2305,13 @@ def machines_history(hours: int = 24):
     return {"hours": h, "reach": availability.reach_series(db_path(core.CFG), h), "health": tile_history.series(db_path(core.CFG), tile_history.HEALTH, h)}
 
 
+@app.get(API + "/services/history", tags=["historique"], summary="Historique des cadres de la page Services (en ligne, en panne) sur 24 h, 72 h ou 7 jours : [heure, répondent, total] par relevé")
+def services_history(hours: int = 24):
+    import availability
+    h = hours if hours in HISTORY_HOURS else 24
+    return {"hours": h, "up": availability.service_series(db_path(core.CFG), h)}
+
+
 @app.get(API + "/machines/{ip}/metrics", tags=["historique"], summary="Processeur, mémoire, disque le plus plein et température d'une machine sur 24 h")
 def machine_metrics(ip: str):
     import metrics

@@ -84,6 +84,12 @@ class ReachSeries(Availability):
         self.assertEqual([t for t, _, _ in got], sorted(t for t, _, _ in got))
         self.assertEqual(len(av.reach_series(self.db, 1, now=NOW)), 2)   # the last hour: the point exactly an hour old and the latest
         self.assertEqual(av.reach_series(self.db, 24, now=NOW + 3 * 86400), [])   # older than the period asked
+    def test_services_series_leaves_the_machines_out(self):
+        self.put(NOW - 3600)
+        self.put(NOW, web_up=False)
+        got = av.service_series(self.db, 24, now=NOW)
+        # three services sampled (the local one is always down); the second collection has the web one down too
+        self.assertEqual([(up, n) for _, up, n in got], [(2, 3), (1, 3)])
 
 
 if __name__ == "__main__":

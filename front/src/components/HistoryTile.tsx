@@ -7,19 +7,23 @@ import { periodLabel } from "./PeriodSwitch";
 import { curve, delta, nearest, stripCells, type Period, type TilePoint } from "../lib/tileHistory";
 import { tx } from "../lib/i18n";
 
-/** What /machines/history answers for a period */
+/** What /machines/history and /services/history answer for a period */
 interface MachinesHistory { hours: Period; reach: TilePoint[]; health: TilePoint[] }
+interface ServicesHistory { hours: Period; up: TilePoint[] }
 
-/** The history of the Machines tiles for a period; read again at each collection (`stamp`). null while it loads or when it cannot be read. */
-export function useMachinesHistory(hours: Period, stamp: string): MachinesHistory | null {
-  const [got, setGot] = useState<MachinesHistory | null>(null);
+/** The history of the tiles of a page for a period; read again at each collection (`stamp`). null while it loads or when it cannot be read. */
+function useHistory<T extends { hours: Period }>(path: string, hours: Period, stamp: string): T | null {
+  const [got, setGot] = useState<T | null>(null);
   useEffect(() => {
     let off = false;
-    read<MachinesHistory>(`machines/history?hours=${hours}`).then((r) => { if (!off) setGot(r); }).catch(() => { if (!off) setGot(null); });
+    read<T>(`${path}?hours=${hours}`).then((r) => { if (!off) setGot(r); }).catch(() => { if (!off) setGot(null); });
     return () => { off = true; };
-  }, [hours, stamp]);
+  }, [path, hours, stamp]);
   return got?.hours === hours ? got : null;
 }
+
+export const useMachinesHistory = (hours: Period, stamp: string) => useHistory<MachinesHistory>("machines/history", hours, stamp);
+export const useServicesHistory = (hours: Period, stamp: string) => useHistory<ServicesHistory>("services/history", hours, stamp);
 
 const CELL = ["bg-ok/40", "bg-warn", "bg-bad"];   // all answered, one missing, two or more
 /** Mouse handlers of a chart: where the pointer is along it (0 left edge, 1 right edge), and when it leaves */
@@ -83,19 +87,22 @@ export function HistoryTile({ label, n, tone, hint, kind, points, hours, now, fi
   );
 }
 
-/** A tile whose history is a count per slot already given by the source (bans per hour): bars right of the figure, the pointer reads one slot.
- *  `values`: oldest first, one per hour, the last one being the hour in course. */
-export function BarsTile({ label, n, tone, sub, values }: Readonly<{ label: string; n: string | number; tone?: "ok" | "warn" | "bad"; sub: string; values: number[] }>) {
+/** A tile whose history is a count per slot already given by the source (bans per hour or per day): bars right of the figure, the pointer reads one slot.
+ *  `values`: oldest first, the last one being the slot in course. */
+export function BarsTile({ label, n, tone, sub, values, perDay = false }: Readonly<{ label: string; n: string | number; tone?: "ok" | "warn" | "bad"; sub: string; values: number[]; perDay?: boolean }>) {
   const [at, setAt] = useState<number | null>(null);
   const top = Math.max(1, ...values);
   const hot = at === null ? -1 : Math.min(values.length - 1, Math.floor(at * values.length));
-  const hourOf = (i: number) => `${String(new Date(Date.now() - (values.length - 1 - i) * 3600_000).getHours()).padStart(2, "0")} h`;
+  const slotOf = (i: number) => {
+    const d = new Date(Date.now() - (values.length - 1 - i) * (perDay ? 86_400_000 : 3600_000));
+    return perDay ? d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" }) : `${String(d.getHours()).padStart(2, "0")} h`;
+  };
   const bars = (
     <div aria-hidden className="flex h-6 min-w-[90px] flex-1 cursor-crosshair items-end gap-px" {...hover(setAt, () => setAt(null))}>
       {values.map((v, i) => <i key={`${i}-${v}`} style={{ height: `${Math.max(v ? 12 : 4, (v / top) * 100)}%` }} className={`flex-1 rounded-[1.5px] ${v ? "bg-warn" : "bg-bg2"} ${i === hot ? "outline outline-1 outline-offset-1 outline-txt" : ""}`} />)}
     </div>
   );
   return (
-    <StatTile n={n} label={label} tone={tone} aside={values.length ? bars : null} sub={hot >= 0 ? tx("{0} : {1} bannissement(s)", hourOf(hot), values[hot]) : sub} />
+    <StatTile n={n} label={label} tone={tone} aside={values.length ? bars : null} sub={hot >= 0 ? tx("{0} : {1} bannissement(s)", slotOf(hot), values[hot]) : sub} />
   );
 }
