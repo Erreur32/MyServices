@@ -14,12 +14,16 @@ import type { ServiceStatus } from "../types";
 import { Badge, Cards, Count, Dim, Empty, FilterBar, Table, Td, Th } from "../components/ui";
 import { quiet } from "../lib/forms";
 import { StatTile } from "../components/StatTile";
+import { HistoryTile, useNetworkHistory } from "../components/HistoryTile";
+import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import type { Period, TilePoint } from "../lib/tileHistory";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
 import { NetworkDiagnostic } from "./NetworkDiagnostic";
 import { NetworkScanStats } from "./NetworkScanStats";
 import { UnifiCards } from "./UnifiCards";
 import { HeadTags } from "../components/HeadTags";
+import { ConnectorsLink, PageHead } from "../components/PageHead";
 
 const INTERNET = ["freebox", "opnsense", "speedtest-tracker"];
 type Kind = "gear" | "wifi" | "wired" | "device";
@@ -184,16 +188,17 @@ function devFigure(devAll: Row[], unfollowed: number): Fig {
 }
 
 /** The five figures above the sub-menu */
-function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll, unfollowed, sourceNames, failing }: Readonly<{
-  box?: ServiceStatus; boxFact?: { label: string; value: string }; gearAll: Row[]; gearDown: number; updates: number; wifi: number; wired: number; devAll: Row[]; unfollowed: number; sourceNames: string[]; failing: number;
+function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll, unfollowed, sourceNames, failing, hours, stamp }: Readonly<{
+  box?: ServiceStatus; boxFact?: { label: string; value: string }; gearAll: Row[]; gearDown: number; updates: number; wifi: number; wired: number; devAll: Row[]; unfollowed: number; sourceNames: string[]; failing: number; hours: Period; stamp: string;
 }>) {
   const b = boxFigure(box, boxFact), g = gearFigure(gearAll, gearDown, updates), d = devFigure(devAll, unfollowed);
+  const hist = useNetworkHistory(hours, stamp), now = Math.floor(Date.now() / 1000), ratio = (p: TilePoint) => `${p[1]}/${p[2]}`;
   return (
     <div className="flex gap-2.5 overflow-x-auto pb-1">
       <StatTile n={b.n} label={tx("Accès Internet")} tone={b.tone} sub={b.sub} />
-      <StatTile n={g.n} label={tx("Équipements en ligne")} tone={g.tone} sub={g.sub} />
-      <StatTile n={wifi + wired} label={tx("Clients")} sub={tx("{0} wifi · {1} filaires", wifi, wired)} />
-      <StatTile n={d.n} label={tx("Appareils en ligne")} tone={d.tone} sub={d.sub} />
+      <HistoryTile n={g.n} label={tx("Équipements en ligne")} tone={g.tone} fact={g.sub} kind="strip" points={hist?.gear ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
+      <HistoryTile n={wifi + wired} label={tx("Clients")} fact={tx("{0} wifi · {1} filaires", wifi, wired)} kind="curve" points={hist?.clients ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => tx("{0} client(s)", p[1])} goodHigh />
+      <HistoryTile n={d.n} label={tx("Appareils en ligne")} tone={d.tone} fact={d.sub} kind="curve" points={hist?.devices ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
       <StatTile n={sourceNames.length} label={tx("Sources")} tone={failing ? "bad" : "ok"} sub={failing ? tx("{0} en erreur", failing) : sourceNames.join(", ")} />
     </div>
   );
@@ -252,6 +257,7 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
   const pickSub = (v: Sub) => { location.hash = `network/${v}`; };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
   const rows = useMemo(() => buildRows(snap, cards), [snap, cards]);
+  const [hours, setHours] = usePeriod();
   const text = useCallback((r: Row) => [r.name, r.ip, r.mac, r.vendor, r.via, r.detail, r.machine ?? "", r.gear?.version ?? ""].join(" "), []);
   const f = useFilter(rows, FACETS, text, route.startsWith("#network/watch") ? { alert: ["on"] } : initial);   // the old « To watch » address: the alerts
   const alertOn = !!f.sel.alert?.length;
@@ -299,11 +305,8 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
 
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-bold"><NetworkIcon size={18} aria-hidden />{tx("Réseau")}</h1>
-        <HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />
-      </div>
-      <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={sourceNames} failing={failing} />
+      <PageHead icon={NetworkIcon} title={tx("Réseau")} tags={<HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />} actions={<><PeriodSwitch value={hours} onChange={setHours} />{snap.me.role === "admin" && <ConnectorsLink />}</>} />
+      <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={sourceNames} failing={failing} hours={hours} stamp={snap.data.generated} />
 
       {current === "unifi" && <UnifiCards />}
       {current === "freebox" && freebox && <div className="grid items-start gap-3 lg:grid-cols-2"><ServiceCard s={freebox} /></div>}

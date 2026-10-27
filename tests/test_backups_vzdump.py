@@ -165,6 +165,24 @@ class Analyse(unittest.TestCase):
         sets, _ = self.run_analyse([f])
         self.assertEqual((sets["web"]["level"], sets["web"]["offsite"]), ("ok", 1))
 
+    def test_copie_hebdomadaire_jugee_sur_son_rythme(self):
+        day = 86400
+        def judge(every_days, copy_age_days):
+            meta = json.loads(json.dumps(self.META))
+            if every_days:
+                meta["sets"][0]["locations"][1]["every_days"] = every_days
+            files = [{"name": name("qemu", 100, NOW - d * day), "mtime": NOW - d * day, "size": 20} for d in (0.3, 1.3, 2.3, 3.3, 8.3)]
+            copy = [f for f in files if f["mtime"] <= NOW - copy_age_days * day] + [{"name": name("qemu", 100, NOW - 12 * day), "mtime": NOW - 12 * day, "size": 20}]
+            res = {"pve": ({"locs": {"web#0": {"exists": True, "count": 5, "size": 100, "files": files},
+                                     "db#0": {"exists": True, "count": 1, "size": 5, "files": [{"name": name("qemu", 102, NOW - 3600), "mtime": NOW - 3600, "size": 5}]}},
+                            "disks": [], "crons": []}, ""),
+                   "nas": ({"locs": {"web#1": {"exists": True, "count": len(copy), "size": 20, "files": copy}}, "disks": [], "crons": []}, "")}
+            return {s["id"]: s for s in backups.analyse(meta, res, {}, NOW)["sets"]}["web"]["locations"][1]["level"]
+        self.assertEqual(judge(None, 3), "warn")   # daily copy that stopped 3 days ago
+        self.assertEqual(judge(7, 3), "ok")        # weekly copy: last run 3 days ago, nothing missed
+        self.assertEqual(judge(7, 9), "warn")      # weekly copy that missed its run
+        self.assertEqual(backups.copy_grace_s({}), backups.GRACE_H * 3600)
+
     def test_dump_sur_stockage_reseau_compte_hors_machine(self):
         sets, _ = self.run_analyse([])
         self.assertEqual((sets["db"]["level"], sets["db"]["offsite"]), ("ok", 1))

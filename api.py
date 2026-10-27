@@ -2103,12 +2103,13 @@ class BackupLocationChange(BaseModel):
     depth: int | None = Field(None, ge=1, le=5, description="Sub-folder levels searched")
     via: str | None = Field(None, max_length=80, description="How the archives get there, free text (« rsync 04:00 »)")
     encrypted: bool | None = None
+    every_days: int | None = Field(None, ge=1, le=31, description="Days between two runs of this copy (1 = daily, 7 = weekly): a copy that runs less often is not late between two runs")
 
 
 @app.patch(API + "/backups/settings/{set_id}/locations/{index}", tags=["sauvegardes"], summary="Modifier un emplacement d'un jeu (0 = la source, puis ses copies) : machine, dossier, fichiers lus, profondeur, moyen, chiffré (admin)")
 def backups_location_update(set_id: str, index: int, body: BackupLocationChange, request: Request):
     def go(b):
-        b.update_location(set_id, index, body.ip, body.path, body.pattern, body.depth, body.via, body.encrypted)
+        b.update_location(set_id, index, body.ip, body.path, body.pattern, body.depth, body.via, body.encrypted, body.every_days)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
         return {"ok": True}
     return backups_call(request, "emplacement de sauvegarde modifié", set_id, go)
@@ -2291,6 +2292,34 @@ def events_per_day(days: int = 30):
 def availability_report(days: int = 30):
     import availability
     return availability.report(db_path(core.CFG), days)
+
+
+HISTORY_HOURS = (24, 72, 168)
+
+
+@app.get(API + "/machines/history", tags=["historique"], summary="Historique des cadres de la page Machines (joignables, santé, processeur et mémoire moyens) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+def machines_history(hours: int = 24):
+    import availability
+    import metrics
+    import tile_history
+    h = hours if hours in HISTORY_HOURS else 24
+    db = db_path(core.CFG)
+    return {"hours": h, "reach": availability.reach_series(db, h), "health": tile_history.series(db, tile_history.HEALTH, h),
+            "cpu": metrics.average(db, "cpu", h), "mem": metrics.average(db, "mem", h)}
+
+
+@app.get(API + "/network/history", tags=["historique"], summary="Historique des cadres de la page Réseau (équipements, clients, appareils en ligne) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+def network_history(hours: int = 24):
+    import tile_history
+    h = hours if hours in HISTORY_HOURS else 24
+    return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.NETWORK}}
+
+
+@app.get(API + "/services/history", tags=["historique"], summary="Historique des cadres de la page Services (en ligne, en panne) sur 24 h, 72 h ou 7 jours : [heure, répondent, total] par relevé")
+def services_history(hours: int = 24):
+    import availability
+    h = hours if hours in HISTORY_HOURS else 24
+    return {"hours": h, "up": availability.service_series(db_path(core.CFG), h)}
 
 
 @app.get(API + "/machines/{ip}/metrics", tags=["historique"], summary="Processeur, mémoire, disque le plus plein et température d'une machine sur 24 h")

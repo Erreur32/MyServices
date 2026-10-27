@@ -59,11 +59,21 @@ class Metrics(unittest.TestCase):
         self.assertEqual(got, [[int(NOW - 600), 12.3, 40.0, 81.0, 52.0], [int(NOW - 300), 90.0, 40.0, 81.0, 52.0]])
         self.assertEqual(metrics.series(self.db, "10.0.0.9", now=NOW), {"points": []})
 
-    def test_purge_apres_24_h(self):
+    def test_purge_apres_7_jours(self):
         self.put([host(at=NOW - metrics.KEEP_S - 60)], NOW - metrics.KEEP_S - 60)
         self.assertEqual(self.put([host(at=NOW)], NOW), 1)
         self.assertEqual([p[0] for p in metrics.series(self.db, "10.0.0.2", now=NOW)["points"]], [int(NOW)])
         self.assertEqual(self.put([host(at=NOW - metrics.KEEP_S - 600)], NOW), 0)   # a reading already too old is not stored
+
+    def test_average_per_bucket_over_the_machines(self):
+        self.put([host(at=NOW - 7200, cpu=10), host("b · 10.0.0.3", at=NOW - 7200, cpu=30)], NOW - 7200)
+        self.put([host(at=NOW - 60, cpu=50)], NOW - 60)
+        got = metrics.average(self.db, "cpu", 24, now=NOW)
+        self.assertEqual([(v, n) for _, v, n in got], [(20, 2), (50, 1)])
+        self.assertEqual(len(metrics.average(self.db, "cpu", 1, now=NOW)), 1)   # the last hour only
+        self.assertEqual([v for _, v, _ in metrics.average(self.db, "mem", 24, now=NOW)], [40, 40])
+        with self.assertRaises(ValueError):
+            metrics.average(self.db, "disk", 24, now=NOW)
 
     def test_fichier_absent_ou_illisible(self):
         self.assertEqual(metrics.sample(self.db, self.file, now=NOW), 0)

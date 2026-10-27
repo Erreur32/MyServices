@@ -22,14 +22,14 @@ const READ_WAYS: { title: string; text: string }[] = [
   { title: tx("Agent"), text: tx("La façon conseillée, sur Linux et Windows : un script envoie lui-même la santé chaque minute. Rien à ouvrir côté machine, et une machine souvent éteinte se signale dès qu'elle se rallume.") },
   { title: "SSH", text: tx("Pour ce que l'agent ne lit pas : MyServices s'y connecte avec sa propre clé, en lecture seule (sauvegardes, Proxmox ou ESXi, NPM, AdGuard). Machines › Connexions SSH dit, machine par machine, s'il sert encore.") },
   { title: tx("Connecteur"), text: tx("Pour un outil qui a une API : MyServices lit ses données avec une clé ou un compte en lecture seule (certificats, DNS, sauvegardes, machines virtuelles…).") },
-  { title: tx("Recherche réseau"), text: tx("Un balayage discret du réseau local trouve les machines et leurs applis. Elle se lance une fois à la main, puis se répète toute seule (Application › Découverte automatique).") },
+  { title: tx("Recherche réseau"), text: tx("Un balayage discret du réseau local trouve les machines et leurs applis. Elle se lance une fois à la main, puis se répète toute seule (Collecte › Découverte).") },
 ];
 
 const HABITS = [
   tx("Un compte ou un jeton dédié et en lecture seule pour chaque outil : MyServices ne modifie rien et n'en a pas besoin."),
   tx("Ne l'exposez pas sur Internet : gardez-le sur votre réseau local ou derrière un VPN ou un proxy avec authentification."),
   tx("Stade précoce : gardez une copie des dossiers config/ et data/ avant chaque mise à jour. Application › Mises à jour vous prévient d'une nouvelle version, dans l'en-tête aussi."),
-  tx("Un rappel qui revient trop ? « Ne plus me le rappeler » le coupe, et vous pouvez le réafficher dans Application › Découverte automatique (une appli : Connecteurs › Détectés à relier)."),
+  tx("Un rappel qui revient trop ? « Ne plus me le rappeler » le coupe, et vous pouvez le réafficher dans Collecte › Découverte (une appli : Connecteurs › Détectés à relier)."),
   tx("Un service connu en panne, ou que vous ne voulez plus suivre ? L'œil barré de sa ligne, dans Services › Tous les services, le retire des alertes et des compteurs."),
   tx("Pour ne plus lire un connecteur sans le supprimer, coupez son interrupteur « Collecte » : ses réglages sont gardés."),
   tx("L'Historique garde les événements un an : choisissez la période et le style de graphique, votre choix est mémorisé."),
@@ -39,7 +39,7 @@ const HABITS = [
 const FIXES: { problem: string; fix: ReactNode }[] = [
   { problem: tx("Un connecteur est en rouge ou « périmé »"), fix: tx("Cliquez sur « Tester » sur sa carte : le message dit si c'est l'adresse, la clé ou le certificat. « Modifier » corrige les réglages.") },
   { problem: tx("Une machine n'est pas lue"), fix: tx("Pour un agent, vérifiez dans Machines › Agents qu'il a envoyé un premier relevé. Pour SSH, autorisez la clé de l'app sur la machine (Machines › Connexions SSH) et vérifiez le compte et le port.") },
-  { problem: tx("Les chiffres ne bougent pas"), fix: tx("La collecte passe à heures fixes : Application › Tâches et horaires, bouton « Relancer », ou le bouton d'actualisation de la page.") },
+  { problem: tx("Les chiffres ne bougent pas"), fix: tx("La collecte passe à heures fixes : Collecte › Tâches et horaires, bouton « Relancer », ou le bouton d'actualisation de la page.") },
   { problem: tx("Un service apparaît ou disparaît"), fix: tx("C'est normal : les nouveautés et les disparitions sont notées dans l'Historique (« Nouveau », « Disparu »).") },
   { problem: tx("Qui a changé quoi ?"), fix: tx("Activité › Journal d'audit liste chaque action des comptes (et des jetons MCP), filtrable et exportable en CSV. Activité › Journaux montre ce que le conteneur écrit.") },
 ];

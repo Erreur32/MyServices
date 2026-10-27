@@ -16,6 +16,7 @@ import { Dot } from "../components/marks";
 import { FoldPanel } from "../components/FoldPanel";
 import { FamilyCard, WatchPanel } from "../components/FamilyCards";
 import { HeadTags } from "../components/HeadTags";
+import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { InfoNote } from "../components/InfoNote";
 import { StatTile } from "../components/StatTile";
 
@@ -36,11 +37,7 @@ export function Video({ snap, route }: Readonly<{ snap: Snapshot; route: string 
   const machines = new Set(cards.map((c) => c.machine).filter(Boolean)).size;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-bold"><VideoIcon size={18} aria-hidden />{tx("Vidéo et caméras")}</h1>
-        <HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />
-        {admin && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
-      </div>
+      <PageHead icon={VideoIcon} title={tx("Vidéo et caméras")} tags={<HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
       {!cards.length && <Empty>{tx("Aucun service vidéo pour l'instant : un service de catégorie « Stream » dans Services, ou un connecteur vidéo (Frigate, Shinobi, go2rtc, MediaMTX, Owncast), fait apparaître cette page.")}</Empty>}
       {cards.length > 0 && view === "overview" && <Overview cards={cards} cams={cams} admin={admin} />}
       {cards.length > 0 && view === "cameras" && <Cameras cams={cams} cards={cards} admin={admin} />}

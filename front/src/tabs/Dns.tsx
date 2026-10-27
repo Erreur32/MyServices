@@ -17,6 +17,7 @@ import { usePageView, useRoute } from "../lib/route";
 import { StatTile } from "../components/StatTile";
 import { dnsFigures, dnsWatch, serverUp, type DnsFigures } from "../lib/dnsState";
 import { HeadTags } from "../components/HeadTags";
+import { ConnectorsLink, PageHead } from "../components/PageHead";
 
 type RowTone = "ok" | "warn" | "bad";
 type Row = [label: string, value: string, tone?: RowTone];
@@ -203,11 +204,7 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
   </div></Anchor>;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-bold"><NetworkIcon size={18} aria-hidden />{tx("DNS")}</h1>
-        <HeadTags counts={[tx("{0} domaine(s) contrôlé(s)", fig.domains), machines.length > 0 ? tx("{0} nom(s) de machine", machines.length) : ""]} sources={[tools]} at={snap.data.generated} />
-        {snap.me.role === "admin" && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
-      </div>
+      <PageHead icon={NetworkIcon} title={tx("DNS")} tags={<HeadTags counts={[tx("{0} domaine(s) contrôlé(s)", fig.domains), machines.length > 0 ? tx("{0} nom(s) de machine", machines.length) : ""]} sources={[tools]} at={snap.data.generated} />} actions={snap.me.role === "admin" && <ConnectorsLink />} />
       <Figures g={g} fig={fig} st={st} last={last} />
       {view === "servers" && servers}
       {(view === "all" || view === "watch") && <>

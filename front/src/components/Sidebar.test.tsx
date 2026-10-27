@@ -12,12 +12,15 @@ const noop = () => undefined;
 describe("Sidebar", () => {
   it("les groupes et leurs entrées, dans l'ordre", () => {
     const html = renderToStaticMarkup(<Sidebar snap={snap()} badges={{}} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);
-    const order = ["MyServices", "En bref", ">Accueil<", "Inventaire", "Machines", "Réseau", "Protection", "Sauvegardes", "Sécurité", "Administration", "Connecteurs", "Notifications", "Comptes et accès", "Application"].map((l) => html.indexOf(l));
+    const order = ["MyServices", "En bref", ">Accueil<", "Inventaire", "Machines", "Réseau", "Protection", "Sauvegardes", "Sécurité", "Collecte", "Connecteurs", "Découverte", "Tâches et horaires", "Administration", "Notifications", "Comptes et accès", "Application"].map((l) => html.indexOf(l));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(html).toContain('href="#security/overview"');   // Security opens its Overview, even with nothing to report
     const watched = renderToStaticMarkup(<Sidebar snap={snap()} badges={{ security: "warn" }} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);
     expect(watched).toContain('href="#security/overview"');   // an entry with sub-pages opens its first one
+    expect(html).toContain('href="#settings/connectors"');   // a category of the Collection group: its name opens its first page
+    expect(html).toContain('href="#settings/discovery"');   // Discovery and Tasks are pages, no longer sub-pages of Application
+    expect(html).toContain('href="#settings/tasks"');
   });
   it("une pastille cliquable sur l'entrée de l'onglet en alerte", () => {
     const html = renderToStaticMarkup(<Sidebar snap={snap()} badges={{ backups: "crit" }} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);

@@ -70,7 +70,7 @@ export function useFilter<T>(items: T[], facets: Facet<T>[], text: (item: T) => 
   const reset = () => { setSel({}); setQuery(""); };
   const active = Object.values(sel).reduce((n, v) => n + v.length, 0) + (query.trim() ? 1 : 0);
 
-  return { query, setQuery, shown, total: items.length, chips, toggle, only, reset, active, sel };
+  return { query, setQuery, shown, total: items.length, chips, toggle, only, reset, active, sel, setSel };
 }
 
 /** Tri par colonne : clic = trier, 2e clic = ordre inverse. */

@@ -182,7 +182,7 @@ def _location_out(i: int, loc: dict, s: dict, hosts: dict) -> dict:
     h = hosts.get(loc.get("host"), {})
     return {"index": i, "host": h.get("label", loc.get("host", "")), "ip": h.get("ip"), "path": loc.get("path"), "pattern": loc.get("pattern", "*"),
             "depth": loc.get("depth", 1), "via": loc.get("via", ""), "encrypted": bool(loc.get("encrypted")),
-            "offsite": i > 0 and (loc.get("host") != s.get("origin") or bool(loc.get("offsite"))),
+            "every_days": loc.get("every_days") or 1, "offsite": i > 0 and (loc.get("host") != s.get("origin") or bool(loc.get("offsite"))),
             "editable": bool(loc.get("path")) and not any(loc.get(k) for k in SOURCE_KEYS), "remote": h.get("api") == "remote"}
 
 
@@ -405,7 +405,19 @@ def _move_location(meta: dict, s: dict, index: int, ip: str, path: str | None) -
         s["origin"] = hid
 
 
-def _location_fields(loc: dict, path: str | None, pattern: str | None, depth: int | None, via: str | None, encrypted: bool | None) -> None:
+def _set_every_days(loc: dict, every_days: int) -> None:
+    """The rhythm of a copy, in days between two runs; daily is the default and is not stored."""
+    from backups import EVERY_DAYS_MAX
+    if not 1 <= int(every_days) <= EVERY_DAYS_MAX:
+        raise BackupError(f"rythme de la copie : de 1 à {EVERY_DAYS_MAX} jours")
+    if int(every_days) == 1:
+        loc.pop("every_days", None)
+    else:
+        loc["every_days"] = int(every_days)
+
+
+def _location_fields(loc: dict, path: str | None, pattern: str | None, depth: int | None, via: str | None, encrypted: bool | None,
+                     every_days: int | None = None) -> None:
     """The other fields of a folder place, each checked; None leaves a field as it is."""
     if path is not None:
         _check_path(path)
@@ -423,12 +435,15 @@ def _location_fields(loc: dict, path: str | None, pattern: str | None, depth: in
         loc["via"] = _text(via, VIA_MAX, "moyen")
     if encrypted is not None:
         loc["encrypted"] = bool(encrypted)
+    if every_days is not None:
+        _set_every_days(loc, every_days)
 
 
 def update_location(set_id: str, index: int, ip: str | None = None, path: str | None = None, pattern: str | None = None,
-                    depth: int | None = None, via: str | None = None, encrypted: bool | None = None) -> None:
+                    depth: int | None = None, via: str | None = None, encrypted: bool | None = None,
+                    every_days: int | None = None) -> None:
     """One folder place of a set (0 = the source, then its copies): machine (SSH), folder, archive names read (a glob), depth of the search,
-    how it gets there (free text) and « encrypted » (sizes not compared). Moving the source to another machine moves the set's origin with it.
+    how it gets there (free text), « encrypted » (sizes not compared) and, for a copy, the days between two runs (every_days, 1 = daily). Moving the source to another machine moves the set's origin with it.
     A place read from a source (vzdump, Veeam, PBS, Synology, Home Assistant) is not a folder: refused."""
     meta = _read()
     s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
@@ -441,7 +456,7 @@ def update_location(set_id: str, index: int, ip: str | None = None, path: str | 
         raise BackupError("cet emplacement n'est pas un dossier : il vient de sa source")
     if ip is not None:
         _move_location(meta, s, index, ip, path)
-    _location_fields(loc, path, pattern, depth, via, encrypted)
+    _location_fields(loc, path, pattern, depth, via, encrypted, every_days)
     _write(meta)
 
 

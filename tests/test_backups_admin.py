@@ -197,6 +197,18 @@ class Seuil(Base):
         with self.assertRaises(ba.BackupError):
             ba.update_location(sid, 0, depth=6)
 
+    def test_rythme_d_une_copie_garde_seulement_si_pas_quotidien(self):
+        ba.follow([self.item()])
+        sid = ba.current()["sets"][0]["id"]
+        ba.update_location(sid, 0, every_days=7)
+        self.assertEqual(ba.current()["sets"][0]["locations"][0]["every_days"], 7)
+        ba.update_location(sid, 0, every_days=1)
+        self.assertNotIn("every_days", json.loads(self.meta.read_text(encoding="utf-8"))["sets"][0]["locations"][0])
+        self.assertEqual(ba.current()["sets"][0]["locations"][0]["every_days"], 1)
+        for bad in (0, 32):
+            with self.assertRaises(ba.BackupError):
+                ba.update_location(sid, 0, every_days=bad)
+
     def test_emplacement_d_une_source_non_modifiable(self):
         meta = {"hosts": [], "sets": [{"id": "ha", "label": "HA", "origin": "ha", "max_age_days": 2, "locations": [{"host": "ha", "path": "/backup", "ha_backup": True}]}]}
         self.meta.write_text(json.dumps(meta), encoding="utf-8")

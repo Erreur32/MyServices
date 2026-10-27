@@ -8,6 +8,8 @@ import { ChartToggle } from "./ChartToggle";
 import { FoldPanel } from "./FoldPanel";
 import { MiniBars } from "./MiniBars";
 import { Badge } from "./ui";
+import { StatTile } from "./StatTile";
+import { BarsTile } from "./HistoryTile";
 
 /** The same domain seen by several sources counts once, with the numbers added */
 function mergeDomains(rows: NonNullable<Stats["by_domain"]>): NonNullable<Stats["by_domain"]> {
@@ -38,8 +40,7 @@ export function mergeStats(list: Stats[]): Stats {
 }
 
 function Tile({ value, label, tone }: Readonly<{ value: number; label: string; tone: "ok" | "warn" | "bad" }>) {
-  const color = { ok: "text-ok", warn: "text-warn", bad: "text-bad" }[tone];
-  return <div className="rounded-xl border border-line bg-card px-4 py-3"><div className={`font-mono text-xl font-bold leading-tight ${color}`}>{value}</div><div className="text-xs text-dim">{label}</div></div>;
+  return <StatTile n={value} label={label} tone={tone} />;
 }
 
 function JailBars({ jails }: Readonly<{ jails: Stats["by_jail"] }>) {
@@ -105,8 +106,8 @@ export function Fail2banStats({ sources }: Readonly<{ sources: SecurityConnector
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-        <Tile value={bans24} label={tx("bannissements en 24 h")} tone={bans24 ? "warn" : "ok"} />
-        <Tile value={bans7} label={tx("bannissements en 7 jours")} tone={bans7 ? "warn" : "ok"} />
+        <BarsTile n={bans24} label={tx("bannissements en 24 h")} tone={bans24 ? "warn" : "ok"} sub={tx("par heure")} values={s.hours} />
+        <BarsTile n={bans7} label={tx("bannissements en 7 jours")} tone={bans7 ? "warn" : "ok"} sub={tx("par jour")} values={s.days} perDay />
         <Tile value={s.unique_1d} label={tx("adresses différentes en 24 h")} tone="ok" />
         <Tile value={s.repeat} label={tx("adresses revenues (7 jours)")} tone={s.repeat ? "bad" : "ok"} />
         <Tile value={s.failures_1d} label={tx("échecs de connexion en 24 h")} tone={s.failures_1d ? "warn" : "ok"} />

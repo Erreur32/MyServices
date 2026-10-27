@@ -1,5 +1,5 @@
 // The discovery: what MyServices finds by itself and what needs a click. Each part is shown with its subject (DiscoveryPart):
-//   Application › Automatic discovery: the state and the automatic mode, what to do, the other suggestions, those forgotten
+//   Collection › Discovery: the state and the automatic mode, what to do, the other suggestions, those forgotten
 //   Machines › Devices not followed: the machines found by the network search; the apps recognised: Connectors › Found, to link
 // No job setting here: the search frequency, networks and discreet mode live in Settings → Tasks and schedules, with every job.
 // Neutral frames, never a coloured frame inside another: the colour stays in the badges.
@@ -61,9 +61,9 @@ function Row({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; ma
 
 
 /** The parts of the discovery, each shown with its subject: the machines found in Machines › Untracked devices, the mode, the other
- *  suggestions and those forgotten in Application › Automatic discovery; the apps (to activate, stopped, forgotten) are Connectors › Detected to link */
+ *  suggestions and those forgotten in Collection › Discovery; the apps (to activate, stopped, forgotten) are Connectors › Detected to link */
 export type DiscoveryPart = "mode" | "hosts" | "suggestions" | "forgotten";
-/** Where an old #settings/network/<part> address now lives (null: Application › Automatic discovery, #settings/discovery) */
+/** Where an old #settings/network/<part> address now lives (null: Collection › Discovery, #settings/discovery) */
 export function discoveryMoved(hash: string): string | null {
   const v = hash.split("/")[2];
   if (v === "hosts" || v === "network" || v === "scan") return "#settings/machines/devices";

@@ -26,8 +26,8 @@ const unifiShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c
 const freeboxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "freebox");
 const scanShown = (s: Snapshot) => (s.data.network ?? []).some((c) => c.connector === "mynetwork");
 
-/** The side menu, in four groups; an entry whose source is missing is left out, and so is a group left empty. The pages of
- *  Settings (#settings/<section>[/<part>]) are spread over the topic they set and the Administration group. */
+/** The side menu, in five groups; an entry whose source is missing is left out, and so is a group left empty. The pages of
+ *  Settings (#settings/<section>[/<part>]) are spread over the topic they set, the Collection group (connectors, discovery, tasks) and the Administration group. */
 export const NAV: NavGroup[] = [
   { id: "overview", label: tx("En bref"), items: [   // « Vue d'ensemble » is Security's page alone
     { id: "home", hash: "", tab: "home", icon: House, label: tx("Accueil"), subs: [
@@ -101,13 +101,17 @@ export const NAV: NavGroup[] = [
       sub("security-wazuh", "security/wazuh", "security", ShieldCheck, "Wazuh", (s) => (s.data.services_status ?? []).some((c) => c.connector === "wazuh")),   // a Wazuh connector
     ] },
   ] },
-  { id: "admin", label: tx("Administration"), items: [
+  { id: "collect", label: tx("Collecte"), items: [   // what feeds the app: the sources it reads, what it finds by itself, when it runs
     { id: "connectors", hash: "settings/connectors", tab: "settings", icon: Plug, label: tx("Connecteurs"), subs: [
       sub("connectors-mine", "settings/connectors", "settings", Plug, tx("Mes connecteurs")),
       sub("connectors-available", "settings/connectors/available", "settings", Plus, tx("Disponibles")),
       sub("connectors-detected", "settings/connectors/detected", "settings", Radar, tx("Détectés à relier")),
       sub("connectors-read", "settings/connectors/read", "settings", Server, tx("Déjà lus par SSH ou agent")),
     ] },
+    { id: "discovery", hash: "settings/discovery", tab: "settings", icon: ScanSearch, label: tx("Découverte") },   // its mode, what to do, the other suggestions
+    { id: "tasks", hash: "settings/tasks", tab: "settings", icon: Timer, label: tx("Tâches et horaires") },
+  ] },
+  { id: "admin", label: tx("Administration"), items: [
     { id: "alerts", hash: "settings/alerts/channels", tab: "settings", icon: Bell, label: tx("Notifications"), subs: [   // where and when the alerts are sent
       sub("alerts-channels", "settings/alerts/channels", "settings", Radio, tx("Canaux")),
       sub("alerts-rules", "settings/alerts/rules", "settings", ListChecks, tx("Règles d'alerte")),
@@ -119,9 +123,7 @@ export const NAV: NavGroup[] = [
       sub("accounts", "settings/accounts", "settings", Users, tx("Comptes et sessions")),
       sub("api", "settings/api", "settings", Webhook, tx("Jetons API et MCP")),
     ] },
-    { id: "app", hash: "settings/tasks", tab: "settings", icon: SlidersHorizontal, label: tx("Application"), subs: [
-      sub("tasks", "settings/tasks", "settings", Timer, tx("Tâches et horaires")),
-      sub("discovery", "settings/discovery", "settings", ScanSearch, tx("Découverte automatique")),   // its mode, what to do, the other suggestions
+    { id: "app", hash: "settings/updates", tab: "settings", icon: SlidersHorizontal, label: tx("Application"), subs: [
       sub("updates", "settings/updates", "settings", RefreshCw, tx("Mises à jour")),
       sub("mail", "settings/mail", "settings", Mail, tx("E-mail")),
       sub("export", "settings/export", "settings", ArrowDownUp, tx("Export et import")),
@@ -193,7 +195,7 @@ export function activeNav(hash: string, groups: NavGroup[]): string {
   return best?.id ?? "";
 }
 
-/** The entry an address belongs to, and its page when it has sub-pages: the title of a page (« Application › Tâches et horaires ») */
+/** The entry an address belongs to, and its page when it has sub-pages: the title of a page (« Collecte › Tâches et horaires ») */
 export function navTrail(hash: string): { item?: NavItem; sub?: NavItem } {
   const id = activeNav(hash, NAV);
   for (const i of NAV.flatMap((g) => g.items)) {

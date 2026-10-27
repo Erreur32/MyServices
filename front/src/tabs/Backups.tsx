@@ -2,7 +2,7 @@
 // produced), to watch, and the sets (filters: in use, flagged, archived), each unfolding its detail; « Set » opens the page of the set in
 // Backups → Settings. The local folders and cron lines no set claims are listed there too (« To link »).
 import { usePageView } from "../lib/route";
-import { ChevronDown, ChevronUp, HardDrive, Layers, Monitor, Terminal, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronUp, HardDrive, Layers, Monitor, Plus, Terminal, SlidersHorizontal } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
@@ -12,12 +12,13 @@ import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Pct, Table, TableCard
 import { FoldPanel } from "../components/FoldPanel";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
-import { quiet } from "../lib/forms";
+import { primary, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { SettingsLink } from "../components/SettingsLink";
 import { StatTile } from "../components/StatTile";
 import { cronsOf, figures, newestOf, rank, sourceOf, unclaimedCrons } from "../lib/backupsState";
 import { HeadTags } from "../components/HeadTags";
+import { PageHead } from "../components/PageHead";
 import { MachineIcon } from "../components/MachineIcon";
 import { useStoredFlag } from "../lib/storedFlag";
 
@@ -179,8 +180,8 @@ function ByMachine({ b, initial, onSets }: Readonly<{ b: BackupsData; initial?: 
       {h.disks.map((d) => (
         <span key={d.mount} className="flex items-center gap-2 text-xs">
           <span className="w-20 truncate font-mono" title={d.mount}>{d.mount}</span>
-          <Fill pct={d.pct} /><Pct value={d.pct} />
-          <span className="whitespace-nowrap"><Dim>{bytes(d.avail)} {tx("libres")}</Dim></span>
+          <Fill pct={d.pct} /><span className="w-10 text-right tabular-nums"><Pct value={d.pct} /></span>
+          <span className="w-28 whitespace-nowrap text-right tabular-nums"><Dim>{bytes(d.avail)} {tx("libres")}</Dim></span>
         </span>
       ))}
     </div>
@@ -306,10 +307,8 @@ export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; ini
   const sources = [...new Set((b.hosts ?? []).map((h) => h.kind).filter(Boolean))];
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-bold"><HardDrive size={18} aria-hidden />{tx("Sauvegardes")}</h1>
-        <HeadTags counts={[tx("{0} jeux", sm.sets), { text: tx("{0} machines", sm.hosts), title: sources.join(", ") || undefined }]} at={b.generated} />
-      </div>
+      <PageHead icon={HardDrive} title={tx("Sauvegardes")} tags={<HeadTags counts={[tx("{0} jeux", sm.sets), { text: tx("{0} machines", sm.hosts), title: sources.join(", ") || undefined }]} at={b.generated} />}
+        actions={snap.me.role === "admin" && <a href="#settings/backups/add" className={`${primary} py-1 no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter des sauvegardes")}</a>} />
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <StatTile n={fig.ok} label={tx("À jour")} tone="ok" sub={fig.offsiteExpected ? tx("copie ailleurs : {0} sur {1}", fig.offsiteOk, fig.offsiteExpected) : undefined} />
         <StatTile n={fig.warn} label={tx("En retard")} tone={fig.warn ? "warn" : undefined} />

@@ -12,6 +12,8 @@ import { InfoNote } from "../components/InfoNote";
 import { Badge, Dim, Empty } from "../components/ui";
 import { pageViewTarget } from "../lib/route";
 import { StatTile } from "../components/StatTile";
+import { BarsTile } from "../components/HistoryTile";
+import { sumSeries } from "../lib/tileHistory";
 import { WatchPanel } from "../components/WatchPanel";
 import { splitHostName } from "../lib/format";
 import { quiet, worstTone } from "../lib/forms";
@@ -22,6 +24,7 @@ import { risky } from "../lib/ssh";
 import { accessFindings } from "../lib/accessFindings";
 import { useAccessData } from "../components/SecurityAccess";
 import { HeadTags } from "../components/HeadTags";
+import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { WazuhPage } from "../components/WazuhPage";
 
 type Sub = "overview" | "fail2ban" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
@@ -54,7 +57,7 @@ function Figures({ snap, findings, admin }: Readonly<{ snap: Snapshot; findings:
   return (
     <div className="flex gap-2.5 overflow-x-auto pb-1">
       <StatTile n={sites.length} label={tx("Sites exposés")} tone={tone("sites")} sub={sites.length ? tx("{0} avec un manque · {1} « public voulu »", gaps, wanted) : tx("tous derrière une liste d'accès")} />
-      <StatTile n={sources.length ? bans24 : "-"} label={tx("Fail2ban, 24 h")} tone={sources.length ? tone("fail2ban") : undefined}
+      <BarsTile n={sources.length ? bans24 : "-"} label={tx("Fail2ban, 24 h")} tone={sources.length ? tone("fail2ban") : undefined} values={sumSeries(sources.map((c) => c.stats?.hours ?? []))}
         sub={sources.length ? tx("bannissements · {0} prison(s) · {1} menace(s)", jails, threats) : tx("non relié")} />
       <StatTile n={ssh.length ? weakSsh : "-"} label={tx("Accès SSH")} tone={ssh.length ? tone("ssh") : undefined} sub={ssh.length ? tx("sur {0} machine(s), un réglage faible", ssh.length) : tx("aucune machine lue par SSH")} />
       <StatTile n={soon} label={tx("Certificats")} tone={tone("certs")} sub={certs[0] ? tx("le plus proche : {0}, {1} j", certs[0].name, certs[0].days) : tx("aucun certificat lu")} />
@@ -222,21 +225,13 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
   if (sub === "wazuh") return <WazuhPage snap={snap} admin={admin} />;   // its own entry of the side menu, shown when a Wazuh is read
   if (sub === "fail2ban") return (   // its own entry of the side menu, under Security: Fail2ban only
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-bold"><Ban size={18} aria-hidden />{tx("Fail2ban")}</h1>
-        <HeadTags sources={[tools[0]]} at={snap.data.generated} />
-        {admin && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
-      </div>
+      <PageHead icon={Ban} title={tx("Fail2ban")} tags={<HeadTags sources={[tools[0]]} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
       {sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>}
     </div>
   );
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="flex items-center gap-2 text-xl font-bold"><ShieldCheck size={18} aria-hidden />{tx("Sécurité")}</h1>
-        <HeadTags counts={[bySsh]} sources={tools} at={snap.data.generated} />
-        {admin && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
-      </div>
+      <PageHead icon={ShieldCheck} title={tx("Sécurité")} tags={<HeadTags counts={[bySsh]} sources={tools} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
       <Figures snap={snap} findings={findings} admin={admin} />
       {sub === "overview" && <Watch rows={rows} open={pick} />}
       {sub === "sites" && <SitesList snap={snap} />}
