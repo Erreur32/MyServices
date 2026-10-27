@@ -18,7 +18,10 @@ function room(small: boolean, hasChart: boolean): string {
 }
 
 /** How a tile shares the row: its own size, twice the room, or an equal share */
-const grow = (wide: boolean, compact: boolean): string => (compact ? "flex-none" : wide ? "flex-[2]" : "flex-1");
+const grow = (wide: boolean, compact: boolean): string => {
+  if (compact) return "flex-none";
+  return wide ? "flex-[2]" : "flex-1";
+};
 
 export function StatTile({ n, label, sub, hint, tone, small = false, children, aside, wide = false, compact = false, onClick, pressed }: TileProps) {   // hint: what the figure counts, on hover   // small: a row of figures sharing its line; children: under the fact (a small curve, a time)
   const figure = <div className={`whitespace-nowrap font-mono font-bold ${small ? "text-base leading-tight" : "text-xl"} ${tone ? COLOR[tone] : ""}`}>{n}</div>;

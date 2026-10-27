@@ -17,6 +17,7 @@ from pathlib import Path
 
 KEEP_S = 7 * 24 * 3600
 MIN_GAP = 540
+LIVE_GAP = 55   # s, the keys read every minute (GPU, DNS answers): two points at least this far apart
 HEALTH = "machines.health"
 NET_GEAR, NET_CLIENTS, NET_DEVICES = "network.gear", "network.clients", "network.devices"
 NETWORK = (NET_GEAR, NET_CLIENTS, NET_DEVICES)
@@ -107,13 +108,27 @@ def network_points(data: dict) -> dict[str, tuple[int, int]]:
     return out
 
 
+def _followed(h: dict) -> bool:
+    """A service is followed unless it is paused, its machine or container stopped on purpose, or it is disabled."""
+    return not (h.get("paused") or h.get("machine_off") or h.get("stopped")) and bool(h.get("enabled"))
+
+
+def _proxied_warns(h: dict, p: dict, b: dict) -> bool:
+    """The warning of a service behind the proxy (the last rules of front lib/status.ts): none while its backend is down or answers an error."""
+    if b.get("internal") or b.get("up") is False or (p.get("code") or 0) >= 500:
+        return False
+    if p.get("err") == "RemoteDisconnected":
+        return not h.get("closes_root")
+    return bool(p.get("err"))
+
+
 def _service_warns(h: dict) -> bool | None:
     """True when a service of data.json is « to watch » (front lib/status.ts, class warn), False when it is in another state, None when it is not
     followed (paused, machine or container stopped on purpose, disabled, listening on an internal address only)."""
+    if not _followed(h):
+        return None
     p, b = h.get("public") or {}, h.get("backend") or {}
     kind = h.get("type")
-    if h.get("paused") or h.get("machine_off") or h.get("stopped") or not h.get("enabled"):
-        return None
     if kind == "dead":
         return p.get("code") != 404
     if kind == "stream":
@@ -122,11 +137,7 @@ def _service_warns(h: dict) -> bool | None:
         return bool(p.get("code")) and ((h.get("follow") or {}).get("code") or 0) >= 500
     if kind == "local":
         return None if b.get("internal") and not b.get("up") else False
-    if b.get("internal") or b.get("up") is False or (p.get("code") or 0) >= 500:
-        return False
-    if p.get("err") == "RemoteDisconnected":
-        return not h.get("closes_root")
-    return bool(p.get("err"))
+    return _proxied_warns(h, p, b)
 
 
 def _service_down(h: dict) -> bool:
@@ -197,46 +208,77 @@ def _mean(values: list[float]) -> int | None:
     return round(sum(values) / len(values)) if values else None
 
 
-def ai_points(data: dict, stats: dict | None = None) -> dict[str, tuple[int, int]]:
-    """{key: (value, total)} of the « IA et agents » tiles from data.json (and the machine memory of stats.json), counted like the page: the GPUs
-    GpuViewR reads on machines that answer (load, memory in use, hottest, power), the engines and agent platforms read, the models loaded."""
+def _gpu_points(gpus: list[dict]) -> dict[str, tuple[int, int]]:
+    """The GPU tiles: mean load, memory in use, hottest, power (and its limit) over the GPUs given."""
     out: dict[str, tuple[int, int]] = {}
-    rows = [c for c in data.get("services_status") or [] if isinstance(c, dict)]
-    gpus, ips = [], set()
-    for c in rows:
-        if c.get("connector") != "gpuviewr":
-            continue
-        for m in c.get("machines") or []:
-            if isinstance(m, dict) and m.get("online"):
-                gpus += [g for g in m.get("gpus") or [] if isinstance(g, dict)]
-                ips.update(m.get("ips") or [])
-    loads = [g["util"] for g in gpus if g.get("util") is not None]
-    if loads:
-        out["ai.gpu"] = (_mean(loads), 100)
+    if (load := _mean([g["util"] for g in gpus if g.get("util") is not None])) is not None:
+        out["ai.gpu"] = (load, 100)
     used, total = sum(g.get("mem_used") or 0 for g in gpus), sum(g.get("mem_total") or 0 for g in gpus)
     if total:
         out["ai.vram"] = (round(used / total * 100), 100)
     if temps := [g["temp"] for g in gpus if g.get("temp") is not None]:
         out["ai.temp"] = (round(max(temps)), 100)
     if watts := [g["power"] for g in gpus if g.get("power") is not None]:
-        w, limit = round(sum(watts)), round(sum(g.get("power_limit") or 0 for g in gpus))
-        out["ai.power"] = (w, max(w, limit))
-    def role(c: dict) -> str | None:
-        return (c.get("ai") or {}).get("role")
-    engines = [c for c in rows if role(c) == "engine"]
-    if engines:
+        w = round(sum(watts))
+        out["ai.power"] = (w, max(w, round(sum(g.get("power_limit") or 0 for g in gpus))))
+    return out
+
+
+def _ai_role(c: dict) -> str | None:
+    return (c.get("ai") or {}).get("role")
+
+
+def _ai_content_points(rows: list[dict]) -> dict[str, tuple[int, int]]:
+    """The tiles of the content: engines answering, models loaded, agent platforms connected."""
+    out: dict[str, tuple[int, int]] = {}
+    if engines := [c for c in rows if _ai_role(c) == "engine"]:
         out["ai.engines"] = (sum(1 for c in engines if c.get("ok")), len(engines))
-        models = [m for c in engines for m in (c.get("ai") or {}).get("models") or [] if isinstance(m, dict)]
-        if models:
+        if models := [m for c in engines for m in (c.get("ai") or {}).get("models") or [] if isinstance(m, dict)]:
             out["ai.models"] = (sum(1 for m in models if m.get("loaded")), len(models))
-    plats = [p for c in rows if role(c) == "agent" for p in (c.get("ai") or {}).get("platforms") or [] if isinstance(p, dict)]
-    if plats:
+    if plats := [p for c in rows if _ai_role(c) == "agent" for p in (c.get("ai") or {}).get("platforms") or [] if isinstance(p, dict)]:
         out["ai.agents"] = (sum(1 for p in plats if p.get("state") == "connected"), len(plats))
+    return out
+
+
+def _ai_machines(rows: list[dict]) -> tuple[list[dict], set[str]]:
+    """The GPUs, and the addresses, of the machines GpuViewR reads that answer."""
+    gpus: list[dict] = []
+    ips: set[str] = set()
+    for m in (m for c in rows if c.get("connector") == "gpuviewr" for m in c.get("machines") or []):
+        if isinstance(m, dict) and m.get("online"):
+            gpus += [g for g in m.get("gpus") or [] if isinstance(g, dict)]
+            ips.update(m.get("ips") or [])
+    return gpus, ips
+
+
+def ai_points(data: dict, stats: dict | None = None) -> dict[str, tuple[int, int]]:
+    """{key: (value, total)} of the « IA et agents » tiles from data.json (and the machine memory of stats.json), counted like the page: the GPUs
+    GpuViewR reads on machines that answer (load, memory in use, hottest, power), the engines and agent platforms read, the models loaded."""
+    rows = [c for c in data.get("services_status") or [] if isinstance(c, dict)]
+    gpus, ips = _ai_machines(rows)
+    out = {**_gpu_points(gpus), **_ai_content_points(rows)}
     mem = [h["res"]["mem_pct"] for h in (stats or {}).get("hosts") or []
            if isinstance(h, dict) and str(h.get("name", "")).rsplit(" · ", 1)[-1] in ips and (h.get("res") or {}).get("mem_pct") is not None]
-    if mem_avg := _mean(mem):
-        out["ai.ram"] = (mem_avg, 100)
+    if (ram := _mean(mem)) is not None:
+        out["ai.ram"] = (ram, 100)
     return out
+
+
+def sample_gpu_live(db_path: str | Path, state_file: Path, now: float | None = None) -> int:
+    """The GPU tiles from the readings the GpuViewR readers keep in the shared state (connectors.json), at the time of the reading: no call of
+    its own, a point only when the connector has read again. How many points were added."""
+    now = now or time.time()
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    rows = [{"connector": "gpuviewr", "machines": e["last"].get("machines") or []} for k, e in (state.items() if isinstance(state, dict) else [])
+            if str(k).startswith("gpuviewr/") and isinstance(e, dict) and isinstance(e.get("last"), dict)]
+    ats = [e["at"] for k, e in state.items() if str(k).startswith("gpuviewr/") and isinstance(e, dict) and isinstance(e.get("at"), (int, float))] if rows else []
+    if not rows or not ats:
+        return 0
+    points = _gpu_points(_ai_machines(rows)[0])
+    return sum(store(db_path, key, (int(max(ats)), *vt), now, gap=LIVE_GAP) for key, vt in points.items())
 
 
 def sample_ai(db_path: str | Path, data_file: Path, stats_file: Path, now: float | None = None) -> int:
@@ -253,6 +295,21 @@ def sample_ai(db_path: str | Path, data_file: Path, stats_file: Path, now: float
     return sum(store(db_path, key, (int(now), *vt), now) for key, vt in ai_points(data, stats).items())
 
 
+def _virt_nodes_points(nodes: list[dict]) -> dict[str, tuple[int, int]]:
+    """The hosts online, and the mean processor and memory of the ones online."""
+    up = [n for n in nodes if n.get("online")]
+    out = {"virt.hosts": (len(up), len(nodes))}
+    for key, field in (("virt.cpu", "cpu_pct"), ("virt.mem", "mem_pct")):
+        if (avg := _mean([n[field] for n in up if n.get(field) is not None])) is not None:
+            out[key] = (avg, 100)
+    return out
+
+
+def _vzdump_sets(backups: dict | None) -> list[dict]:
+    """The sets followed that are the vzdump of a machine."""
+    return [x for x in (backups or {}).get("sets") or [] if isinstance(x, dict) and not x.get("archived") and ((x.get("locations") or [{}])[0] or {}).get("vzdump")]
+
+
 def virt_points(data: dict, backups: dict | None = None) -> dict[str, tuple[int, int]]:
     """{key: (value, total)} of the Virtualization tiles from data.json (the hosts and machines every hypervisor read gives) and backups.json
     (the sets that are the vzdump of a machine), counted like the page: hosts online, machines running (templates out), the mean processor and
@@ -260,19 +317,12 @@ def virt_points(data: dict, backups: dict | None = None) -> dict[str, tuple[int,
     rows = [c for c in data.get("virtualization") or [] if isinstance(c, dict)]
     nodes = [n for c in rows for n in c.get("nodes") or [] if isinstance(n, dict)]
     guests = [g for c in rows for g in c.get("guests") or [] if isinstance(g, dict) and not g.get("template")]
-    out: dict[str, tuple[int, int]] = {}
-    if nodes:
-        up = [n for n in nodes if n.get("online")]
-        out["virt.hosts"] = (len(up), len(nodes))
-        for key, field in (("virt.cpu", "cpu_pct"), ("virt.mem", "mem_pct")):
-            if (avg := _mean([n[field] for n in up if n.get(field) is not None])) is not None:
-                out[key] = (avg, 100)
+    out = _virt_nodes_points(nodes) if nodes else {}
     if guests:
         out["virt.guests"] = (sum(1 for g in guests if g.get("status") == "running"), len(guests))
     if used := [st["used_pct"] for c in rows for st in c.get("storage") or [] if isinstance(st, dict) and st.get("used_pct") is not None]:
         out["virt.storage"] = (round(max(used)), 100)
-    sets = [x for x in (backups or {}).get("sets") or [] if isinstance(x, dict) and not x.get("archived") and ((x.get("locations") or [{}])[0] or {}).get("vzdump")]
-    if sets:
+    if sets := _vzdump_sets(backups):
         out["virt.backups"] = (sum(1 for x in sets if x.get("level") == "ok"), len(sets))
     return out
 
@@ -323,9 +373,10 @@ def sample_network(db_path: str | Path, data_file: Path, now: float | None = Non
     return sum(store(db_path, key, (ts, *vt), now) for key, vt in network_points(data).items())
 
 
-def store(db_path: str | Path, key: str, pt: tuple[int, int, int], now: float | None = None, gap: int = MIN_GAP) -> int:
+def store(db_path: str | Path, key: str, pt: tuple[int, int, int], now: float | None = None, gap: int | None = None) -> int:
     """One point (time, value, total) unless the key has one less than `gap` s older; purges what is past KEEP_S."""
     ts, value, total = pt
+    gap = MIN_GAP if gap is None else gap
     oldest = int((now or time.time()) - KEEP_S)
     with _db(db_path) as db:
         db.execute("DELETE FROM tile_samples WHERE ts < ?", (oldest,))

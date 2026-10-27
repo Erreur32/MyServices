@@ -65,15 +65,16 @@ class Points(unittest.TestCase):
         self.assertEqual(got["dns.ext.8.8.8.8.up"], (0, 1))
         self.assertNotIn("dns.ext.8.8.8.8.ms", got)   # no latency for a resolver that did not answer
 
-    def test_sample_stores_once_per_gap(self):
+    def test_sample_stores_once_per_minute(self):
         original = dp.latency_ms
         dp.latency_ms = lambda ip, *a, **k: 7
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 db = Path(tmp) / "t.db"
                 self.assertEqual(dp.sample(db, ["10.0.0.1"], now=10_000), 5)   # local + 2 x (answers, latency)
-                self.assertEqual(dp.sample(db, ["10.0.0.1"], now=10_060), 0)
-                self.assertEqual(th.series(db, dp.LOCAL, 24, now=10_060), [[10_000, 1, 1]])
+                self.assertEqual(dp.sample(db, ["10.0.0.1"], now=10_010), 0)   # the same minute
+                self.assertEqual(dp.sample(db, ["10.0.0.1"], now=10_060), 5)   # the next one
+                self.assertEqual(th.series(db, dp.LOCAL, 24, now=10_060), [[10_000, 1, 1], [10_060, 1, 1]])
         finally:
             dp.latency_ms = original
 

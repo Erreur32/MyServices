@@ -1,5 +1,5 @@
 """Do the DNS servers answer, and how fast: a real query (an A record) sent to each AdGuard of the DNS page and to a few public resolvers
-(Cloudflare, Google). Kept for the DNS tiles in tile_history's table at each collection: for the local servers [time, answering, asked], for each
+(Cloudflare, Google). Kept for the DNS tiles in tile_history's table every minute: for the local servers [time, answering, asked], for each
 public resolver [time, latency in ms, 0] (only when it answered) and [time, answered, 1] (so the share of answers over a period is known). 7 days kept."""
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import tile_history as th
 QUERY_NAME = "cloudflare.com"   # a name no blocklist holds back: an answer, even a refusal, proves the server is alive
 TIMEOUT = 2.0
 LOCAL = "dns.local"
-EXTERNAL = (("Cloudflare", "1.1.1.1"), ("Google", "8.8.8.8"))
+EXTERNAL = (("Cloudflare", "1.1.1.1"), ("Google", "8.8.8.8"))  # NOSONAR S1313: the public resolvers the tiles test, written on purpose
 
 
 def ext_keys(ip: str) -> tuple[str, str]:
@@ -60,4 +60,4 @@ def probe(local: list[str], external=EXTERNAL) -> dict[str, tuple[int, int]]:
 def sample(db_path: str | Path, local: list[str], now: float | None = None, external=EXTERNAL) -> int:
     """One round of tests stored; how many points were added."""
     now = now or time.time()
-    return sum(th.store(db_path, key, (int(now), *vt), now) for key, vt in probe(local, external).items())
+    return sum(th.store(db_path, key, (int(now), *vt), now, gap=th.LIVE_GAP) for key, vt in probe(local, external).items())

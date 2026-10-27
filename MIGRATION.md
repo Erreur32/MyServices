@@ -11,7 +11,8 @@ Keep a copy of `config/` and `data/` before any update.
 
 - **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
 - **Behaviour that changes by itself**: the Backups, Services warning and Network tiles draw their history, and the Network page gains **Download** and **Upload** tiles. They start empty and fill at each collection (`tile_samples` table, a few thousand more rows, 7 days kept). A new background thread reads the Internet link rate every 2 minutes at most: the Freebox from the connector readers' shared reading (no extra call), the UniFi gateway from the UniFi cards (one MynetworK or controller call at most every 30 s, shared with the pages). UniFi's rate needs MynetworK 0.11.1+ or a UniFi connector with a local account; without it only the Freebox is drawn.
-- **Optional**: the Freebox rate is read every `fast_every` seconds (300 by default); lower it for the MynetworK connector in Settings → Connectors for a finer curve.
+- **Behaviour that changes by itself**: the Agents, AI and agents, Virtualization, DNS and Services pages gain tiles with a history, which start empty and fill at each collection (every 15 minutes). A new background thread sends one DNS query per minute to each DNS server of the DNS page and to Cloudflare (1.1.1.1) and Google (8.8.8.8): if your network blocks outgoing DNS to the Internet, the *External DNS latency* tile stays empty. The Internet rate is kept every minute instead of every two.
+- **Optional**: the Freebox rate is read every `fast_every` seconds (300 by default); lower it for the MynetworK connector in Settings → Connectors for a finer curve. The same setting (« Read every ... min ») makes the GPU curves finer: set GpuViewR to 1 minute.
 
 ## 0.25.0 → 0.26.0
 

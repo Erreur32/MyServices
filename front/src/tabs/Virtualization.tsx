@@ -13,6 +13,7 @@ import { PbsCard } from "../components/InfraCards";
 import { HistoryTile, useVirtHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import { virtFigures } from "../lib/virtFigures";
+import { levelTone, shareTone } from "../lib/figureTones";
 import type { TilePoint } from "../lib/tileHistory";
 
 const HYPERVISORS = ["proxmox", "pulse", "esxi", "vcenter", "pdm", "unraid", "libvirt", "incus", "lxd", "virtualbox", "hyperv"];
@@ -202,7 +203,7 @@ export function Virtualization({ snap, onMachine }: { snap: Snapshot; onMachine:
   const pve = virt.filter((c) => HYPERVISORS.includes(c.connector)), pbs = virt.filter((c) => c.connector === "proxmox-backup");
   const [hours, setHours] = usePeriod(), hist = useVirtHistory(hours, snap.data.generated), now = Math.floor(Date.now() / 1000);
   const fig = virtFigures(pve, snap.backups?.sets), common = { hours, now } as const;
-  const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1], level = (p: TilePoint) => `${p[1]} %`, hot = (v: number | null, limit: number) => (v == null ? undefined : v >= limit ? "warn" : "ok");
+  const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1], level = (p: TilePoint) => `${p[1]} %`, hot = levelTone;
   const tools = [...new Map(pve.map((c) => [c.connector, c.label || c.connector])).entries()].map(([id, label]) => {
     const of = pve.filter((c) => c.connector === id);
     return { id, label, hosts: of.reduce((n, c) => n + (c.nodes ?? []).length, 0), guests: of.reduce((n, c) => n + (c.guests ?? []).filter((g) => !g.template).length, 0), down: of.filter((c) => !c.ok).length };
@@ -215,7 +216,7 @@ export function Virtualization({ snap, onMachine }: { snap: Snapshot; onMachine:
         <>
           <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
           <div className="flex flex-wrap gap-2.5 pb-1">
-            <HistoryTile n={`${fig.hostsUp}/${fig.hosts}`} label={tx("Hôtes en ligne")} tone={fig.hosts ? (fig.hostsUp < fig.hosts ? "bad" : "ok") : undefined} kind="strip" points={hist?.hosts ?? null} {...common} figure={missing} fmt={(p) => tx("{0} hôte(s) hors ligne", missing(p))} goodHigh />
+            <HistoryTile n={`${fig.hostsUp}/${fig.hosts}`} label={tx("Hôtes en ligne")} tone={shareTone(fig.hostsUp, fig.hosts, "bad")} kind="strip" points={hist?.hosts ?? null} {...common} figure={missing} fmt={(p) => tx("{0} hôte(s) hors ligne", missing(p))} goodHigh />
             <HistoryTile n={`${fig.running}/${fig.guests}`} label={tx("Machines en marche")} fact={tx("{0} machines suivies, modèles exclus", fig.guests)} dips={false} kind="curve" points={hist?.guests ?? null} {...common} figure={(p) => p[1]} fmt={ratio} goodHigh />
             <HistoryTile n={fig.cpu == null ? "-" : `${fig.cpu} %`} label={tx("Processeur moyen")} tone={hot(fig.cpu, 80)} fact={tx("des hôtes en ligne")} scale={100} kind="curve" points={hist?.cpu ?? null} {...common} figure={(p) => p[1]} fmt={level} goodHigh={false} />
             <HistoryTile n={fig.mem == null ? "-" : `${fig.mem} %`} label={tx("Mémoire moyenne")} tone={hot(fig.mem, 80)} fact={tx("des hôtes en ligne")} scale={100} kind="curve" points={hist?.mem ?? null} {...common} figure={(p) => p[1]} fmt={level} goodHigh={false} />

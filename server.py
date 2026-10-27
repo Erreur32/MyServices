@@ -40,6 +40,7 @@ from config import CFG
 HERE = Path(__file__).resolve().parent
 STATIC = HERE / "web"
 WEB = Path(CFG["web_dir"])
+BACKUPS_FILE = "backups.json"
 PREFIX = "/"
 PORT = int(os.environ.get("MYSERVICES_PORT", "8090"))
 COOLDOWN = int(os.environ.get("MYSERVICES_REFRESH_COOLDOWN", "300"))
@@ -228,7 +229,7 @@ def auto_backup_default() -> None:
             log(f"sauvegardes : {a['path']} trouvé sur {a['name']}, suivi automatiquement (Réglages → Sauvegardes pour le retirer)")
         if added:
             if not CFG.get("backups_url"):
-                system.set_backups_url(sys.modules[__name__], "backups.json")
+                system.set_backups_url(sys.modules[__name__], BACKUPS_FILE)
             # one run for all the machines found (one per machine queued a full collection each, two minutes apiece)
             run_chain(["backups", "collect"], "sauvegarde automatique de " + ", ".join(a["name"] for a in added))
     except Exception as e:  # noqa: BLE001 : jamais bloquant
@@ -284,7 +285,30 @@ def pulse_loop() -> None:
         time.sleep(max(1.0, (every or 5) - (time.time() - t0)))
 
 
-BANDWIDTH_EVERY = 120   # s, between two readings of the Internet link rate (Freebox through the shared reading, UniFi through the cards)
+BANDWIDTH_EVERY = 60   # s, between two readings of the Internet rate (the tiles want it almost live; the sources are shared readings)
+TILES_LIVE_EVERY = 60   # s, between two rounds of the tiles read every minute (GPU, DNS answers)
+
+
+def tiles_live_round() -> None:
+    """One round of the tiles read every minute: the DNS servers (a real query to each, dns_probe.py) and the GPU readings the readers hold (no call
+    of its own). Each is kept on its own."""
+    import dns_probe
+    import tile_history
+    from auth import db_path
+    db = db_path(CFG)
+    for name, step in {"cadres DNS": lambda: dns_probe.sample(db, local_dns_servers()),
+                       "cadres GPU": lambda: tile_history.sample_gpu_live(db, Path(CFG["state_dir"]) / "connectors.json")}.items():
+        try:
+            step()
+        except Exception as e:  # base unavailable or a bug: only this history misses a point
+            log(f"⚠ {name} : {e}")
+
+
+def tiles_live_loop() -> None:
+    while True:
+        t0 = time.time()
+        tiles_live_round()
+        time.sleep(max(30.0, TILES_LIVE_EVERY - (time.time() - t0)))
 
 
 def bandwidth_loop() -> None:
@@ -331,19 +355,17 @@ def keep_availability() -> None:
     history (Network, Backups, Services, Agents, AI, Virtualization, DNS). Each one is kept on its own: one that fails leaves the others alone."""
     import agents
     import availability
-    import dns_probe
     import tile_history
     from auth import db_path
     db = db_path(CFG)
     steps = {
         "disponibilité": lambda: availability.sample(db, WEB / "data.json"),
         "cadres Réseau": lambda: tile_history.sample_network(db, WEB / "data.json"),
-        "cadres Sauvegardes": lambda: tile_history.sample_backups(db, WEB / "backups.json"),
+        "cadres Sauvegardes": lambda: tile_history.sample_backups(db, WEB / BACKUPS_FILE),
         "cadres Services": lambda: tile_history.sample_services(db, WEB / "data.json"),
         "cadres Agents": lambda: tile_history.sample_agents(db, agents.Agents(db).listing()),
         "cadres IA": lambda: tile_history.sample_ai(db, WEB / "data.json", WEB / "health" / "stats.json"),
-        "cadres Virtualisation": lambda: tile_history.sample_virt(db, WEB / "data.json", WEB / "backups.json"),
-        "cadres DNS": lambda: dns_probe.sample(db, local_dns_servers()),
+        "cadres Virtualisation": lambda: tile_history.sample_virt(db, WEB / "data.json", WEB / BACKUPS_FILE),
     }
     for name, step in steps.items():
         try:
@@ -740,7 +762,7 @@ def first_meta() -> None:
     log(f"installation neuve : {meta} créé avec la machine hôte ({ip}) ; ses ports en écoute sont relevés tout de suite")
 
 
-FIRST = {"collect": "data.json", "watch": "events.json", "health": "health/stats.json", "backups": "backups.json"}
+FIRST = {"collect": "data.json", "watch": "events.json", "health": "health/stats.json", "backups": BACKUPS_FILE}
 
 
 def first_runs() -> None:
@@ -799,6 +821,7 @@ def main() -> int:
     threading.Thread(target=pulse_loop, daemon=True, name="pulse").start()
     threading.Thread(target=fast_loop, daemon=True, name="fast").start()
     threading.Thread(target=bandwidth_loop, daemon=True, name="bandwidth").start()
+    threading.Thread(target=tiles_live_loop, daemon=True, name="tiles-live").start()
     threading.Thread(target=first_runs, daemon=True).start()
     import uvicorn
 

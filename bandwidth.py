@@ -12,7 +12,7 @@ from pathlib import Path
 
 import tile_history as th
 
-GAP_S = 100   # s, two points of a series at least this far apart (the cards are read every few minutes)
+GAP_S = 50   # s, two points of a series at least this far apart (read every minute)
 FBX_DOWN, FBX_UP, UNIFI_DOWN, UNIFI_UP = "bw.fbx.down", "bw.fbx.up", "bw.unifi.down", "bw.unifi.up"
 KEYS = (FBX_DOWN, FBX_UP, UNIFI_DOWN, UNIFI_UP)
 GATEWAYS = ("udm", "ugw", "uxg")
@@ -22,20 +22,24 @@ def _kbit(bytes_per_s: object) -> int | None:
     return round(bytes_per_s * 8 / 1000) if isinstance(bytes_per_s, (int, float)) and not isinstance(bytes_per_s, bool) and bytes_per_s >= 0 else None
 
 
+def _freebox_connection(name: str, entry: object) -> tuple[int, dict] | None:
+    """(time, connection) of a MynetworK entry of the shared state that carries the connection of the Freebox, None for any other entry."""
+    last = entry.get("last") if isinstance(entry, dict) and str(name).startswith("mynetwork/") else None
+    conn = ((last or {}).get("freebox") or {}).get("connection") if isinstance(last, dict) else None
+    at = entry.get("at") if isinstance(conn, dict) else None
+    return (int(at), conn) if isinstance(at, (int, float)) else None
+
+
 def freebox_points(state: dict) -> dict[str, tuple[int, int, int]]:
     """{key: (time, kbit/s, link kbit/s)} of the Freebox, from the first MynetworK reading of the shared state that carries its connection."""
     for name, entry in state.items():
-        last = entry.get("last") if isinstance(entry, dict) and str(name).startswith("mynetwork/") else None
-        conn = ((last or {}).get("freebox") or {}).get("connection") if isinstance(last, dict) else None
-        if not isinstance(conn, dict) or not isinstance(entry.get("at"), (int, float)):
+        found = _freebox_connection(name, entry)
+        if not found:
             continue
-        down, up = _kbit(conn.get("rate_down")), _kbit(conn.get("rate_up"))
-        at = int(entry["at"])
-        out = {}
-        if down is not None:
-            out[FBX_DOWN] = (at, down, round((conn.get("bandwidth_down") or 0) / 1000))
-        if up is not None:
-            out[FBX_UP] = (at, up, round((conn.get("bandwidth_up") or 0) / 1000))
+        at, conn = found
+        out = {key: (at, kbit, round((conn.get(cap) or 0) / 1000))
+               for key, rate, cap in ((FBX_DOWN, "rate_down", "bandwidth_down"), (FBX_UP, "rate_up", "bandwidth_up"))
+               if (kbit := _kbit(conn.get(rate))) is not None}
         if out:
             return out
     return {}

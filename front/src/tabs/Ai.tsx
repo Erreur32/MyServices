@@ -4,6 +4,7 @@
 import { ArrowRight, Bot, Cpu, Fan, Gauge, MemoryStick, Thermometer, Workflow, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Snapshot } from "../api";
+import { levelTone, shareTone } from "../lib/figureTones";
 import { aiAlerts, aiCards, aiFigures, aiGpus, aiLinks, aiModels, GPU_FULL, memPct, type AiCard, type AiRole, type GpuCard, type ModelRow } from "../lib/ai";
 import type { GpuRead } from "../types";
 import { useSort } from "../lib/filter";
@@ -52,7 +53,7 @@ function Overview({ snap, cards, models, gpus, admin }: Readonly<{ snap: Snapsho
   const engines = cards.filter((c) => c.role === "engine");
   const [hours, setHours] = usePeriod(), hist = useAiHistory(hours, snap.data.generated), now = Math.floor(Date.now() / 1000);
   const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1], level = (p: TilePoint) => `${p[1]} %`;
-  const hot = (v: number | null, limit: number) => (v != null && v >= limit ? "warn" : v == null ? undefined : "ok");
+  const hot = levelTone;
   const powerTop = Math.max(fig.powerLimit ?? 0, ...(hist?.power ?? []).map((p) => p[1]), 1);
   const dash = (v: number | null, unit: string) => (v == null ? "-" : `${v} ${unit}`);
   const common = { hours, now } as const;
@@ -68,7 +69,7 @@ function Overview({ snap, cards, models, gpus, admin }: Readonly<{ snap: Snapsho
         </div>
       )}
       <div className="flex flex-wrap gap-2.5 pb-1">
-        <HistoryTile n={fig.engines ? `${fig.enginesUp}/${fig.engines}` : engines.length} label={tx("Moteurs en ligne")} tone={fig.engines ? (fig.enginesUp < fig.engines ? "warn" : "ok") : undefined}
+        <HistoryTile n={fig.engines ? `${fig.enginesUp}/${fig.engines}` : engines.length} label={tx("Moteurs en ligne")} tone={shareTone(fig.enginesUp, fig.engines)}
           fact={[...new Set(engines.map((e) => e.title))].join(", ") || tx("aucun")} kind="strip" points={hist?.engines ?? null} {...common} figure={missing} fmt={(p) => tx("{0} moteur(s) hors ligne", missing(p))} goodHigh />
         <HistoryTile n={fig.models ? `${fig.modelsLoaded}/${fig.models}` : models.length} label={tx("Modèles chargés")} fact={tx("en mémoire, sur {0} modèles", models.length)} dips={false} kind="curve" points={hist?.models ?? null} {...common} figure={(p) => p[1]} fmt={ratio} goodHigh />
         <HistoryTile n={fig.platforms ? `${fig.platformsUp}/${fig.platforms}` : cards.filter((c) => c.role === "agent").length} label={tx("Agents")} tone={fig.platforms && fig.platformsUp < fig.platforms ? "warn" : undefined}

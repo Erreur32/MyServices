@@ -14,6 +14,7 @@ import { HistoryTile, useAgentsHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import type { TilePoint } from "../lib/tileHistory";
 import { agentHealth, agentSummary } from "../lib/accessLists";
+import { scoreTone } from "../lib/figureTones";
 import { dateTime } from "../lib/format";
 import type { AgentInfo, AgentsState, MachineConf } from "../types";
 import { tx } from "../lib/i18n";
@@ -30,7 +31,7 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border disabled:opacity-40";
 
 /** The health of an agent as a bar and its figure out of 100 (green from 80, orange from 50); the pointer tells what is missing */
-const healthTone = (n: number) => (n >= 80 ? "ok" : n >= 50 ? "warn" : "bad");
+const healthTone = (n: number) => scoreTone(n, 80, 50);
 const FILL = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad" };
 function HealthBar({ a }: Readonly<{ a: AgentInfo }>) {
   const h = agentHealth(a);

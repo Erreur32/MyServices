@@ -9,7 +9,7 @@ export function rateText(kbit: number): string {
 }
 
 /** The last point of a series, null without any */
-export const lastOf = (points: TilePoint[] | null): TilePoint | null => (points?.length ? points[points.length - 1] : null);
+export const lastOf = (points: TilePoint[] | null): TilePoint | null => (points?.at(-1) ?? null);
 
 /** The highest rate of the points kept for the period: the top of the scale shared by the curves shown (at least 1 so a flat line stays flat) */
 export const topOf = (lists: (TilePoint[] | null)[]): number => Math.max(1, ...lists.flatMap((l) => (l ?? []).map((p) => p[1])));

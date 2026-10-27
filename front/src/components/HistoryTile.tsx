@@ -57,7 +57,7 @@ function Strip({ points, hours, now, at, onMove, onLeave }: Readonly<{ points: T
 }
 
 function Curve({ points, hours, now, good, scale, dips, onMove, onLeave }: Readonly<{ points: TilePoint[]; hours: Period; now: number; good: boolean; scale?: number; dips: boolean; onMove: (f: number) => void; onLeave: () => void }>) {
-  const c = curve(points, hours, now, 120, 34, scale);
+  const c = curve(points, hours, now, 120, 34, { scale });
   if (!c.last) return null;
   const tone = good ? "rgb(var(--ok))" : "rgb(var(--warn))";
   return (

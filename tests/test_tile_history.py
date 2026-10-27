@@ -202,5 +202,24 @@ class VirtPoints(unittest.TestCase):
         self.assertNotIn("virt.backups", th.virt_points(self.DATA))
 
 
+class GpuLive(unittest.TestCase):
+    STATE = {"gpuviewr/a": {"at": 1000, "last": {"machines": [{"online": True, "ips": ["10.0.0.5"], "gpus": [{"util": 30, "temp": 55, "mem_used": 1, "mem_total": 4, "power": 80}]}]}},
+             "npm/x": {"at": 5, "last": {}}}
+
+    def test_a_point_per_reading_of_the_connector_not_per_look(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f, db = Path(tmp) / "connectors.json", Path(tmp) / "t.db"
+            f.write_text(json.dumps(self.STATE), encoding="utf-8")
+            self.assertEqual(th.sample_gpu_live(db, f, now=1010), 4)   # load, memory, temperature, power
+            self.assertEqual(th.sample_gpu_live(db, f, now=1020), 0)   # same reading
+            self.assertEqual(th.series(db, "ai.gpu", 24, now=1020), [[1000, 30, 100]])
+
+    def test_no_reading_no_point(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(th.sample_gpu_live(Path(tmp) / "t.db", Path(tmp) / "none.json"), 0)
+            (Path(tmp) / "c.json").write_text(json.dumps({"npm/x": {"at": 1, "last": {}}}), encoding="utf-8")
+            self.assertEqual(th.sample_gpu_live(Path(tmp) / "t.db", Path(tmp) / "c.json"), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

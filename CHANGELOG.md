@@ -18,6 +18,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### README
 - The README (English and French) now says the project is young but working, marks the connectors proven on a real network (in bold) and says the others were written from the documentation and tried against simulated servers only. The connector table lists the whole family (about 60), and the menu paths are the current ones (Collection › Connectors, Collection › Discovery).
 
+### Tiles read more often
+- The tiles whose figure moves are now kept **almost live**, without a call more to the services: the **Internet rate** is kept every minute (it was 2), the **GPU** tiles (load, memory, temperature, power) every time the GpuViewR connector reads again (a point only per new reading, taken from the readers' shared state), and the **DNS answers and latency** every minute (one UDP packet to each server). The rest (health, services, agents, backups, storage, virtualization, engines and models) stays at each collection, every 15 minutes. How often a connector is read is still its own setting (Settings › Connectors, « Read every ... min »): set GpuViewR to 1 minute for a GPU curve that moves.
+- Fixed with it: the history store kept points at least 9 minutes apart for every key; the keys read every minute now keep points 55 seconds apart.
+
 ### Virtualization
 - Six **tiles with a history** above the hosts (period switch 24 h, 3 days, 7 days), for every hypervisor read together: **hosts online** (strip), **machines running** (templates left out), **average processor** and **average memory** of the hosts online, the **fullest storage** (its name below), and **backups up to date** (the vzdump sets followed in Backups, a strip). Under them, one pill per tool (Proxmox, vCenter, ESXi…) with its hosts and machines. Counted on the server like the page (`tile_history.virt_points`, keys `virt.*`, `GET /virtualization/history`). Veeam is not a hypervisor read here, so it is not in this row.
 

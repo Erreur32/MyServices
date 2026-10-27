@@ -31,17 +31,18 @@ export function BandwidthTile({ label, sources, hours, now, format = rateText, b
   const kept = shown.map((s) => inPeriod(s.points!, hours, now));
   const from = Math.max(...kept.map((k) => k[0][0])), end = Math.max(...kept.map((k) => k.at(-1)![0]));
   const clipped = (points: TilePoint[]): TilePoint[] => {
-    const before = points.filter((p) => p[0] <= from).at(-1);
+    const before = points.findLast((p) => p[0] <= from);
     return [...(before ? [[from, before[1], before[2]] as TilePoint] : []), ...points.filter((p) => p[0] > from)];
   };
   const reading = (s: BandwidthSource): TilePoint | null => (at !== null && s.points ? nearest(clipped(s.points), hours, end, at, true, from) : lastOf(s.points));
+  const pick = best === "min" ? Math.min : Math.max;
   const live = sources.filter((s) => !hidden.includes(s.id)).map((s) => lastOf(s.points)?.[1]).filter((v): v is number => v !== undefined);
   const first = at !== null ? shown.map((s) => reading(s)).find(Boolean) : null;
   const chart = shown.length === 0 ? null : (
     <svg aria-hidden viewBox="0 0 120 34" preserveAspectRatio="none" className="h-[34px] min-w-[90px] flex-1 cursor-crosshair overflow-visible"
       onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAt((e.clientX - r.left) / r.width); }} onMouseLeave={() => setAt(null)}>
       {shown.map((s) => {
-        const c = curve(clipped(s.points!), hours, end, 120, 34, top, from, true);
+        const c = curve(clipped(s.points!), hours, end, 120, 34, { scale: top, from, hold: true });
         return c.last && (
           <g key={s.id} style={{ color: s.color }}>
             <path d={c.area} fill="currentColor" opacity="0.10" />
@@ -53,7 +54,7 @@ export function BandwidthTile({ label, sources, hours, now, format = rateText, b
     </svg>
   );
   return (
-    <StatTile n={live.length ? format(best === "min" ? Math.min(...live) : Math.max(...live)) : "-"} label={label} aside={chart} wide>
+    <StatTile n={live.length ? format(pick(...live)) : "-"} label={label} aside={chart} wide>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
         {sources.map((s) => {
           const off = hidden.includes(s.id), p = reading(s);

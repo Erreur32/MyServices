@@ -1,6 +1,7 @@
 // Services in « state » mode: a title line, four figures, « To watch » (down, warning or with a point to check, worst first, a row
 // opens the detail window), the services newly seen on the machines (admin), then « See all » folded: every service (NPM and direct)
 // with its state, machine and source, filters, sort, « By machine »; on a phone, one card per service.
+import { scoreTone } from "../lib/figureTones";
 import { usePageView } from "../lib/route";
 import { foldHeaderProps } from "../lib/foldHeader";
 import { ArrowLeft, ChevronDown, ChevronRight, ExternalLink, EyeOff, Globe, Layers, Pencil, Plus, Server, Boxes, Undo2 } from "lucide-react";
@@ -29,6 +30,7 @@ import { HeadTags } from "../components/HeadTags";
 import { PageHead } from "../components/PageHead";
 import { HistoryTile, useServicesHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import type { Period } from "../lib/tileHistory";
 import { isHidden, serviceKey, setServiceHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidden";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
@@ -284,6 +286,22 @@ const alertMark = () => <Dot tone="bad" />;
  *  OK with a remark (certificate, web check…) is under « À vérifier », not here. */
 export const alerting = (r: Host, hidden: HiddenMap): boolean => { const c = status(r)[0]; return (c === "bad" || c === "warn") && !isHidden(r, hidden); };
 
+/** The figure tiles above the list of services, with their history over the period (the tiles leave out the services hidden from « To watch ») */
+function ServicesTiles({ hosts, hidden, generated, hours }: Readonly<{ hosts: Host[]; hidden: HiddenMap; generated: string; hours: Period }>) {
+  const hist = useServicesHistory(hours, generated), now = Math.floor(Date.now() / 1000);
+  const every = figures(hosts), fig = figures(hosts.filter((r) => !isHidden(r, hidden)));
+  const followed = every.ok + every.warn + every.bad, health = followed ? Math.round((every.ok / followed) * 100) : 0;
+  return (
+    <div className="flex gap-2.5 overflow-x-auto pb-1">
+      <HistoryTile n={fig.ok} label={tx("En ligne")} tone="ok" kind="curve" points={hist?.up ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]}/${p[2]}`} goodHigh />
+      <HistoryTile n={fig.bad} label={tx("En panne")} tone={fig.bad ? "bad" : undefined} kind="strip" points={hist?.up ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0} en panne", p[2] - p[1])} goodHigh={false} />
+      <HistoryTile n={fig.warn} label={tx("Avertissement")} tone={fig.warn ? "warn" : undefined} fact={fig.warnWhy.join(", ")} kind="strip" points={hist?.warn ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0} en avertissement", p[2] - p[1])} goodHigh={false} />
+      <HistoryTile n={followed ? `${health} %` : "-"} label={tx("Santé des services")} tone={followed ? scoreTone(health, 90, 70) : undefined} fact={tx("{0} en avertissement · {1} en panne", every.warn, every.bad)} scale={100} kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]} %`} goodHigh />
+      <StatTile n={fig.toCheck} label={tx("À vérifier")} tone={fig.toCheck ? "warn" : undefined} sub={fig.checkWhy.map((k) => CHECK[k][0]).join(", ") || tx("rien à confirmer")} />
+    </div>
+  );
+}
+
 export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
   const hiddenMap = useServicesHidden();
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
@@ -319,8 +337,8 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const [grouped, setGrouped] = useGrouped(), [expanded, setExpanded] = useState<string[]>(() => (initial && Object.keys(initial).length ? groupByMachine(f.shown).map((g) => g.name) : []));   // groups are folded until opened, except when arriving with a filter (link from a machine): then they are already open
   const groups = useMemo(() => (grouped ? groupByMachine(sort.sorted) : [{ name: "", ip: "", rows: sort.sorted }]), [grouped, sort.sorted]);
 
-  const [hours, setHours] = usePeriod(), hist = useServicesHistory(hours, snap.data.generated), now = Math.floor(Date.now() / 1000);
-  const every = figures(snap.data.hosts), followed = every.ok + every.warn + every.bad, health = followed ? Math.round((every.ok / followed) * 100) : 0, fig = figures(snap.data.hosts.filter((r) => !isHidden(r, hiddenMap))), watchAll = toWatch(snap.data.hosts), admin = snap.me.role === "admin";   // the tiles leave out the services hidden from « To watch », the header counts them all
+  const [hours, setHours] = usePeriod();
+  const every = figures(snap.data.hosts), watchAll = toWatch(snap.data.hosts), admin = snap.me.role === "admin";   // the tiles leave out the services hidden from « To watch », the header counts them all
   const watchKeys = new Set(watchAll.map(keyOfRow));
   const view = usePageView(route, "services", SERVICE_VIEWS, "all");   // « To watch » is no longer a page: the alerts are a filter of the list
   const pageKey = decodeURIComponent(route.split("/")[2] ?? "");
@@ -332,13 +350,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={Boxes} title={tx("Services")} tags={<HeadTags counts={[tx("{0} services", every.total), tx("{0} avec domaine", every.withDomain), tx("{0} locaux", every.local), tx("{0} machines", every.machines)]} at={snap.data.generated} />}
         actions={<><PeriodSwitch value={hours} onChange={setHours} />{admin && <a href="#services/new" className={`${primary} py-1 no-underline`} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</a>}</>} />
-      <div className="flex gap-2.5 overflow-x-auto pb-1">
-        <HistoryTile n={fig.ok} label={tx("En ligne")} tone="ok" kind="curve" points={hist?.up ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]}/${p[2]}`} goodHigh />
-        <HistoryTile n={fig.bad} label={tx("En panne")} tone={fig.bad ? "bad" : undefined} kind="strip" points={hist?.up ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0} en panne", p[2] - p[1])} goodHigh={false} />
-        <HistoryTile n={fig.warn} label={tx("Avertissement")} tone={fig.warn ? "warn" : undefined} fact={fig.warnWhy.join(", ")} kind="strip" points={hist?.warn ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0} en avertissement", p[2] - p[1])} goodHigh={false} />
-        <HistoryTile n={followed ? `${health} %` : "-"} label={tx("Santé des services")} tone={followed ? (health >= 90 ? "ok" : health >= 70 ? "warn" : "bad") : undefined} fact={tx("{0} en avertissement · {1} en panne", every.warn, every.bad)} scale={100} kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]} %`} goodHigh />
-        <StatTile n={fig.toCheck} label={tx("À vérifier")} tone={fig.toCheck ? "warn" : undefined} sub={fig.checkWhy.map((k) => CHECK[k][0]).join(", ") || tx("rien à confirmer")} />
-      </div>
+      <ServicesTiles hosts={snap.data.hosts} hidden={hiddenMap} generated={snap.data.generated} hours={hours} />
       {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}
       {(view === "all" || view === "watch") && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={snap.data.hosts.length} pinned>
       <FilterBar f={f} primary={["alert", "status", "domain"]} oneLine bare placeholder={tx("Domaine, IP, port, conteneur, image…")}   // one line in the panel's frame; Machine behind « More filters »

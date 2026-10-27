@@ -36,7 +36,8 @@ const NO_CURVE: Curve = { line: "", area: "", dips: "", last: null };
  *  `scale`: a level out of that value (a percentage), not a count of machines: fixed top, no stretch under the total.
  *  `from`: the start of the axis when several curves share it (each would otherwise start at its own first point).
  *  `hold`: the last value is carried on to `now` (the right edge), so curves read at different moments end side by side. */
-export function curve(points: TilePoint[], hours: Period, now: number, w = 120, h = 34, scale?: number, from?: number, hold = false): Curve {
+export interface CurveOptions { scale?: number; from?: number; hold?: boolean }
+export function curve(points: TilePoint[], hours: Period, now: number, w = 120, h = 34, { scale, from, hold = false }: CurveOptions = {}): Curve {
   const kept = inPeriod(points, hours, now);
   if (kept.length < 2) return NO_CURVE;
   const start = from ?? kept[0][0], span = Math.max(now - start, 1), top = scale ?? Math.max(1, ...kept.map((p) => p[2]));
