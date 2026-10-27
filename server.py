@@ -41,6 +41,7 @@ HERE = Path(__file__).resolve().parent
 STATIC = HERE / "web"
 WEB = Path(CFG["web_dir"])
 BACKUPS_FILE = "backups.json"
+CONNECTORS_FILE = "connectors.json"   # the readers' shared state, in the state directory
 PREFIX = "/"
 PORT = int(os.environ.get("MYSERVICES_PORT", "8090"))
 COOLDOWN = int(os.environ.get("MYSERVICES_REFRESH_COOLDOWN", "300"))
@@ -297,7 +298,7 @@ def tiles_live_round() -> None:
     from auth import db_path
     db = db_path(CFG)
     for name, step in {"cadres DNS": lambda: dns_probe.sample(db, local_dns_servers()),
-                       "cadres GPU": lambda: tile_history.sample_gpu_live(db, Path(CFG["state_dir"]) / "connectors.json")}.items():
+                       "cadres GPU": lambda: tile_history.sample_gpu_live(db, Path(CFG["state_dir"]) / CONNECTORS_FILE)}.items():
         try:
             step()
         except Exception as e:  # base unavailable or a bug: only this history misses a point
@@ -320,7 +321,7 @@ def bandwidth_loop() -> None:
         t0 = time.time()
         try:
             devices = unifi_cards.read(CFG)["devices"]
-            bandwidth.sample(db_path(CFG), Path(CFG["state_dir"]) / "connectors.json", devices)
+            bandwidth.sample(db_path(CFG), Path(CFG["state_dir"]) / CONNECTORS_FILE, devices)
         except Exception as e:  # base or source unavailable: only the curves miss a point
             log(f"⚠ débit Internet : {e}")
         time.sleep(max(30.0, BANDWIDTH_EVERY - (time.time() - t0)))
@@ -335,7 +336,7 @@ def fast_loop() -> None:
         t0 = time.time()
         try:
             if readers.on(CFG) and enabled("collect"):
-                last = readers.cycle(CFG, Path(CFG["state_dir"]) / "connectors.json", WEB / "live.json", pulse_ips(), last, log)
+                last = readers.cycle(CFG, Path(CFG["state_dir"]) / CONNECTORS_FILE, WEB / "live.json", pulse_ips(), last, log)
         except Exception as e:  # a bug here must not stop the loop
             log(f"⚠ lecteurs de connecteurs : {e}")
         time.sleep(max(5.0, READERS_TICK - (time.time() - t0)))
