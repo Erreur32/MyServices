@@ -335,7 +335,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <HistoryTile n={fig.ok} label={tx("En ligne")} tone="ok" kind="curve" points={hist?.up ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]}/${p[2]}`} goodHigh />
         <HistoryTile n={fig.bad} label={tx("En panne")} tone={fig.bad ? "bad" : undefined} kind="strip" points={hist?.up ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0} en panne", p[2] - p[1])} goodHigh={false} />
-        <StatTile n={fig.warn} label={tx("Avertissement")} tone={fig.warn ? "warn" : undefined} sub={fig.warnWhy.join(", ") || undefined} />
+        <HistoryTile n={fig.warn} label={tx("Avertissement")} tone={fig.warn ? "warn" : undefined} fact={fig.warnWhy.join(", ")} kind="strip" points={hist?.warn ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0} en avertissement", p[2] - p[1])} goodHigh={false} />
         <StatTile n={fig.toCheck} label={tx("À vérifier")} tone={fig.toCheck ? "warn" : undefined} sub={fig.checkWhy.map((k) => CHECK[k][0]).join(", ") || tx("rien à confirmer")} />
       </div>
       {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}

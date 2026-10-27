@@ -10,7 +10,7 @@ import { tx } from "../lib/i18n";
 /** What /machines/history and /services/history answer for a period */
 interface MachinesHistory { hours: Period; reach: TilePoint[]; health: TilePoint[]; cpu: TilePoint[]; mem: TilePoint[] }
 interface BackupsHistory { hours: Period; ok: TilePoint[]; late: TilePoint[]; bad: TilePoint[] }
-interface ServicesHistory { hours: Period; up: TilePoint[] }
+interface ServicesHistory { hours: Period; up: TilePoint[]; warn: TilePoint[] }
 interface NetworkHistory { hours: Period; gear: TilePoint[]; clients: TilePoint[]; devices: TilePoint[] }
 
 /** The history of the tiles of a page for a period; read again at each collection (`stamp`). null while it loads or when it cannot be read. */

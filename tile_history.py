@@ -22,6 +22,7 @@ NET_GEAR, NET_CLIENTS, NET_DEVICES = "network.gear", "network.clients", "network
 NETWORK = (NET_GEAR, NET_CLIENTS, NET_DEVICES)
 BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD = "backups.ok", "backups.late", "backups.bad"
 BACKUPS = (BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD)
+SERVICES_WARN = "services.warn"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tile_samples (key TEXT NOT NULL, ts INTEGER NOT NULL, value INTEGER NOT NULL, total INTEGER NOT NULL,
@@ -100,6 +101,45 @@ def network_points(data: dict) -> dict[str, tuple[int, int]]:
     if devices:
         out[NET_DEVICES] = (sum(1 for d in devices if d.get("status") == "online"), len(devices))
     return out
+
+
+def _service_warns(h: dict) -> bool | None:
+    """True when a service of data.json is « to watch » (front lib/status.ts, class warn), False when it is in another state, None when it is not
+    followed (paused, machine or container stopped on purpose, disabled, listening on an internal address only)."""
+    p, b = h.get("public") or {}, h.get("backend") or {}
+    kind = h.get("type")
+    if h.get("paused") or h.get("machine_off") or h.get("stopped") or not h.get("enabled"):
+        return None
+    if kind == "dead":
+        return p.get("code") != 404
+    if kind == "stream":
+        return False
+    if kind == "redirect":
+        return bool(p.get("code")) and (h.get("follow") or {}).get("code", 0) >= 500
+    if kind == "local":
+        return None if b.get("internal") and not b.get("up") else False
+    if b.get("internal") or b.get("up") is False or (p.get("code") or 0) >= 500:
+        return False
+    if p.get("err") == "RemoteDisconnected":
+        return not h.get("closes_root")
+    return bool(p.get("err"))
+
+
+def services_points(data: dict) -> dict[str, tuple[int, int]]:
+    """{key: (value, total)} of the Services « Warning » tile: the services followed that are not in warning, out of the services followed
+    (so a strip counts the ones in warning). The services the user hid from « To watch » are counted like the others."""
+    states = [w for h in data.get("hosts") or [] if isinstance(h, dict) and (w := _service_warns(h)) is not None]
+    return {SERVICES_WARN: (states.count(False), len(states))} if states else {}
+
+
+def sample_services(db_path: str | Path, data_file: Path, now: float | None = None) -> int:
+    """The Services tile point of data.json (read at its own time) when new enough to add; how many were added."""
+    try:
+        data = json.loads(data_file.read_text(encoding="utf-8"))
+        ts = int(datetime.fromisoformat(str(data.get("generated"))).timestamp())
+    except (OSError, ValueError):
+        return 0
+    return sum(store(db_path, key, (ts, *vt), now) for key, vt in services_points(data).items())
 
 
 def backups_points(data: dict) -> dict[str, tuple[int, int]]:
