@@ -8,7 +8,7 @@ import { curve, delta, nearest, stripCells, type Period, type TilePoint } from "
 import { tx } from "../lib/i18n";
 
 /** What /machines/history and /services/history answer for a period */
-interface MachinesHistory { hours: Period; reach: TilePoint[]; health: TilePoint[] }
+interface MachinesHistory { hours: Period; reach: TilePoint[]; health: TilePoint[]; cpu: TilePoint[]; mem: TilePoint[] }
 interface ServicesHistory { hours: Period; up: TilePoint[] }
 interface NetworkHistory { hours: Period; gear: TilePoint[]; clients: TilePoint[]; devices: TilePoint[] }
 
@@ -46,8 +46,8 @@ function Strip({ points, hours, now, at, onMove, onLeave }: Readonly<{ points: T
   );
 }
 
-function Curve({ points, hours, now, good, onMove, onLeave }: Readonly<{ points: TilePoint[]; hours: Period; now: number; good: boolean; onMove: (f: number) => void; onLeave: () => void }>) {
-  const c = curve(points, hours, now);
+function Curve({ points, hours, now, good, scale, onMove, onLeave }: Readonly<{ points: TilePoint[]; hours: Period; now: number; good: boolean; scale?: number; onMove: (f: number) => void; onLeave: () => void }>) {
+  const c = curve(points, hours, now, 120, 34, scale);
   if (!c.last) return null;
   const tone = good ? "rgb(var(--ok))" : "rgb(var(--warn))";
   return (
@@ -61,8 +61,9 @@ function Curve({ points, hours, now, good, onMove, onLeave }: Readonly<{ points:
   );
 }
 
-export function HistoryTile({ label, n, tone, hint, fact, kind, points, hours, now, figure, fmt, goodHigh, onClick, pressed }: Readonly<{
+export function HistoryTile({ label, n, tone, hint, fact, scale, kind, points, hours, now, figure, fmt, goodHigh, onClick, pressed }: Readonly<{
   label: string; n: string | number; tone?: "ok" | "warn" | "bad"; hint?: string; kind: "strip" | "curve";
+  scale?: number;   // a curve of levels out of this value (100 for a percentage), not of machines out of a total
   fact?: string;   // what the tile says under the figure instead of the change over the period (the pointer still reads a moment)
   points: TilePoint[] | null;   // null: not read (yet)
   hours: Period; now: number;
@@ -83,7 +84,7 @@ export function HistoryTile({ label, n, tone, hint, fact, kind, points, hours, n
   const ready = !!points && change !== null;
   const leave = () => setAt(null);
   let chart = null;   // right of the figure: a strip of states, or a curve
-  if (ready) chart = kind === "strip" ? <Strip points={points} hours={hours} now={now} at={at} onMove={setAt} onLeave={leave} /> : <Curve points={points} hours={hours} now={now} good={goodHigh} onMove={setAt} onLeave={leave} />;
+  if (ready) chart = kind === "strip" ? <Strip points={points} hours={hours} now={now} at={at} onMove={setAt} onLeave={leave} /> : <Curve points={points} hours={hours} now={now} good={goodHigh} scale={scale} onMove={setAt} onLeave={leave} />;
   return (
     <StatTile n={n} label={label} tone={tone} hint={hint} aside={chart} onClick={onClick} pressed={pressed}>
       <div className="truncate text-xs text-dim" title={sub}>{sub}</div>

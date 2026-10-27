@@ -15,7 +15,9 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-KEEP_S = 24 * 3600
+KEEP_S = 7 * 24 * 3600   # the longest period of a tile of the Machines page
+CURVE_S = 24 * 3600   # what the small curves of a machine page draw
+BUCKET_S = 600
 MIN_GAP = 240
 FIELDS = ("cpu", "mem", "disk", "temp")
 
@@ -95,5 +97,16 @@ def series(db_path: str | Path, machine: str, now: float | None = None) -> dict:
     """The last 24 hours of a machine: {"points": [[ts, cpu, mem, disk, temp], ...]} oldest first."""
     with _db(db_path) as db:
         rows = db.execute("SELECT ts, cpu, mem, disk, temp FROM metric_samples WHERE machine = ? AND ts >= ? ORDER BY ts",
-                          (machine, int((now or time.time()) - KEEP_S))).fetchall()
+                          (machine, int((now or time.time()) - CURVE_S))).fetchall()
     return {"points": [list(r) for r in rows]}
+
+
+def average(db_path: str | Path, field: str, hours: int, now: float | None = None) -> list[list[int]]:
+    """[[time, average %, machines], ...] of one figure (cpu or mem) over the last `hours`, one point per BUCKET_S, oldest first
+    (the Processor and Memory tiles of the Machines page)."""
+    if field not in ("cpu", "mem"):
+        raise ValueError(field)
+    with _db(db_path) as db:
+        rows = db.execute(f"SELECT ts / ? * ?, ROUND(AVG({field})), COUNT(DISTINCT machine) FROM metric_samples WHERE {field} IS NOT NULL AND ts >= ? "
+                          "GROUP BY 1 ORDER BY 1", (BUCKET_S, BUCKET_S, int((now or time.time()) - hours * 3600))).fetchall()
+    return [[int(t), int(v), int(n)] for t, v, n in rows]

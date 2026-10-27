@@ -25,6 +25,11 @@ export function tempTone(c: number, t?: TempReading): FigureTone {
 const LEVEL_TONE: Record<string, FigureTone> = { ok: "ok", warn: "warn", crit: "bad", down: "bad" };
 const LEVEL_TEXT: Record<string, string> = { ok: tx("OK"), warn: tx("À surveiller"), crit: tx("Critique"), down: tx("Injoignable") };
 
+/** Share of the processor and of the memory a machine reports (null: not reported), as the machine page and the history count them */
+export const loadOf = (h: HealthHost | undefined) => ({ cpu: h?.res?.cpu_pct ?? h?.load?.cpu_pct ?? null, mem: h?.res?.mem_pct ?? null });
+/** From this share a machine counts as loaded (the filter of the Processor and Memory tiles) */
+export const LOAD_HIGH = 80;
+
 /** The figures that tell the state of the machine at a glance; the ones the machine does not report are left out */
 export function machineFigures(h: HealthHost | undefined, uptimeS: number | null, why?: string): MachineFigure[] {
   const out: MachineFigure[] = [];

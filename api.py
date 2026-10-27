@@ -2297,12 +2297,15 @@ def availability_report(days: int = 30):
 HISTORY_HOURS = (24, 72, 168)
 
 
-@app.get(API + "/machines/history", tags=["historique"], summary="Historique des cadres de la page Machines (joignables, santé) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+@app.get(API + "/machines/history", tags=["historique"], summary="Historique des cadres de la page Machines (joignables, santé, processeur et mémoire moyens) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def machines_history(hours: int = 24):
     import availability
+    import metrics
     import tile_history
     h = hours if hours in HISTORY_HOURS else 24
-    return {"hours": h, "reach": availability.reach_series(db_path(core.CFG), h), "health": tile_history.series(db_path(core.CFG), tile_history.HEALTH, h)}
+    db = db_path(core.CFG)
+    return {"hours": h, "reach": availability.reach_series(db, h), "health": tile_history.series(db, tile_history.HEALTH, h),
+            "cpu": metrics.average(db, "cpu", h), "mem": metrics.average(db, "mem", h)}
 
 
 @app.get(API + "/network/history", tags=["historique"], summary="Historique des cadres de la page Réseau (équipements, clients, appareils en ligne) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")

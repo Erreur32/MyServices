@@ -32,11 +32,12 @@ const NO_CURVE: Curve = { line: "", area: "", dips: "", last: null };
 
 /** The stepped curve (a figure jumps by whole machines): the line, its filling, the stretches below the total, and the last point, in a box of w × h.
  *  The scale goes from 0 to the biggest total seen, so a machine lost shows as a drop. It starts at the first point when the history is younger
- *  than the period, so a few minutes are not squeezed into the last pixels. Empty with fewer than two points. */
-export function curve(points: TilePoint[], hours: Period, now: number, w = 120, h = 34): Curve {
+ *  than the period, so a few minutes are not squeezed into the last pixels. Empty with fewer than two points.
+ *  `scale`: a level out of that value (a percentage), not a count of machines: fixed top, no stretch under the total. */
+export function curve(points: TilePoint[], hours: Period, now: number, w = 120, h = 34, scale?: number): Curve {
   const kept = inPeriod(points, hours, now);
   if (kept.length < 2) return NO_CURVE;
-  const start = kept[0][0], span = Math.max(now - start, 1), top = Math.max(1, ...kept.map((p) => p[2]));
+  const start = kept[0][0], span = Math.max(now - start, 1), top = scale ?? Math.max(1, ...kept.map((p) => p[2]));
   const x = (t: number) => ((t - start) / span) * w;
   const y = (v: number) => h - 2 - (Math.min(Math.max(v, 0), top) / top) * (h - 4);
   let line = "", area = "", dips = "";
@@ -54,7 +55,7 @@ export function curve(points: TilePoint[], hours: Period, now: number, w = 120, 
       line += step;
       area += step;
     }
-    if (p[1] < p[2]) {
+    if (scale === undefined && p[1] < p[2]) {
       const end = kept[i + 1] && kept[i + 1][0] - p[0] <= GAP_S ? kept[i + 1][0] : p[0];
       dips += `M${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}L${x(end).toFixed(1)} ${y(p[1]).toFixed(1)}`;
     }

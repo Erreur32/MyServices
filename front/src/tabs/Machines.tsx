@@ -5,7 +5,7 @@ import { read, type Snapshot } from "../api";
 import { Copyable } from "../components/form";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime, dur, durShort, ipNum, isDate, splitHostName } from "../lib/format";
-import { machineFigures, shortProbe } from "../lib/machineFigures";
+import { LOAD_HIGH, loadOf, machineFigures, shortProbe } from "../lib/machineFigures";
 import { hostName, status } from "../lib/status";
 import { modelService } from "../lib/modelService";
 import { SwitchPanel } from "./UnifiCards";
@@ -45,12 +45,14 @@ import { hardwareRows } from "../lib/hardware";
 
 
 /** What each tile shows in the list under it when clicked (the same selection as the chips of the filter bar) */
-const TILE_SEL: Record<"reach" | "health" | "watch" | "down" | "off", Selected> = {
+const TILE_SEL: Record<"reach" | "health" | "watch" | "down" | "off" | "cpu" | "mem", Selected> = {
   reach: { state: ["ssh", "agent", "api", "network", "box", "manual", "refused", "nossh"] },   // every state but off and down
   health: { health: ["warn", "crit", "down"] },   // the machines whose health is not fully good
   watch: { alert: ["bad", "warn"] },
   down: { state: ["down"] },
   off: { state: ["off"] },
+  cpu: { load: ["cpu"] },   // the machines over LOAD_HIGH % of processor
+  mem: { load: ["mem"] },
 };
 const sameSel = (a: Selected, b: Selected) => {
   const ka = Object.keys(a), kb = Object.keys(b);
@@ -73,6 +75,12 @@ function MachinesHead({ snap, health, watching, sel, onSel }: Readonly<{ snap: S
   // The server counts the machines of its health passes; the tile adds those read through UniFi or the Freebox. The history keeps the machines in
   // trouble and puts them against the total of the tile, so the last point of the curve is the figure of the tile.
   const healthPts = hist?.health.map(([t, value, total]): TilePoint => [t, Math.max(0, read.length - (total - value)), read.length]) ?? null;
+  const loaded = (k: "cpu" | "mem") => {   // average of the machines that report it, and the one carrying the most
+    const rows = ms.map((m) => ({ name: m.name, v: loadOf(health.get(m.ip))[k] })).filter((r): r is { name: string; v: number } => r.v !== null);
+    const top = rows.reduce<{ name: string; v: number } | null>((a, r) => (!a || r.v > a.v ? r : a), null);
+    return rows.length ? { avg: Math.round(rows.reduce((n, r) => n + r.v, 0) / rows.length), top: top!, n: rows.filter((r) => r.v >= LOAD_HIGH).length } : null;
+  };
+  const cpu = loaded("cpu"), mem = loaded("mem"), pct = (p: TilePoint) => `${p[1]} %`;
   const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1];
   return (
     <div className="flex flex-col gap-4 pb-1 pt-3">
@@ -82,13 +90,17 @@ function MachinesHead({ snap, health, watching, sel, onSel }: Readonly<{ snap: S
           {admin && <a href="#settings/machines/redetect" className={`${quiet} no-underline`} title={tx("Relit toutes les machines et propose les écarts (rôles, système, services hors Docker)")}><RefreshCw size={14} aria-hidden />{tx("Redétecter")}</a>}
           {admin && <a href="#settings/machines/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</a>}{/* the page « Add and detect », its form or the redetection open */}
         </>} />
-      <div className="flex gap-2.5 overflow-x-auto pb-1">
+      <div className="flex flex-wrap gap-2.5 pb-1">   {/* seven tiles: they go to a second line on a narrow page instead of squeezing their curves */}
         <HistoryTile n={`${up}/${ms.length - off}`} label={tx("Joignables")} tone={down ? "warn" : "ok"} kind="strip" points={hist?.reach ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh {...pick("reach")} />
         {read.length > 0 && <HistoryTile n={`${ok}/${read.length}`} label={tx("Santé")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ok === read.length ? "ok" : "warn"}
           kind="curve" points={healthPts} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh {...pick("health")} />}
         <StatTile n={watch} label={tx("À surveiller")} tone={watch ? "warn" : undefined} {...pick("watch")} />
         <HistoryTile n={down} label={tx("Injoignables")} tone={down ? "bad" : undefined} kind="strip" points={hist?.reach ?? null} hours={hours} now={now} figure={missing} fmt={(p) => String(missing(p))} goodHigh={false} {...pick("down")} />
         <StatTile n={off} label={tx("Éteintes")} sub={tx("souvent éteintes, au repos")} {...pick("off")} />
+        {cpu && <HistoryTile n={`${cpu.avg} %`} label={tx("Processeur moyen")} tone={cpu.n ? "warn" : "ok"} fact={tx("plus chargée : {0}, {1} %", cpu.top.name, Math.round(cpu.top.v))} hint={tx("Moyenne des machines qui donnent leur processeur. Un clic liste celles au-dessus de {0} %", LOAD_HIGH)}
+          kind="curve" scale={100} points={hist?.cpu ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={pct} goodHigh={!cpu.n} {...pick("cpu")} />}
+        {mem && <HistoryTile n={`${mem.avg} %`} label={tx("Mémoire moyenne")} tone={mem.n ? "warn" : "ok"} fact={tx("plus chargée : {0}, {1} %", mem.top.name, Math.round(mem.top.v))} hint={tx("Moyenne des machines qui donnent leur mémoire. Un clic liste celles au-dessus de {0} %", LOAD_HIGH)}
+          kind="curve" scale={100} points={hist?.mem ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={pct} goodHigh={!mem.n} {...pick("mem")} />}
       </div>
     </div>
   );
@@ -1688,6 +1700,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       name: (v) => ({ ok: "OK", warn: tx("à surveiller"), crit: "critique", down: "injoignable" } as Record<string, string>)[v] || v, order: ["ok", "warn", "crit", "down"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
     { key: "alert", label: tx("Alertes"), get: (m) => { const w = worst(watchOf(m)); return w ? TONE_OF_RANK[w] : ""; },
       name: (v) => ({ bad: tx("problème à regarder"), warn: tx("à surveiller"), info: tx("information") } as Record<string, string>)[v] || v, order: ["bad", "warn", "info"], mark: (v) => <Dot tone={v === "bad" ? "bad" : v === "warn" ? "warn" : "info"} /> },
+    { key: "load", label: tx("Charge"), get: (m) => { const l = loadOf(hb.get(m.ip)); return [...(l.cpu !== null && l.cpu >= LOAD_HIGH ? ["cpu"] : []), ...(l.mem !== null && l.mem >= LOAD_HIGH ? ["mem"] : [])]; },
+      name: (v) => (v === "cpu" ? tx("processeur ≥ {0} %", LOAD_HIGH) : tx("mémoire ≥ {0} %", LOAD_HIGH)), order: ["cpu", "mem"] },
     { key: "os", label: tx("Système"), get: (m) => osOf(m) ?? "", name: (v) => OS_LABEL[v as OsKind], order: OS_ORDER, mark: (v) => <OsGlyph kind={v as OsKind} size={13} /> },
     { key: "access", label: tx("Accès"), get: (m) => (m.ssh ? "ssh" : m.agent ? "agent" : "none"), name: (v) => ({ ssh: "SSH", agent: tx("Agent"), none: tx("aucun") } as Record<string, string>)[v], order: ["ssh", "agent", "none"],
       mark: (v) => <Dot tone={v === "none" ? "off" : "ok"} /> },
