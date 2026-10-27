@@ -79,5 +79,24 @@ class NetworkPoints(unittest.TestCase):
             self.assertEqual(th.series(db, th.NET_GEAR, 24, now=ts), [[ts, 2, 2]])
 
 
+class BackupsPoints(unittest.TestCase):
+    SETS = [{"level": "ok"}, {"level": "ok"}, {"level": "warn"}, {"level": "crit"}, {"level": "down"}, {"level": "ok", "archived": True}]
+
+    def test_counted_like_the_page(self):
+        got = th.backups_points({"sets": self.SETS})
+        # five sets in use: two up to date, one late (so four not late), two missing or failing (three not)
+        self.assertEqual(got, {th.BACKUPS_OK: (2, 5), th.BACKUPS_LATE: (4, 5), th.BACKUPS_BAD: (3, 5)})
+        self.assertEqual(th.backups_points({"sets": []}), {})
+
+    def test_one_point_per_collection_even_when_the_file_is_old(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f, db = Path(tmp) / "backups.json", Path(tmp) / "t.db"
+            f.write_text(json.dumps({"sets": self.SETS}), encoding="utf-8")
+            self.assertEqual(th.sample_backups(db, f, now=NOW), 3)
+            self.assertEqual(th.sample_backups(db, f, now=NOW + 60), 0)   # under MIN_GAP
+            self.assertEqual(th.sample_backups(db, f, now=NOW + 900), 3)
+            self.assertEqual(th.sample_backups(db, Path(tmp) / "none.json", now=NOW + 3600), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

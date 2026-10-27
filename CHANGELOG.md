@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## Unreleased (next version, not tagged yet)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Backups
+- The tiles **Up to date** (curve), **Late** and **Missing or failing** (strips) of the Backups page keep their history over the period switch (24 h, 72 h, 7 days). New `GET /backups/history?hours=24|72|168`. The sets are counted like the page (not archived; late = `warn`; missing or failing = `crit` or `down`) after each collection (`tile_samples` table, 7 days kept).
+
 ## v0.26.0 (2026-10-27)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

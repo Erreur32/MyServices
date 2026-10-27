@@ -20,6 +20,8 @@ MIN_GAP = 540
 HEALTH = "machines.health"
 NET_GEAR, NET_CLIENTS, NET_DEVICES = "network.gear", "network.clients", "network.devices"
 NETWORK = (NET_GEAR, NET_CLIENTS, NET_DEVICES)
+BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD = "backups.ok", "backups.late", "backups.bad"
+BACKUPS = (BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tile_samples (key TEXT NOT NULL, ts INTEGER NOT NULL, value INTEGER NOT NULL, total INTEGER NOT NULL,
@@ -98,6 +100,28 @@ def network_points(data: dict) -> dict[str, tuple[int, int]]:
     if devices:
         out[NET_DEVICES] = (sum(1 for d in devices if d.get("status") == "online"), len(devices))
     return out
+
+
+def backups_points(data: dict) -> dict[str, tuple[int, int]]:
+    """{key: (value, total)} of the Backups tiles from backups.json, counted like the page: the sets not archived; « up to date » as the value of
+    its key, « late » and « missing or failing » as the sets that are not (so a strip counts the missing ones, like the Machines tiles)."""
+    live = [s for s in data.get("sets") or [] if isinstance(s, dict) and not s.get("archived")]
+    if not live:
+        return {}
+    n = len(live)
+    late = sum(1 for s in live if s.get("level") == "warn")
+    bad = sum(1 for s in live if s.get("level") in ("crit", "down"))
+    return {BACKUPS_OK: (sum(1 for s in live if s.get("level") == "ok"), n), BACKUPS_LATE: (n - late, n), BACKUPS_BAD: (n - bad, n)}
+
+
+def sample_backups(db_path: str | Path, backups_file: Path, now: float | None = None) -> int:
+    """The state of the backups as of now (backups.json is written a few times a day, the tiles want a point at each collection)."""
+    now = now or time.time()
+    try:
+        points = backups_points(json.loads(backups_file.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return 0
+    return sum(store(db_path, key, (int(now), *vt), now) for key, vt in points.items())
 
 
 def sample_network(db_path: str | Path, data_file: Path, now: float | None = None) -> int:

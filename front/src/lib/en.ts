@@ -3179,6 +3179,8 @@ export const EN: Record<string, string> = {
   "historique en cours": "history building up",
   "stable sur {0}": "steady over {0}",
   "{0} en {1}": "{0} in {1}",
+  "{0} en retard": "{0} late",
+  "{0} absente(s) ou en erreur": "{0} missing or failing",
   "Processeur moyen": "Average processor",
   "Mémoire moyenne": "Average memory",
   "plus chargée : {0}, {1} %": "most loaded: {0}, {1} %",

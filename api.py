@@ -2315,6 +2315,13 @@ def network_history(hours: int = 24):
     return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.NETWORK}}
 
 
+@app.get(API + "/backups/history", tags=["historique"], summary="Historique des cadres de la page Sauvegardes (à jour, en retard, absentes ou en erreur) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
+def backups_history(hours: int = 24):
+    import tile_history
+    h = hours if hours in HISTORY_HOURS else 24
+    return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.BACKUPS}}
+
+
 @app.get(API + "/services/history", tags=["historique"], summary="Historique des cadres de la page Services (en ligne, en panne) sur 24 h, 72 h ou 7 jours : [heure, répondent, total] par relevé")
 def services_history(hours: int = 24):
     import availability

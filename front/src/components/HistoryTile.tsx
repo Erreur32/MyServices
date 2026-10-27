@@ -9,6 +9,7 @@ import { tx } from "../lib/i18n";
 
 /** What /machines/history and /services/history answer for a period */
 interface MachinesHistory { hours: Period; reach: TilePoint[]; health: TilePoint[]; cpu: TilePoint[]; mem: TilePoint[] }
+interface BackupsHistory { hours: Period; ok: TilePoint[]; late: TilePoint[]; bad: TilePoint[] }
 interface ServicesHistory { hours: Period; up: TilePoint[] }
 interface NetworkHistory { hours: Period; gear: TilePoint[]; clients: TilePoint[]; devices: TilePoint[] }
 
@@ -25,6 +26,7 @@ function useHistory<T extends { hours: Period }>(path: string, hours: Period, st
 
 export const useMachinesHistory = (hours: Period, stamp: string) => useHistory<MachinesHistory>("machines/history", hours, stamp);
 export const useNetworkHistory = (hours: Period, stamp: string) => useHistory<NetworkHistory>("network/history", hours, stamp);
+export const useBackupsHistory = (hours: Period, stamp: string) => useHistory<BackupsHistory>("backups/history", hours, stamp);
 export const useServicesHistory = (hours: Period, stamp: string) => useHistory<ServicesHistory>("services/history", hours, stamp);
 
 const CELL = ["bg-ok/40", "bg-warn", "bg-bad"];   // all answered, one missing, two or more
