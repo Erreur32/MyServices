@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { curve, delta, inPeriod, nearest, stripCells, type TilePoint } from "./tileHistory";
+import { curve, delta, inPeriod, nearest, stripCells, sumSeries, type TilePoint } from "./tileHistory";
 
 const NOW = 1_000_000;
 const H = 3600;
@@ -43,5 +43,9 @@ describe("lib/tileHistory", () => {
     const young = curve([pt(0.3, 9), pt(0.1, 9)], 24, NOW);   // 20 minutes of history: drawn over the whole width, not in the last pixels
     expect(young.line.startsWith("M0.0")).toBe(true);
     expect(Math.round(young.last?.[0] ?? 0)).toBe(80);   // its last reading is 6 of the 18 minutes known, the right edge being now
+  });
+  it("sumSeries : des listes de longueurs différentes s'additionnent sur leur dernière case", () => {
+    expect(sumSeries([[1, 2, 3], [10, 20]])).toEqual([1, 12, 23]);
+    expect(sumSeries([])).toEqual([]);
   });
 });

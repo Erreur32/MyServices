@@ -83,3 +83,9 @@ export function nearest(points: TilePoint[], hours: Period, now: number, frac: n
   const best = kept.reduce((a, b) => (Math.abs(b[0] - at) < Math.abs(a[0] - at) ? b : a));
   return Math.abs(best[0] - at) <= 2 * 3600 ? best : null;
 }
+
+/** Counts per slot of several sources added up, lined up on their most recent slot (the last value of each list is the latest) */
+export function sumSeries(lists: number[][]): number[] {
+  const len = Math.max(0, ...lists.map((l) => l.length));
+  return Array.from({ length: len }, (_, i) => lists.reduce((n, l) => n + (l[l.length - len + i] ?? 0), 0));
+}

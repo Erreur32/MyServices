@@ -12,6 +12,8 @@ import { InfoNote } from "../components/InfoNote";
 import { Badge, Dim, Empty } from "../components/ui";
 import { pageViewTarget } from "../lib/route";
 import { StatTile } from "../components/StatTile";
+import { BarsTile } from "../components/HistoryTile";
+import { sumSeries } from "../lib/tileHistory";
 import { WatchPanel } from "../components/WatchPanel";
 import { splitHostName } from "../lib/format";
 import { quiet, worstTone } from "../lib/forms";
@@ -55,7 +57,7 @@ function Figures({ snap, findings, admin }: Readonly<{ snap: Snapshot; findings:
   return (
     <div className="flex gap-2.5 overflow-x-auto pb-1">
       <StatTile n={sites.length} label={tx("Sites exposés")} tone={tone("sites")} sub={sites.length ? tx("{0} avec un manque · {1} « public voulu »", gaps, wanted) : tx("tous derrière une liste d'accès")} />
-      <StatTile n={sources.length ? bans24 : "-"} label={tx("Fail2ban, 24 h")} tone={sources.length ? tone("fail2ban") : undefined}
+      <BarsTile n={sources.length ? bans24 : "-"} label={tx("Fail2ban, 24 h")} tone={sources.length ? tone("fail2ban") : undefined} values={sumSeries(sources.map((c) => c.stats?.hours ?? []))}
         sub={sources.length ? tx("bannissements · {0} prison(s) · {1} menace(s)", jails, threats) : tx("non relié")} />
       <StatTile n={ssh.length ? weakSsh : "-"} label={tx("Accès SSH")} tone={ssh.length ? tone("ssh") : undefined} sub={ssh.length ? tx("sur {0} machine(s), un réglage faible", ssh.length) : tx("aucune machine lue par SSH")} />
       <StatTile n={soon} label={tx("Certificats")} tone={tone("certs")} sub={certs[0] ? tx("le plus proche : {0}, {1} j", certs[0].name, certs[0].days) : tx("aucun certificat lu")} />

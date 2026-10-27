@@ -14,7 +14,7 @@ export function StatTile({ n, label, sub, hint, tone, small = false, children, a
   const body = (
     <>
       <div className={`${small ? "text-[11px]" : "text-xs"} text-muted`}>{label}</div>
-      {aside ? <div className="flex items-end justify-between gap-2">{figure}{aside}</div> : figure}
+      {aside ? <div className="flex items-end justify-between gap-4">{figure}{aside}</div> : figure}
       {sub && <div className={`truncate ${small ? "text-[11px]" : "text-xs"} text-dim`} title={sub}>{sub}</div>}
       {children}
     </>

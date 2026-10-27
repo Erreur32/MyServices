@@ -82,3 +82,20 @@ export function HistoryTile({ label, n, tone, hint, kind, points, hours, now, fi
     </StatTile>
   );
 }
+
+/** A tile whose history is a count per slot already given by the source (bans per hour): bars right of the figure, the pointer reads one slot.
+ *  `values`: oldest first, one per hour, the last one being the hour in course. */
+export function BarsTile({ label, n, tone, sub, values }: Readonly<{ label: string; n: string | number; tone?: "ok" | "warn" | "bad"; sub: string; values: number[] }>) {
+  const [at, setAt] = useState<number | null>(null);
+  const top = Math.max(1, ...values);
+  const hot = at === null ? -1 : Math.min(values.length - 1, Math.floor(at * values.length));
+  const hourOf = (i: number) => `${String(new Date(Date.now() - (values.length - 1 - i) * 3600_000).getHours()).padStart(2, "0")} h`;
+  const bars = (
+    <div aria-hidden className="flex h-6 min-w-[90px] flex-1 cursor-crosshair items-end gap-px" {...hover(setAt, () => setAt(null))}>
+      {values.map((v, i) => <i key={`${i}-${v}`} style={{ height: `${Math.max(v ? 12 : 4, (v / top) * 100)}%` }} className={`flex-1 rounded-[1.5px] ${v ? "bg-warn" : "bg-bg2"} ${i === hot ? "outline outline-1 outline-offset-1 outline-txt" : ""}`} />)}
+    </div>
+  );
+  return (
+    <StatTile n={n} label={label} tone={tone} aside={values.length ? bars : null} sub={hot >= 0 ? tx("{0} : {1} bannissement(s)", hourOf(hot), values[hot]) : sub} />
+  );
+}
