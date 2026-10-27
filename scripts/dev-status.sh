@@ -59,9 +59,10 @@ render() {
   branch=$(git -C "$ROOT" branch --show-current 2>/dev/null)
   git -C "$ROOT" fetch -q "$REMOTE" --tags 2>/dev/null
 
-  prs=$(gh pr list --state all --limit 8 --json number,title,state,headRefName,mergedAt,statusCheckRollup 2>/dev/null || echo "[]")
-  # The pull request of the version (its title says « Version X.Y.Z »), else the newest open one
-  pr=$(jq -c --arg v "$version" '(map(select(.title | contains("Version " + $v))) | .[0]) // (map(select(.state == "OPEN")) | .[0]) // null' <<<"$prs")
+  prs=$(gh pr list --state all --limit 8 --json number,title,state,headRefName,mergedAt,mergeCommit,statusCheckRollup 2>/dev/null || echo "[]")
+  # The pull request of the version: the one merged into the tagged commit, else its title says « Version X.Y.Z », else the newest open one
+  local tsha; tsha=$(git -C "$ROOT" rev-parse -q --verify "refs/tags/v$version^{commit}" 2>/dev/null)
+  pr=$(jq -c --arg v "$version" --arg t "$tsha" '(map(select($t != "" and .mergeCommit.oid == $t)) | .[0]) // (map(select(.title | contains("Version " + $v))) | .[0]) // (map(select(.state == "OPEN")) | .[0]) // null' <<<"$prs")
 
   tag=bad; git -C "$ROOT" rev-parse -q --verify "refs/tags/v$version" >/dev/null && tag=ok
   release=bad; gh release view "v$version" >/dev/null 2>&1 && release=ok
@@ -96,6 +97,9 @@ render() {
   printf ' Version %s%s%s  ' "$B" "$version" "$N"; bar "$done" "${#steps[@]}" "$c"; printf ' %s%d/%d%s' "$c" "$done" "${#steps[@]}" "$N"
   ((all)) && printf '  %s✓ publiée%s' "$G" "$N"; printf '\n'
   printf '  %s poussée %s PR%s %s CI %s fusion %s tag %s release %s image\n' "$(mark "$s_push")" "$(mark "$s_pr")" "$([[ $pr != null ]] && echo " #$num")" "$(mark "$s_ci")" "$(mark "$s_merge")" "$(mark "$tag")" "$(mark "$release")" "$(mark "$image")"
+  if [[ $pr != null ]]; then
+    printf '  %sPR #%s%s %s%s%s  %s\n' "$B" "$num" "$N" "$([[ $state == MERGED ]] && printf '%s' "$G" || printf '%s' "$Y")" "$state" "$N" "$(clip "$(jq -r .title <<<"$pr")" 60)"
+  fi
   printf '\n'
 
   # main, as its remote has it: lag, CI and image of its last commit, Sonar gate, tag (like the gitstat mod)
@@ -117,9 +121,9 @@ render() {
   esac
   printf '\n'
 
-  # The branch in use and the other branches that have an open pull request
+  # The branch in use, the working branch (next) and the other branches that have an open pull request
   local br line bnum bchecks ahead behind
-  { echo "$branch"; jq -r '.[] | select(.state == "OPEN") | .headRefName' <<<"$prs"; } | awk 'NF && !seen[$0]++' | while read -r br; do
+  { echo "$branch"; git -C "$ROOT" show-ref -q --verify refs/heads/next && echo next; jq -r '.[] | select(.state == "OPEN") | .headRefName' <<<"$prs"; } | awk 'NF && !seen[$0]++' | while read -r br; do
     [[ $br == main ]] && continue
     read -r ahead behind < <(git -C "$ROOT" rev-list --left-right --count "$br...$REMOTE/$br" 2>/dev/null || echo "? ?")
     line=$(jq -c --arg b "$br" '[.[] | select(.state == "OPEN" and .headRefName == $b)] | .[0] // null' <<<"$prs")
