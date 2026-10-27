@@ -313,11 +313,13 @@ def keep_availability() -> None:
 
 
 def keep_metrics() -> None:
-    """The figures of each machine after a health pass (24 h, the small curves of the machine page)."""
+    """The figures of each machine after a health pass (24 h, the small curves of the machine page) and the health count of the Machines tiles (7 days)."""
     import metrics
+    import tile_history
     from auth import db_path
     try:
         metrics.sample(db_path(CFG), WEB / "health" / "stats.json")
+        tile_history.sample(db_path(CFG), WEB / "health" / "stats.json")
     except Exception as e:  # base unavailable: only the curves miss a point
         log(f"⚠ mesures des machines : {e}")
 

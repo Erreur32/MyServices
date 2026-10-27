@@ -73,5 +73,18 @@ class Availability(unittest.TestCase):
         self.assertEqual(av.sample(self.db, self.file), 0)
 
 
+class ReachSeries(Availability):
+    def test_machines_answering_per_collection(self):
+        self.put(NOW - 7200)
+        self.put(NOW - 3600, nas_ping=False)
+        self.put(NOW)
+        got = av.reach_series(self.db, 24, now=NOW)
+        # the machine switched off on purpose (pc) is not sampled: two followed machines, one of them down in the middle
+        self.assertEqual([(up, n) for _, up, n in got], [(2, 2), (1, 2), (2, 2)])
+        self.assertEqual([t for t, _, _ in got], sorted(t for t, _, _ in got))
+        self.assertEqual(len(av.reach_series(self.db, 1, now=NOW)), 2)   # the last hour: the point exactly an hour old and the latest
+        self.assertEqual(av.reach_series(self.db, 24, now=NOW + 3 * 86400), [])   # older than the period asked
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -29,6 +29,9 @@ import { SshAccess } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
 import { HeadTags } from "../components/HeadTags";
 import { StatTile } from "../components/StatTile";
+import { HistoryTile, useMachinesHistory } from "../components/HistoryTile";
+import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import type { TilePoint } from "../lib/tileHistory";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
 import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
@@ -40,25 +43,46 @@ import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
 
-/** Head of the Machines list, as the other pages: the title and its counts, then the figures (reachable, health OK, to watch, unreachable, off) */
-function MachinesHead({ snap, health, watching }: Readonly<{ snap: Snapshot; health: Map<string, HealthHost>; watching: (m: Machine) => boolean }>) {
+/** What each tile shows in the list under it when clicked (the same selection as the chips of the filter bar) */
+const TILE_SEL: Record<"reach" | "health" | "watch" | "down" | "off", Selected> = {
+  reach: { state: ["ssh", "agent", "api", "network", "box", "manual", "refused", "nossh"] },   // every state but off and down
+  health: { health: ["warn", "crit", "down"] },   // the machines whose health is not fully good
+  watch: { alert: ["bad", "warn"] },
+  down: { state: ["down"] },
+  off: { state: ["off"] },
+};
+const sameSel = (a: Selected, b: Selected) => {
+  const ka = Object.keys(a), kb = Object.keys(b);
+  return ka.length === kb.length && ka.every((k) => b[k] && a[k].length === b[k].length && a[k].every((v) => b[k].includes(v)));
+};
+
+/** Head of the Machines list, as the other pages: the title and its counts, then the figures (reachable, health OK, to watch, unreachable, off),
+ *  each with its history over the period chosen, and a click on one filters the list under it */
+function MachinesHead({ snap, health, watching, sel, onSel }: Readonly<{ snap: Snapshot; health: Map<string, HealthHost>; watching: (m: Machine) => boolean; sel: Selected; onSel: (s: Selected) => void }>) {
   const ms = snap.data.machine_list.filter((m) => !m.disabled), st = ms.map((m) => mState(m));
   const down = st.filter((x) => x === "down").length, off = st.filter((x) => x === "off").length, up = ms.length - down - off;
   const read = ms.map((m) => health.get(m.ip)).filter((h): h is HealthHost => !!h && h.level !== "na");
   const ok = read.filter((h) => h.reachable !== false && h.level === "ok").length, watch = ms.filter(watching).length;
   const ssh = ms.filter((m) => m.info && m.info.via !== "agent").length, agents = ms.filter((m) => m.agent).length;
+  const [hours, setHours] = usePeriod();
+  const hist = useMachinesHistory(hours, snap.data.generated);
+  const now = Math.floor(Date.now() / 1000);
+  const pick = (k: keyof typeof TILE_SEL) => ({ pressed: sameSel(sel, TILE_SEL[k]), onClick: () => onSel(sameSel(sel, TILE_SEL[k]) ? {} : TILE_SEL[k]) });
+  const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1];
   return (
     <div className="flex flex-col gap-4 pb-1 pt-3">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><Monitor size={18} aria-hidden />{tx("Machines")}</h1>
         <HeadTags counts={[tx("{0} machines", ms.length), tx("{0} lues par SSH", ssh), tx("{0} avec agent", agents)]} at={snap.data.generated} />
+        <PeriodSwitch value={hours} onChange={setHours} />
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
-        <StatTile n={`${up}/${ms.length - off}`} label={tx("Joignables")} tone={down ? "warn" : "ok"} />
-        {read.length > 0 && <StatTile n={`${ok}/${read.length}`} label={tx("Santé")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ok === read.length ? "ok" : "warn"} />}
-        <StatTile n={watch} label={tx("À surveiller")} tone={watch ? "warn" : undefined} />
-        <StatTile n={down} label={tx("Injoignables")} tone={down ? "bad" : undefined} />
-        <StatTile n={off} label={tx("Éteintes")} sub={tx("souvent éteintes, au repos")} />
+        <HistoryTile n={`${up}/${ms.length - off}`} label={tx("Joignables")} tone={down ? "warn" : "ok"} kind="strip" points={hist?.reach ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh {...pick("reach")} />
+        {read.length > 0 && <HistoryTile n={`${ok}/${read.length}`} label={tx("Santé")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ok === read.length ? "ok" : "warn"}
+          kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh {...pick("health")} />}
+        <StatTile n={watch} label={tx("À surveiller")} tone={watch ? "warn" : undefined} {...pick("watch")} />
+        <HistoryTile n={down} label={tx("Injoignables")} tone={down ? "bad" : undefined} kind="strip" points={hist?.reach ?? null} hours={hours} now={now} figure={missing} fmt={(p) => String(missing(p))} goodHigh={false} {...pick("down")} />
+        <StatTile n={off} label={tx("Éteintes")} sub={tx("souvent éteintes, au repos")} {...pick("off")} />
       </div>
     </div>
   );
@@ -1723,7 +1747,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
         figures={machineFigures(hb.get(pageM.ip), uptimeOf(pageM, unifiOf(pageM), freeboxOf(pageM, snap.data.network), haOf(pageM)) ?? null, watchOf(pageM).find((w) => w.tone !== "info")?.text)}
         onMachine={onMachine} focusTab={target?.tab} onBack={() => { location.hash = "machines"; }} />
     ) : <div className="py-1">
-      <MachinesHead snap={snap} health={hb} watching={(m) => watchOf(m).some((w) => w.tone !== "info")} />
+      <MachinesHead snap={snap} health={hb} watching={(m) => watchOf(m).some((w) => w.tone !== "info")} sel={f.sel} onSel={f.setSel} />
       <FilterBar bare f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
@@ -1736,10 +1760,10 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           {view === "table" && <Table fit head={<>
-            <th className="w-14 pl-4 pr-2" aria-label={tx("Icône")} /><Th k="name" sort={sort}>{tx("Machine")}</Th><Th k="ip" sort={sort}>IP</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <Th className="w-14 !pl-4 !pr-2"><span className="sr-only">{tx("Icône")}</span></Th><Th k="name" sort={sort}>{tx("Machine")}</Th><Th k="ip" sort={sort}>IP</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
             <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th k="cpu" sort={sort} className="!px-1.5">{tx("CPU")}</Th><Th k="mem" sort={sort} className="!px-1.5">{tx("Mémoire")}</Th><Th k="disk" sort={sort} className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th k="gpu" sort={sort} className="!px-1.5">GPU</Th>}
             <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right" title={tx("Temps depuis le dernier démarrage de la machine")}>Uptime</Th>
-            {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
+            {admin && <Th className="w-8 !px-1"><span className="sr-only">{tx("Réglages")}</span></Th>}
           </>}>
             {sort.sorted.map((m) => {
               const h = hb.get(m.ip), pills = watchOf(m).filter((i) => i.kind !== "updates");

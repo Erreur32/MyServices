@@ -142,3 +142,13 @@ def report(db_path: str | Path, days: int = 30, now: float | None = None) -> dic
                     "last": {"ts": lt[0], "up": lt[1]} if lt else None, "cells": cells})
     out.sort(key=lambda x: (x["uptime"], x["kind"], (x["label"] or "").lower()))
     return {"days": days, "step": "hour" if days == 1 else "day", "items": out}
+
+
+def reach_series(db_path: str | Path, hours: int, now: float | None = None) -> list[list[int]]:
+    """[[time, machines that answered, machines sampled], ...] of the last `hours`, one per collection, oldest first
+    (the figures behind the « Reachable » and « Unreachable » tiles of the Machines page)."""
+    now = now or time.time()
+    with _db(db_path) as db:
+        rows = db.execute("SELECT ts, SUM(up), COUNT(*) FROM avail_samples WHERE key LIKE 'machine:%' AND ts >= ? GROUP BY ts ORDER BY ts",
+                          (int(now - min(max(int(hours), 1), SAMPLE_DAYS * 24) * 3600),)).fetchall()
+    return [list(r) for r in rows]

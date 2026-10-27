@@ -11,6 +11,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Machines
+- The figure tiles of the Machines page now draw their history over a period chosen once for the whole row (24 h, 72 h or 7 days, kept by the browser): a strip of states for **Reachable** and **Unreachable** (one column per slot, orange or red where a machine did not answer) and a stepped curve for **Health**, with the change over the period under the figure and the reading at the pointer on hover. A click on a tile filters the list under it (a second click clears it).
+- New `GET /machines/history?hours=24|72|168`: the readings behind those tiles, `[time, value, total]` each. Reachability comes from the availability history; the health count is kept from now on (`tile_samples` table, 7 days), so the Health curve builds up after the update.
+- The icon and settings header cells of the machines table had no bottom border or background, which cut the line under the header; they now use the same header cell as the other columns.
+
 ### Menu
 - New **Collection** group between Protection and Administration: **Connectors**, **Discovery** and **Tasks and schedules** are now entries of their own instead of sitting under Administration, which keeps the settings and information of the app (Notifications, Accounts and access, Application, Activity). Addresses do not change.
 - Clicking the name of a menu category now opens its main page and unfolds it, where it used to unfold only. The chevron still folds and unfolds without changing page, and the dot still opens the page on its alerts.
