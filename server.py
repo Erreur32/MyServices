@@ -329,6 +329,7 @@ def keep_availability() -> None:
         tile_history.sample_backups(db_path(CFG), WEB / "backups.json")
         tile_history.sample_services(db_path(CFG), WEB / "data.json")
         tile_history.sample_agents(db_path(CFG), agents.Agents(db_path(CFG)).listing())
+        tile_history.sample_ai(db_path(CFG), WEB / "data.json", WEB / "health" / "stats.json")
     except Exception as e:  # base unavailable: only the availability history misses a point
         log(f"⚠ disponibilité : {e}")
         return

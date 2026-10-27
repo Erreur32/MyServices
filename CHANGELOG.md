@@ -18,7 +18,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### README
 - The README (English and French) now says the project is young but working, marks the connectors proven on a real network (in bold) and says the others were written from the documentation and tried against simulated servers only. The connector table lists the whole family (about 60), and the menu paths are the current ones (Collection › Connectors, Collection › Discovery).
 
+### AI and agents
+- The overview has **two rows of tiles with a history** and the period switch (24 h, 3 days, 7 days). Row 1, the machine: **GPU load**, **GPU memory** (the orange warning from 90 % stays), **GPU temperature** (the hottest) and **Power** (limit in the sub line). Row 2, the content: **Engines online** (strip), **Models loaded**, **Agents** (platforms connected, strip) and the **memory of the AI machine** (the RAM of the machines that carry a GPU, from the health reads). Only the GPUs of machines that answer are counted.
+- Counted on the server like the page (`tile_history.ai_points`, keys `ai.*`, `GET /ai/history`), one point per collection, kept 7 days. Tokens per second are not read by the current connectors, so there is no tile for them.
+
 ### Agents
+- New **Health** tile and column: a score out of 100 per agent, shown as a bar (green from 80, orange from 50), in three parts: 50 for reports on time, 30 for an up-to-date script, 20 for a recognized machine (no pending host name). 0 before the first report. The tile shows the average with its history (`agents.health`); the pointer on a bar says what is missing.
 - The **Running** and **To update** tiles of Settings › Machines › Agents draw their history (a curve and a strip) with the period switch. Counted on the server like the page, one point per collection, kept 7 days (`agents.running`, `agents.late`, `GET /agents/history`, admin).
 
 ### Network

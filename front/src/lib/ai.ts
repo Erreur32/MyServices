@@ -124,3 +124,29 @@ export function aiAlerts(cards: AiCard[], gpus: GpuCard[]): AiAlert[] {
   }
   return [...out, ...unreadAlerts(cards, ["engine", "agent", "interface"])];
 }
+
+/** The live figures of the overview tiles, counted like the server counts the history (tile_history.ai_points): the GPUs of the machines that
+ *  answer, the AI connectors read (their engines, models and agent platforms) and the memory of the machines that carry a GPU. null: not read. */
+export interface AiFigures {
+  gpu: number | null; vram: number | null; temp: number | null; power: number | null; powerLimit: number | null; ram: number | null;
+  engines: number; enginesUp: number; models: number; modelsLoaded: number; platforms: number; platformsUp: number;
+}
+
+const mean = (v: number[]): number | null => (v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null);
+
+export function aiFigures(snap: Snapshot, cards = aiCards(snap)): AiFigures {
+  const machines = (snap.data.services_status ?? []).filter((c) => c.connector === "gpuviewr").flatMap(gpuMachines).filter((m) => m.online);
+  const gpus = machines.flatMap((m) => m.gpus), ips = new Set(machines.flatMap((m) => m.ips));
+  const num = (pick: (g: GpuRead) => number | null | undefined) => gpus.map(pick).filter((v): v is number => v != null);
+  const used = num((g) => g.mem_used).reduce((a, b) => a + b, 0), total = num((g) => g.mem_total).reduce((a, b) => a + b, 0);
+  const watts = num((g) => g.power), temps = num((g) => g.temp);
+  const engines = cards.filter((c) => c.role === "engine" && c.conn), models = engines.flatMap((c) => c.models);
+  const plats = cards.filter((c) => c.role === "agent").flatMap((c) => c.conn?.ai?.platforms ?? []);
+  const ram = (snap.health?.hosts ?? []).filter((h) => ips.has(h.name.split(" · ").at(-1) ?? "")).map((h) => h.res?.mem_pct).filter((v): v is number => v != null);
+  return {
+    gpu: mean(num((g) => g.util)), vram: total ? Math.round((used / total) * 100) : null, temp: temps.length ? Math.round(Math.max(...temps)) : null,
+    power: watts.length ? Math.round(watts.reduce((a, b) => a + b, 0)) : null, powerLimit: Math.round(num((g) => g.power_limit).reduce((a, b) => a + b, 0)) || null, ram: mean(ram),
+    engines: engines.length, enginesUp: engines.filter((c) => c.conn?.ok).length, models: models.length, modelsLoaded: models.filter((m) => m.loaded).length,
+    platforms: plats.length, platformsUp: plats.filter((p) => p.state === "connected").length,
+  };
+}

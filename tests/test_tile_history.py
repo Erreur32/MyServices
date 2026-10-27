@@ -131,15 +131,52 @@ class AgentsPoints(unittest.TestCase):
 
     def test_counted_like_the_page(self):
         # five agents followed (the revoked one is out): three running, one late (the other one has its update asked for)
-        self.assertEqual(th.agents_points(self.AGENTS), {th.AGENTS_RUNNING: (3, 5), th.AGENTS_LATE: (4, 5)})
+        self.assertEqual(th.agents_points(self.AGENTS), {th.AGENTS_RUNNING: (3, 5), th.AGENTS_LATE: (4, 5), th.AGENTS_HEALTH: (round((100 + 70 + 70 + 50 + 0) / 5), 100)})
         self.assertEqual(th.agents_points([{"state": "révoqué"}]), {})
 
     def test_sampled_once_per_gap(self):
         with tempfile.TemporaryDirectory() as tmp:
             db = Path(tmp) / "t.db"
-            self.assertEqual(th.sample_agents(db, self.AGENTS, now=10_000), 2)
+            self.assertEqual(th.sample_agents(db, self.AGENTS, now=10_000), 3)
             self.assertEqual(th.sample_agents(db, self.AGENTS, now=10_060), 0)
             self.assertEqual(th.series(db, th.AGENTS_RUNNING, 24, now=10_060), [[10_000, 3, 5]])
+
+
+class AgentHealth(unittest.TestCase):
+    def test_three_parts_out_of_100(self):
+        self.assertEqual(th.agent_health({"state": "actif"}), 100)
+        self.assertEqual(th.agent_health({"state": "actif", "outdated": True}), 70)
+        self.assertEqual(th.agent_health({"state": "actif", "host_pending": 1}), 80)
+        self.assertEqual(th.agent_health({"state": "silencieux"}), 50)
+        self.assertEqual(th.agent_health({"state": "en attente"}), 0)
+        self.assertIsNone(th.agent_health({"state": "révoqué"}))
+
+
+class AiPoints(unittest.TestCase):
+    GPU = {"connector": "gpuviewr", "machines": [
+        {"online": True, "ips": ["10.0.0.5"], "gpus": [{"util": 40, "temp": 60, "mem_used": 1000, "mem_total": 4000, "power": 100, "power_limit": 300},
+                                                       {"util": 60, "temp": 70, "mem_used": 3000, "mem_total": 4000, "power": 50, "power_limit": 300}]},
+        {"online": False, "ips": ["10.0.0.9"], "gpus": [{"util": 100, "temp": 99, "mem_used": 1, "mem_total": 1, "power": 999}]}]}
+    DATA = {"services_status": [GPU,
+        {"connector": "ollama", "ok": True, "ai": {"role": "engine", "models": [{"loaded": True}, {"loaded": False}, {"loaded": False}]}},
+        {"connector": "llamacpp", "ok": False, "ai": {"role": "engine", "models": []}},
+        {"connector": "hermes", "ok": True, "ai": {"role": "agent", "platforms": [{"state": "connected"}, {"state": "error"}]}}]}
+    STATS = {"hosts": [{"name": "IA · 10.0.0.5", "res": {"mem_pct": 58.2}}, {"name": "Autre · 10.0.0.9", "res": {"mem_pct": 10}}]}
+
+    def test_counted_like_the_page(self):
+        p = th.ai_points(self.DATA, self.STATS)
+        self.assertEqual(p["ai.gpu"], (50, 100))
+        self.assertEqual(p["ai.vram"], (50, 100))   # 4000 of 8000, the machine that does not answer is out
+        self.assertEqual(p["ai.temp"], (70, 100))
+        self.assertEqual(p["ai.power"], (150, 600))
+        self.assertEqual(p["ai.engines"], (1, 2))
+        self.assertEqual(p["ai.models"], (1, 3))
+        self.assertEqual(p["ai.agents"], (1, 2))
+        self.assertEqual(p["ai.ram"], (58, 100))
+
+    def test_what_is_not_read_leaves_its_key_out(self):
+        self.assertEqual(th.ai_points({"services_status": []}), {})
+        self.assertNotIn("ai.ram", th.ai_points(self.DATA))
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 // Machines → Agents and SSH connections: the lists behind the two sub-pages (tabs/Agents.tsx, tabs/SshConnections.tsx), worked out from the
 // agents (GET agents), the machines settings (GET machines/settings) and the SSH reads of the snapshot (Docker connectors).
 import type { AgentInfo, Connector, Machine, MachineConf, SshAlias } from "../types";
+import { tx } from "./i18n";
 
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
 
@@ -47,4 +48,13 @@ export function sshRows(machines: Record<string, MachineConf>, aliases: SshAlias
   }
   const rank: Record<SshState, number> = { refused: 0, unread: 1, ok: 2, off: 3 };
   return rows.sort((a, b) => rank[a.state] - rank[b.state] || byName(a, b));
+}
+
+/** Health of an agent out of 100, in three parts (the same rule as the server's tile_history.agent_health): 50 answering in time, 30 script up to
+ *  date, 20 machine recognized. `why` names what is missing; null for a revoked agent. */
+export function agentHealth(a: AgentInfo): { score: number; why: string[] } | null {
+  if (a.state === "révoqué") return null;
+  if (a.state === "en attente") return { score: 0, why: [tx("pas encore de premier relevé")] };
+  const why = [a.state === "actif" ? "" : tx("relevés en retard : −50"), a.outdated ? tx("script en retard : −30") : "", a.host_pending ? tx("nom de poste à confirmer : −20") : ""].filter(Boolean);
+  return { score: 100 - (a.state === "actif" ? 0 : 50) - (a.outdated ? 30 : 0) - (a.host_pending ? 20 : 0), why };
 }

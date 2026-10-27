@@ -4,7 +4,7 @@
 import { ArrowRight, Bot, Cpu, Fan, Gauge, MemoryStick, Thermometer, Workflow, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Snapshot } from "../api";
-import { aiAlerts, aiCards, aiGpus, aiLinks, aiModels, GPU_FULL, memPct, type AiCard, type AiRole, type GpuCard, type ModelRow } from "../lib/ai";
+import { aiAlerts, aiCards, aiFigures, aiGpus, aiLinks, aiModels, GPU_FULL, memPct, type AiCard, type AiRole, type GpuCard, type ModelRow } from "../lib/ai";
 import type { GpuRead } from "../types";
 import { useSort } from "../lib/filter";
 import { bytes } from "../lib/format";
@@ -17,7 +17,9 @@ import { FamilyCard, WatchPanel } from "../components/FamilyCards";
 import { HeadTags } from "../components/HeadTags";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { InfoNote } from "../components/InfoNote";
-import { StatTile } from "../components/StatTile";
+import { HistoryTile, useAiHistory } from "../components/HistoryTile";
+import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import type { TilePoint } from "../lib/tileHistory";
 
 const VIEWS = ["overview", "models", "agents", "gpu"] as const;
 const ROLE: Record<AiRole, string> = { engine: tx("moteur"), agent: tx("agent"), interface: tx("interface"), mcp: "MCP", gpu: "GPU", other: tx("autre") };
@@ -37,7 +39,7 @@ export function Ai({ snap, route }: Readonly<{ snap: Snapshot; route: string }>)
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={Bot} title={tx("IA et agents")} tags={<HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
       {!cards.length && <Empty>{tx("Aucun service IA pour l'instant : un service de catégorie « IA » dans Services, ou un connecteur IA, fait apparaître cette page.")}</Empty>}
-      {cards.length > 0 && view === "overview" && <Overview cards={cards} models={models} gpus={gpus} admin={admin} />}
+      {cards.length > 0 && view === "overview" && <Overview snap={snap} cards={cards} models={models} gpus={gpus} admin={admin} />}
       {cards.length > 0 && view === "models" && <Models rows={models} cards={cards} />}
       {cards.length > 0 && view === "agents" && <Agents snap={snap} cards={cards} />}
       {cards.length > 0 && view === "gpu" && <Gpus gpus={gpus} models={models} />}
@@ -45,21 +47,34 @@ export function Ai({ snap, route }: Readonly<{ snap: Snapshot; route: string }>)
   );
 }
 
-function Overview({ cards, models, gpus, admin }: Readonly<{ cards: AiCard[]; models: ModelRow[]; gpus: GpuCard[]; admin: boolean }>) {
-  const alerts = aiAlerts(cards, gpus);
-  const engines = cards.filter((c) => c.role === "engine"), agents = cards.filter((c) => c.role === "agent");
-  const loaded = models.filter((m) => m.loaded).length;
-  const plats = agents.flatMap((a) => a.conn?.ai?.platforms ?? []), up = plats.filter((p) => p.state === "connected").length;
-  const used = gpus.reduce((t, g) => t + (g.gpu.mem_used ?? 0), 0), total = gpus.reduce((t, g) => t + (g.gpu.mem_total ?? 0), 0);
-  const gpuPct = total ? Math.round((used / total) * 100) : null;
+function Overview({ snap, cards, models, gpus, admin }: Readonly<{ snap: Snapshot; cards: AiCard[]; models: ModelRow[]; gpus: GpuCard[]; admin: boolean }>) {
+  const alerts = aiAlerts(cards, gpus), fig = aiFigures(snap, cards);
+  const engines = cards.filter((c) => c.role === "engine");
+  const [hours, setHours] = usePeriod(), hist = useAiHistory(hours, snap.data.generated), now = Math.floor(Date.now() / 1000);
+  const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1], level = (p: TilePoint) => `${p[1]} %`;
+  const hot = (v: number | null, limit: number) => (v != null && v >= limit ? "warn" : v == null ? undefined : "ok");
+  const powerTop = Math.max(fig.powerLimit ?? 0, ...(hist?.power ?? []).map((p) => p[1]), 1);
+  const dash = (v: number | null, unit: string) => (v == null ? "-" : `${v} ${unit}`);
+  const common = { hours, now } as const;
   return (
     <>
       <InfoNote>{tx("Ce que contiennent vos services IA : modèles, agents, GPU. Leur état (en ligne, en panne, en pause) vient de Services, sans sonde en plus. Pour ajouter ou modifier un service, passez par Services ou Connecteurs.")}</InfoNote>
-      <div className="flex gap-2.5 overflow-x-auto pb-1">
-        <StatTile n={engines.length} label={tx("Moteurs")} sub={[...new Set(engines.map((e) => e.title))].join(", ") || tx("aucun")} />
-        <StatTile n={models.length} label={tx("Modèles")} sub={tx("{0} chargés en mémoire", loaded)} />
-        <StatTile n={agents.length} label={tx("Agents")} tone={plats.length && up < plats.length ? "warn" : undefined} sub={plats.length ? tx("{0} plateformes sur {1}", up, plats.length) : tx("aucune plateforme lue")} />
-        <StatTile n={gpuPct == null ? "-" : `${gpuPct} %`} label={tx("Mémoire GPU")} tone={gpuPct != null && gpuPct >= GPU_FULL ? "warn" : undefined} sub={gpus.length ? tx("{0} GPU, lus par GpuViewR", gpus.length) : tx("GpuViewR non relié")} />
+      <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
+      {gpus.length > 0 && (
+        <div className="flex flex-wrap gap-2.5 pb-1">
+          <HistoryTile n={dash(fig.gpu, "%")} label={tx("Charge GPU")} tone={hot(fig.gpu, GPU_FULL)} fact={tx("{0} GPU, lus par GpuViewR", gpus.length)} scale={100} kind="curve" points={hist?.gpu ?? null} {...common} figure={(p) => p[1]} fmt={level} goodHigh />
+          <HistoryTile n={dash(fig.vram, "%")} label={tx("Mémoire GPU")} tone={hot(fig.vram, GPU_FULL)} scale={100} kind="curve" points={hist?.vram ?? null} {...common} figure={(p) => p[1]} fmt={level} goodHigh={false} />
+          <HistoryTile n={dash(fig.temp, "°C")} label={tx("Température GPU")} tone={hot(fig.temp, 80)} fact={tx("la plus chaude")} scale={100} kind="curve" points={hist?.temp ?? null} {...common} figure={(p) => p[1]} fmt={(p) => `${p[1]} °C`} goodHigh={false} />
+          <HistoryTile n={dash(fig.power, "W")} label={tx("Puissance")} fact={fig.powerLimit ? tx("limite {0} W", fig.powerLimit) : undefined} scale={powerTop} kind="curve" points={hist?.power ?? null} {...common} figure={(p) => p[1]} fmt={(p) => `${p[1]} W`} goodHigh={false} />
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2.5 pb-1">
+        <HistoryTile n={fig.engines ? `${fig.enginesUp}/${fig.engines}` : engines.length} label={tx("Moteurs en ligne")} tone={fig.engines ? (fig.enginesUp < fig.engines ? "warn" : "ok") : undefined}
+          fact={[...new Set(engines.map((e) => e.title))].join(", ") || tx("aucun")} kind="strip" points={hist?.engines ?? null} {...common} figure={missing} fmt={(p) => tx("{0} moteur(s) hors ligne", missing(p))} goodHigh />
+        <HistoryTile n={fig.models ? `${fig.modelsLoaded}/${fig.models}` : models.length} label={tx("Modèles chargés")} fact={tx("en mémoire, sur {0} modèles", models.length)} dips={false} kind="curve" points={hist?.models ?? null} {...common} figure={(p) => p[1]} fmt={ratio} goodHigh />
+        <HistoryTile n={fig.platforms ? `${fig.platformsUp}/${fig.platforms}` : cards.filter((c) => c.role === "agent").length} label={tx("Agents")} tone={fig.platforms && fig.platformsUp < fig.platforms ? "warn" : undefined}
+          fact={fig.platforms ? tx("plateformes connectées") : tx("aucune plateforme lue")} kind="strip" points={hist?.agents ?? null} {...common} figure={missing} fmt={(p) => tx("{0} plateforme(s) déconnectée(s)", missing(p))} goodHigh />
+        {fig.ram != null && <HistoryTile n={`${fig.ram} %`} label={tx("Mémoire de la machine IA")} tone={hot(fig.ram, GPU_FULL)} scale={100} kind="curve" points={hist?.ram ?? null} {...common} figure={(p) => p[1]} fmt={level} goodHigh={false} />}
       </div>
       <WatchPanel id="ai-watch" lines={alerts} admin={admin} />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

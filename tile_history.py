@@ -23,8 +23,9 @@ NETWORK = (NET_GEAR, NET_CLIENTS, NET_DEVICES)
 BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD = "backups.ok", "backups.late", "backups.bad"
 BACKUPS = (BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD)
 SERVICES_WARN = "services.warn"
-AGENTS_RUNNING, AGENTS_LATE = "agents.running", "agents.late"
-AGENTS = (AGENTS_RUNNING, AGENTS_LATE)
+AGENTS_RUNNING, AGENTS_LATE, AGENTS_HEALTH = "agents.running", "agents.late", "agents.health"
+AGENTS = (AGENTS_RUNNING, AGENTS_LATE, AGENTS_HEALTH)
+AI = ("ai.gpu", "ai.vram", "ai.temp", "ai.power", "ai.engines", "ai.models", "ai.agents", "ai.ram")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tile_samples (key TEXT NOT NULL, ts INTEGER NOT NULL, value INTEGER NOT NULL, total INTEGER NOT NULL,
@@ -144,6 +145,16 @@ def sample_services(db_path: str | Path, data_file: Path, now: float | None = No
     return sum(store(db_path, key, (ts, *vt), now) for key, vt in services_points(data).items())
 
 
+def agent_health(a: dict) -> int | None:
+    """Health of an agent out of 100 (front lib/accessLists.ts agentHealth): 50 answering in time, 30 script up to date, 20 machine recognized.
+    None for a revoked agent, 0 while it never reported."""
+    if a.get("state") == "révoqué":
+        return None
+    if a.get("state") == "en attente":
+        return 0
+    return (50 if a.get("state") == "actif" else 0) + (0 if a.get("outdated") else 30) + (0 if a.get("host_pending") else 20)
+
+
 def agents_points(agents: list[dict]) -> dict[str, tuple[int, int]]:
     """{key: (value, total)} of the Agents tiles, counted like the page: the agents not revoked; « running » is the ones answering in time, « late »
     the ones with an older script that no update was asked for yet (as the value of its key the ones that are not, so a strip counts the late ones)."""
@@ -152,13 +163,75 @@ def agents_points(agents: list[dict]) -> dict[str, tuple[int, int]]:
         return {}
     n = len(live)
     late = sum(1 for a in live if a.get("outdated") and not a.get("update_requested"))
-    return {AGENTS_RUNNING: (sum(1 for a in live if a.get("state") == "actif"), n), AGENTS_LATE: (n - late, n)}
+    scores = [agent_health(a) or 0 for a in live]
+    return {AGENTS_RUNNING: (sum(1 for a in live if a.get("state") == "actif"), n), AGENTS_LATE: (n - late, n),
+            AGENTS_HEALTH: (round(sum(scores) / n), 100)}
 
 
 def sample_agents(db_path: str | Path, agents: list[dict], now: float | None = None) -> int:
     """The state of the agents as of now, one point per key at each collection."""
     now = now or time.time()
     return sum(store(db_path, key, (int(now), *vt), now) for key, vt in agents_points(agents).items())
+
+
+def _mean(values: list[float]) -> int | None:
+    return round(sum(values) / len(values)) if values else None
+
+
+def ai_points(data: dict, stats: dict | None = None) -> dict[str, tuple[int, int]]:
+    """{key: (value, total)} of the « IA et agents » tiles from data.json (and the machine memory of stats.json), counted like the page: the GPUs
+    GpuViewR reads on machines that answer (load, memory in use, hottest, power), the engines and agent platforms read, the models loaded."""
+    out: dict[str, tuple[int, int]] = {}
+    rows = [c for c in data.get("services_status") or [] if isinstance(c, dict)]
+    gpus, ips = [], set()
+    for c in rows:
+        if c.get("connector") != "gpuviewr":
+            continue
+        for m in c.get("machines") or []:
+            if isinstance(m, dict) and m.get("online"):
+                gpus += [g for g in m.get("gpus") or [] if isinstance(g, dict)]
+                ips.update(m.get("ips") or [])
+    loads = [g["util"] for g in gpus if g.get("util") is not None]
+    if loads:
+        out["ai.gpu"] = (_mean(loads), 100)
+    used, total = sum(g.get("mem_used") or 0 for g in gpus), sum(g.get("mem_total") or 0 for g in gpus)
+    if total:
+        out["ai.vram"] = (round(used / total * 100), 100)
+    if temps := [g["temp"] for g in gpus if g.get("temp") is not None]:
+        out["ai.temp"] = (round(max(temps)), 100)
+    if watts := [g["power"] for g in gpus if g.get("power") is not None]:
+        w, limit = round(sum(watts)), round(sum(g.get("power_limit") or 0 for g in gpus))
+        out["ai.power"] = (w, max(w, limit))
+    def role(c: dict) -> str | None:
+        return (c.get("ai") or {}).get("role")
+    engines = [c for c in rows if role(c) == "engine"]
+    if engines:
+        out["ai.engines"] = (sum(1 for c in engines if c.get("ok")), len(engines))
+        models = [m for c in engines for m in (c.get("ai") or {}).get("models") or [] if isinstance(m, dict)]
+        if models:
+            out["ai.models"] = (sum(1 for m in models if m.get("loaded")), len(models))
+    plats = [p for c in rows if role(c) == "agent" for p in (c.get("ai") or {}).get("platforms") or [] if isinstance(p, dict)]
+    if plats:
+        out["ai.agents"] = (sum(1 for p in plats if p.get("state") == "connected"), len(plats))
+    mem = [h["res"]["mem_pct"] for h in (stats or {}).get("hosts") or []
+           if isinstance(h, dict) and str(h.get("name", "")).rsplit(" · ", 1)[-1] in ips and (h.get("res") or {}).get("mem_pct") is not None]
+    if mem_avg := _mean(mem):
+        out["ai.ram"] = (mem_avg, 100)
+    return out
+
+
+def sample_ai(db_path: str | Path, data_file: Path, stats_file: Path, now: float | None = None) -> int:
+    """The state of the AI tiles as of now, one point per key at each collection; the memory needs stats.json, the rest only data.json."""
+    now = now or time.time()
+    try:
+        data = json.loads(data_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    try:
+        stats = json.loads(stats_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        stats = None
+    return sum(store(db_path, key, (int(now), *vt), now) for key, vt in ai_points(data, stats).items())
 
 
 def backups_points(data: dict) -> dict[str, tuple[int, int]]:
