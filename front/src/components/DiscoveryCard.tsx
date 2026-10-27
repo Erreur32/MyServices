@@ -79,7 +79,7 @@ export function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void
   const [note, setNote] = useState<Note>(null);
   if (!x.mutable) return null;
   const mute = !x.muted;
-  const forgotWhere = x.id.startsWith("connector:") ? tx("oublié : rangé dans « Oubliés », sous Connecteurs › Détectés à relier") : tx("oublié : rangé dans « Suggestions oubliées », sous Application › Découverte automatique");
+  const forgotWhere = x.id.startsWith("connector:") ? tx("oublié : rangé dans « Oubliés », sous Connecteurs › Détectés à relier") : tx("oublié : rangé dans « Suggestions oubliées », sous Collecte › Découverte");
   const done = mute ? forgotWhere : tx("rappelé : de nouveau proposé");
   return (
     <>

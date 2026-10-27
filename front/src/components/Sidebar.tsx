@@ -1,4 +1,4 @@
-// Side menu, always on the left: four groups of pages, an alert dot per page, the sub-pages of the open page under it. Folded to
+// Side menu, always on the left: five groups of pages, an alert dot per page, the sub-pages of the open page under it. Folded to
 // icons on demand (kept by this browser): the sub-pages of an icon then open in a small panel, on hover or on a click (Profile → Appearance).
 // On a phone it is a drawer opened from the header.
 import { useEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent } from "react";
@@ -134,8 +134,8 @@ function useFlyoutPanel(flies: boolean) {
 }
 
 /** The link of an entry: its icon, and its name when the menu is unfolded (folded: the name and the dot's meaning for screen readers) */
-function EntryLink({ item, open, narrow, flies, flown, badge, onClick }: Readonly<{
-  item: NavItem; open: boolean; narrow: boolean; flies: boolean; flown: boolean; badge?: Level; onClick: (e: MouseEvent) => void;
+function EntryLink({ item, open, narrow, flies, flown, badge, counts, onClick }: Readonly<{
+  item: NavItem; open: boolean; narrow: boolean; flies: boolean; flown: boolean; badge?: Level; counts: Counts; onClick: (e: MouseEvent) => void;
 }>) {
   const named = badge ? [item.label, levelText(badge)].join(", ") : item.label;
   const room = !narrow && (badge || item.subs) ? "pr-16" : "";   // room for the dot and the chevron
@@ -146,6 +146,7 @@ function EntryLink({ item, open, narrow, flies, flown, badge, onClick }: Readonl
       className={`${ROW} py-2 ${narrow ? "justify-center" : "px-3"} ${room} ${rowTone(open)}`}>
       <Icon size={17} strokeWidth={1.75} aria-hidden className="shrink-0" />
       {!narrow && <span className="truncate">{item.label}</span>}
+      {!narrow && !item.subs && <CountChip n={counts[item.id]} />}
     </a>
   );
 }
@@ -172,14 +173,14 @@ function NavEntry({ item, active, narrow, badge, why, counts, picked, onPick, on
   const category = !narrow && !!item.subs;
   const click = (e: MouseEvent) => {
     if (panel.byClick) { e.preventDefault(); panel.toggle(); return; }
-    if (category) { e.preventDefault(); onPick(expanded ? "" : item.id); return; }   // a category: its name opens (or closes) its sub-pages, the page stays
+    if (category) onPick(item.id);   // a category: its name opens its main page and unfolds it (only the chevron folds), the link does the rest
     panel.hide();
     onNavigate();
   };
   return (
     <div ref={panel.box} {...panel.bind}>
       <span className="relative flex">
-        <EntryLink item={item} open={open} narrow={narrow} flies={flies} flown={!!panel.fly} badge={badge} onClick={click} />
+        <EntryLink item={item} open={open} narrow={narrow} flies={flies} flown={!!panel.fly} badge={badge} counts={counts} onClick={click} />
         {badge && narrow && <span aria-hidden className={`pointer-events-none absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2 ${badge === "crit" ? "bg-bad" : "bg-warn"}`} />}
         {badge && !narrow && <Badge level={badge} item={item} why={why} onBadge={onBadge} />}
         {category && <FoldButton expanded={expanded} onToggle={() => onPick(expanded ? "" : item.id)} />}
@@ -204,7 +205,7 @@ export function Sidebar({ snap, badges, why = {}, onNavigate, onBadge, mobileOpe
   const narrow = collapsed && !mobileOpen;   // the phone drawer always shows the names
   const [todo, setTodo] = useState(0);
   const security = useMemo(() => securityCounts(snap), [snap]);
-  const counts = useMemo(() => ({ ...security, discovery: todo }), [security, todo]);   // what the discovery asks for, on Application › Automatic discovery
+  const counts = useMemo(() => ({ ...security, discovery: todo }), [security, todo]);   // what the discovery asks for, on Collection › Discovery
   const toggle = () => setCollapsed((c) => {
     try { localStorage.setItem(KEY, c ? "0" : "1"); } catch { /* storage refused: the choice lasts this visit */ }
     return !c;

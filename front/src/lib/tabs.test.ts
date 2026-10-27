@@ -9,8 +9,12 @@ const snap = (over: Record<string, unknown> = {}, meOver: Record<string, unknown
   ({ me: { role: "admin", ...meOver }, backups: null, data: { machine_list: [], hosts: [], services_status: [], containers: [], network: [], virtualization: [], security: [], dns: null, ...over } } as unknown as Snapshot);
 
 describe("lib/tabs", () => {
-  it("NAV : quatre groupes, dans l'ordre ; Fail2ban est une sous-page de Sécurité, Réglages réparti", () => {
-    expect(NAV.map((g) => g.id)).toEqual(["overview", "inventory", "protection", "admin"]);
+  it("NAV : cinq groupes, dans l'ordre ; Fail2ban est une sous-page de Sécurité, Réglages réparti", () => {
+    expect(NAV.map((g) => g.id)).toEqual(["overview", "inventory", "protection", "collect", "admin"]);
+    const collect = NAV.find((g) => g.id === "collect")!.items;   // what feeds the app, apart from the Administration
+    expect(collect.map((i) => i.id)).toEqual(["connectors", "discovery", "tasks"]);
+    expect(collect.filter((i) => !i.subs).map((i) => i.hash)).toEqual(["settings/discovery", "settings/tasks"]);   // one page each: the name opens it
+    expect(NAV.find((g) => g.id === "admin")!.items.map((i) => i.id)).toEqual(["alerts", "access", "app", "activity"]);
     const security = NAV.flatMap((g) => g.items).find((i) => i.id === "security")!;
     expect(security.subs!.map((x) => x.id)).toContain("fail2ban");
     const hashes = NAV.flatMap((g) => g.items.flatMap(leaves)).flatMap((i) => [i.hash, ...(i.also ?? [])]);   // also: Machines settings (buttons of « All machines »), the page of a set (« Sets »)
@@ -66,8 +70,10 @@ describe("lib/tabs", () => {
     expect(activeNav("#profile", g)).toBe("");
   });
   it("navTrail : l'entrée et la sous-page d'une adresse (titre de page)", () => {
-    expect(navTrail("#settings/tasks").item?.id).toBe("app");
-    expect(navTrail("#settings/tasks").sub?.id).toBe("tasks");
+    expect(navTrail("#settings/tasks").item?.id).toBe("tasks");   // Collection › Tasks and schedules: a page of its own
+    expect(navTrail("#settings/tasks").sub).toBeUndefined();
+    expect(navTrail("#settings/updates").item?.id).toBe("app");
+    expect(navTrail("#settings/updates").sub?.id).toBe("updates");
     expect(navTrail("#virtualization").item?.id).toBe("virtualization");
     expect(navTrail("#virtualization").sub).toBeUndefined();
     expect(navTrail("#dns/servers").item?.id).toBe("dns");

@@ -45,7 +45,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     case "alerts": return <NotificationsHub />;
     case "connectors": return <Connectors snap={snap} part={connectorsPart(location.hash.split("/")[2])} />;
     case "machines": return <MachinesSection snap={snap} />;
-    case "discovery": return <NetworkSettings snap={snap} parts={["mode", "suggestions", "forgotten"]} />;   // Application › Automatic discovery
+    case "discovery": return <NetworkSettings snap={snap} parts={["mode", "suggestions", "forgotten"]} />;   // Collection › Discovery
     case "updates": return <UpdatesSettings />;
     case "requests": return <ActivityHub />;
     case "api": return <ApiMcp />;

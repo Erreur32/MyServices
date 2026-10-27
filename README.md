@@ -102,7 +102,8 @@ One menu on the left holds every page, in four groups; the views of a page are i
 | **Overview** | **Home** (dashboard: what needs your attention, then counters that open the page already filtered; statistics), **History** (events of the last 24 h to one year as dots, bars, curve or heat map; availability) |
 | **Inventory** | **Machines** (every machine, each with its own page and settings; devices seen by your tools but not followed; agents; SSH connections and the app's SSH key), **Services** (NPM hosts and local services, each with its page, read and edited in place; new services; declare a service), **Network** (UniFi, Freebox, scan, devices, diagnostic), **DNS** (AdGuard Home: servers, details), **Virtualization**, **AI and agents** (overview, models, agents and MCP, GPU; shown once an AI service or connector exists), **Video and cameras** (overview, cameras, streams, recordings; shown once a Stream service or a video connector exists), **Infra** (services read through their API, containers), **Diagrams** |
 | **Protection** | **Backups** (by machine, sets, add backups, to link, copies elsewhere, paths searched), **Security** (overview, exposed sites, SSH access, network ports, certificates, Fail2ban, Wazuh) |
-| **Administration** | **Connectors** (mine, available, found to link, already read over SSH or by an agent), **Notifications** (channels, alert rules, my notifications, examples, last sent), **Accounts and access** (accounts and sessions, API and MCP tokens), **Application** (tasks and schedules, automatic discovery, updates, e-mail, export and import, information), **Activity** (requests, audit log, logs) |
+| **Collection** | **Connectors** (mine, available, found to link, already read over SSH or by an agent), **Discovery** (automatic mode, what to do, other suggestions), **Tasks and schedules** |
+| **Administration** | **Notifications** (channels, alert rules, my notifications, examples, last sent), **Accounts and access** (accounts and sessions, API and MCP tokens), **Application** (updates, e-mail, export and import, information), **Activity** (requests, audit log, logs) |
 
 Profile, Help and About are in the account menu, top right.
 
@@ -276,7 +277,7 @@ Almost everything is set in the page (Settings). Files and variables, for refere
 | `MYSERVICES_COLLECT_AT` | schedule of the collection, `minutes hours` (default `0,15,30,45 *`); same for the watcher and health |
 | `TZ` | time zone |
 
-Schedules can also be edited live in Administration › Application › Tasks and schedules. A full example is in [`deploy/compose.example.yaml`](deploy/compose.example.yaml).
+Schedules can also be edited live in Collection › Tasks and schedules. A full example is in [`deploy/compose.example.yaml`](deploy/compose.example.yaml).
 
 </details>
 

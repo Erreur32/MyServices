@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Menu
+- New **Collection** group between Protection and Administration: **Connectors**, **Discovery** and **Tasks and schedules** are now entries of their own instead of sitting under Administration, which keeps the settings and information of the app (Notifications, Accounts and access, Application, Activity). Addresses do not change.
+- Clicking the name of a menu category now opens its main page and unfolds it, where it used to unfold only. The chevron still folds and unfolds without changing page, and the dot still opens the page on its alerts.
+
 ### Backups
 - A copy that does not run every day (a weekly rsync to a NAS, say) can now say so: **Rhythm** (days between two runs) in the form of a copy, `every_days` in `backups-meta.json`, also settable through `PATCH /backups/settings/{set_id}/locations/{index}`. Between two runs such a copy is no longer reported as late on the source; it is judged on the newest archive old enough for its next run to have passed. Default is 1 (daily), nothing changes for existing sets.
 - Machines tab: the disk usage and free space figures are right-aligned, so they line up from one disk to the next.
