@@ -33,7 +33,7 @@ function Strip({ points, hours, now, at, onMove, onLeave }: Readonly<{ points: T
   const cells = stripCells(points, hours, now);
   const hot = at === null ? -1 : Math.min(cells.length - 1, Math.floor(at * cells.length));   // the column under the pointer
   return (
-    <div aria-hidden className="grid h-6 min-w-[90px] max-w-[220px] flex-1 cursor-crosshair items-stretch gap-px" style={{ gridTemplateColumns: `repeat(${cells.length}, 1fr)` }}
+    <div aria-hidden className="grid h-6 min-w-[90px] flex-1 cursor-crosshair items-stretch gap-px" style={{ gridTemplateColumns: `repeat(${cells.length}, 1fr)` }}
       {...hover(onMove, onLeave)}>
       {cells.map((c, i) => <i key={c.t} className={`rounded-[1.5px] ${c.level === null ? "bg-bg2" : CELL[c.level]} ${i === hot ? "outline outline-1 outline-offset-1 outline-txt" : ""}`} />)}
     </div>
@@ -45,12 +45,12 @@ function Curve({ points, hours, now, good, onMove, onLeave }: Readonly<{ points:
   if (!c.last) return null;
   const tone = good ? "rgb(var(--ok))" : "rgb(var(--warn))";
   return (
-    <svg aria-hidden viewBox="0 0 120 34" preserveAspectRatio="none" className="h-[34px] min-w-[70px] max-w-[130px] flex-1 cursor-crosshair overflow-visible"
+    <svg aria-hidden viewBox="0 0 120 34" preserveAspectRatio="none" className="h-[34px] min-w-[70px] flex-1 cursor-crosshair overflow-visible"
       {...hover(onMove, onLeave)}>
       <path d={c.area} fill={tone} opacity="0.12" />
       <path d={c.line} fill="none" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" className="text-dim" opacity="0.7" />
       {c.dips && <path d={c.dips} fill="none" stroke="rgb(var(--warn))" strokeWidth="2.2" vectorEffect="non-scaling-stroke" />}
-      <circle cx={c.last[0]} cy={c.last[1]} r="2.6" fill={tone} />
+      <path d={`M${c.last[0].toFixed(1)} ${c.last[1].toFixed(1)}h0.01`} stroke={tone} strokeWidth="6" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
