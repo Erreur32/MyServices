@@ -35,6 +35,7 @@ function defaultAccess(d: Detection, kind: Kind): Access {
 }
 
 /** Host names Windows generates itself (« WIN-L50HGL065P6 » on Windows Server, « DESKTOP-4F2K9QA » / « LAPTOP-… » on a PC) */
+const WINDOWS_SERVER_NAME = /^WIN-[A-Z0-9]{11}$/i;
 const WINDOWS_NAME = /^(WIN-[A-Z0-9]{11}|(DESKTOP|LAPTOP)-[A-Z0-9]{7})$/i;
 
 function guessKind(d: Detection): Kind {
@@ -289,7 +290,7 @@ function IdentityStep({ d, v, setV, kind, proc, setProc, ssh }: Readonly<{ d: De
       <div>
         <div className="mb-1 text-sm text-muted">{tx("Icône")}</div>
         <IconPicker value={v.icon as string | undefined} autoHint={tx("appli reconnue, sinon système")} onPick={(icon) => setV({ ...v, icon })}
-          auto={<MachineIcon large m={{ name: v.name, role: v.role, os: kind === "windows" ? "windows" : (v.os as string | undefined) }} empty={<span className="text-xs font-semibold text-dim">{tx("Auto")}</span>} />} />
+          auto={<MachineIcon large m={{ name: v.name, role: v.role, os: kind === "windows" ? "windows" : (v.os as string | undefined), osName: kind === "windows" ? (WINDOWS_SERVER_NAME.test(d.dns ?? "") ? "Windows Server" : "Windows") : undefined }} empty={<span className="text-xs font-semibold text-dim">{tx("Auto")}</span>} />} />
       </div>
       <ul className="flex flex-col divide-y divide-line/40 rounded-lg border border-line/60 bg-bg2/60 px-3">
         <OptionRow on={!v.disabled} onChange={(on) => setV({ ...v, disabled: !on })} label={tx("Machine suivie")} help={tx("pingée et lue pour la santé et les alertes")} />
