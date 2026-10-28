@@ -1364,7 +1364,11 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
 /** The Docker line of a machine without a container list: docker unreachable, running count (SSH or agent), none, absent, or undefined (no line) */
 function dockerValue(m: Machine): React.ReactNode {
   const i = m.info;
-  if (m.containers === null) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;
+  if (m.containers === null) {
+    if (m.ssh) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;   // SSH is set up but Docker cannot be read: a real problem
+    if (m.agent?.docker) return tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker);
+    return <Dim>{m.agent ? tx("aucun conteneur") : tx("non lu (pas d'accès SSH)")}</Dim>;   // nothing reads Docker here: not a fault
+  }
   if (i?.docker) return tx("{0} conteneur(s) en cours", i.docker);
   if (m.agent?.docker != null) return m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>;
   return i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined;

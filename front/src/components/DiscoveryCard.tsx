@@ -272,6 +272,14 @@ export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
   );
 }
 
+/** Where the suggestions of the bell lead: the page that holds them when they all belong to one (apps to link, devices not followed, backup folders),
+ *  else the whole Discovery page */
+function suggestionsPage(items: { id: string; state: string }[]): string {
+  const pages = new Set(items.filter((x) => x.state === "suggest").map((x) => x.id.startsWith("connector:") ? "#settings/connectors/detected"
+    : x.id === "hosts" ? "#settings/machines/devices" : x.id === "backups-other" ? "#settings/backups" : "#settings/discovery"));
+  return pages.size === 1 ? [...pages][0] : "#settings/discovery";
+}
+
 /** Cloche de l'en-tête (admin) : ce qu'il reste à faire, dans un panneau qui s'ouvre au clic (chaque chose avec son bouton), puis le nombre
  *  de suggestions facultatives et un lien vers Réglages → Découverte. Pastille orange = choses à faire ; cloche grise s'il n'y a que des suggestions. */
 export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
@@ -306,7 +314,7 @@ export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
               ))}
             </ul>
           )}
-          <a href="#settings/discovery" onClick={() => setOpen(false)}
+          <a href={sug > 0 ? suggestionsPage(d!.items) : "#settings/discovery"} onClick={() => setOpen(false)}
             className="flex items-center gap-2 border-t border-line/70 px-4 py-2.5 text-sm text-muted no-underline hover:bg-bg2 hover:text-txt">
             {sug > 0 ? <><Lightbulb size={14} className="text-link" aria-hidden />{tx("{0} suggestion(s) facultative(s)", sug)}</> : tx("Tout voir")}
             <ChevronRight size={14} className="ml-auto" aria-hidden />

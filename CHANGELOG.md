@@ -12,6 +12,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Fixes
+- **Machine page: a machine nothing reads Docker on no longer shows a Docker fault.** "docker unreachable (SSH or docker group)" is kept only when SSH is set up; otherwise the line says "no container" (agent) or "not read (no SSH access)".
+- **Discovery reminder "Agent to install" opens the machine**, not an empty page, and says how to get a new command when the token is lost (it is shown only once).
+- **The header bell opens the right page for its suggestions**: apps to link go to Connectors › Detected, devices not followed to Machines › Devices, backup folders to Backups; a mix still opens Discovery.
 - **Add machine: closing the assistant no longer leaves an empty page.** After the add (or a cancel opened from `#settings/machines/new`) you land on the machine list instead of an almost empty settings card at the same address.
 - **Dev server (:5180): the agent installer works.** `install.ps1` fetches the agent from `/myservices/agent/…`, which Vite answered with the web page; the dev server now relays `/myservices/` to the container like the other agent routes, and `install.ps1` fetches the agent at the root (`/agent/agent.ps1`) like `install.sh`, so it no longer depends on the old prefix.
 
