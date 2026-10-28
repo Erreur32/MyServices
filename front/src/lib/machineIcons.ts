@@ -2,9 +2,10 @@
 // sans clé, l'icône reste automatique (appli reconnue, sinon système). Trois familles : applis (images de public/icons), systèmes,
 // et quelques objets courants.
 import { Antenna, Apple, Bot, Boxes, Cable, Camera, Car, Cctv, Cloud, Container, Cpu, Database, Droplets, Fan, Film, Flame, Gamepad2, Globe, HardDriveDownload, Headphones, Home, Lamp, Laptop, Lightbulb, Lock, Mail, MemoryStick, Mic, Monitor, MonitorSmartphone, Music, Network, Plug, Printer, Projector, Radio, Router, Satellite, Server, ServerCog, Shield, Smartphone, Speaker, Tablet, Terminal, Thermometer, Tv, Usb, Watch, Webcam, Wifi, Workflow, Wrench, Zap, type LucideIcon } from "lucide-react";
+import { ROOT } from "../api";
 import { tx } from "./i18n";
 
-export type ChosenIcon = { key: string; label: string; family: "app" | "system" | "object" } & ({ file: string } | { Icon: LucideIcon });
+export type ChosenIcon = { key: string; label: string; family: "app" | "system" | "object" | "custom" } & ({ file: string } | { Icon: LucideIcon } | { url: string });
 
 const app = (key: string, label: string): ChosenIcon => ({ key, label, family: "app", file: key });
 /** Logo de public/icons (applis et systèmes), couleur de la marque ; gris quand elle serait illisible sur fond clair ou sombre */
@@ -100,4 +101,11 @@ app("dockhand", "Dockhand"), app("nextcloud", "Nextcloud"), app("healthchecks", 
 ];
 
 /** Icône choisie pour cette clé ; undefined si la clé est vide ou inconnue (retour à l'automatique) */
-export const chosenIcon = (key?: string | null): ChosenIcon | undefined => (key ? MACHINE_ICONS.find((i) => i.key === key) : undefined);
+export const chosenIcon = (key?: string | null): ChosenIcon | undefined => (key ? MACHINE_ICONS.find((i) => i.key === key) ?? customIcon(key) : undefined);
+
+/** Imported icons (Mes icônes): « custom-<12 hex> », an image kept by the server. Their names are learned when the picker lists them. */
+const CUSTOM_KEY = /^custom-[0-9a-f]{12}$/;
+const customLabels = new Map<string, string>();
+export const rememberCustomLabels = (icons: { key: string; label: string }[]) => icons.forEach((i) => customLabels.set(i.key, i.label));
+export const customIcon = (key: string, label?: string): ChosenIcon | undefined =>
+  CUSTOM_KEY.test(key) ? { key, label: label ?? customLabels.get(key) ?? tx("Icône importée"), family: "custom", url: `${ROOT}api/v1/icons/${key}` } : undefined;

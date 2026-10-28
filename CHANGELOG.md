@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Icons
+- **Import your own icon.** The icon picker of machines and services has a **My icons** section with an **Import an image or an SVG** button (PNG, JPEG, WebP, GIF or SVG, 512 KB at most, 200 icons). Photos and logos are shrunk to 128 px on your side; an SVG is reduced to plain drawing by the server (no script, no outside link) and served in a sandbox, like an avatar. The icons are kept in the state folder, shared by every machine and service, and one can be deleted once nothing uses it. New routes: `GET/POST /api/v1/icons`, `GET/DELETE /api/v1/icons/<key>`.
+
 ### Fixes
 - **Add machine: "Often switched off" is no longer ticked for a Windows Server**, whose generated name is `WIN-` + 11 characters (a server must stay on, an outage deserves an alert). The switch now says it plainly: for a PC or laptop often switched off or unplugged, no alert when it does not answer.
 - **Add machine: the Windows logo shows as soon as Windows is detected.** The automatic icon of the identity step used to stay empty until the machine was added.

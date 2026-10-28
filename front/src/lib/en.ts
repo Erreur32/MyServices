@@ -3474,4 +3474,13 @@ export const EN: Record<string, string> = {
   "{0}/{1} répondent": "{0}/{1} answer",
   "Latence DNS externe": "External DNS latency",
   "Test d'une vraie requête DNS à chaque collecte : les serveurs ont répondu {0} % du temps sur la période.": "A real DNS query is tested at each collection: the servers answered {0} % of the time over the period.",
+  "Mes icônes": "My icons",
+  "Importer une image ou un SVG": "Import an image or an SVG",
+  "Envoi…": "Sending…",
+  "Aucune icône importée : PNG, JPEG, WebP, GIF ou SVG, 512 Ko au plus.": "No imported icon: PNG, JPEG, WebP, GIF or SVG, 512 KB at most.",
+  "Supprimer cette icône": "Delete this icon",
+  "Supprimer cette icône pour toutes les machines et services ?": "Delete this icon for all machines and services?",
+  "icône importée": "icon imported",
+  "icône supprimée": "icon deleted",
+  "Icône importée": "Imported icon",
 };

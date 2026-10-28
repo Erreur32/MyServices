@@ -24,6 +24,7 @@ export function MachineIcon({ m, scan, reserve, large, empty }: Props) {
   const box = large ? "h-9 w-9" : "h-6 w-6", img = large ? "h-6 w-6" : "h-4 w-4", glyph = large ? 20 : 14;
   const picked = chosenIcon(m.icon);  // choix de l'utilisateur : prioritaire sur la détection
   if (picked) {
+    if ("url" in picked) return <span className={`grid ${box} shrink-0 place-items-center rounded-md bg-bg2`} title={picked.label}><img src={picked.url} alt="" className={`${img} object-contain`} /></span>;
     return "file" in picked
       ? <span className={`grid ${box} shrink-0 place-items-center rounded-md bg-bg2`} title={picked.label}><img src={`${import.meta.env.BASE_URL}icons/${picked.file}.svg`} alt="" className={img} /></span>
       : <span className={`grid ${box} shrink-0 place-items-center rounded-md bg-bg2 text-muted`} title={picked.label}><picked.Icon size={glyph} aria-hidden /></span>;
