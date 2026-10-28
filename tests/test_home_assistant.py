@@ -177,18 +177,20 @@ class AddonIcons(unittest.TestCase):
     def test_api_route_caches_and_refuses(self):
         try:
             from msv.api import api
+            from msv.api import common
+            from msv.api.routes import alerts as routes_alerts
         except ImportError:
             self.skipTest("FastAPI absent : tests à lancer dans l'image")
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(api.core.CFG, {"cache_dir": tmp}), \
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(common.core.CFG, {"cache_dir": tmp}), \
                 mock.patch("connectors.instances", return_value=[self.ha]):
-            r = api.ha_addon_icon("maison", "a0d7b954_vscode")
+            r = routes_alerts.ha_addon_icon("maison", "a0d7b954_vscode")
             self.assertEqual((r.status_code, r.body, r.media_type), (200, ICON, "image/png"))
             self.assertTrue((Path(tmp) / "ha-icons" / "a0d7b954_vscode.png").is_file())
             with mock.patch("connectors.instances", side_effect=AssertionError("cache not used")):
-                self.assertEqual(api.ha_addon_icon("maison", "a0d7b954_vscode").body, ICON)
-            self.assertEqual(api.ha_addon_icon("maison", "../x").status_code, 404)
-            self.assertEqual(api.ha_addon_icon("other", "core_x").status_code, 404)
-            self.assertEqual(api.ha_addon_icon("maison", "core_unknown").status_code, 404)
+                self.assertEqual(routes_alerts.ha_addon_icon("maison", "a0d7b954_vscode").body, ICON)
+            self.assertEqual(routes_alerts.ha_addon_icon("maison", "../x").status_code, 404)
+            self.assertEqual(routes_alerts.ha_addon_icon("other", "core_x").status_code, 404)
+            self.assertEqual(routes_alerts.ha_addon_icon("maison", "core_unknown").status_code, 404)
 
 
 class System(unittest.TestCase):

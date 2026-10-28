@@ -28,8 +28,11 @@ class Missing(unittest.TestCase):
 
 try:
     from msv.api import api
+    from msv.api import common
+    from msv.api.routes import services as routes_services
 except ModuleNotFoundError:   # FastAPI absent outside the image
     api = None
+    common = routes_services = None
 
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
@@ -38,21 +41,21 @@ class WithTest(unittest.TestCase):
     test = {"at": 100.0, "ok": True, "message": "OK", "version": "0.12.1", "version_tested": True, "found": [{"name": "systèmes", "count": 3}]}
 
     def test_a_newer_test_gives_the_version_and_the_tags(self):
-        got = api._with_test(self.row, self.test, 50.0)
+        got = routes_services._with_test(self.row, self.test, 50.0)
         self.assertEqual((got["version"], got["found"]), ("0.12.1", self.test["found"]))
 
     def test_a_test_is_kept_and_read_back(self):
         import tempfile
-        with tempfile.TemporaryDirectory() as d, unittest.mock.patch.dict(api.core.CFG, {"state_dir": d}):
-            self.assertEqual(api._tests(), {})
-            api.remember_test("beszel", "b", {"ok": True, "message": "OK", "version": "1", "found": [], "extra": "dropped"})
-            got = api._tests()["beszel/b"]
+        with tempfile.TemporaryDirectory() as d, unittest.mock.patch.dict(common.core.CFG, {"state_dir": d}):
+            self.assertEqual(routes_services._tests(), {})
+            routes_services.remember_test("beszel", "b", {"ok": True, "message": "OK", "version": "1", "found": [], "extra": "dropped"})
+            got = routes_services._tests()["beszel/b"]
             self.assertEqual((got["ok"], got["version"], "extra" in got), (True, "1", False))
 
     def test_an_older_test_leaves_a_complete_row_alone(self):
         full = {**self.row, "version": "0.1"}
-        self.assertEqual(api._with_test(full, self.test, 200.0), full)
-        self.assertEqual(api._with_test(self.row, None, 0.0), self.row)
+        self.assertEqual(routes_services._with_test(full, self.test, 200.0), full)
+        self.assertEqual(routes_services._with_test(self.row, None, 0.0), self.row)
 
 
 if __name__ == "__main__":

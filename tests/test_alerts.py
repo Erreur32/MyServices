@@ -20,6 +20,7 @@ try:
 
     from msv.alerts import alerts
     from msv.api import api
+    from msv.api import common
     from msv.core import auth
     from msv.api import server
 except ImportError:
@@ -135,10 +136,10 @@ class Engine(unittest.TestCase):
         d = Path(self.tmp.name)
         server.STATIC = server.WEB = d
         server._ALERTS = alerts.Alerts(self.db)
-        api.AUTH = True
-        api.STORE = auth.Store(d / "users.db")
-        api.STORE.create_user("admin", PW, "admin")
-        api.STORE.create_user("lecteur", PW, "viewer")
+        common.AUTH = True
+        common.STORE = auth.Store(d / "users.db")
+        common.STORE.create_user("admin", PW, "admin")
+        common.STORE.create_user("lecteur", PW, "viewer")
         c = TestClient(api.app, client=("192.168.1.40", 50000))
         c.post("/myservices/api/v1/login", json={"username": "lecteur", "password": PW})
         self.assertEqual(c.get("/myservices/api/v1/alerts").status_code, 403)
@@ -156,7 +157,7 @@ class Engine(unittest.TestCase):
         st = c.get("/myservices/api/v1/alerts").json()
         self.assertTrue(st["active"])
         self.assertEqual(st["channels"][0]["config"]["url"], "")  # jamais renvoyée
-        self.assertIn("essai d'alerte", [x["action"] for x in api.STORE.audit_log()])
+        self.assertIn("essai d'alerte", [x["action"] for x in common.STORE.audit_log()])
         server._ALERTS = None
 
 

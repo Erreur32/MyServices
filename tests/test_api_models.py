@@ -16,11 +16,13 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.api import api
+    from msv.api import common
     from msv.core import auth
     from msv.api import server
     from msv.core import tokens
 except ImportError:
     api = None
+    common = None
 
 PW = "un mot de passe long"
 BASE = "/myservices/api/v1"
@@ -47,10 +49,10 @@ class ApiModels(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.d = d = Path(self.tmp.name)
         server.STATIC = server.WEB = d
-        api.AUTH = True
-        api.STORE = auth.Store(d / "myservices.db")
-        api.TOKENS = tokens.Tokens(d / "myservices.db")
-        api.STORE.create_user("admin", PW, "admin")
+        common.AUTH = True
+        common.STORE = auth.Store(d / "myservices.db")
+        common.TOKENS = tokens.Tokens(d / "myservices.db")
+        common.STORE.create_user("admin", PW, "admin")
         self.c = TestClient(api.app, client=("192.168.1.50", 50000))
         self.c.post(BASE + "/login", json={"username": "admin", "password": PW})
         self.h = {"X-CSRF-Token": self.c.cookies["ms_csrf"]}
@@ -173,9 +175,9 @@ class Validation(unittest.TestCase):
         from fastapi.testclient import TestClient
         with tempfile.TemporaryDirectory() as d:
             server.STATIC = server.WEB = Path(d)
-            api.AUTH = True
-            api.STORE = auth.Store(Path(d) / "myservices.db")
-            api.STORE.create_user("admin", "un mot de passe long", "admin")
+            common.AUTH = True
+            common.STORE = auth.Store(Path(d) / "myservices.db")
+            common.STORE.create_user("admin", "un mot de passe long", "admin")
             c = TestClient(api.app, client=("192.168.1.50", 50000))
             c.post("/myservices/api/v1/login", json={"username": "admin", "password": "un mot de passe long"})
             marker = "valeur-factice-" + "a-ne-pas-renvoyer"  # envoyée dans le corps d'une requête invalide (le champ url manque)
