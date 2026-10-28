@@ -3484,4 +3484,6 @@ export const EN: Record<string, string> = {
   "icône supprimée": "icon deleted",
   "Icône importée": "Imported icon",
   "non lu (pas d'accès SSH)": "not read (no SSH access)",
+  "{0} appli(s) à relier (facultatif)": "{0} app(s) to link (optional)",
+  "{0} autre(s) suggestion(s) de découverte (facultatif)": "{0} other discovery suggestion(s) (optional)",
 };
