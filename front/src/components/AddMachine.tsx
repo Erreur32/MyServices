@@ -1,5 +1,5 @@
-// Adding a machine (Settings → Machines, and the assistant): one frame, four steps top to bottom, one open at a time.
-// 1 target and detection, 2 what was found, 3 access (SSH, agent or none), 4 identity and options. Nothing is written
+// Adding a machine (Settings → Machines, and the assistant): one frame, three steps top to bottom, one open at a time.
+// 1 target and detection, 2 what was found and the access (SSH, agent or none), 3 identity and options. Nothing is written
 // before the final button, except the SSH alias prepared for the test, which is removed again if the add is cancelled.
 import { Ban, Check, KeyRound, MonitorUp, Pencil, Radar } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
@@ -19,7 +19,7 @@ import { KeyToAuthorize, SshParams, type CheckResult } from "./SshParams";
 
 type Access = "ssh" | "agent" | "none";
 type Kind = "linux" | "windows";
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3;
 
 const OPTIONS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
@@ -94,19 +94,18 @@ export function AddMachine({ st, onDone, onCancel }: Readonly<{ st: State; onDon
         <TargetStep st={st} onDetected={detected} />
       </StepShell>
       {d && <>
-        <StepShell n={2} step={step} title={tx("Ce qui a été trouvé")} summary={<FoundSummary d={d} web={web} />} onEdit={edit(2)}>
-          <FoundStep d={d} web={web} setWeb={setWeb} onNext={() => setStep(3)} />
-        </StepShell>
-        <StepShell n={3} step={step} title={tx("Accès")} summary={<AccessSummary access={access} alias={alias} kind={kind} />} onEdit={edit(3)}>
+        <StepShell n={2} step={step} title={tx("Ce qui a été trouvé et accès")} onEdit={edit(2)}
+          summary={<><FoundSummary d={d} web={web} /><AccessSummary access={access} alias={alias} kind={kind} /></>}>
+          <FoundStep d={d} web={web} setWeb={setWeb} />
           <AccessStep d={d} st={st} kind={kind} setKind={setKind} access={access} setAccess={setAccess} alias={alias}
-            onAlias={(a, isNew) => { setAlias(a); if (isNew) setCreated(true); }} onNext={() => setStep(4)} />
+            onAlias={(a, isNew) => { setAlias(a); if (isNew) setCreated(true); }} onNext={() => setStep(3)} />
         </StepShell>
-        <StepShell n={4} step={step} title={tx("Identité et options")} summary={null}>
+        <StepShell n={3} step={step} title={tx("Identité et options")} summary={null}>
           <IdentityStep d={d} v={v} setV={setV} proc={proc} setProc={setProc} ssh={access === "ssh" && kind === "linux"} />
         </StepShell>
       </>}
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        {step === 4 && <button type="submit" className={primary} disabled={busy || !v.name.trim()}><Check size={14} aria-hidden />{busy ? tx("Enregistrement…") : tx("Ajouter la machine")}</button>}
+        {step === 3 && <button type="submit" className={primary} disabled={busy || !v.name.trim()}><Check size={14} aria-hidden />{busy ? tx("Enregistrement…") : tx("Ajouter la machine")}</button>}
         <button type="button" className={quiet} disabled={busy} onClick={() => void cancel()}>{tx("Annuler")}</button>
         <NoteLine note={note} />
       </div>
@@ -158,11 +157,16 @@ function TargetStep({ st, onDetected }: Readonly<{ st: State; onDetected: (d: De
   );
 }
 
+/** Nothing answered at all (no ping, no open port, no hint): the only case worth a warning. A silent ping alone is normal (Windows firewall) */
+function unreachable(d: Detection): boolean {
+  return !d.up && d.web.length === 0 && d.hints.length === 0 && !d.alias;
+}
+
 function TargetSummary({ d }: Readonly<{ d: Detection }>) {
   return (
     <>
       <b className="text-txt">{d.ip}</b>{d.dns && <Dim>{d.dns}</Dim>}
-      <Badge tone={d.up ? "ok" : "warn"}>{d.up ? tx("répond au ping") : tx("ne répond pas au ping")}</Badge>
+      <Badge tone={d.up ? "ok" : unreachable(d) ? "warn" : "off"}>{d.up ? tx("répond au ping") : tx("ne répond pas au ping")}</Badge>
       {d.known && <Badge tone="off">{tx("déjà déclarée : réglages gardés")}</Badge>}
     </>
   );
@@ -170,7 +174,7 @@ function TargetSummary({ d }: Readonly<{ d: Detection }>) {
 
 /* ---- step 2: what was found ---- */
 
-function FoundStep({ d, web, setWeb, onNext }: Readonly<{ d: Detection; web: number[]; setWeb: (w: number[]) => void; onNext: () => void }>) {
+function FoundStep({ d, web, setWeb }: Readonly<{ d: Detection; web: number[]; setWeb: (w: number[]) => void }>) {
   const toggle = (port: number) => setWeb(web.includes(port) ? web.filter((x) => x !== port) : [...web, port]);
   return (
     <>
@@ -203,8 +207,8 @@ function FoundStep({ d, web, setWeb, onNext }: Readonly<{ d: Detection; web: num
           </div>
         </div>
       )}
-      {d.notes.length === 0 && d.web.length === 0 && <p className="text-sm text-dim">{tx("Rien de plus que le ping : la machine pourra être lue par SSH ou par un agent, à choisir à l'étape suivante.")}</p>}
-      <div><button type="button" className={primary} onClick={onNext}>{tx("Continuer")}</button></div>
+      {!d.up && <InfoNote>{tx("Pas de réponse au ping : c'est courant (le pare-feu de Windows le bloque d'origine) et ce n'est pas une panne. Un agent n'a pas besoin du ping pour envoyer la santé de la machine : choisissez-le en priorité ci-dessous.")}</InfoNote>}
+      {d.notes.length === 0 && d.web.length === 0 && <p className="text-sm text-dim">{tx("Rien de plus que le ping : la machine pourra être lue par SSH ou par un agent, à choisir ci-dessous.")}</p>}
     </>
   );
 }
@@ -231,6 +235,7 @@ function AccessStep({ d, st, kind, setKind, access, setAccess, alias, onAlias, o
     { value: "agent" as const, label: tx("Agent"), hint: tx("Un petit script sur la machine envoie sa santé à MyServices (PC Windows, ou SSH impossible)"), icon: <MonitorUp size={24} className={access === "agent" ? "text-link" : "text-dim"} aria-hidden /> },
     { value: "none" as const, label: tx("Aucun"), hint: tx("Ping et services web seulement"), icon: <Ban size={24} className={access === "none" ? "text-link" : "text-dim"} aria-hidden /> },
   ];
+  if (!d.up || kind === "windows") options.unshift(...options.splice(1, 1));   // the agent first: it needs no ping and no SSH
   return (
     <>
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label={tx("Système de la machine")}>
