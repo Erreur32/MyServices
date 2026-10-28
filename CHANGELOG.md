@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Fixes
+- **Add machine: the Windows logo shows as soon as Windows is detected.** The automatic icon of the identity step used to stay empty until the machine was added.
 - **A virtual Windows machine is recognised by its agent.** The maker and model the agent reads (QEMU, VMware, Hyper-V, VirtualBox, Xen, Parallels) tick "Virtual machine" by themselves, like `systemd-detect-virt` does over SSH. The switch now says it adds the "VM" tag, and it no longer sits in the add-machine wizard: it stays in the machine's settings. The same goes for "Reachable only through NPM", which nothing detects and which only matters once services fail.
 - **Add machine: a Windows PC or server is recognised without a ping.** The WinRM port (5985) is now a Windows hint, and a host name Windows generates itself (`WIN-` + 11 characters, `DESKTOP-…`, `LAPTOP-…`) selects Windows and the agent by default.
 - **Add machine: three steps instead of four, and a silent ping is no longer a warning.** What was found and the access (agent, SSH or none) are now one step. A machine that does not answer the ping but shows other signs (open ports, Windows) gets a grey badge and a note explaining that the Windows firewall blocks the ping by default and that the agent, listed first, does not need it; the orange warning is kept for a machine that answers nothing at all.

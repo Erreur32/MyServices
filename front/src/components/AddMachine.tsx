@@ -102,7 +102,7 @@ export function AddMachine({ st, onDone, onCancel }: Readonly<{ st: State; onDon
             onAlias={(a, isNew) => { setAlias(a); if (isNew) setCreated(true); }} onNext={() => setStep(3)} />
         </StepShell>
         <StepShell n={3} step={step} title={tx("Identité et options")} summary={null}>
-          <IdentityStep d={d} v={v} setV={setV} proc={proc} setProc={setProc} ssh={access === "ssh" && kind === "linux"} />
+          <IdentityStep d={d} v={v} setV={setV} kind={kind} proc={proc} setProc={setProc} ssh={access === "ssh" && kind === "linux"} />
         </StepShell>
       </>}
       <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -278,7 +278,7 @@ function AccessSummary({ access, alias, kind }: Readonly<{ access: Access; alias
 
 /* ---- step 4: identity and options ---- */
 
-function IdentityStep({ d, v, setV, proc, setProc, ssh }: Readonly<{ d: Detection; v: MachineConf; setV: (v: MachineConf) => void; proc: boolean; setProc: (on: boolean) => void; ssh: boolean }>) {
+function IdentityStep({ d, v, setV, kind, proc, setProc, ssh }: Readonly<{ d: Detection; v: MachineConf; setV: (v: MachineConf) => void; kind: Kind; proc: boolean; setProc: (on: boolean) => void; ssh: boolean }>) {
   const found = new Set(d.detected ?? []);
   return (
     <>
@@ -289,7 +289,7 @@ function IdentityStep({ d, v, setV, proc, setProc, ssh }: Readonly<{ d: Detectio
       <div>
         <div className="mb-1 text-sm text-muted">{tx("Icône")}</div>
         <IconPicker value={v.icon as string | undefined} autoHint={tx("appli reconnue, sinon système")} onPick={(icon) => setV({ ...v, icon })}
-          auto={<MachineIcon large m={{ name: v.name, role: v.role, os: v.os as string | undefined }} empty={<span className="text-xs font-semibold text-dim">{tx("Auto")}</span>} />} />
+          auto={<MachineIcon large m={{ name: v.name, role: v.role, os: kind === "windows" ? "windows" : (v.os as string | undefined) }} empty={<span className="text-xs font-semibold text-dim">{tx("Auto")}</span>} />} />
       </div>
       <ul className="flex flex-col divide-y divide-line/40 rounded-lg border border-line/60 bg-bg2/60 px-3">
         <OptionRow on={!v.disabled} onChange={(on) => setV({ ...v, disabled: !on })} label={tx("Machine suivie")} help={tx("pingée et lue pour la santé et les alertes")} />
