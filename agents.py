@@ -235,8 +235,9 @@ class Agents:
         return out
 
 
-# Ports Windows sans intérêt dans l'annuaire : RPC dynamique (49152 et au-delà), RPC/DCOM (135), NetBIOS (139), diffusion de l'appli Connected Devices (5040)
-NOISE_PORTS = {135, 139, 5040}
+# Ports Windows sans intérêt dans l'annuaire : RPC dynamique (49152 et au-delà), RPC/DCOM (135), NetBIOS (139), diffusion de l'appli Connected Devices (5040),
+# découverte UPnP (2869) et WSD (5357) tenues par http.sys : le pare-feu les ferme aux autres machines, elles seraient toujours « injoignables »
+NOISE_PORTS = {135, 139, 2869, 5040, 5357}
 
 
 def ports_of(report: dict | None) -> dict[int, dict]:

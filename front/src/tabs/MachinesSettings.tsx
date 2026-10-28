@@ -34,10 +34,10 @@ import { UnlinkedDevices } from "../components/UnlinkedDevices";
 import { SshConnections } from "./SshConnections";
 
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
-  { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
+  { k: "off", label: tx("Souvent éteinte"), help: tx("Pour un PC ou un portable souvent éteint ou débranché : MyServices n'enverra pas d'alerte quand il ne répond pas. À laisser décoché pour un serveur, qui doit rester allumé.") },
   { k: "gateway", label: tx("Passerelle"), help: tx("box / routeur : sous-titre de la page") },
   { k: "npm_only", label: tx("Joignable seulement par NPM"), help: tx("pare-feu : ses services sont testés via NPM") },
-  { k: "vm", label: tx("Machine virtuelle"), help: tx("pas de SMART ni de température du processeur : le disque et le processeur sont virtuels, rien de réel à lire (se coche seule si détectée)") },
+  { k: "vm", label: tx("Machine virtuelle"), help: tx("ajoute l'étiquette « VM » à la machine (se coche seule si détectée). Sur Linux par SSH, SMART et la température du processeur ne sont plus lus : une VM n'en a pas") },
 ];
 
 const VM_AUTO_KEY = "ms.vm.auto";
@@ -102,7 +102,8 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
       </div>
       {showAccess && <AccessGuide />}
       {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
-      {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
+      {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); location.hash = "machines"; }}
+        onCancel={() => { setDetecting(false); if (location.hash.endsWith("/machines/new")) location.hash = "machines"; }} />}
     </Card>
   );
 }
@@ -400,7 +401,7 @@ function RowActions({ ip, busy, confirm, setConfirm, setNote, reload, verify, ca
       <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
       {canRemove && <span className="ml-auto flex items-center gap-1.5">
         {confirm ? <>
-          <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Machines › Appareils non suivis pour la faire revenir)"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
+          <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Machines › Appareils non suivis pour la faire revenir)"), setNote).then((ok) => { if (ok) { reload(); location.hash = "machines"; } })}>{tx("Confirmer le retrait")}</button>
           <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
         </> : <button type="button" className={`${danger} px-2`} onClick={() => setConfirm(true)} aria-label={tx("Retirer")}
           title={tx("Retirer : MyServices ne suit plus cette machine et la recherche réseau ne la propose plus (une confirmation est demandée)")}><Trash2 size={15} aria-hidden /></button>}

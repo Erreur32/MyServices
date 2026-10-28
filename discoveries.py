@@ -84,8 +84,9 @@ def build(i: dict) -> list[dict]:
             machine={"ip": k["ip"], "name": k.get("name") or ""})
     for a in i.get("agents_waiting") or []:   # agent créé mais jamais installé / jamais parlé
         add(f"agent:{a['ip']}", f"Agent à installer sur {a.get('name') or a['ip']}", MANUAL,
-            "Un agent a été créé pour ce PC mais il n'a encore envoyé aucun relevé : lancez la commande d'installation (PowerShell, en administrateur) sur le PC.",
-            None, None, TODO, "en attente de son premier relevé", {"label": "Voir la commande", "href": f"#settings/agents/{a['ip']}"},
+            "Un agent a été créé pour ce PC mais il n'a encore envoyé aucun relevé : lancez la commande d'installation (PowerShell, en administrateur) sur le PC. "
+            "Le jeton n'est montré qu'à la création : s'il est perdu, « Nouvelle commande » sur la fiche de la machine en crée un autre.",
+            None, None, TODO, "en attente de son premier relevé", {"label": "Ouvrir la machine", "href": f"#machines/{a['ip']}/settings"},
             machine={"ip": a["ip"], "name": a.get("name") or ""})
     props = i.get("proposals") or []
     if not props:

@@ -47,6 +47,10 @@ export function appIcon(apps: readonly string[] | undefined): string | null {
 const MODELS: [RegExp, string][] = [
   [/freebox.?(ultra|v9)/i, "freebox-ultra.png"], [/freebox.?(revolution|v6)/i, "freebox-revolution.png"], [/freebox.?pop/i, "freebox-pop.png"],
   [/\bunifi[\s-]?ap\b|\buap-|\bu[67][a-z0-9-]*\b|nanohd|nanolite/i, "unifi-ap.png"],
+  // Without a photo of its own: the Pop is also « v8 », any other Freebox (Delta, « v7 ») gets the Freebox logo; the other UniFi devices
+  // (gateways UDM / UCG / USG / UXG / UDR, switches USW, UNVR, UCK…) get the UniFi logo
+  [/freebox.?v8/i, "freebox-pop.png"], [/freebox/i, "freebox.svg"],
+  [/^(udm|ucg|usg|uxg|udr|usw|usp|unvr|uck|uacc|ucp)/i, "unifi.svg"],
 ];
 export function modelIcon(model?: string | null): string | null {
   const hit = model ? MODELS.find(([rx]) => rx.test(model)) : undefined;

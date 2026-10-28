@@ -85,6 +85,9 @@ def _resolve(target: str) -> tuple[str, str | None]:
 default_gateway = hostinfo.default_gateway  # la détection de l'ajout et celle de la collecte partagent le même code
 
 
+WINDOWS_SERVER_NAME = re.compile(r"WIN-[A-Z0-9]{11}", re.I)   # the host name Windows Server generates itself
+
+
 def detect(target: str) -> dict:
     """Proposition pour une machine, nouvelle ou déjà déclarée (ses réglages gardés, détection refaite)."""
     ip, alias = _resolve(target)
@@ -128,8 +131,8 @@ def detect(target: str) -> dict:
         with ThreadPoolExecutor(len(setup.WEB_PORTS)) as px:
             web = [{"port": p, "scheme": setup.WEB_PORTS[p][0], "label": setup.WEB_PORTS[p][1]}
                    for p, o in zip(setup.WEB_PORTS, px.map(lambda p: setup._open(ip, p), setup.WEB_PORTS)) if o]
-        if "off" not in m and ("Windows (RDP)" in hints or m.get("os") == "windows"):
-            m["off"] = True  # poste souvent éteint : proposé, modifiable
+        if "off" not in m and ("Windows (RDP)" in hints or m.get("os") == "windows") and not WINDOWS_SERVER_NAME.fullmatch(dns or ""):
+            m["off"] = True  # poste souvent éteint : proposé, modifiable ; jamais pour un serveur Windows, qui doit rester allumé
     return {"ip": ip, "alias": alias, "up": up, "dns": dns, "hints": hints, "known": known is not None,
             "machine": m, "notes": notes, "detected": detected, "connectors": found, "web": web}
 
@@ -391,28 +394,47 @@ def patch(ip: str, fields: dict) -> dict:
     return save(ip, {k: v for k, v in merged.items() if v is not None})
 
 
-def publish(ip: str, m: dict) -> None:
-    """Name and role tags written into the published data.json at once, so the pages show them without waiting for the next
-    collection (which rewrites the whole file from services-meta.json anyway). Nothing to do before the first collection."""
+def _rewrite_data(change) -> None:
+    """Applies `change(data)` to the published data.json (it returns whether it touched anything) and writes the file back atomically.
+    Nothing to do before the first collection."""
     import config
     p = Path(config.CFG["web_dir"]) / "data.json"
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    hit = False
-    for x in data.get("machine_list") or []:
-        if x.get("ip") == ip:
-            x["name"], x["role"], hit = m.get("name") or x.get("name"), m.get("role") or "", True
-    if ip in (data.get("machines") or {}):
-        data["machines"][ip].update(name=m.get("name") or data["machines"][ip].get("name"), role=m.get("role") or "")
-        hit = True
-    if not hit:
+    if not change(data):
         return
     tmp = p.with_name(p.name + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     os.chmod(tmp, p.stat().st_mode & 0o777)
     tmp.replace(p)
+
+
+def publish(ip: str, m: dict) -> None:
+    """Name and role tags written into the published data.json at once, so the pages show them without waiting for the next
+    collection (which rewrites the whole file from services-meta.json anyway)."""
+    def change(data: dict) -> bool:
+        hit = False
+        for x in data.get("machine_list") or []:
+            if x.get("ip") == ip:
+                x["name"], x["role"], hit = m.get("name") or x.get("name"), m.get("role") or "", True
+        if ip in (data.get("machines") or {}):
+            data["machines"][ip].update(name=m.get("name") or data["machines"][ip].get("name"), role=m.get("role") or "")
+            hit = True
+        return hit
+    _rewrite_data(change)
+
+
+def unpublish(ip: str) -> None:
+    """A removed machine leaves the published data.json at once, so the pages stop listing it instead of waiting for the next collection."""
+    def change(data: dict) -> bool:
+        before = len(data.get("machine_list") or [])
+        if before:
+            data["machine_list"] = [x for x in data["machine_list"] if x.get("ip") != ip]
+        gone = (data.get("machines") or {}).pop(ip, None) is not None
+        return gone or len(data.get("machine_list") or []) != before
+    _rewrite_data(change)
 
 
 def expire_inventory(ip: str | None = None) -> None:

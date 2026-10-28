@@ -1095,12 +1095,17 @@ function haSystemName(ha?: ServiceStatus): string {
   return sys.os ? `${sys.method} ${sys.os}` : sys.method;
 }
 
+/** The system of a box read by MynetworK (Freebox, UniFi): its photo or logo, then the model and firmware */
+function ModelLine({ icon, title, text }: Readonly<{ icon: string | null; title: string; text: string }>) {
+  return <span className="inline-flex max-w-[16rem] items-center gap-1.5" title={title}>{icon && <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" />}<span className="truncate">{text}</span></span>;
+}
+
 /** The system line of a card: the system read (SSH, agent), else Home Assistant's, else the UniFi model and firmware */
 function SystemLine({ m, os, ha, unifi, freebox }: Readonly<{ m: Machine; os: OsKind | null; ha?: ServiceStatus; unifi?: UnifiDevice; freebox?: FreeboxInfo }>) {
   if (m.info?.os || m.agent?.os) return <OsShort m={m} kind={os} />;
   if (haSystemName(ha)) return <span className="truncate" title={tx("Lu par Home Assistant")}>{haSystemName(ha)}</span>;
-  if (freebox?.system?.model) return <span className="truncate" title={tx("Lu par MynetworK (Freebox)")}>{[freebox.system.model, freebox.system.firmware].filter(Boolean).join(" · ")}</span>;
-  if (unifi?.version) return <span className="truncate" title={tx("Lu par MynetworK (UniFi)")}>{[unifi.model, `UniFi ${unifi.version}`].filter(Boolean).join(" · ")}</span>;
+  if (freebox?.system?.model) return <ModelLine icon={modelIcon(freebox.system.model)} title={tx("Lu par MynetworK (Freebox)")} text={[freebox.system.model, freebox.system.firmware].filter(Boolean).join(" · ")} />;
+  if (unifi?.version) return <ModelLine icon={modelIcon(unifi.model) ?? ""} title={tx("Lu par MynetworK (UniFi)")} text={[unifi.model, `UniFi ${unifi.version}`].filter(Boolean).join(" · ")} />;
   return <OsShort m={m} kind={os} />;
 }
 
@@ -1364,7 +1369,11 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
 /** The Docker line of a machine without a container list: docker unreachable, running count (SSH or agent), none, absent, or undefined (no line) */
 function dockerValue(m: Machine): React.ReactNode {
   const i = m.info;
-  if (m.containers === null) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;
+  if (m.containers === null) {
+    if (m.ssh) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;   // SSH is set up but Docker cannot be read: a real problem
+    if (m.agent?.docker) return tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker);
+    return <Dim>{m.agent ? tx("aucun conteneur") : tx("non lu (pas d'accès SSH)")}</Dim>;   // nothing reads Docker here: not a fault
+  }
   if (i?.docker) return tx("{0} conteneur(s) en cours", i.docker);
   if (m.agent?.docker != null) return m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>;
   return i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined;

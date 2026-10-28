@@ -1337,6 +1337,7 @@ def machines_delete(ip: str, request: Request):
     def go(m):
         name = (m._meta().get("machines", {}).get(ip) or {}).get("name") or ""
         m.delete(ip)
+        m.unpublish(ip)   # gone from the pages now, not after the next collection
         # Removed by hand = not wanted: neither proposed by the network search nor added back by the auto mode (Settings -> Discovery
         # lists it, one click brings it back). An IPv6 or a name is not in the network search: nothing to remember.
         try:
@@ -3051,6 +3052,66 @@ def user_avatar(name: str, request: Request):
     # an SVG opened on its own runs nothing (sandbox), and the browser never guesses another type
     return Response(raw, media_type=mime, headers={"Content-Security-Policy": avatars.SERVE_CSP, "X-Content-Type-Options": "nosniff",
                                                     "Cache-Control": "private, max-age=86400", "Content-Disposition": "inline"})
+
+
+class IconBody(BaseModel):
+    image: str = Field(max_length=720_000)   # data URL, base64 of 512 KB at most
+    name: str | None = Field(default=None, max_length=80)
+
+
+@app.get(API + "/icons", tags=["icônes"], summary="Icônes importées pour les machines et les services")
+def icons_list(request: Request):
+    import custom_icons
+    if AUTH and not request.state.user:
+        return deny(401, "session requise")
+    return {"icons": custom_icons.listing(), "max": custom_icons.MAX_ICONS}
+
+
+@app.post(API + "/icons", tags=["icônes"], summary="Importer une icône : PNG, JPEG, WebP, GIF ou SVG (512 Ko au plus, SVG nettoyé) (admin)")
+def icons_add(body: IconBody, request: Request):
+    import avatars
+    import custom_icons
+    if denied := admin_write(request):
+        return denied
+    try:
+        raw, _ = avatars.from_data_url(body.image)
+        key = custom_icons.add(raw, body.name)
+    except (avatars.AvatarError, custom_icons.IconError) as e:
+        return deny(400, str(e))
+    store().audit("icône importée", request.state.user["username"], ip_of(request), key)
+    return {"ok": True, "key": key}
+
+
+@app.get(API + "/icons/{key}", tags=["icônes"], summary="Une icône importée (image ; 404 si inconnue)")
+def icons_get(key: str, request: Request):
+    import avatars
+    import custom_icons
+    if AUTH and not request.state.user:
+        return deny(404, "aucune icône")
+    got = custom_icons.get(key)
+    if got is None:
+        return deny(404, "aucune icône")
+    raw, mime = got
+    # same guard as an avatar: an SVG opened on its own runs nothing, and the type is never guessed. The key is a fingerprint: cache for good
+    return Response(raw, media_type=mime, headers={"Content-Security-Policy": avatars.SERVE_CSP, "X-Content-Type-Options": "nosniff",
+                                                    "Cache-Control": "private, max-age=31536000, immutable", "Content-Disposition": "inline"})
+
+
+@app.delete(API + "/icons/{key}", tags=["icônes"], summary="Supprimer une icône importée, si aucune machine ni aucun service ne l'utilise (admin)")
+def icons_delete(key: str, request: Request):
+    import custom_icons
+    if denied := admin_write(request):
+        return denied
+    try:
+        meta_text = Path(core.CFG["meta"]).read_text(encoding="utf-8")
+    except OSError:
+        meta_text = ""
+    if custom_icons.used(key, meta_text):
+        return deny(409, "icône encore utilisée par une machine ou un service : en choisir une autre d'abord")
+    if not custom_icons.remove(key):
+        return deny(404, "icône inconnue")
+    store().audit("icône supprimée", request.state.user["username"], ip_of(request), key)
+    return {"ok": True}
 
 
 class Forgot(BaseModel):

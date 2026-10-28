@@ -272,6 +272,17 @@ export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
   );
 }
 
+/** The optional suggestions of the bell, in two kinds that live on different pages: apps to link (Connectors › Detected) and the other
+ *  discoveries (devices not followed, backup folders…: Discovery). Only the kinds that have something are returned. */
+export function suggestionGroups(items: { id: string; state: string }[]): { href: string; n: number; apps: boolean }[] {
+  const suggested = items.filter((x) => x.state === "suggest");
+  const apps = suggested.filter((x) => x.id.startsWith("connector:")).length, other = suggested.length - apps;
+  return [
+    ...(apps ? [{ href: "#settings/connectors/detected", n: apps, apps: true }] : []),
+    ...(other ? [{ href: "#settings/discovery", n: other, apps: false }] : []),
+  ];
+}
+
 /** Cloche de l'en-tête (admin) : ce qu'il reste à faire, dans un panneau qui s'ouvre au clic (chaque chose avec son bouton), puis le nombre
  *  de suggestions facultatives et un lien vers Réglages → Découverte. Pastille orange = choses à faire ; cloche grise s'il n'y a que des suggestions. */
 export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
@@ -306,11 +317,18 @@ export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
               ))}
             </ul>
           )}
-          <a href="#settings/discovery" onClick={() => setOpen(false)}
-            className="flex items-center gap-2 border-t border-line/70 px-4 py-2.5 text-sm text-muted no-underline hover:bg-bg2 hover:text-txt">
-            {sug > 0 ? <><Lightbulb size={14} className="text-link" aria-hidden />{tx("{0} suggestion(s) facultative(s)", sug)}</> : tx("Tout voir")}
-            <ChevronRight size={14} className="ml-auto" aria-hidden />
-          </a>
+          {sug > 0 ? suggestionGroups(d!.items).map((g) => (
+            <a key={g.href} href={g.href} onClick={() => setOpen(false)}
+              className="flex items-center gap-2 border-t border-line/70 px-4 py-2.5 text-sm text-muted no-underline hover:bg-bg2 hover:text-txt">
+              <Lightbulb size={14} className="text-link" aria-hidden />{g.apps ? tx("{0} appli(s) à relier (facultatif)", g.n) : tx("{0} autre(s) suggestion(s) de découverte (facultatif)", g.n)}
+              <ChevronRight size={14} className="ml-auto" aria-hidden />
+            </a>
+          )) : (
+            <a href="#settings/discovery" onClick={() => setOpen(false)}
+              className="flex items-center gap-2 border-t border-line/70 px-4 py-2.5 text-sm text-muted no-underline hover:bg-bg2 hover:text-txt">
+              {tx("Tout voir")}<ChevronRight size={14} className="ml-auto" aria-hidden />
+            </a>
+          )}
         </dialog>
       )}
     </div>

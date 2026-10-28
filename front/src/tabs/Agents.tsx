@@ -114,8 +114,9 @@ function AgentActions({ a, kind, onChanged, onInstall }: Readonly<{ a: AgentInfo
   );
 }
 
-export function AgentBlock({ ip, name, kind, agent, onChanged }: Readonly<{ ip: string; name: string; kind: AgentKind; agent?: AgentInfo; onChanged: () => void }>) {
-  const [install, setInstall] = useState<InstallTarget | null>(null), [note, setNote] = useState<Note>(null);
+/** `create`: the agent is created as soon as the block shows (the add-machine wizard, once « Agent » was chosen), no second click */
+export function AgentBlock({ ip, name, kind, agent, create, onChanged }: Readonly<{ ip: string; name: string; kind: AgentKind; agent?: AgentInfo; create?: boolean; onChanged: () => void }>) {
+  const [install, setInstall] = useState<InstallTarget | null>(create && !agent ? { ip, name, kind, auto: true } : null), [note, setNote] = useState<Note>(null);
   if (install) return <AgentInstall key={install.auto ? "renew" : "new"} target={install} onChanged={onChanged} onClose={() => setInstall(null)} />;
   if (!agent) {
     return (

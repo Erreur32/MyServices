@@ -316,6 +316,19 @@ class DetectionDesReglages(unittest.TestCase):
         self.assertFalse(d["machine"]["gateway"])
         self.assertEqual(d["detected"], [])
 
+    def test_detect_ne_coche_pas_souvent_eteinte_pour_un_serveur_windows(self):
+        def run(dns):
+            with mock.patch.object(machines_admin, "_resolve", return_value=("10.0.0.9", None)), \
+                    mock.patch.object(machines_admin, "_meta", return_value={"machines": {}}), \
+                    mock.patch.object(machines_admin, "default_gateway", return_value="10.0.0.1"), \
+                    mock.patch.object(machines_admin.setup, "identify", return_value=(dns, ["Windows (WinRM)", "Windows (RDP)"])), \
+                    mock.patch.object(machines_admin.setup, "_open", return_value=False), \
+                    mock.patch.object(machines_admin.subprocess, "run", return_value=mock.Mock(returncode=0)):
+                return machines_admin.detect("10.0.0.9")["machine"]
+        self.assertNotIn("off", run("WIN-L50HGL065P6"))       # Windows Server: must stay on, an outage deserves an alert
+        self.assertTrue(run("DESKTOP-4F2K9QA")["off"])         # a PC is often switched off
+        self.assertTrue(run("gamer32")["off"])
+
 
 class MachineNonSuivie(unittest.TestCase):
     def test_le_drapeau_disabled_est_garde_par_la_page(self):
@@ -348,6 +361,17 @@ class ReglagesDetectes(unittest.TestCase):
         self.assertEqual(self.flags("10.0.0.5", {"virt": "kvm", "npm": True}), ["vm", "npm"])
         self.assertEqual(self.flags("10.0.0.9", None, os_="windows"), ["off"])
         self.assertEqual(self.flags("10.0.0.7", {"virt": None, "npm": False}), [])
+
+    def test_vm_windows_reconnue_par_le_modele_de_l_agent(self):
+        import hostinfo
+        for maker, model in (("QEMU", "Standard PC (i440FX + PIIX, 1996)"), ("VMware, Inc.", "VMware7,1"), ("Microsoft Corporation", "Virtual Machine"),
+                             ("innotek GmbH", "VirtualBox")):
+            self.assertTrue(hostinfo.is_vm_hardware({"maker": maker, "model": model}), model)
+        for maker, model in (("ASUS", "ROG STRIX Z790-E"), ("Microsoft Corporation", "Surface Laptop 5"), (None, None)):
+            self.assertFalse(hostinfo.is_vm_hardware({"maker": maker, "model": model}), model)
+        self.assertFalse(hostinfo.is_vm_hardware(None))
+        with mock.patch.object(hostinfo, "default_gateway", return_value="10.0.0.1"):
+            self.assertEqual(hostinfo.detected_flags("10.0.0.9", None, {"os": "windows"}, {"maker": "QEMU", "model": "Standard PC (Q35 + ICH9, 2009)"}), ["vm", "off"])
 
     def test_infos_machine_lit_virt_et_npm(self):
         import hostinfo

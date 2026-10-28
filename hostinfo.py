@@ -85,13 +85,22 @@ def default_gateway() -> str | None:
     return out[out.index("via") + 1] if "via" in out else None
 
 
-def detected_flags(ip: str, info: dict | None, conf: dict) -> list[str]:
+# Maker and model a hypervisor gives its guests (QEMU « Standard PC (i440FX… », VMware, Hyper-V « Virtual Machine », VirtualBox, Xen, Parallels)
+VM_HARDWARE = re.compile(r"\b(qemu|kvm|vmware|virtualbox|innotek|xen|bochs|parallels)\b|virtual machine|standard pc \(", re.I)
+
+
+def is_vm_hardware(hardware: dict | None) -> bool:
+    """True when the maker or model read by a Windows agent is a hypervisor's."""
+    return bool(hardware and VM_HARDWARE.search(f"{hardware.get('maker') or ''} {hardware.get('model') or ''}"))
+
+
+def detected_flags(ip: str, info: dict | None, conf: dict, hardware: dict | None = None) -> list[str]:
     """Réglages de machine que la détection confirme (page : un interrupteur non détecté est grisé) : passerelle (route par
-    défaut de l'hôte), machine virtuelle (systemd-detect-virt), hôte NPM (conteneur), Windows (poste souvent éteint)."""
+    défaut de l'hôte), machine virtuelle (systemd-detect-virt, ou le modèle lu par l'agent Windows), hôte NPM (conteneur), Windows (poste souvent éteint)."""
     out = []
     if ip == default_gateway():
         out.append("gateway")
-    if (info or {}).get("virt"):
+    if (info or {}).get("virt") or is_vm_hardware(hardware):
         out.append("vm")
     if (info or {}).get("npm"):
         out.append("npm")
