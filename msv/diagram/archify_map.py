@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cartes de l'infra au format Archify (diagrammes d'architecture), générées depuis les fichiers de la page.
 
-  python3 -m msv.diagram.archify_map [web_dir] [dossier de sortie] [schémas proposés à créer, séparés par des virgules]
+  python3 -m msv.diagram.archify_cli [web_dir] [dossier de sortie] [schémas proposés à créer, séparés par des virgules]
   node <archify>/bin/archify.mjs deliver architecture <dossier>/carte.archify.json carte.html --json
 
 carte.archify.json (data.json, + health/stats.json s'il existe) : Internet, chaque instance NPM et AdGuard,
@@ -320,37 +320,3 @@ def read(path: Path) -> dict | None:
         return json.loads(path.read_text(encoding="utf-8"))  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
     except (OSError, ValueError):
         return None
-
-
-def main() -> int:
-    """Écrit les spécifications dans le dossier de sortie et affiche leur chemin, une par ligne."""
-    web = Path(sys.argv[1] if len(sys.argv) > 1 else "web")
-    out = Path(sys.argv[2] if len(sys.argv) > 2 else ".")
-    data = read(web / "data.json")
-    if data is None:
-        sys.exit(f"{web / 'data.json'} illisible")
-    health = read(web / "health" / "stats.json")
-    specs = {"carte": build(data, health), "acces": build_access(data, health)}
-    if (bk := read(web / "backups.json")) is not None:
-        specs["sauvegardes"] = build_backups(bk)
-    if (chain := read(out / "alerts-summary.json")) is not None:
-        specs["alertes"] = build_alert_chain(chain, data.get("generated", ""))
-    wanted = [x for x in (sys.argv[3] if len(sys.argv) > 3 else "").split(",") if x]   # schémas proposés que l'on a demandé de créer
-    if wanted:
-        from msv.diagram import archify_extra
-        for key in wanted:
-            if key in archify_extra.BUILD and archify_extra.available(key, data):
-                specs[key] = archify_extra.BUILD[key](data)
-    (out / "connecteurs.archify.json").unlink(missing_ok=True)   # NOSONAR S8707: command-line tool, the paths are the ones its operator typed ; ancien schéma « Qui lit quoi », retiré
-    for name, spec in specs.items():
-        f = out / f"{name}.archify.json"
-        old = read(f)
-        changed = old is None or stable(old) != stable(spec) or not (web / f"{name}.html").exists()
-        f.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
-        if changed:   # un schéma inchangé n'est pas regénéré (Archify prend du temps)
-            print(f)
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

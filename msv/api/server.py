@@ -27,11 +27,6 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Started with `python3 -m msv.api.server`, this module is « __main__ »: api.py then does `from msv.api import server` and would get a second copy, with its own
-# TASKS and lock, which the scheduler never touches (the tasks page saw no run and no scheduler). One module under both names.
-if __name__ == "__main__":
-    sys.modules.setdefault("msv.api.server", sys.modules[__name__])
-
 from msv.collect import fast
 from msv.collect import netscan
 from msv.collect import pulse
@@ -518,7 +513,7 @@ def _build_map() -> None:
         for suffix in (".html", ".delivery.json"):
             (WEB / f"{stale}{suffix}").unlink(missing_ok=True)
     try:
-        specs = subprocess.run([sys.executable, "-m", "msv.diagram.archify_map", str(WEB), CFG["state_dir"], ",".join(wanted)],
+        specs = subprocess.run([sys.executable, "-m", "msv.diagram.archify_cli", str(WEB), CFG["state_dir"], ",".join(wanted)],
                                check=True, capture_output=True, text=True, timeout=60, cwd=HERE).stdout.split()
     except (OSError, subprocess.SubprocessError) as e:
         log(f"⚠ carte : {e}")
@@ -799,7 +794,8 @@ def status() -> dict:
             "network": netscan.summary()}
 
 
-def main() -> int:
+def start() -> None:
+    """Prepare the scheduler and the background loops (the web server itself is started by msv.api.run)."""
     from msv.core import applog
     applog.install()   # ce que montre docker logs, gardé aussi pour Réglages → Journaux
     WEB.mkdir(parents=True, exist_ok=True)
@@ -824,19 +820,3 @@ def main() -> int:
     threading.Thread(target=bandwidth_loop, daemon=True, name="bandwidth").start()
     threading.Thread(target=tiles_live_loop, daemon=True, name="tiles-live").start()
     threading.Thread(target=first_runs, daemon=True).start()
-    import uvicorn
-
-    from msv.api import api
-    from msv.api.api import app
-    from msv.core import live_events
-    threading.Thread(target=live_events.watch, args=(api.stream_sources(),), daemon=True, name="events").start()   # page event stream
-    if api.AUTH and not api.store().has_users():
-        log(f"aucun compte : ouvrir la page pour créer le compte admin (pendant {api.SETUP_WINDOW // 60} min ; "
-            "au-delà, redémarrer le conteneur)")
-    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning", access_log=False, server_header=False,  # NOSONAR S8392: inside the container; MYSERVICES_ALLOW limits who may connect
-                proxy_headers=False)  # IP du client telle que vue (contrôle MYSERVICES_ALLOW), jamais X-Forwarded-For
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
