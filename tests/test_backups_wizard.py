@@ -367,14 +367,14 @@ class AgentBackups(Base):
         no_auth = mock.patch.dict(sys.modules, {"msv.core.auth": types.SimpleNamespace(db_path=lambda cfg: "/nulle/part")})   # argon2 absent outside the image
         no_auth.start()
         self.addCleanup(no_auth.stop)
-        with mock.patch("agents.Agents", fake):
+        with mock.patch("msv.machines.agents.Agents", fake):
             got, err = backups.agent_collect(host)
         self.assertEqual(err, "")
         now = datetime.fromisoformat("2026-10-09T12:00:00+00:00").timestamp()
         out = backups.analyse(meta, {host["id"]: (got, "")}, {}, now)
         lv = {s["locations"][0]["detail"].split(" (")[0]: s["level"] for s in out["sets"]}
         self.assertEqual(lv, {"dernier passage : réussi": "ok", "dernier passage : échec": "crit"})   # no copy elsewhere asked: ok stays ok
-        with mock.patch("agents.Agents", mock.MagicMock(**{"return_value.fresh_reports.return_value": {}})):
+        with mock.patch("msv.machines.agents.Agents", mock.MagicMock(**{"return_value.fresh_reports.return_value": {}})):
             self.assertEqual(backups.agent_collect(host), (None, "agent : aucun relevé de l'agent MyServices de ce PC"))
 
 

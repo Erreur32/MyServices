@@ -10,7 +10,7 @@ import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import import_install as imp  # noqa: E402
+from msv.tools import import_install as imp  # noqa: E402
 
 
 class Convert(unittest.TestCase):

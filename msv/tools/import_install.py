@@ -173,7 +173,7 @@ def lock_down(dest: Path, uid: int) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--from", dest="src", default=str(Path(__file__).resolve().parent),
+    ap.add_argument("--from", dest="src", default=str(Path(__file__).resolve().parents[2]),
                     help="dossier de l'installation classique (config.json, services-meta.json)")
     ap.add_argument("--to", required=True, help="dossier monté en /config dans le conteneur")
     ap.add_argument("--ssh-dir", default=str(Path.home() / ".ssh"), help="~/.ssh du compte du collecteur")

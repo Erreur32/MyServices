@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import new_services  # noqa: E402
+from msv.machines import new_services  # noqa: E402
 
 ROWS = [
     {"type": "local", "id": "10.0.0.2:8080", "ip": "10.0.0.2", "port": 8080, "machine": "nas", "name": "speedtest",

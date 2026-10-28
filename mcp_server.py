@@ -51,7 +51,7 @@ def t_status(core, args, ctx):
 def _stopped_ok() -> dict:
     """{ip: containers the machine may leave stopped}, from the machines' settings; nothing when they cannot be read."""
     try:
-        import machines_admin
+        from msv.machines import machines_admin
         return {ip: m["stopped_ok"] for ip, m in machines_admin._meta().get("machines", {}).items() if m.get("stopped_ok")}   # the file alone: listing() also resolves every SSH alias
     except (ImportError, OSError, ValueError):
         return {}

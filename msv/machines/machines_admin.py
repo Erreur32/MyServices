@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import connectors
 import hostinfo
-import setup
+from msv.machines import setup
 
 # Champs d'une machine réglables depuis la page (le reste du fichier est gardé tel quel)
 FLAGS = ("off", "gateway", "npm", "npm_only", "vm", "disabled")
@@ -147,7 +147,7 @@ def role_tags(role: str | None) -> list[str]:
 def auto_labels() -> set[str]:
     """Étiquettes que la recherche réseau écrit elle-même (indices de ports, applis connues) : seules celles-là sont retirées à la
     redétection, jamais un texte saisi à la main. Y figurent aussi les anciennes formes (« NAS Synology » pour le port 5000)."""
-    import known_apps
+    from msv.machines import known_apps
     import netscan
     return ({*netscan.HINT_PORTS.values(), "SSH", "web :80", "web :443", "NAS Synology"} | {a.label for a in known_apps.APPS}
             | {f"SSH :{p}" for p in netscan.SSH_PORTS})
@@ -541,7 +541,7 @@ def _check_agent(ip: str, m: dict, store=None) -> tuple[list[str], int]:
     """Lignes de vérification de l'agent de la machine (état, dernier relevé) ; vide si elle n'en a pas."""
     try:
         if store is None:
-            from agents import Agents
+            from msv.machines.agents import Agents
             from msv.core.auth import db_path
             from msv.core.config import CFG
             store = Agents(db_path(CFG))

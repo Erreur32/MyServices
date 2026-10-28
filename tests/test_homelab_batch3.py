@@ -17,9 +17,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import agents  # noqa: E402
+from msv.machines import agents  # noqa: E402
 import connectors  # noqa: E402
-import known_apps  # noqa: E402
+from msv.machines import known_apps  # noqa: E402
 from msv.remote import virt_ssh  # noqa: E402
 from connectors.base import ConnectorError, Context  # noqa: E402
 from test_homelab import SEEN, Base  # noqa: E402

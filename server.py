@@ -195,7 +195,7 @@ def auto_adguard() -> None:
         return
     try:
         from msv.core import autodetect
-        import setup
+        from msv.machines import setup
         meta = json.loads(setup.META.read_text(encoding="utf-8")) if setup.META.exists() else {}
         dock = json.loads((Path(CFG["cache_dir"]) / "docker.json").read_text(encoding="utf-8")).get("data", {})
         found = autodetect.adguard(meta.get("machines", {}), dock, Path(CFG["state_dir"]) / "adguard-auto.json")
@@ -354,7 +354,7 @@ def local_dns_servers() -> list[str]:
 def keep_availability() -> None:
     """Availability of each service, machine and Kuma monitor after a collection (Historique → Disponibilité), and the figures of the tiles with a
     history (Network, Backups, Services, Agents, AI, Virtualization, DNS). Each one is kept on its own: one that fails leaves the others alone."""
-    import agents
+    from msv.machines import agents
     import availability
     import tile_history
     from msv.core.auth import db_path
@@ -548,7 +548,7 @@ def auto_netscan() -> None:
     f = Path(CFG["state_dir"]) / "network-scan.json"
     if netscan.due(f, every) and not netscan.summary()["running"]:
         try:
-            import machines_admin
+            from msv.machines import machines_admin
             netscan.start(machines_admin.known_ips(), f, net=",".join(CFG["netscan_nets"]) or None, discreet=CFG["netscan_discreet"])
             log(f"recherche réseau automatique (toutes les {every:g} h)")
         except Exception as e:  # noqa: BLE001 : le planificateur ne s'arrête jamais pour ça
@@ -572,7 +572,7 @@ def auto_adopt() -> None:
         return
     added: list[str] = seen.get("added", [])
     try:
-        import machines_admin
+        from msv.machines import machines_admin
         new = machines_admin.adopt_found(st.get("found") or [], set(added) | {x.get("ip") for x in CFG["netscan_ignored"]})
     except Exception as e:  # noqa: BLE001 : the scheduler never stops for it; tried again after the next search
         log(f"mode automatique : ajout des machines impossible : {type(e).__name__}: {e}")
@@ -645,7 +645,7 @@ def wake_check() -> None:
         if not (enabled("health") and run_task("health", why, ("--only", a["ip"]))):
             continue  # santé occupée : on réessaie à la minute suivante (la fiche garde l'ancien état de ping)
         if enabled("collect"):  # l'onglet Machines (ping, SSH, Docker) se met à jour tout de suite, sans attendre l'horaire de la collecte
-            import machines_admin
+            from msv.machines import machines_admin
             machines_admin.expire_inventory(a["ip"])
             run_chain(["collect"], why)
 

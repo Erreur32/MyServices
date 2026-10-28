@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import agents  # noqa: E402
+from msv.machines import agents  # noqa: E402
 import health  # noqa: E402
 
 HOST = {"id": "box", "name": "Box", "mode": "ssh", "target": "box", "vm": False}

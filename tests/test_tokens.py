@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from fastapi.testclient import TestClient
 
-    import agents
+    from msv.machines import agents
     import api
     from msv.core import auth
     from msv.alerts import mailer  # noqa: F401  (patched by name)

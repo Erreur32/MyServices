@@ -149,14 +149,14 @@ def tokens_store():
 def agents_store():
     global AGENTS
     if AGENTS is None:
-        import agents
+        from msv.machines import agents
         AGENTS = agents.Agents(db_path(core.CFG))
     return AGENTS
 
 
 def agent_guard(request: Request, raw: str) -> JSONResponse | None:
     """Jeton d'agent valable : la fiche est posée dans request.state.agent."""
-    import agents
+    from msv.machines import agents
     store_, ip = agents_store(), ip_of(request)
     if store_.too_many_bad(ip):
         return JSONResponse({"error": "trop de jetons refusés : réessayer dans 15 minutes", "code": "TOO_MANY_BAD_TOKENS"},
@@ -441,7 +441,7 @@ class ServiceKeys(BaseModel):
 @app.get(API + "/services/new", tags=["services"], summary="Services apparus sur les machines ces 7 derniers jours, pas encore choisis (admin)")
 def services_new(request: Request):
     from msv.core import history
-    import new_services
+    from msv.machines import new_services
     if denied := admin_only(request):
         return denied
     events = history.query(db_path(core.CFG), since=time.time() - new_services.WINDOW_DAYS * 86400, kind="nouveau", limit=5000)
@@ -459,7 +459,7 @@ def _connector_endpoints() -> list[tuple[dict, tuple[str, ...]]]:
 
 @app.post(API + "/services/new/follow", tags=["services"], summary="Suivre ces nouveaux services tels quels : plus proposés (admin)")
 def services_new_follow(body: ServiceKeys, request: Request):
-    import new_services
+    from msv.machines import new_services
     if denied := admin_write(request):
         return denied
     new_services.follow(body.keys, core.CFG["state_dir"])
@@ -488,7 +488,7 @@ class ManualServiceTry(BaseModel):
 
 def manual_call(request: Request, action: str, detail: str, fn, collect: bool = True):
     """A change of the services declared by hand: admin only, readable refusal, audit line, then a collection so the page shows it"""
-    import services_admin
+    from msv.machines import services_admin
     if denied := admin_write(request):
         return denied
     try:
@@ -504,7 +504,7 @@ def manual_call(request: Request, action: str, detail: str, fn, collect: bool = 
 
 @app.get(API + "/services/manual", tags=["services"], summary="Services déclarés à la main (admin)")
 def services_manual_list(request: Request):
-    import services_admin
+    from msv.machines import services_admin
     if denied := admin_only(request):
         return denied
     return {"items": services_admin.list_manual()}
@@ -535,8 +535,8 @@ def services_manual_try(body: ManualServiceTry, request: Request):
 
 @app.post(API + "/services/new/ignore", tags=["services"], summary="Ne pas suivre un nouveau service : mis en pause, ni sonde ni alerte (admin)")
 def services_new_ignore(body: ServiceKeys, request: Request):
-    import new_services
-    import setup
+    from msv.machines import new_services
+    from msv.machines import setup
     if denied := admin_write(request):
         return denied
     data, done = read_produced("data.json") or {}, []
@@ -568,8 +568,8 @@ class ServiceMeta(BaseModel):
 
 @app.get(API + "/services/meta", tags=["services"], summary="Réglages à la main d'un service (son entrée de services-meta.json) et les catégories qu'on peut lui donner (admin)")
 def services_meta_read(type: str, id: str, request: Request):
-    import new_services
-    import setup
+    from msv.machines import new_services
+    from msv.machines import setup
     if denied := admin_only(request):
         return denied
     data = read_produced("data.json") or {}
@@ -577,15 +577,15 @@ def services_meta_read(type: str, id: str, request: Request):
     if not row:
         return deny(404, "service introuvable (déjà disparu ?)")
     key, entry = new_services.current_entry(setup.META, row)
-    import known_apps
+    from msv.machines import known_apps
     return {"key": key, "entry": {k: v for k, v in entry.items() if k in new_services.EDITABLE}, "categories": new_services.categories(setup.META, data),
             "apps": known_apps.choices()}
 
 
 @app.put(API + "/services/meta", tags=["services"], summary="Modifier les réglages d'un service : nom, icône, catégorie, description, étiquettes, appli, interface, adresse à ouvrir, public, accès direct, pause, alertes (admin)")
 def services_meta_edit(body: ServiceMeta, request: Request):
-    import new_services
-    import setup
+    from msv.machines import new_services
+    from msv.machines import setup
     if denied := admin_write(request):
         return denied
     data = read_produced("data.json") or {}
@@ -594,7 +594,7 @@ def services_meta_edit(body: ServiceMeta, request: Request):
         return deny(404, "service introuvable (déjà disparu ?)")
     if body.category and body.category not in new_services.categories(setup.META, data):
         return deny(400, "catégorie inconnue : choisir parmi les catégories existantes")
-    import known_apps
+    from msv.machines import known_apps
     if body.app and body.app not in {a["key"] for a in known_apps.choices()}:
         return deny(400, "appli inconnue : choisir dans la liste")
     open_url = (body.open_url or "").strip()
@@ -655,8 +655,8 @@ class ServicePublic(BaseModel):
 
 @app.put(API + "/services/public", tags=["services"], summary="Déclarer un site public voulu (hôte NPM sans liste d'accès), ou retirer la déclaration (admin)")
 def services_public(body: ServicePublic, request: Request):
-    import new_services
-    import setup
+    from msv.machines import new_services
+    from msv.machines import setup
     if denied := admin_write(request):
         return denied
     data = read_produced("data.json") or {}
@@ -669,8 +669,8 @@ def services_public(body: ServicePublic, request: Request):
 
 @app.delete(API + "/services/pause/{target}", tags=["services"], summary="Reprendre le suivi d'un service en pause (ip:port) (admin)")
 def services_resume(target: str, request: Request):
-    import new_services
-    import setup
+    from msv.machines import new_services
+    from msv.machines import setup
     if denied := admin_write(request):
         return denied
     ip, _, port = target.rpartition(":")
@@ -955,7 +955,7 @@ class MachineConf(BaseModel):
 
 
 def machine_call(request: Request, action: str, detail: str, fn, write: bool = True):
-    import machines_admin
+    from msv.machines import machines_admin
     if denied := (admin_write(request) if write else admin_only(request)):
         return denied
     try:
@@ -980,7 +980,7 @@ def _listing_with_ssh_uses(m) -> dict:
 
 def _ssh_uses(machines: dict) -> dict[str, list[str]]:
     """What needs SSH on each machine beyond what an agent reads (Machines › SSH connections: « SSH optional » otherwise)."""
-    import access_advice
+    from msv.machines import access_advice
     import connectors
     try:
         hosts = json.loads(Path(core.CFG["backups_meta"]).read_text(encoding="utf-8")).get("hosts") or []
@@ -1544,7 +1544,7 @@ PLAIN = "text/plain; charset=utf-8"   # scripts d'agent servis tels quels
 def too_soon(a: dict) -> dict | None:
     """A report sent less than MIN_GAP seconds after the last one (a run at boot then one at sign-in): answered « already received »
     with a 200, not a 429, so an agent does not retry it nor its scheduled task run the whole collection again."""
-    import agents
+    from msv.machines import agents
     if a["last_seen"] and time.time() - a["last_seen"] < agents.MIN_GAP:
         return {"ok": True, "skipped": True, "interval": agents.DEFAULT_INTERVAL}
     return None
@@ -1576,7 +1576,7 @@ def unzip_report(raw: bytes, limit: int) -> bytes | None:
 
 @app.post(AGENT_REPORT, tags=["agents"], summary="Relevé de santé envoyé par un agent (jeton msv_agent_)")
 async def agent_report(request: Request):
-    import agents
+    from msv.machines import agents
     a = request.state.agent
     if early := too_soon(a):
         return early
@@ -1590,7 +1590,7 @@ async def agent_report(request: Request):
 
 
 def _agent_report(a: dict, raw: bytes, ip: str):
-    import agents
+    from msv.machines import agents
     try:
         report = agents.validate_report(json.loads(raw))
     except ValueError:
@@ -1613,7 +1613,7 @@ def _agent_report(a: dict, raw: bytes, ip: str):
 
 @app.get("/agent/{name}.ps1", tags=["agents"], summary="Scripts de l'agent Windows (sans secret, réseau local)")
 def agent_script(name: str):
-    import agents
+    from msv.machines import agents
     if name not in ("install", "agent"):
         return deny(404, "introuvable")
     return Response(agents.script(name + ".ps1"), media_type=PLAIN)
@@ -1621,13 +1621,13 @@ def agent_script(name: str):
 
 @app.get("/agent/agent.py", tags=["agents"], summary="Agent Linux (sans secret, réseau local)")
 def agent_script_py():
-    import agents
+    from msv.machines import agents
     return Response(agents.script("agent.py"), media_type=PLAIN)
 
 
 @app.get("/agent/install.sh", tags=["agents"], summary="Installateur de l'agent Linux (sans secret, réseau local)")
 def agent_script_sh():
-    import agents
+    from msv.machines import agents
     return Response(agents.script("install.sh"), media_type=PLAIN)
 
 
@@ -1646,7 +1646,7 @@ def agents_list(request: Request):
 
 @app.post(API + "/agents", tags=["agents"], summary="Créer un agent pour une machine (jeton affiché une seule fois)")
 def agents_create(body: NewAgent, request: Request):
-    import agents
+    from msv.machines import agents
     if denied := admin_write(request):
         return denied
     u, ip = request.state.user, ip_of(request)
@@ -1665,7 +1665,7 @@ class AgentChange(BaseModel):
 
 @app.patch(API + "/agents/{aid}", tags=["agents"], summary="Mise à jour automatique d'un agent : activer ou couper (admin)")
 def agents_change(aid: int, body: AgentChange, request: Request):
-    import agents
+    from msv.machines import agents
     if denied := admin_write(request):
         return denied
     try:
@@ -1678,7 +1678,7 @@ def agents_change(aid: int, body: AgentChange, request: Request):
 
 @app.post(API + "/agents/{aid}/update", tags=["agents"], summary="Mettre à jour un agent maintenant : il récupère le script à son prochain relevé (admin)")
 def agents_update(aid: int, request: Request):
-    import agents
+    from msv.machines import agents
     if denied := admin_write(request):
         return denied
     try:
@@ -1691,7 +1691,7 @@ def agents_update(aid: int, request: Request):
 
 @app.post(API + "/agents/{aid}/confirm-host", tags=["agents"], summary="Accepter le nouveau nom de poste d'un agent (machine renommée ; admin)")
 def agents_confirm_host(aid: int, request: Request):
-    import agents
+    from msv.machines import agents
     if denied := admin_write(request):
         return denied
     try:
@@ -1704,7 +1704,7 @@ def agents_confirm_host(aid: int, request: Request):
 
 @app.delete(API + "/agents/{aid}", tags=["agents"], summary="Révoquer un agent (admin)")
 def agents_revoke(aid: int, request: Request):
-    import agents
+    from msv.machines import agents
     if denied := admin_write(request):
         return denied
     try:
@@ -1717,7 +1717,7 @@ def agents_revoke(aid: int, request: Request):
 
 @app.delete(API + "/agents/{aid}/purge", tags=["agents"], summary="Effacer un agent déjà révoqué de la liste (admin)")
 def agents_purge(aid: int, request: Request):
-    import agents
+    from msv.machines import agents
     if denied := admin_write(request):
         return denied
     try:
@@ -2773,7 +2773,7 @@ def diagrams_rebuild(request: Request):
 
 def current_proposals(data: dict) -> list[dict]:
     """Proposals of the last collection without the connectors saved since: the discovery list changes at once."""
-    import known_apps
+    from msv.machines import known_apps
     from connectors import settings
     try:
         saved = [c for _, _, c in settings._entries(settings._raw())]
@@ -2785,7 +2785,7 @@ def current_proposals(data: dict) -> list[dict]:
 @app.get(API + "/discoveries", tags=["système"], summary="Qui découvre quoi : automatique, à la main, à faire (admin)")
 def discoveries(request: Request):
     from msv.backups import backups_admin
-    import discoveries as disc
+    from msv.machines import discoveries as disc
     import netscan
     if denied := admin_only(request):
         return denied

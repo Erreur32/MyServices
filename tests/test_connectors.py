@@ -708,7 +708,7 @@ class BackupApis(unittest.TestCase):
     def test_veeam_vm_rattachees_aux_machines(self):
         """A VM goes to the machine of the same name, a choice of the wizard wins, the host address gives the machine it runs on."""
         from msv.backups import backups
-        import matching
+        from msv.machines import matching
         got, _ = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
         meta = {"hosts": [{"id": "veeam-sources", "label": "Sources Veeam", "api": "none"}, {"id": "veeam", "label": "Veeam", "api": "veeam"}],
                 "sets": [{"id": "pc", "label": "PC de jeu", "origin": "veeam-sources", "max_age_days": 2,

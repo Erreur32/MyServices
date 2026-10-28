@@ -24,7 +24,7 @@ import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
-import known_apps
+from msv.machines import known_apps
 
 # Ports regardés sur une machine qui répond : port -> indice affiché (reprend l'assistant d'installation)
 HINT_PORTS = {3389: "Windows (RDP)", 445: "partage SMB", 9419: "Veeam B&R (API 9419)", 9392: "Veeam B&R (service 9392)", 9401: "Veeam B&R (montage 9401)",

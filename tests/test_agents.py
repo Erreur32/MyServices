@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from fastapi.testclient import TestClient
 
-    import agents
+    from msv.machines import agents
     import api
     from msv.core import auth
     import health
@@ -334,7 +334,7 @@ class Agents(unittest.TestCase):
         self.assertEqual(chains, [["collect"]])   # le premier relevé lance aussi la collecte (système, matériel, ports), une seule fois
 
     def test_verifier_une_machine_lue_par_son_agent(self):
-        import machines_admin
+        from msv.machines import machines_admin
         token, info = self.create()
         m = {"name": "Gamer32", "os": "windows", "ssh": None}
         lines, failed = machines_admin._check_agent("192.168.1.60", m, api.agents_store())

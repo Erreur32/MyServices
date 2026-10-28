@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import services_admin as sa  # noqa: E402
+from msv.machines import services_admin as sa  # noqa: E402
 
 
 class Base(unittest.TestCase):

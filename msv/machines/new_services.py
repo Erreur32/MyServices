@@ -104,7 +104,7 @@ def _target(data: dict, key: str) -> str:
 
 def _set_meta(meta_path: Path, target: str, field: str, value) -> None:
     """One field of the services-meta.json entry of `target` (a domain, « ip:port »…); None removes it, an empty entry goes."""
-    import setup
+    from msv.machines import setup
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
     services = meta.setdefault("services", {})
     entry = dict(services.get(target) or {})
@@ -204,7 +204,7 @@ def apply_hand(r: dict, m: dict) -> None:
 
 def _apply_entry(h: dict, entry: dict) -> None:
     """One published row following its edited entry (a category or an app back to automatic waits for the next collection)."""
-    import known_apps
+    from msv.machines import known_apps
     if entry.get("category"):
         h["category"] = entry["category"]
     h["description"] = entry.get("description") or ((h.get("service") or {}).get("description")) or None
@@ -224,7 +224,7 @@ def _apply_entry(h: dict, entry: dict) -> None:
 def edit_meta(meta_path: Path, web_dir: str | Path, r: dict, fields: dict) -> str:
     """The hand-set fields of one service (EDITABLE), written in its existing services-meta.json entry (else a new one under its first domain,
     or « ip:port »), and in the published data.json at once. Returns the key used."""
-    import setup
+    from msv.machines import setup
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
     services = meta.setdefault("services", {})
     target = _meta_target(services, r)

@@ -33,7 +33,7 @@ CATEGORY = {"vcenter": "Infra / virtualisation", "synology": "Fichiers / sync"}
 def category(type_: str) -> str:
     if type_ in BACKUP_TYPES:
         return "Sauvegardes"
-    import known_apps
+    from msv.machines import known_apps
     return CATEGORY.get(type_) or next((a.category for a in known_apps.APPS if a.connector == type_), "Autre")
 
 
@@ -234,7 +234,7 @@ def _known_alias(alias: str | None) -> str | None:
     """Alias SSH connu de la config SSH de l'app (ou vide = ici, dans le conteneur) ; sinon refus : jamais d'adresse libre."""
     if not alias:
         return None
-    import machines_admin
+    from msv.machines import machines_admin
     if alias not in {a["alias"] for a in machines_admin.aliases()} | {"local"}:
         raise SettingsError(f"alias SSH « {alias} » inconnu : l'ajouter dans Réglages → Machines")
     return None if alias == "local" else alias

@@ -55,15 +55,15 @@ from connectors.process import host_ports
 from msv.remote import esxi_ssh
 from msv.remote import virt_ssh
 from msv.remote import pve_ssh
-import agents
+from msv.machines import agents
 import hostinfo
 from msv.core import inventory_cache
 import api_link
-import known_apps
-import new_services
+from msv.machines import known_apps
+from msv.machines import new_services
 from msv.core import last_known as last_known_services
 import webservers
-import matching
+from msv.machines import matching
 from connectors import mynetwork as mynetwork_conn
 from msv.remote import npmapi
 
@@ -271,7 +271,7 @@ def adopt_ssh(hinfo: dict) -> None:
     if not found:
         return
     try:
-        import machines_admin
+        from msv.machines import machines_admin
         for ip in machines_admin.adopt_ssh(found):
             print(f"SSH activé tout seul pour {MACHINES[ip][0]} ({ip}) : accès « {found[ip]} », clé testée", flush=True)
     except Exception as e:  # noqa: BLE001 : la collecte continue, l'interrupteur reste à activer à la main

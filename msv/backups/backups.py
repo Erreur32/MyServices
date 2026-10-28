@@ -367,7 +367,7 @@ def api_collect(cls, h: dict, prefix: str) -> tuple[dict | None, str]:
 def agent_collect(h: dict) -> tuple[dict | None, str]:
     """Windows PC followed by its MyServices agent: the last Veeam Agent and Windows Server Backup runs of its last report (nothing is
     asked of the PC, the agent sends them anyway). The report is used even when the agent went silent: the age of the run says it."""
-    import agents
+    from msv.machines import agents
     from msv.core.auth import db_path
     try:
         rep = agents.Agents(db_path(CFG)).fresh_reports().get(h.get("ip") or "")
@@ -416,7 +416,7 @@ def ssh_aliases() -> set[str]:
 
 def machine_index():
     """Name and address index of the machines the app follows (services-meta): links a VM backed up by Veeam to its machine."""
-    import matching
+    from msv.machines import matching
     try:
         machines = json.loads(Path(CFG["meta"]).read_text(encoding="utf-8")).get("machines", {})
     except (OSError, ValueError, KeyError, AttributeError):

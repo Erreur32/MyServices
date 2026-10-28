@@ -10,7 +10,7 @@ from urllib.parse import parse_qs
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from connectors.base import Context  # noqa: E402
 from connectors.dozzle import Dozzle  # noqa: E402
-from matching import link  # noqa: E402
+from msv.machines.matching import link  # noqa: E402
 
 SECRET = "pw-" + "d" * 6   # built at run time: the commit guard refuses any literal secret
 HOSTS = [{"id": "h1", "name": "srv", "endpoint": "local", "type": "local", "available": True, "nCPU": 8, "memTotal": 16 << 30},

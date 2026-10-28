@@ -16,7 +16,7 @@ from msv.core import docker_state  # noqa: E402
 from msv.core import inventory_cache  # noqa: E402
 
 try:
-    import agents
+    from msv.machines import agents
     import health
 except ImportError:
     agents = health = None

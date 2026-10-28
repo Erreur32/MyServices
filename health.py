@@ -1179,7 +1179,7 @@ def collect_windows(host: dict) -> dict:
 def agent_reports() -> dict:
     """{IP: {"report", "seen", "fresh"}} des agents actifs ; vide si la base n'existe pas (version sans Docker)."""
     try:
-        from agents import Agents
+        from msv.machines.agents import Agents
         from msv.core.auth import db_path
         return Agents(db_path(CFG)).fresh_reports()
     except Exception as e:  # base absente ou illisible : la santé continue sans agents

@@ -14,7 +14,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import mcp_server  # noqa: E402
 try:
-    import machines_admin
+    from msv.machines import machines_admin
 except ImportError:   # its dependencies live in the image; the other tests run without them
     machines_admin = None
 

@@ -10,7 +10,7 @@ import time
 import urllib.error
 import urllib.request
 
-import setup
+from msv.machines import setup
 
 NAME_MAX = 80
 SCHEMES = ("http", "https", "tcp")

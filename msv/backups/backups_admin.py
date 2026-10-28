@@ -33,7 +33,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import setup
+from msv.machines import setup
 from connectors import settings
 from connectors.backup_apis import HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
@@ -796,7 +796,7 @@ AGENT_TOOLS = ("Veeam Agent", "Sauvegarde Windows Server")   # agents.windows_ba
 
 
 def _agent_reports() -> dict:
-    import agents
+    from msv.machines import agents
     from msv.core.auth import db_path
     from msv.core.config import CFG
     try:
@@ -807,7 +807,7 @@ def _agent_reports() -> dict:
 
 def agent_backups_discover() -> dict:
     """Veeam Agent and Windows Server Backup runs seen by the Windows agents (their last report), read only: nothing is saved."""
-    import agents
+    from msv.machines import agents
     meta = _read()
     followed = {(h.get("ip"), loc.get("agent_backup")) for s in meta.get("sets", []) for loc in s.get("locations", [])
                 for h in meta.get("hosts", []) if h["id"] == loc.get("host") and loc.get("agent_backup")}

@@ -196,7 +196,7 @@ class Installation(unittest.TestCase):
 class ReglagesEtRoutes(unittest.TestCase):
     def test_alias_inconnu_refuse(self):
         from connectors import settings
-        with mock.patch("machines_admin.aliases", return_value=[{"alias": "nas"}]):
+        with mock.patch("msv.machines.machines_admin.aliases", return_value=[{"alias": "nas"}]):
             with self.assertRaises(settings.SettingsError):
                 settings.npm_script_check("/x/npm-api.sh", "pirate.example")
             with mock.patch.object(npmapi, "check_script", return_value=[{"level": "ok", "text": "ok"}]) as ck:

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import setup  # noqa: E402
+from msv.machines import setup  # noqa: E402
 
 
 class AfterMark(unittest.TestCase):
