@@ -25,7 +25,6 @@ const OPTIONS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
   { k: "gateway", label: tx("Passerelle"), help: tx("box / routeur : sous-titre de la page") },
   { k: "npm_only", label: tx("Joignable seulement par NPM"), help: tx("pare-feu : ses services sont testés via NPM") },
-  { k: "vm", label: tx("Machine virtuelle"), help: tx("pas de SMART ni de température du processeur : rien de réel à lire") },
 ];
 
 /** Access to offer first, from the detection: a working alias gives SSH, a Windows PC without one gives the agent, nothing open gives none */

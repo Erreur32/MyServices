@@ -349,6 +349,17 @@ class ReglagesDetectes(unittest.TestCase):
         self.assertEqual(self.flags("10.0.0.9", None, os_="windows"), ["off"])
         self.assertEqual(self.flags("10.0.0.7", {"virt": None, "npm": False}), [])
 
+    def test_vm_windows_reconnue_par_le_modele_de_l_agent(self):
+        import hostinfo
+        for maker, model in (("QEMU", "Standard PC (i440FX + PIIX, 1996)"), ("VMware, Inc.", "VMware7,1"), ("Microsoft Corporation", "Virtual Machine"),
+                             ("innotek GmbH", "VirtualBox")):
+            self.assertTrue(hostinfo.is_vm_hardware({"maker": maker, "model": model}), model)
+        for maker, model in (("ASUS", "ROG STRIX Z790-E"), ("Microsoft Corporation", "Surface Laptop 5"), (None, None)):
+            self.assertFalse(hostinfo.is_vm_hardware({"maker": maker, "model": model}), model)
+        self.assertFalse(hostinfo.is_vm_hardware(None))
+        with mock.patch.object(hostinfo, "default_gateway", return_value="10.0.0.1"):
+            self.assertEqual(hostinfo.detected_flags("10.0.0.9", None, {"os": "windows"}, {"maker": "QEMU", "model": "Standard PC (Q35 + ICH9, 2009)"}), ["vm", "off"])
+
     def test_infos_machine_lit_virt_et_npm(self):
         import hostinfo
         out = "##OS Debian\n##KERNEL 6.1\n##UP 10\n##SVC apache2=inactive nginx=inactive\n##SSHDR no\n##SSHD\n##DOCKER 2\n##VIRT kvm\n##NPM 1\n"
