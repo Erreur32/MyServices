@@ -3,6 +3,7 @@
   python3 -m unittest discover -s tests
 """
 import base64
+import importlib.util
 import sys
 import tempfile
 import unittest
@@ -17,6 +18,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 SVG = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#09f"/></svg>'
 
 
+@unittest.skipUnless(importlib.util.find_spec("defusedxml"), "defusedxml is only in the image")
 class CustomIcons(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
