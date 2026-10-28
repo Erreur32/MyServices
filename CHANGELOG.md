@@ -19,7 +19,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Dev server (:5180): the agent installer works.** `install.ps1` fetches the agent from `/myservices/agent/…`, which Vite answered with the web page; the dev server now relays `/myservices/` to the container like the other agent routes, and `install.ps1` fetches the agent at the root (`/agent/agent.ps1`) like `install.sh`, so it no longer depends on the old prefix.
 
 ### Icons
-- **Machine list, System column: the right icon for a Freebox and for UniFi gear.** A Freebox "v8" is the Pop, any other Freebox (Delta, v7) gets the Freebox logo, and every UniFi device without a photo (gateways UDM / UCG / USG / UXG, switches USW, UNVR…) gets the UniFi logo; the access points keep their photo.
+- **Machine list, System column: the right icon for a Freebox and for UniFi gear.** A Freebox "v8" is the Pop, any other Freebox (Delta, v7) gets the Freebox logo, and every UniFi device without a photo (gateways UDM / UCG / USG / UXG, switches USW, UNVR…) gets the UniFi logo; the access points keep their photo. The **System** column of the machine table now shows that photo or logo next to the Freebox and UniFi lines.
 - **Import your own icon.** The icon picker of machines and services has a **My icons** section with an **Import an image or an SVG** button (PNG, JPEG, WebP, GIF or SVG, 512 KB at most, 200 icons). Photos and logos are shrunk to 128 px on your side; an SVG is reduced to plain drawing by the server (no script, no outside link) and served in a sandbox, like an avatar. The icons are kept in the state folder, shared by every machine and service, and one can be deleted once nothing uses it. New routes: `GET/POST /api/v1/icons`, `GET/DELETE /api/v1/icons/<key>`.
 
 ### Fixes

@@ -1095,12 +1095,17 @@ function haSystemName(ha?: ServiceStatus): string {
   return sys.os ? `${sys.method} ${sys.os}` : sys.method;
 }
 
+/** The system of a box read by MynetworK (Freebox, UniFi): its photo or logo, then the model and firmware */
+function ModelLine({ icon, title, text }: Readonly<{ icon: string | null; title: string; text: string }>) {
+  return <span className="inline-flex max-w-[16rem] items-center gap-1.5" title={title}>{icon && <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" />}<span className="truncate">{text}</span></span>;
+}
+
 /** The system line of a card: the system read (SSH, agent), else Home Assistant's, else the UniFi model and firmware */
 function SystemLine({ m, os, ha, unifi, freebox }: Readonly<{ m: Machine; os: OsKind | null; ha?: ServiceStatus; unifi?: UnifiDevice; freebox?: FreeboxInfo }>) {
   if (m.info?.os || m.agent?.os) return <OsShort m={m} kind={os} />;
   if (haSystemName(ha)) return <span className="truncate" title={tx("Lu par Home Assistant")}>{haSystemName(ha)}</span>;
-  if (freebox?.system?.model) return <span className="truncate" title={tx("Lu par MynetworK (Freebox)")}>{[freebox.system.model, freebox.system.firmware].filter(Boolean).join(" · ")}</span>;
-  if (unifi?.version) return <span className="truncate" title={tx("Lu par MynetworK (UniFi)")}>{[unifi.model, `UniFi ${unifi.version}`].filter(Boolean).join(" · ")}</span>;
+  if (freebox?.system?.model) return <ModelLine icon={modelIcon(freebox.system.model)} title={tx("Lu par MynetworK (Freebox)")} text={[freebox.system.model, freebox.system.firmware].filter(Boolean).join(" · ")} />;
+  if (unifi?.version) return <ModelLine icon={modelIcon(unifi.model) ?? ""} title={tx("Lu par MynetworK (UniFi)")} text={[unifi.model, `UniFi ${unifi.version}`].filter(Boolean).join(" · ")} />;
   return <OsShort m={m} kind={os} />;
 }
 
