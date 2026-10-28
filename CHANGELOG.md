@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Fixes
+- **Add machine: a Windows PC or server is recognised without a ping.** The WinRM port (5985) is now a Windows hint, and a host name Windows generates itself (`WIN-` + 11 characters, `DESKTOP-…`, `LAPTOP-…`) selects Windows and the agent by default.
 - **Add machine: three steps instead of four, and a silent ping is no longer a warning.** What was found and the access (agent, SSH or none) are now one step. A machine that does not answer the ping but shows other signs (open ports, Windows) gets a grey badge and a note explaining that the Windows firewall blocks the ping by default and that the agent, listed first, does not need it; the orange warning is kept for a machine that answers nothing at all.
 - **Removing a machine leaves its settings page.** After the trash button and its confirmation, you land back on the machine list instead of staying on the page of a machine that no longer exists.
 - **A removed machine disappears from the pages at once.** Removing a machine in Settings left it listed until the next collection pass (up to the collection interval); it is now taken out of the published data right away.

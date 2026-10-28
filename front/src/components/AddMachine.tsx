@@ -36,8 +36,11 @@ function defaultAccess(d: Detection, kind: Kind): Access {
   return d.hints.includes("SSH") || !!d.alias ? "ssh" : "none";
 }
 
+/** Host names Windows generates itself (« WIN-L50HGL065P6 » on Windows Server, « DESKTOP-4F2K9QA » / « LAPTOP-… » on a PC) */
+const WINDOWS_NAME = /^(WIN-[A-Z0-9]{11}|(DESKTOP|LAPTOP)-[A-Z0-9]{7})$/i;
+
 function guessKind(d: Detection): Kind {
-  return d.machine.os === "windows" || d.hints.some((h) => h.startsWith("Windows")) ? "windows" : "linux";
+  return d.machine.os === "windows" || d.hints.some((h) => h.startsWith("Windows")) || WINDOWS_NAME.test(d.dns ?? "") ? "windows" : "linux";
 }
 
 function onError(e: unknown, set: (n: Note) => void) {
