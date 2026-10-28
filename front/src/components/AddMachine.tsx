@@ -251,7 +251,6 @@ function AccessStep({ d, st, kind, setKind, access, setAccess, alias, onAlias, o
       </div>
       <IconChoice label={tx("Accès")} value={access} options={options} onPick={setAccess} />
       {access === "ssh" && <SshSetup d={d} st={st} kind={kind} alias={alias} onAlias={onAlias} />}
-      {access === "agent" && <InfoNote>{tx("L'agent s'installe en collant une commande sur la machine : elle vous sera donnée juste après l'ajout, avec son jeton.")}</InfoNote>}
       {access === "none" && <InfoNote>{tx("Sans accès, MyServices ne fait que pinger la machine et tester ses services web. Vous pourrez activer SSH ou un agent plus tard dans sa carte.")}</InfoNote>}
       <div><button type="button" className={primary} onClick={onNext}>{tx("Continuer")}</button></div>
     </>

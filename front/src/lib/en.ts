@@ -2686,7 +2686,6 @@ export const EN: Record<string, string> = {
   "Un petit script sur la machine envoie sa santé à MyServices (PC Windows, ou SSH impossible)": "A small script on the machine sends its health to MyServices (Windows PC, or no SSH possible)",
   "Aucun": "None",
   "Ping et services web seulement": "Ping and web services only",
-  "L'agent s'installe en collant une commande sur la machine : elle vous sera donnée juste après l'ajout, avec son jeton.": "The agent is installed by pasting one command on the machine: it is given right after the add, with its token.",
   "Sans accès, MyServices ne fait que pinger la machine et tester ses services web. Vous pourrez activer SSH ou un agent plus tard dans sa carte.": "Without access, MyServices only pings the machine and tests its web services. SSH or an agent can be enabled later in its card.",
   "connexion OK": "connection OK",
   "Sur la machine, en root ou avec ce compte, autorisez la clé de l'app dans": "On the machine, as root or with this account, authorize the app key in",
