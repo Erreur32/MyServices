@@ -11,18 +11,16 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.27.0 (2026-10-28)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Fixes
 - **Machine page: a machine nothing reads Docker on no longer shows a Docker fault.** "docker unreachable (SSH or docker group)" is kept only when SSH is set up; otherwise the line says "no container" (agent) or "not read (no SSH access)".
 - **Discovery reminder "Agent to install" opens the machine**, not an empty page, and says how to get a new command when the token is lost (it is shown only once).
 - **The header bell keeps its two kinds of optional suggestions apart**: "apps to link" opens Connectors › Detected, "other discovery suggestions" (devices not followed, backup folders…) opens Discovery, one line each.
 - **Add machine: closing the assistant no longer leaves an empty page.** After the add (or a cancel opened from `#settings/machines/new`) you land on the machine list instead of an almost empty settings card at the same address.
 - **Dev server (:5180): the agent installer works.** `install.ps1` fetches the agent from `/myservices/agent/…`, which Vite answered with the web page; the dev server now relays `/myservices/` to the container like the other agent routes, and `install.ps1` fetches the agent at the root (`/agent/agent.ps1`) like `install.sh`, so it no longer depends on the old prefix.
-
-### Icons
-- **Machine list, System column: the right icon for a Freebox and for UniFi gear.** A Freebox "v8" is the Pop, any other Freebox (Delta, v7) gets the Freebox logo, and every UniFi device without a photo (gateways UDM / UCG / USG / UXG, switches USW, UNVR…) gets the UniFi logo; the access points keep their photo. The **System** column of the machine table now shows that photo or logo next to the Freebox and UniFi lines.
-- **Import your own icon.** The icon picker of machines and services has a **My icons** section with an **Import an image or an SVG** button (PNG, JPEG, WebP, GIF or SVG, 512 KB at most, 200 icons). Photos and logos are shrunk to 128 px on your side; an SVG is reduced to plain drawing by the server (no script, no outside link) and served in a sandbox, like an avatar. The icons are kept in the state folder, shared by every machine and service, and one can be deleted once nothing uses it. New routes: `GET/POST /api/v1/icons`, `GET/DELETE /api/v1/icons/<key>`.
-
-### Fixes
 - **Add machine: "Often switched off" is no longer ticked for a Windows Server**, whose generated name is `WIN-` + 11 characters (a server must stay on, an outage deserves an alert). The switch now says it plainly: for a PC or laptop often switched off or unplugged, no alert when it does not answer.
 - **Add machine: the Windows logo shows as soon as Windows is detected.** The automatic icon of the identity step used to stay empty until the machine was added.
 - **A virtual Windows machine is recognised by its agent.** The maker and model the agent reads (QEMU, VMware, Hyper-V, VirtualBox, Xen, Parallels) tick "Virtual machine" by themselves, like `systemd-detect-virt` does over SSH. The switch now says it adds the "VM" tag, and it no longer sits in the add-machine wizard: it stays in the machine's settings. The same goes for "Reachable only through NPM", which nothing detects and which only matters once services fail.
@@ -32,6 +30,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **A removed machine disappears from the pages at once.** Removing a machine in Settings left it listed until the next collection pass (up to the collection interval); it is now taken out of the published data right away.
 - **Add machine: choosing « Agent » now creates the agent right away.** The last step used to say the command would be given after the add, then showed « Agent: none » and a button to click again; the token and the command now appear at once.
 - **Windows agent: the UPnP (2869) and WSD (5357) ports are ignored.** They are held by the Windows kernel (`System`) and the firewall closes them to other machines, so they were always reported as "unreachable" (TimeoutError) in Services.
+
+### Icons
+- **Machine list, System column: the right icon for a Freebox and for UniFi gear.** A Freebox "v8" is the Pop, any other Freebox (Delta, v7) gets the Freebox logo, and every UniFi device without a photo (gateways UDM / UCG / USG / UXG, switches USW, UNVR…) gets the UniFi logo; the access points keep their photo. The **System** column of the machine table now shows that photo or logo next to the Freebox and UniFi lines.
+- **Import your own icon.** The icon picker of machines and services has a **My icons** section with an **Import an image or an SVG** button (PNG, JPEG, WebP, GIF or SVG, 512 KB at most, 200 icons). Photos and logos are shrunk to 128 px on your side; an SVG is reduced to plain drawing by the server (no script, no outside link) and served in a sandbox, like an avatar. The icons are kept in the state folder, shared by every machine and service, and one can be deleted once nothing uses it. New routes: `GET/POST /api/v1/icons`, `GET/DELETE /api/v1/icons/<key>`.
 
 ## v0.26.2 (2026-10-28)
 

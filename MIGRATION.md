@@ -5,6 +5,13 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.26.2 → 0.27.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: imported icons are stored in an `icons` folder inside the state folder (already a volume). The Windows UPnP (2869) and WSD (5357) ports are no longer reported as unreachable.
+
 ## 0.26.1 → 0.26.2
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
