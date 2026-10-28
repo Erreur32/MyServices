@@ -149,7 +149,11 @@
   "caméra inconnue (pas vue à la dernière collecte)": "unknown camera (not seen at the last collection)",
   "connecteur introuvable": "connector not found",
   "la réponse n'est pas une image": "the answer is not an image",
-  "réponse trop grosse": "answer too large"
+  "réponse trop grosse": "answer too large",
+  "aucune icône": "no such icon",
+  "icône encore utilisée par une machine ou un service : en choisir une autre d'abord": "icon still used by a machine or a service: pick another one first",
+  "icône inconnue": "unknown icon",
+  "session requise": "sign-in required"
  },
  "templates": [
   [
