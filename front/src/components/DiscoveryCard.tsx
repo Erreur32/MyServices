@@ -272,12 +272,17 @@ export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
   );
 }
 
-/** Where the suggestions of the bell lead: the page that holds them when they all belong to one (apps to link, devices not followed, backup folders),
- *  else the whole Discovery page */
-function suggestionsPage(items: { id: string; state: string }[]): string {
-  const pages = new Set(items.filter((x) => x.state === "suggest").map((x) => x.id.startsWith("connector:") ? "#settings/connectors/detected"
-    : x.id === "hosts" ? "#settings/machines/devices" : x.id === "backups-other" ? "#settings/backups" : "#settings/discovery"));
-  return pages.size === 1 ? [...pages][0] : "#settings/discovery";
+/** Where the suggestions of the bell lead: the page that holds most of them (apps to link, devices not followed, backup folders); a tie opens
+ *  the whole Discovery page */
+export function suggestionsPage(items: { id: string; state: string }[]): string {
+  const count = new Map<string, number>();
+  for (const x of items) {
+    if (x.state !== "suggest") continue;
+    const page = x.id.startsWith("connector:") ? "#settings/connectors/detected" : x.id === "hosts" ? "#settings/machines/devices" : x.id === "backups-other" ? "#settings/backups" : "#settings/discovery";
+    count.set(page, (count.get(page) ?? 0) + 1);
+  }
+  const ranked = [...count].sort((a, b) => b[1] - a[1]);
+  return ranked.length && (ranked.length === 1 || ranked[0][1] > ranked[1][1]) ? ranked[0][0] : "#settings/discovery";
 }
 
 /** Cloche de l'en-tête (admin) : ce qu'il reste à faire, dans un panneau qui s'ouvre au clic (chaque chose avec son bouton), puis le nombre
