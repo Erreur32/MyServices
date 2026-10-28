@@ -52,9 +52,9 @@ from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
 from connectors import process
 from connectors.process import host_ports
-import esxi_ssh
-import virt_ssh
-import pve_ssh
+from msv.remote import esxi_ssh
+from msv.remote import virt_ssh
+from msv.remote import pve_ssh
 import agents
 import hostinfo
 from msv.core import inventory_cache
@@ -65,10 +65,10 @@ from msv.core import last_known as last_known_services
 import webservers
 import matching
 from connectors import mynetwork as mynetwork_conn
-import npmapi
+from msv.remote import npmapi
 
 from msv.core.config import CFG, next_timer_run
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 OUT = os.path.join(CFG["web_dir"], "data.json")
 META = CFG["meta"]

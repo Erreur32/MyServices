@@ -242,14 +242,14 @@ def _known_alias(alias: str | None) -> str | None:
 
 def npm_script_check(api: str, ssh: str | None) -> dict:
     """Conseils (vert / orange / rouge) sur le chemin de npm-api.sh, vu de la machine qui l'exécutera ; rien n'est lancé ni écrit."""
-    import npmapi
+    from msv.remote import npmapi
     tips = npmapi.check_script((api or "").strip(), _known_alias(ssh))
     return {"ok": all(t["level"] != "bad" for t in tips), "tips": tips}
 
 
 def npm_script_install(ssh: str, directory: str, ip: str, port: int, user: str, password: str) -> dict:
     """Installe npm-api.sh (version figée, empreinte vérifiée) sur la machine, avec son npm-api.conf ; rend le chemin et les conseils."""
-    import npmapi
+    from msv.remote import npmapi
     alias = _known_alias(ssh)
     if alias is None and ssh != "local":
         raise SettingsError("choisir la machine où installer le script")

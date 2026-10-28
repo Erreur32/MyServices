@@ -16,7 +16,7 @@ try:
 
     import api
     from msv.core import auth
-    import mailer
+    from msv.alerts import mailer
     import server
     import system
     from msv.core import tokens

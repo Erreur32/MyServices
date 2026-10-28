@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 
-from archify_map import grouped, slug
+from msv.diagram.archify_map import grouped, slug
 
 # id = nom du fichier sans .html ; (titre, ce que le schéma montre, besoin)
 CATALOG: dict[str, tuple[str, str, str]] = {

@@ -10,7 +10,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import connectors  # noqa: E402
-import npmapi  # noqa: E402
+from msv.remote import npmapi  # noqa: E402
 
 try:
     from fastapi.testclient import TestClient
@@ -64,7 +64,7 @@ class ScriptParSsh(unittest.TestCase):
         with mock.patch.object(npmapi.subprocess, "run", fake):
             npmapi._script("/home/u/npm-api/npm-api.sh", "--host-list", "nas")
             npmapi._script("/opt/npm-api/npm-api.sh", "--host-list")
-        from sshmux import SSH_MUX
+        from msv.remote.sshmux import SSH_MUX
         n = 1 + len(SSH_MUX)
         self.assertEqual(seen[0][:n + 4], ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5"])   # one shared connection per machine
         self.assertEqual(seen[0][n + 4], "nas")

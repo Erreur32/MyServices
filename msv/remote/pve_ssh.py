@@ -8,7 +8,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 
 from connectors.proxmox import node_extra, resources as pve_resources
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 # One SSH run, sections introduced by « @@name » lines: cluster resources, per-node status (load, swap, root disk, kernel, CPU) and, if
 # lm-sensors is installed on the host, its readings (CPU temperature, fans). Everything is read only.

@@ -5,7 +5,7 @@ L'envoi reste fait par watcher.py et health.py (notify.py) ; ces connecteurs ser
 """
 from __future__ import annotations
 
-import notify
+from msv.alerts import notify
 from connectors.base import Connector, Field, Result
 
 

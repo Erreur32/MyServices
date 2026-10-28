@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 MAX_VMS = 300
 SCRIPT = ("echo '##HOST'; vim-cmd hostsvc/hostsummary 2>&1; "

@@ -10,7 +10,7 @@ import re
 import subprocess
 
 from connectors.base import Connector, Field, Result
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 DOCKER_FMT = ("{{.Names}}|{{.Image}}|{{.Ports}}|{{.Status}}|{{.Label \"com.docker.compose.project\"}}|"
               "{{.Label \"org.opencontainers.image.title\"}}|{{.Label \"org.opencontainers.image.description\"}}|"

@@ -10,7 +10,7 @@ import re
 import subprocess
 
 from connectors.base import Connector, ConnectorError, Field
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 # Process locaux sans intérêt dans l'annuaire (ports RPC/NFS éphémères, résolveur, docker)
 NOISE_PORTS = {53, 111, 631, 2049, 5355}  # même chose vue par le port seul : DNS local, RPC, CUPS, NFS, LLMNR

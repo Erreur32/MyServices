@@ -16,7 +16,7 @@ try:
     import agents
     import api
     from msv.core import auth
-    import mailer  # noqa: F401  (patched by name)
+    from msv.alerts import mailer  # noqa: F401  (patched by name)
     import server
     from msv.core import tokens
 except ImportError:
@@ -130,7 +130,7 @@ class Tokens(unittest.TestCase):
         self.assertIn("jeton", tool("settings_config", {"action": "mail_test"})["content"][0]["text"])   # creator has no address yet
         api.STORE.set_email("admin", "admin@example.test")
         with mock.patch.dict(server.CFG, {"smtp_host": "smtp.example.test", "smtp_from": "ms@example.test"}), \
-                mock.patch("mailer.send") as sent:
+                mock.patch("msv.alerts.mailer.send") as sent:
             self.assertFalse(tool("settings_config", {"action": "mail_test"}).get("isError"))
         self.assertEqual(sent.call_args.args[1], "admin@example.test")   # a token writes to its creator
         who = {e["username"] for e in self.c.get("/myservices/api/v1/audit").json()["audit"]}

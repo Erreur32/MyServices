@@ -1777,7 +1777,7 @@ def system_schedule(name: str, body: Schedule, request: Request):
 # ── Sauvegardes à suivre, décrites depuis la page (backups-meta.json) ──────────────────────────────
 
 def backups_call(request: Request, action: str, detail: str, fn, write: bool = True):
-    import backups_admin
+    from msv.backups import backups_admin
     if denied := (admin_write(request) if write else admin_only(request)):
         return denied
     try:
@@ -2423,7 +2423,7 @@ def setup_left() -> int:
 
 @app.get(API + "/setup", tags=["comptes"], summary="Premier compte à créer ? (page de connexion)")
 def setup_state():
-    import mailer
+    from msv.alerts import mailer
     needed = not store().has_users()
     return {"needed": needed, "seconds_left": setup_left() if needed else 0, "window_min": SETUP_WINDOW // 60,
             "mail": mailer.ready(core.CFG)}   # « Forgot your password? » sends a link only when e-mails are set up
@@ -2469,7 +2469,7 @@ def _avatar_version(username: str) -> str | None:
 def me(request: Request):
     u = request.state.user or {}
     from msv.core import about
-    import mailer
+    from msv.alerts import mailer
     return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH, "version": os.environ.get("MYSERVICES_VERSION", "dev"),
             "email": store().email_of(u["username"]) if AUTH and u.get("username") and not u.get("token") else None,
             "mail_ready": mailer.ready(core.CFG), "mail_error": "" if mailer.LAST["ok"] else mailer.LAST["error"],   # the profile warns when « Forgot your password? » links cannot be sent
@@ -2602,7 +2602,7 @@ class Presets(BaseModel):
 
 def alerts_call(request: Request, action: str, detail: str, fn) -> JSONResponse | dict:
     """Écriture sur les alertes : admin, refus lisible, trace dans le journal."""
-    import alerts
+    from msv.alerts import alerts
     if denied := admin_write(request):
         return denied
     try:
@@ -2615,7 +2615,7 @@ def alerts_call(request: Request, action: str, detail: str, fn) -> JSONResponse 
 
 @app.get(API + "/alerts", tags=["alertes"], summary="Canaux, règles, genres d'événements, préréglages, envois (admin)")
 def alerts_state(request: Request):
-    import alerts
+    from msv.alerts import alerts
     if denied := admin_only(request):
         return denied
     a = core.alerts_store()
@@ -2672,7 +2672,7 @@ def alerts_presets(body: Presets, request: Request):
                        lambda a: {"added": a.add_presets(body.names)})
 
 
-from diagram_nav import ARCHIFY_URL, DIAGRAMS  # noqa: E402
+from msv.diagram.diagram_nav import ARCHIFY_URL, DIAGRAMS  # noqa: E402
 
 
 def about_payload(force: bool) -> dict:
@@ -2714,8 +2714,8 @@ def about_settings(body: UpdateSettings, request: Request):
 
 @app.get(API + "/diagrams", tags=["schémas"], summary="Schémas de l'infra (Archify) : titre, fichier, date ; ceux à créer d'un clic")
 def diagrams(request: Request):
-    import archify_extra
-    from diagram_nav import optional
+    from msv.diagram import archify_extra
+    from msv.diagram.diagram_nav import optional
     data = None
     try:
         data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
@@ -2740,7 +2740,7 @@ class DiagramAsk(BaseModel):
 
 @app.put(API + "/diagrams/{key}", tags=["schémas"], summary="Créer (ou retirer) un schéma proposé : réseau, services, domaines, virtualisation (admin)")
 def diagram_set(key: str, body: DiagramAsk, request: Request):
-    import archify_extra
+    from msv.diagram import archify_extra
     import system
     if denied := admin_write(request):
         return denied
@@ -2784,7 +2784,7 @@ def current_proposals(data: dict) -> list[dict]:
 
 @app.get(API + "/discoveries", tags=["système"], summary="Qui découvre quoi : automatique, à la main, à faire (admin)")
 def discoveries(request: Request):
-    import backups_admin
+    from msv.backups import backups_admin
     import discoveries as disc
     import netscan
     if denied := admin_only(request):
@@ -2892,8 +2892,8 @@ class ExampleNames(BaseModel):
 
 
 def notif_call(request: Request, action: str, detail: str, fn) -> JSONResponse | dict:
-    import alerts
-    import notifications
+    from msv.alerts import alerts
+    from msv.alerts import notifications
     if denied := admin_write(request):
         return denied
     try:
@@ -2906,8 +2906,8 @@ def notif_call(request: Request, action: str, detail: str, fn) -> JSONResponse |
 
 @app.get(API + "/notifications", tags=["notifications"], summary="Notifications personnalisées, capteurs, machines, exemples (admin)")
 def notifications_state(request: Request):
-    import alerts
-    import notifications
+    from msv.alerts import alerts
+    from msv.alerts import notifications
     if denied := admin_only(request):
         return denied
     n = core.notifications_store()
@@ -3123,7 +3123,7 @@ FORGOT_ANSWER = "si un compte correspond et a une adresse e-mail, un lien vient 
 
 @app.post(API + "/password/forgot", tags=["comptes"], summary="Mot de passe oublié : lien envoyé par e-mail (même réponse, compte connu ou non)")
 def password_forgot(body: Forgot, request: Request):
-    import mailer
+    from msv.alerts import mailer
     ip = ip_of(request)
     if not AUTH:
         return deny(400, "comptes désactivés")
@@ -3204,7 +3204,7 @@ def mail_put(body: MailConf, request: Request):
 @app.post(API + "/system/mail/test", tags=["système"], summary="Envoyer un e-mail de test à sa propre adresse (admin)")
 def mail_test(request: Request, body: MailConf | None = None):
     """With a body: tries those values without saving them; without: the saved settings."""
-    import mailer
+    from msv.alerts import mailer
     import system
     if denied := admin_write(request):
         return denied

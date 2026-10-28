@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import pve_ssh  # noqa: E402
+from msv.remote import pve_ssh  # noqa: E402
 
 RES = [{"type": "node", "node": "pve", "status": "online", "cpu": 0.12, "mem": 4 << 30, "maxmem": 16 << 30, "maxcpu": 8, "uptime": 3600},
        {"type": "qemu", "vmid": 101, "name": "Monitor", "node": "pve", "status": "running", "template": 0, "cpu": 0.5,

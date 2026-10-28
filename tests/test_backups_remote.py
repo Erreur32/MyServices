@@ -11,8 +11,8 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import backups  # noqa: E402
-import backups_admin as ba  # noqa: E402
+from msv.backups import backups  # noqa: E402
+from msv.backups import backups_admin as ba  # noqa: E402
 from connectors import remote_folder as rf  # noqa: E402
 from connectors.base import ConnectorError, Context  # noqa: E402
 
@@ -120,7 +120,7 @@ class Scan(unittest.TestCase):
 class Collect(unittest.TestCase):
     def test_remote_collect_lit_les_emplacements_suivis(self):
         cfg = {"connectors": [{"type": "backup-folder", "name": "box", "protocol": "ftp", "host": "192.168.1.254"}]}
-        with mock.patch.dict("backups.CFG", cfg), mock.patch.object(rf.RemoteFolder, "list_dir", fake_list):
+        with mock.patch.dict("msv.backups.backups.CFG", cfg), mock.patch.object(rf.RemoteFolder, "list_dir", fake_list):
             res, err = backups.remote_collect({"id": "remote-box", "connector": "box"}, [("s#0", {"path": "/backups/pve", "depth": 1}), ("s#1", {"path": "/nope"})])
             gone, err2 = backups.remote_collect({"id": "x", "connector": "autre"}, [])
         self.assertEqual(err, "")

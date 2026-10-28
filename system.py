@@ -257,7 +257,7 @@ def set_discovery_muted(core, did: str, muted: bool) -> list[str]:
 
 def set_diagram_extra(core, key: str, on: bool) -> list[str]:
     """Demande (on) ou retire un schéma proposé : la liste est gardée dans config.json (« diagrams_extra »)."""
-    from archify_extra import CATALOG
+    from msv.diagram.archify_extra import CATALOG
     if key not in CATALOG:
         raise ValueError("schéma inconnu")
     kept = [k for k in core.CFG.get("diagrams_extra") or [] if k != key]
@@ -408,7 +408,7 @@ def _host_relay() -> str:
 
 def mail_settings(core) -> dict:
     """Settings → System → E-mail, without the password (only whether it is set)."""
-    import mailer
+    from msv.alerts import mailer
     c = core.CFG
     return {"host": c.get("smtp_host") or "", "port": int(c.get("smtp_port") or 587), "security": c.get("smtp_security") or "starttls",
             "user": c.get("smtp_user") or "", "password_set": bool(c.get("smtp_password")), "from": c.get("smtp_from") or "",
@@ -417,7 +417,7 @@ def mail_settings(core) -> dict:
 
 def _check_mail(security: str, port: int, page_url: str, sender: str) -> None:
     import urllib.parse
-    import mailer
+    from msv.alerts import mailer
     if security not in mailer.SECURITY:
         raise ValueError("sécurité : starttls, ssl ou none")
     if not 1 <= int(port) <= 65535:

@@ -13,8 +13,8 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import backups  # noqa: E402
-import backups_admin as ba  # noqa: E402
+from msv.backups import backups  # noqa: E402
+from msv.backups import backups_admin as ba  # noqa: E402
 from connectors.backup_apis import dsm_time  # noqa: E402
 from test_backups_wizard import Base, FakeServer  # noqa: E402
 

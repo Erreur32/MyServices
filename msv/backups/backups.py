@@ -34,7 +34,7 @@ from pathlib import Path
 from msv.core.config import CFG, HERE
 from connectors.backup_apis import DSM_FAIL, HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",), PbsBackups: ("proxmox-backup",), SynologyBackups: ("synology",)}  # types de config.json dont un hôte « connector » reprend les réglages
 META = Path(CFG["backups_meta"])

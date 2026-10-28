@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import archify_extra as ax  # noqa: E402
+from msv.diagram import archify_extra as ax  # noqa: E402
 
 ID = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]*$")
 DATA = {

@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import mailer  # noqa: E402
+from msv.alerts import mailer  # noqa: E402
 
 CFG = {"smtp_host": "smtp.example.test", "smtp_from": "ms@example.test", "page_url": "https://ms.example.test", "smtp_user": "u",
        "smtp_password": "p" * 8}

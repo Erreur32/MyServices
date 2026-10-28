@@ -46,10 +46,10 @@ app_user.drop_root()   # docker compose exec : root -> compte 10001 (clés SSH, 
 import connectors
 import connectors.base as cbase
 import hostinfo
-import notify
-import npmapi
+from msv.alerts import notify
+from msv.remote import npmapi
 from msv.core.config import CFG, DEFAULTS, HERE
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 CONFIG = Path(os.environ.get("MYSERVICES_CONFIG") or HERE / "config.json")
 META = Path(CFG["meta"])
@@ -780,7 +780,7 @@ def _veeam_secrets(path: Path) -> bool:
 def setup_backups(val: dict, machines: dict) -> None:
     """Onglet Backups. Veeam : serveur trouvé (port 9419), compte testé, un jeu par job choisi.
     Proxmox, tar, rsync… : jeux décrits à la main (fichiers d'archives), voir backups-meta.example.json."""
-    import backups
+    from msv.backups import backups
     print("\n== Sauvegardes (onglet Backups)")
     path = Path(CFG["backups_meta"])
     bm = json.loads(path.read_text(encoding="utf-8")) if path.exists() else \

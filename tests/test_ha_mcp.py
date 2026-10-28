@@ -231,7 +231,7 @@ class BackupSet(unittest.TestCase):
                       "locations": [{"host": "ha-src"}, {"host": "ha", "ha_backup": True, "offsite": True}]}]}
 
     def level(self, items, last_ok=1, last_attempt=1):
-        import backups
+        from msv.backups import backups
         lst = ha_mcp.parse_backups({"backups": items, "total": len(items)})
         data = {"user": "x", "locs": {}, "cron_root": None, "disks": [], "crons": [], "ha_backup": {"last_ok": last_ok, "last_attempt": last_attempt, "next": None, "list": lst}}
         res = {"ha": (data, ""), "ha-src": ({"locs": {}, "disks": [], "crons": []}, "")}

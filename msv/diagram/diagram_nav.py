@@ -22,7 +22,7 @@ DIAGRAMS = [
 
 def optional() -> list[tuple[str, str, str, str]]:
     """Schémas proposés, à créer d'un clic : (id, titre, ce qu'il montre, besoin). Voir archify_extra.py."""
-    from archify_extra import CATALOG
+    from msv.diagram.archify_extra import CATALOG
     return [(k, t, w, n) for k, (t, w, n) in CATALOG.items()]
 
 

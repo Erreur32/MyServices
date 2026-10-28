@@ -41,12 +41,12 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import notify
+from msv.alerts import notify
 from msv.core.config import CFG, next_timer_run
 from msv.core import inventory_cache
 from msv.core.docker_state import allowed_names, intended_stop
 import readers
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 STATE_FILE = Path(CFG["state_dir"]) / "health.json"
 DOCKER_CACHE = os.path.join(CFG["cache_dir"], "docker.json")   # the collection's Docker inventory (myservices.DOCKER_CACHE): its container states are refreshed here

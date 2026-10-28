@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import backups  # noqa: E402
+from msv.backups import backups  # noqa: E402
 
 BY_IP = {"10.0.0.9": "m-209", "10.0.0.6": "hote", "10.0.0.2": "m-202"}
 KNOWN = {"hote", "m-209", "m-202"}

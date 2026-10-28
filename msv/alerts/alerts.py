@@ -28,7 +28,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-import notify
+from msv.alerts import notify
 from msv.core import secrets_store
 
 # Genres d'événements, par famille (même regroupement que l'onglet Historique). Chaque genre « problème »
@@ -91,7 +91,7 @@ class AlertError(Exception):
 
 
 def _config_file() -> Path:
-    return Path(os.environ.get("MYSERVICES_CONFIG") or Path(__file__).resolve().parent / "config.json")
+    return Path(os.environ.get("MYSERVICES_CONFIG") or Path(__file__).resolve().parents[2] / "config.json")
 
 
 class Alerts:

@@ -10,7 +10,7 @@ import json
 import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 MAX = 300
 LABEL = {"libvirt": "KVM / libvirt", "incus": "Incus", "lxd": "LXD", "virtualbox": "VirtualBox"}

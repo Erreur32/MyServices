@@ -16,7 +16,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-import backups_admin as ba  # noqa: E402
+from msv.backups import backups_admin as ba  # noqa: E402
 
 VEEAM = json.loads((ROOT / "tests/fixtures/veeam/states.json").read_text())
 HA_STATES = json.loads((ROOT / "tests/fixtures/ha/states.json").read_text())
@@ -208,7 +208,7 @@ class VeeamAssistant(Base):
         self.assertEqual(meta["syncthing"], [{"x": 1}])
 
     def test_releve_par_le_compte_de_la_page_puis_niveau_selon_l_age(self):
-        import backups
+        from msv.backups import backups
         ba.veeam_follow(self.acct(), [{"name": "PC-Jeu image", "max_age_days": 2}, {"name": "Serveur fichiers", "max_age_days": 2}])
         meta = self.meta_json()
         host = next(h for h in meta["hosts"] if h["id"] == "veeam")
@@ -228,7 +228,7 @@ class VeeamAssistant(Base):
         self.assertEqual({s["id"]: s["level"] for s in late["sets"]}["veeam-pc-jeu-image"], "warn")
 
     def test_jeu_sans_copie_attendue_n_alerte_pas_sur_l_absence_de_copie(self):
-        import backups
+        from msv.backups import backups
         now = datetime.fromisoformat("2026-10-09T12:00:00+02:00").timestamp()
         meta = {"hosts": [{"id": "srv", "label": "Serveur", "ip": "10.0.0.2", "kind": "machine"}],
                 "sets": [{"id": "page", "label": "Serveur : /home/backup", "origin": "srv", "max_age_days": 8, "expect_offsite": False,
@@ -248,14 +248,14 @@ class VeeamAssistant(Base):
         self.assertEqual([i["set"] for i in out["issues"]], ["Ancien jeu"])        # une seule alerte, pas deux
 
     def test_hote_sans_connecteur_dit_pourquoi(self):
-        import backups
+        from msv.backups import backups
         got, err = backups.api_collect(backups.Veeam, {"id": "veeam", "api": "veeam", "connector": "absent"}, "API Veeam")
         self.assertIsNone(got)
         self.assertIn("absent de config.json", err)
 
     def test_connecteur_coupe_ni_injoignable_ni_alerte(self):
         """A connector switched off on purpose (to spare its API) is not « unreachable »: the set and the machine say « switched off », no alert."""
-        import backups
+        from msv.backups import backups
         with mock.patch("connectors.settings.get", return_value={"type": "home-assistant", "name": "maison", "enabled": False}):
             got, err = backups.api_collect(backups.HomeAssistant, {"id": "ha", "api": "ha", "connector": "maison"}, "API HA")
         self.assertIsNone(got)
@@ -302,7 +302,7 @@ class HomeAssistantAssistant(Base):
         self.assertIn("aucune sauvegarde automatique réussie", r["message"])
 
     def test_suivi_puis_niveau_selon_l_age(self):
-        import backups
+        from msv.backups import backups
         self.add_connector()
         self.assertEqual(ba.ha_follow("maison", "", 2), {"added": 1, "updated": 0})
         self.assertEqual(ba.ha_follow("maison", "Maison HA", 3), {"added": 0, "updated": 1})
@@ -355,7 +355,7 @@ class AgentBackups(Base):
         self.assertEqual(s["locations"], [{"host": host["id"], "agent_backup": "Veeam Agent", "via": "agent Windows"}])
 
     def test_niveau_d_apres_le_releve(self):
-        import backups
+        from msv.backups import backups
         with self.reports():
             ba.agent_backups_follow([{"ip": "192.168.1.40", "tool": "Veeam Agent", "max_age_days": 2},
                                      {"ip": "192.168.1.40", "tool": "Sauvegarde Windows Server", "max_age_days": 2}])

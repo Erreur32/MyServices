@@ -197,7 +197,7 @@ def _last_report() -> dict:
 
 
 def _scan(item: tuple[str, dict], patterns: list[str]) -> dict:
-    import backups
+    from msv.backups import backups
     ip, m = item
     req = {"locs": {}, "disks": False, "crons": False, "discover": patterns}
     out, err = backups.run_py(m["ssh"], backups.AGENT, json.dumps(req))
@@ -407,7 +407,7 @@ def _move_location(meta: dict, s: dict, index: int, ip: str, path: str | None) -
 
 def _set_every_days(loc: dict, every_days: int) -> None:
     """The rhythm of a copy, in days between two runs; daily is the default and is not stored."""
-    from backups import EVERY_DAYS_MAX
+    from msv.backups.backups import EVERY_DAYS_MAX
     if not 1 <= int(every_days) <= EVERY_DAYS_MAX:
         raise BackupError(f"rythme de la copie : de 1 à {EVERY_DAYS_MAX} jours")
     if int(every_days) == 1:
@@ -560,7 +560,7 @@ def copies_from_hits(meta: dict, want: dict, hits: list[dict]) -> list[dict]:
 def find_copies() -> dict:
     """Looks on every machine read by SSH (network shares included) for the newest archive of each followed folder: where it is found,
     the folder is probably a copy. Read only ; nothing is linked until the page asks."""
-    import backups
+    from msv.backups import backups
     meta = _read()
     want = _wanted(meta, _last_report())
     if not want:
@@ -642,7 +642,7 @@ def veeam_discover(conf: dict) -> dict:
         jobs, repos, _ = _veeam_conn(conf).fetch()
     except ConnectorError as e:
         raise BackupError(str(e)) from None
-    import backups
+    from msv.backups import backups
     sets = _read().get("sets", [])
     locs = {loc.get("veeam_job"): loc for s in sets for loc in s.get("locations", []) if loc.get("veeam_job")}
     heads = {s["locations"][0]["veeam_job"]: s for s in sets if s.get("locations") and s["locations"][0].get("veeam_job")}
@@ -991,7 +991,7 @@ VZDUMP_SIDE = ["*.log", "*.notes", "*.protected"]   # written next to each dump:
 
 
 def _vzdump_scan(item: tuple[str, dict]) -> dict:
-    import backups
+    from msv.backups import backups
     ip, m = item
     out, err = backups.run_py(m["ssh"], backups.AGENT, json.dumps({"locs": {}, "disks": False, "crons": False, "vzdump": True}))
     return {"ip": ip, "name": m["name"], "ok": out is not None, "error": err or (out or {}).get("vzdump_error", ""),

@@ -223,7 +223,7 @@ def auto_backup_default() -> None:
     if not CFG.get("backups_auto", True) or not _AUTO_BACKUP.acquire(blocking=False):
         return
     try:
-        import backups_admin
+        from msv.backups import backups_admin
         import system
         added = backups_admin.auto_default(Path(CFG["state_dir"]) / "backups-auto.json")
         for a in added:
@@ -425,7 +425,7 @@ def notifications_store():
     """Notifications personnalisées (notifications.py), sur les canaux et la base des alertes."""
     global _NOTIFS
     if _NOTIFS is None:
-        import notifications
+        from msv.alerts import notifications
         _NOTIFS = notifications.Notifications(alerts_store(), WEB)
     return _NOTIFS
 
@@ -434,7 +434,7 @@ def alerts_store():
     """Alertes (alerts.py), dans la même base ; canaux de config.json repris au premier usage."""
     global _ALERTS
     if _ALERTS is None:
-        import alerts
+        from msv.alerts import alerts
         from msv.core.auth import db_path
         _ALERTS = alerts.Alerts(db_path(CFG), CFG)
     return _ALERTS
@@ -446,7 +446,7 @@ ARCHIFY = os.environ.get("MYSERVICES_ARCHIFY", "")
 def refresh_nav() -> None:
     """Bandeau « ← MyServices · Généré avec Archify » au bas de chaque schéma existant (idempotent) : aussi sur ceux qui n'ont pas été regénérés,
     et la liste des autres schémas suit ceux qui existent."""
-    import diagram_nav
+    from msv.diagram import diagram_nav
     have = [k for k, *_ in diagram_nav.all_diagrams() if (WEB / f"{k}.html").exists()]
     for k in have:
         page = WEB / f"{k}.html"
@@ -512,7 +512,7 @@ def _build_map() -> None:
     if not (ARCHIFY and Path(ARCHIFY).exists()):
         return
     write_alerts_summary()
-    import archify_extra
+    from msv.diagram import archify_extra
     wanted = [k for k in CFG.get("diagrams_extra") or [] if k in archify_extra.CATALOG]
     for stale in ["connecteurs", *[k for k in archify_extra.CATALOG if k not in wanted]]:   # ancien schéma retiré, schémas proposés qu'on n'a pas (ou plus) demandés
         for suffix in (".html", ".delivery.json"):

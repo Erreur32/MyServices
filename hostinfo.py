@@ -13,7 +13,7 @@ import subprocess
 from pathlib import Path
 
 from msv.core.config import CFG
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 SSH_DIR = Path.home() / ".ssh"
 

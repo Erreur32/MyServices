@@ -337,7 +337,7 @@ def main() -> int:
         specs["alertes"] = build_alert_chain(chain, data.get("generated", ""))
     wanted = [x for x in (sys.argv[3] if len(sys.argv) > 3 else "").split(",") if x]   # schémas proposés que l'on a demandé de créer
     if wanted:
-        import archify_extra
+        from msv.diagram import archify_extra
         for key in wanted:
             if key in archify_extra.BUILD and archify_extra.available(key, data):
                 specs[key] = archify_extra.BUILD[key](data)

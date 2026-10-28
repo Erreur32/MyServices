@@ -18,7 +18,7 @@ try:
     import cryptography  # noqa: F401
     from fastapi.testclient import TestClient
 
-    import alerts
+    from msv.alerts import alerts
     import api
     from msv.core import auth
     import server

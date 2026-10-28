@@ -16,8 +16,8 @@ import re
 import time
 from datetime import datetime
 
-import alerts
-import notify
+from msv.alerts import alerts
+from msv.alerts import notify
 
 SENSORS: dict[str, tuple[str, str]] = {   # clé -> (libellé, repère)
     "level": ("État de la santé", "🩺"), "cpu": ("Processeur", "⚙️"), "mem": ("Mémoire", "🧠"), "disk": ("Disque le plus rempli", "💽"),

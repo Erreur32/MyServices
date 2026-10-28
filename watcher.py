@@ -43,7 +43,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-import notify
+from msv.alerts import notify
 import pulse
 from msv.core.config import CFG, next_timer_run
 

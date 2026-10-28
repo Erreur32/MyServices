@@ -24,7 +24,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 # Clé de résultat -> (point d'API, option npm-api.sh)
 LISTS = {
