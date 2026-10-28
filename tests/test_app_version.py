@@ -41,7 +41,7 @@ class Page(BaseHTTPRequestHandler):
 class DozzleVersion(unittest.TestCase):
     def test_version_from_page_and_state(self):
         srv = ThreadingHTTPServer(("127.0.0.1", 0), Page)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         try:
             d = Dozzle({"name": "dozzle", "url": f"http://127.0.0.1:{srv.server_port}"}, Context(timeout=5))
             self.assertEqual(d.version(), "11.3.1")

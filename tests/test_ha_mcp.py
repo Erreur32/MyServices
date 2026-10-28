@@ -120,7 +120,7 @@ class Client(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeMcp)
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=cls.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_address[1]}/private_abc"
 
     @classmethod
@@ -197,7 +197,7 @@ class ConnectorMode(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeMcp)
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=cls.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_address[1]}/private_abc"
 
     @classmethod

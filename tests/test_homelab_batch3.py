@@ -90,7 +90,7 @@ class Downloads(Base):
                 self._send({"/api/v2/app/version": "v5.0.1", "/api/v2/transfer/info": {"dl_info_speed": 2 * 2**20, "up_info_speed": 0, "connection_status": "firewalled"},
                             "/api/v2/torrents/info": [{"name": "iso", "state": "error"}, {"name": "film", "state": "stalledDL"}, {"name": "ok", "state": "uploading"}]}[self.path])
         srv = HTTPServer(("127.0.0.1", 0), Q)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         try:
             c = connectors.TYPES["qbittorrent"]({"type": "qbittorrent", "name": "q", "url": f"http://127.0.0.1:{srv.server_port}", "user": "admin", "password": KEY}, Context(timeout=5))
             d = c.collect()
@@ -128,7 +128,7 @@ class Downloads(Base):
                 self.end_headers()
                 self.wfile.write(out)
         srv = HTTPServer(("127.0.0.1", 0), T)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         try:
             d = connectors.TYPES["transmission"]({"type": "transmission", "name": "t", "url": f"http://127.0.0.1:{srv.server_port}"}, Context(timeout=5)).collect()
         finally:

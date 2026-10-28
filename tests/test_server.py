@@ -98,6 +98,19 @@ class Http(unittest.TestCase):
         self.assertNotIn("server", {k.lower() for k in r.headers})
         self.assertEqual(self.c.get("/index.html").status_code, 200)
 
+    def test_cache_header_hashed_front_files_only(self):
+        """Files Vite names after their content are kept for good; everything else is revalidated each time."""
+        assets = server.STATIC / "v2" / "assets"
+        assets.mkdir(parents=True, exist_ok=True)
+        (assets / "index-BmiUWhOT.js").write_text("a")
+        (assets / "plain.js").write_text("a")
+        (server.WEB / "assets").mkdir(exist_ok=True)
+        (server.WEB / "assets" / "mine-AbCdEfGh.js").write_text("a")   # same shape, but a file of the volume: not trusted
+        self.assertEqual(self.c.get("/assets/index-BmiUWhOT.js").headers["cache-control"], "public, max-age=31536000, immutable")
+        self.assertEqual(self.c.get("/assets/plain.js").headers["cache-control"], "no-cache, must-revalidate")
+        self.assertEqual(self.c.get("/assets/mine-AbCdEfGh.js").headers["cache-control"], "no-cache, must-revalidate")
+        self.assertEqual(self.c.get("/index.html").headers["cache-control"], "no-cache, must-revalidate")
+
     def test_etag_304_si_inchange(self):
         r = self.c.get("/myservices/data.json")
         tag = r.headers["etag"]

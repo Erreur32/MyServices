@@ -58,7 +58,7 @@ class Npm(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeNPM)
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=cls.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_port}"
 
     @classmethod
@@ -274,7 +274,7 @@ class AdGuardTests(unittest.TestCase):
 
     def test_rest_api_without_ssh(self):
         srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeAdGuard)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         try:
             base = {"type": "adguard", "name": "box", "url": f"http://127.0.0.1:{srv.server_port}", "user": "admin", "ip": "10.0.0.1"}
             good = connectors.instances({"connectors": [dict(base, password="bon")]}, kind="dns")[0]
@@ -348,7 +348,7 @@ class BeszelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeBeszel)
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=cls.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_port}"
 
     @classmethod
@@ -424,7 +424,7 @@ class HealthFromBeszel(unittest.TestCase):
     def test_parse_and_level(self):
         from msv.collect import health
         with ThreadingHTTPServer(("127.0.0.1", 0), FakeBeszel) as srv:
-            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
             cfg = {"connectors": [{"type": "beszel", "name": "hub", "url": f"http://127.0.0.1:{srv.server_port}",
                                    "user": "ro@x", "password": "bon"}]}
             sys_ = connectors.instances(cfg, kind="health")[0].collect()["systems"][0]
@@ -477,7 +477,7 @@ class FakeKuma(BaseHTTPRequestHandler):
 class UptimeKumaTests(unittest.TestCase):
     def test_metrics(self):
         with ThreadingHTTPServer(("127.0.0.1", 0), FakeKuma) as srv:
-            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
             base = {"type": "uptime-kuma", "name": "kuma", "url": f"http://127.0.0.1:{srv.server_port}"}
             good = connectors.instances({"connectors": [dict(base, api_key="uk_cle")]})[0]
             data, st = run_isolated(good, {}, 10)
@@ -653,7 +653,7 @@ class BackupApis(unittest.TestCase):
                     return FakeNPM.reply(self, 400, {})
                 FakeNPM.reply(self, *veeam_route(v, self.path))
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=cls.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_port}"
         import tempfile
         cls.tmp = tempfile.TemporaryDirectory()

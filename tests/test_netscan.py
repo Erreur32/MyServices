@@ -49,7 +49,7 @@ class PageTitle(unittest.TestCase):
                 self.send_response(405)
                 self.end_headers()
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=cls.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
 
     @classmethod
     def tearDownClass(cls):
@@ -72,7 +72,7 @@ class PageTitle(unittest.TestCase):
                 self.end_headers()
                 self.wfile.write(body)
         srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), R)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         try:
             self.assertIsNone(netscan._page("127.0.0.1", srv.server_port))
         finally:
