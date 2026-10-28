@@ -16,11 +16,13 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.api import api
+    from msv.api import common
     from msv.core import auth
     from msv.api import server
     from msv.core import tokens
 except ImportError:
     api = None
+    common = None
 
 NPM = connectors.TYPES["npm"]
 
@@ -217,13 +219,13 @@ class Droits(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as d:
             server.STATIC = server.WEB = Path(d)
-            api.AUTH = True
-            api.STORE = auth.Store(Path(d) / "myservices.db")
-            api.TOKENS = tokens.Tokens(Path(d) / "myservices.db")
-            api.STORE.create_user("admin", "un mot de passe long", "admin")
+            common.AUTH = True
+            common.STORE = auth.Store(Path(d) / "myservices.db")
+            common.TOKENS = tokens.Tokens(Path(d) / "myservices.db")
+            common.STORE.create_user("admin", "un mot de passe long", "admin")
             c = TestClient(api.app, client=("192.168.1.50", 50000))
             c.post("/myservices/api/v1/login", json={"username": "admin", "password": "un mot de passe long"})
-            raw, _ = api.TOKENS.create("api", "ci", "admin", 30, "admin")
+            raw, _ = common.TOKENS.create("api", "ci", "admin", 30, "admin")
             body = {"ssh": "nas", "user": "a@b", "password": "-".join(["mdp", "factice", "1"])}
             url = "/myservices/api/v1/connectors/settings/npm/script/install"
             r = TestClient(api.app, client=("192.168.1.51", 50000)).post(url, json=body, headers={"Authorization": f"Bearer {raw}"})

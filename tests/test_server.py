@@ -20,8 +20,14 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.api import api
+    from msv.api import common
+    from msv.api.routes import accounts as routes_accounts
+    from msv.api.routes import alerts as routes_alerts
+    from msv.api.routes import machines as routes_machines
+    from msv.api.routes import services as routes_services
 except ImportError:  # hors image (bibliothèque standard seule) : ces tests sont sautés
     api = None
+    common = routes_accounts = routes_alerts = routes_machines = routes_services = None
 
 
 class ArchifyWhy(unittest.TestCase):   # server only: runs without FastAPI
@@ -54,12 +60,12 @@ class Files(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_page_and_produced_files(self):
-        self.assertEqual(api.find("index.html"), (self.static / "index.html").resolve())
-        self.assertEqual(api.find("data.json"), (self.web / "data.json").resolve())
+        self.assertEqual(common.find("index.html"), (self.static / "index.html").resolve())
+        self.assertEqual(common.find("data.json"), (self.web / "data.json").resolve())
 
     def test_never_outside(self):
         for rel in ("../config.py", "../../app/config.py", "lien.md", "/etc/passwd", "missing.html"):
-            self.assertIsNone(api.find(rel), rel)
+            self.assertIsNone(common.find(rel), rel)
 
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
@@ -75,7 +81,7 @@ class Http(unittest.TestCase):
                                                    "connectors": [{"type": "npm", "name": "lan", "ok": True}]}))
         server.STATIC = server.WEB = web
         server.PROGRESS = str(web / "progress.json")
-        api.AUTH = False  # comptes testés à part (test_auth.py)
+        common.AUTH = False  # comptes testés à part (test_auth.py)
         cls.c = TestClient(api.app, client=("192.168.1.20", 50000))
 
     @classmethod
@@ -110,16 +116,16 @@ class Http(unittest.TestCase):
         self.addCleanup(f.write_text, before)            # data.json is shared with the other tests of this class
         asked = []
         user = mock.Mock(state=mock.Mock(user={"username": "admin"}))
-        with mock.patch.object(api.core, "ARCHIFY", __file__), mock.patch.object(api.core, "build_map", built.set), \
-                mock.patch.object(api, "admin_write", lambda request: None), mock.patch.object(api, "store", lambda: mock.Mock()), \
-                mock.patch.object(api, "ip_of", lambda request: "127.0.0.1"), \
+        with mock.patch.object(common.core, "ARCHIFY", __file__), mock.patch.object(common.core, "build_map", built.set), \
+                mock.patch.object(routes_alerts, "admin_write", lambda request: None), mock.patch.object(routes_alerts, "store", lambda: mock.Mock()), \
+                mock.patch.object(routes_alerts, "ip_of", lambda request: "127.0.0.1"), \
                 mock.patch("msv.collect.system.set_diagram_extra", lambda core, key, on: asked.append((key, on))):
-            r = api.diagram_set("domaines", api.DiagramAsk(enabled=True), user)
+            r = routes_alerts.diagram_set("domaines", routes_alerts.DiagramAsk(enabled=True), user)
             self.assertEqual(r, {"ok": True})
             self.assertTrue(built.wait(5), "the build was not started")
             self.assertEqual(asked, [("domaines", True)])
-            self.assertEqual(api.diagram_set("inconnu", api.DiagramAsk(enabled=True), user).status_code, 404)
-            listing = api.diagrams(user)
+            self.assertEqual(routes_alerts.diagram_set("inconnu", routes_alerts.DiagramAsk(enabled=True), user).status_code, 404)
+            listing = routes_alerts.diagrams(user)
         self.assertEqual(set(listing["build"]), {"running", "started", "last_seconds", "next_run"})
         self.assertTrue(any(d["id"] == "domaines" and d["optional"] and d["available"] for d in listing["diagrams"]))
 
@@ -244,17 +250,17 @@ class ConnectorChangeApplied(unittest.TestCase):
         from msv.collect import network_stats
         req = mock.Mock()
         req.state.user = {"username": "admin", "role": "admin"}
-        with mock.patch.object(api, "admin_write", return_value=None), mock.patch.object(api, "store"), mock.patch.object(api, "ip_of", return_value="10.0.0.9"), \
+        with mock.patch.object(routes_services, "admin_write", return_value=None), mock.patch.object(routes_services, "store"), mock.patch.object(routes_services, "ip_of", return_value="10.0.0.9"), \
                 mock.patch.object(system, "reload_config", return_value=True) as rc, mock.patch.object(uc, "reset") as cards, mock.patch.object(network_stats, "reset") as stats:
-            self.assertEqual(api.connector_call(req, "connecteur allumé", "mynetwork lan", lambda s: {"ok": True}), {"ok": True})
-            rc.assert_called_once_with(api.core)   # a connector turned on is read by the readers at once, not after a restart
+            self.assertEqual(routes_services.connector_call(req, "connecteur allumé", "mynetwork lan", lambda s: {"ok": True}), {"ok": True})
+            rc.assert_called_once_with(common.core)   # a connector turned on is read by the readers at once, not after a restart
             cards.assert_called_once()
             stats.assert_called_once()
             from connectors import settings as cs
 
             def refused(_s):
                 raise cs.SettingsError("bad")
-            self.assertEqual(api.connector_call(req, "", "", refused).status_code, 400)
+            self.assertEqual(routes_services.connector_call(req, "", "", refused).status_code, 400)
             rc.assert_called_once()   # a refused change reloads nothing
 
 
@@ -266,15 +272,15 @@ class RequestCountersRoute(unittest.TestCase):
         req.state.user = {"username": "admin", "role": "admin"}
         reqstats.reset()
         reqstats.record("mynetwork/lan", "http://10.0.0.9/api/lan/devices?compact=1", 12, 200)
-        with mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.18.2"}):
-            got = api.connectors_requests(req)
+        with mock.patch.dict(common.os.environ, {"MYSERVICES_VERSION": "v0.18.2"}):
+            got = routes_machines.connectors_requests(req)
         self.assertEqual((got["rows"][0]["route"], got["version"]), ("/api/lan/devices", "v0.18.2"))   # a released build measures too
-        self.assertEqual(api.connectors_requests_reset(req), {"ok": True})
-        self.assertEqual(api.connectors_requests(req)["rows"], [])   # back to zero
+        self.assertEqual(routes_machines.connectors_requests_reset(req), {"ok": True})
+        self.assertEqual(routes_machines.connectors_requests(req)["rows"], [])   # back to zero
         req.state.user = {"username": "bob", "role": "viewer"}
-        with mock.patch.object(api, "AUTH", True):
-            self.assertEqual(api.connectors_requests(req).status_code, 403)
-            self.assertEqual(api.connectors_requests_reset(req).status_code, 403)
+        with mock.patch.object(common, "AUTH", True):
+            self.assertEqual(routes_machines.connectors_requests(req).status_code, 403)
+            self.assertEqual(routes_machines.connectors_requests_reset(req).status_code, 403)
 
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
@@ -282,15 +288,15 @@ class UpdateSettingsRoute(unittest.TestCase):
     def test_settings_and_header_notice(self):
         req = mock.Mock()
         req.state.user = {"username": "admin", "role": "admin"}
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(api, "admin_write", return_value=None), mock.patch.object(api, "store"), \
-                mock.patch.object(api, "ip_of", return_value="10.0.0.9"), mock.patch("msv.collect.system.set_update_settings", return_value={"auto": True}) as setter, \
-                mock.patch.dict(api.core.CFG, {"state_dir": tmp, "update_check": True}), mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.11.9"}):
-            self.assertEqual(api.about_settings(api.UpdateSettings(auto=True), req), {"auto": True})
-            setter.assert_called_once_with(api.core, auto=True)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(routes_alerts, "admin_write", return_value=None), mock.patch.object(routes_alerts, "store"), \
+                mock.patch.object(routes_alerts, "ip_of", return_value="10.0.0.9"), mock.patch("msv.collect.system.set_update_settings", return_value={"auto": True}) as setter, \
+                mock.patch.dict(common.core.CFG, {"state_dir": tmp, "update_check": True}), mock.patch.dict(common.os.environ, {"MYSERVICES_VERSION": "v0.11.9"}):
+            self.assertEqual(routes_alerts.about_settings(routes_alerts.UpdateSettings(auto=True), req), {"auto": True})
+            setter.assert_called_once_with(common.core, auto=True)
             (Path(tmp) / "update-check.json").write_text(json.dumps({"release": {"tag": "v99.0.0", "url": "u"}}))
-            self.assertEqual(api.me(req)["update"], {"available": True, "tag": "v99.0.0", "url": "u"})
-            with mock.patch.dict(api.core.CFG, {"update_check": False}):
-                self.assertEqual(api.me(req)["update"]["tag"], "v99.0.0")   # automatic check off: a check by hand still reaches the header
+            self.assertEqual(routes_accounts.me(req)["update"], {"available": True, "tag": "v99.0.0", "url": "u"})
+            with mock.patch.dict(common.core.CFG, {"update_check": False}):
+                self.assertEqual(routes_accounts.me(req)["update"]["tag"], "v99.0.0")   # automatic check off: a check by hand still reaches the header
 
 
 class Chain(unittest.TestCase):
@@ -323,10 +329,10 @@ class RemoveMachine(unittest.TestCase):
         m = mock.Mock()
         m._meta.return_value = {"machines": {"10.0.0.9": {"name": "nas"}}}
         user = mock.Mock(state=mock.Mock(user={"username": "admin"}))
-        with mock.patch.object(api, "admin_write", lambda request: None), mock.patch.object(api, "store", lambda: mock.Mock()), \
-                mock.patch.object(api, "ip_of", lambda request: "127.0.0.1"), mock.patch("msv.machines.machines_admin", m), \
+        with mock.patch.object(common, "admin_write", lambda request: None), mock.patch.object(common, "store", lambda: mock.Mock()), \
+                mock.patch.object(common, "ip_of", lambda request: "127.0.0.1"), mock.patch("msv.machines.machines_admin", m, create=True), \
                 mock.patch("msv.collect.system.set_netscan_ignored", lambda core, ip, name, on: seen.append((ip, name, on))):
-            self.assertEqual(api.machines_delete("10.0.0.9", user), {"ok": True, "ignored": True})
+            self.assertEqual(routes_machines.machines_delete("10.0.0.9", user), {"ok": True, "ignored": True})
         m.delete.assert_called_once_with("10.0.0.9")
         self.assertEqual(seen, [("10.0.0.9", "nas", True)])
 

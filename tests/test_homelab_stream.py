@@ -19,10 +19,12 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.api import api
+    from msv.api import common
     from msv.core import auth
     from msv.api import server
 except ImportError:
     api = None
+    common = None
 
 BASE = "/myservices/api/v1"
 
@@ -189,10 +191,10 @@ class Snapshot(unittest.TestCase):
         block = {"role": "nvr", "cameras": [{"name": "entree"}], "snapshot": True}
         (d / "data.json").write_text(json.dumps({"services_status": [{"connector": "frigate", "name": "tower", "stream": block}]}))
         server.STATIC = server.WEB = d
-        api.AUTH = True
-        api.STORE = auth.Store(d / "myservices.db")
+        common.AUTH = True
+        common.STORE = auth.Store(d / "myservices.db")
         pw = "long-" + "p" * 12   # built at run time: the commit guard refuses any literal secret
-        api.STORE.create_user("admin", pw, "admin")
+        common.STORE.create_user("admin", pw, "admin")
         self.c = TestClient(api.app, client=("192.168.1.50", 50000))
         self.c.post(BASE + "/login", json={"username": "admin", "password": pw})
         self.cam = mock.Mock(type="frigate")
@@ -212,7 +214,7 @@ class Snapshot(unittest.TestCase):
         self.assertEqual(self.get("../../etc").status_code, 404)   # a camera not seen at the last collection
         self.cam.snapshot.return_value = b"<html>"
         self.assertEqual(self.get("entree").status_code, 502)
-        self.assertTrue(any(a["action"] == "image de caméra vue" for a in api.STORE.audit_log(10)))
+        self.assertTrue(any(a["action"] == "image de caméra vue" for a in common.STORE.audit_log(10)))
 
 
 if __name__ == "__main__":

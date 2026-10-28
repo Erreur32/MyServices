@@ -15,6 +15,7 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.api import api
+    from msv.api import common
     from msv.core import auth
     from msv.collect import dns_probe
     from msv.api import server
@@ -23,6 +24,7 @@ try:
     from msv.core.auth import db_path
 except ImportError:
     api = None
+    common = None
 
 PW = "un mot de passe long"
 BASE = "/myservices/api/v1"
@@ -37,10 +39,10 @@ class HistoryRoutes(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         d = Path(self.tmp.name)
         server.STATIC = server.WEB = d
-        api.AUTH = True
-        api.STORE = auth.Store(d / "myservices.db")
-        api.TOKENS = tokens.Tokens(d / "myservices.db")
-        api.STORE.create_user("admin", PW, "admin")
+        common.AUTH = True
+        common.STORE = auth.Store(d / "myservices.db")
+        common.TOKENS = tokens.Tokens(d / "myservices.db")
+        common.STORE.create_user("admin", PW, "admin")
         self.c = TestClient(api.app, client=("192.168.1.50", 50000))
         self.c.post(BASE + "/login", json={"username": "admin", "password": PW})
 

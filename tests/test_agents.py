@@ -15,12 +15,14 @@ try:
 
     from msv.machines import agents
     from msv.api import api
+    from msv.api import common
     from msv.core import auth
     from msv.collect import health
     from msv.api import server
     from msv.core import tokens
 except ImportError:
     api = None
+    common = None
 
 PW = "un mot de passe long"
 BASE = "/myservices/api/v1"
@@ -36,11 +38,11 @@ class Agents(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         d = Path(self.tmp.name)
         server.STATIC = server.WEB = d
-        api.AUTH = True
-        api.STORE = auth.Store(d / "myservices.db")
-        api.TOKENS = tokens.Tokens(d / "myservices.db")
-        api.AGENTS = agents.Agents(d / "myservices.db")
-        api.STORE.create_user("admin", PW, "admin")
+        common.AUTH = True
+        common.STORE = auth.Store(d / "myservices.db")
+        common.TOKENS = tokens.Tokens(d / "myservices.db")
+        common.AGENTS = agents.Agents(d / "myservices.db")
+        common.STORE.create_user("admin", PW, "admin")
         self.c = TestClient(api.app, client=("192.168.1.50", 50000))
         self.c.post(BASE + "/login", json={"username": "admin", "password": PW})
         self.h = {"X-CSRF-Token": self.c.cookies["ms_csrf"]}
@@ -94,7 +96,7 @@ class Agents(unittest.TestCase):
         hdr = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Content-Encoding": "gzip"}
         ok = self.anon.post(BASE + "/agent/report", content=gzip.compress(json.dumps(body).encode()), headers=hdr)
         self.assertEqual(ok.status_code, 200, ok.text)
-        self.assertEqual(api.agents_store().fresh_reports()["192.168.1.61"]["report"]["version"], "3")
+        self.assertEqual(common.agents_store().fresh_reports()["192.168.1.61"]["report"]["version"], "3")
         bomb = gzip.compress(b"0" * (agents.MAX_UNZIPPED + 10))   # a few kB that would fill 2 MB
         self.assertLess(len(bomb), agents.MAX_BODY)
         self.assertEqual(self.anon.post(BASE + "/agent/report", content=bomb, headers=hdr).status_code, 413)
@@ -106,7 +108,7 @@ class Agents(unittest.TestCase):
         self.assertEqual(self.send(token, full).status_code, 200)
         light = {**REPORT, "data": {k: v for k, v in DATA.items() if k != "pd"}}   # a run without the slow blocks (MSV_SKIP)
         self.assertEqual(self.send(token, light).status_code, 200)
-        data = api.agents_store().fresh_reports()["192.168.1.60"]["report"]["data"]
+        data = common.agents_store().fresh_reports()["192.168.1.60"]["report"]["data"]
         self.assertEqual((data["hw"], data["sv"][0]["n"], data["pd"][0]["n"]), ({"m": "ASUS"}, "Plex", "Samsung"))
         listed = self.c.get(BASE + "/agents").json()["agents"][0]
         self.assertNotIn("report", listed)
@@ -114,9 +116,9 @@ class Agents(unittest.TestCase):
     def test_v3_niveau_garde_en_base(self):
         token, info = self.create()
         self.assertEqual(self.send(token).status_code, 200)
-        with api.agents_store()._db() as db:
+        with common.agents_store()._db() as db:
             self.assertEqual(db.execute("SELECT level FROM agents").fetchone()["level"], agents.report_level(REPORT))
-        before, now = api.agents_store().store_report(info["id"], REPORT, "192.168.1.60")
+        before, now = common.agents_store().store_report(info["id"], REPORT, "192.168.1.60")
         self.assertEqual(before, now)   # the previous level comes from the column, the old report is not parsed again
 
     def test_sans_jeton_ou_mauvais_jeton_refuse(self):
@@ -131,7 +133,7 @@ class Agents(unittest.TestCase):
             self.assertIn(self.anon.get(BASE + path, headers=h).status_code, (401, 403), path)
 
     def test_jeton_api_ne_peut_pas_envoyer_de_releve(self):
-        raw, _ = api.tokens_store().create("api", "lecture", "admin", 30, "admin")
+        raw, _ = common.tokens_store().create("api", "lecture", "admin", 30, "admin")
         self.assertEqual(self.send(raw).status_code, 401)
 
     def test_revocation_immediate(self):
@@ -160,7 +162,7 @@ class Agents(unittest.TestCase):
         body = {"version": "1", "os": "Debian 12", "host": "box", "interval": 900,
                 "data": {"kind": "linux", "cmds": {health.REBOOT_CMD: [0, "yes\n"], health.LOAD_CMD: [0, "0.5 0.4 0.3 1/200 1\n4\n"]}}}
         self.assertEqual(self.send(token, body).status_code, 200)
-        rep = api.agents_store().fresh_reports()["192.168.1.61"]
+        rep = common.agents_store().fresh_reports()["192.168.1.61"]
         self.assertTrue(rep["fresh"])
         hc = {"id": "box", "name": "Box · 192.168.1.61", "os": "linux", "ip": "192.168.1.61", "target": None, "off": False}
         h = health.host_from_agent(hc, rep)
@@ -245,7 +247,7 @@ class Agents(unittest.TestCase):
         self.assertEqual(self.send(token, legacy).status_code, 200)   # an old agent still reports: not a name change
         self.assertEqual(self.send(token, {**REPORT, "host": "AUTRE-PC"}).status_code, 409)
         # a placeholder stored by an earlier server version is replaced by the real name
-        with api.agents_store()._db() as db:
+        with common.agents_store()._db() as db:
             db.execute("UPDATE agents SET hostname = ? WHERE id = ?", (agents.LEGACY_HOST, info["id"]))
         a = next(x for x in self.c.get(BASE + "/agents").json()["agents"] if x["id"] == info["id"])
         self.assertIsNone(a["hostname"])   # the placeholder is never shown as a host name
@@ -273,7 +275,7 @@ class Agents(unittest.TestCase):
     def test_fusion_dans_la_sante(self):
         token, info = self.create()
         self.send(token)
-        reports = api.agents_store().fresh_reports()
+        reports = common.agents_store().fresh_reports()
         a = reports["192.168.1.60"]
         self.assertTrue(a["fresh"])
         hc = {"id": "gamer32", "name": "Gamer32 · 192.168.1.60", "os": "windows", "ip": "192.168.1.60", "target": None, "off": True}
@@ -337,13 +339,13 @@ class Agents(unittest.TestCase):
         from msv.machines import machines_admin
         token, info = self.create()
         m = {"name": "Gamer32", "os": "windows", "ssh": None}
-        lines, failed = machines_admin._check_agent("192.168.1.60", m, api.agents_store())
+        lines, failed = machines_admin._check_agent("192.168.1.60", m, common.agents_store())
         self.assertEqual(failed, 1)
         self.assertIn("aucun relevé reçu", lines[0])
         self.send(token)
-        lines, failed = machines_admin._check_agent("192.168.1.60", m, api.agents_store())
+        lines, failed = machines_admin._check_agent("192.168.1.60", m, common.agents_store())
         self.assertEqual((failed, lines[0].startswith("✓ Gamer32 : agent actif")), (0, True))
-        self.assertEqual(machines_admin._check_agent("192.168.1.99", m, api.agents_store()), ([], 0))  # pas d'agent pour cette IP
+        self.assertEqual(machines_admin._check_agent("192.168.1.99", m, common.agents_store()), ([], 0))  # pas d'agent pour cette IP
 
     def test_sante_relue_quand_le_niveau_change(self):
         calls, chains = [], []
@@ -475,10 +477,10 @@ class Agents(unittest.TestCase):
     def test_fraicheur(self):
         token, info = self.create()
         self.send(token)
-        with api.agents_store()._db() as db:
+        with common.agents_store()._db() as db:
             db.execute("UPDATE agents SET last_seen = ?", (time.time() - agents.FRESH_MULT * 900 - 5,))
-        self.assertFalse(api.agents_store().fresh_reports()["192.168.1.60"]["fresh"])
-        self.assertEqual(api.agents_store().listing()[0]["state"], "silencieux")
+        self.assertFalse(common.agents_store().fresh_reports()["192.168.1.60"]["fresh"])
+        self.assertEqual(common.agents_store().listing()[0]["state"], "silencieux")
 
 
 if __name__ == "__main__":

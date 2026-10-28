@@ -5,7 +5,8 @@ from __future__ import annotations
 import sys
 import threading
 
-from msv.api import api, server
+from msv.api import api, common, server
+from msv.api.routes import v1
 from msv.core import live_events
 
 
@@ -13,9 +14,9 @@ def main() -> int:
     import uvicorn
 
     server.start()
-    threading.Thread(target=live_events.watch, args=(api.stream_sources(),), daemon=True, name="events").start()   # page event stream
-    if api.AUTH and not api.store().has_users():
-        server.log(f"aucun compte : ouvrir la page pour créer le compte admin (pendant {api.SETUP_WINDOW // 60} min ; "
+    threading.Thread(target=live_events.watch, args=(v1.stream_sources(),), daemon=True, name="events").start()   # page event stream
+    if common.AUTH and not common.store().has_users():
+        server.log(f"aucun compte : ouvrir la page pour créer le compte admin (pendant {common.SETUP_WINDOW // 60} min ; "
                    "au-delà, redémarrer le conteneur)")
     uvicorn.run(api.app, host="0.0.0.0", port=server.PORT, log_level="warning", access_log=False, server_header=False,  # NOSONAR S8392: inside the container; MYSERVICES_ALLOW limits who may connect
                 proxy_headers=False)  # IP du client telle que vue (contrôle MYSERVICES_ALLOW), jamais X-Forwarded-For

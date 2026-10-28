@@ -14,10 +14,13 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.api import api
+    from msv.api import common
+    from msv.api.routes import services as routes_services
     from msv.core import auth
     from msv.api import server
 except ImportError:
     api = None
+    common = routes_services = None
 
 BASE = "/myservices/api/v1"
 
@@ -62,14 +65,14 @@ class SaveAndSwitch(unittest.TestCase):
         self.file = d / "config.json"
         self.file.write_text(json.dumps({"connectors": []}))
         for p in (mock.patch.object(settings, "config_file", return_value=self.file),
-                  mock.patch.object(api, "reread_connector")):
+                  mock.patch.object(routes_services, "reread_connector")):
             self.reread = p.start()
             self.addCleanup(p.stop)
         server.STATIC = server.WEB = d
-        api.AUTH = True
-        api.STORE = auth.Store(d / "myservices.db")
+        common.AUTH = True
+        common.STORE = auth.Store(d / "myservices.db")
         pw = "long-" + "p" * 12   # built at run time: the commit guard refuses any literal secret
-        api.STORE.create_user("admin", pw, "admin")
+        common.STORE.create_user("admin", pw, "admin")
         self.c = TestClient(api.app, client=("192.168.1.50", 50000))
         self.c.post(BASE + "/login", json={"username": "admin", "password": pw})
         self.h = {"X-CSRF-Token": self.c.cookies["ms_csrf"]}

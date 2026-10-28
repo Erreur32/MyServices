@@ -14,10 +14,12 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.api import api
+    from msv.api import common
     from msv.core import auth
     from msv.api import server
 except ImportError:
     api = None
+    common = None
 
 PW = "un mot de passe long"
 
@@ -33,10 +35,10 @@ class Accounts(unittest.TestCase):
         (d / "login.html").write_text("<form>")
         server.STATIC = server.WEB = d
         server.PROGRESS = str(d / "progress.json")
-        api.AUTH = True
-        api.STORE = auth.Store(d / "myservices.db")
-        api.STORE.create_user("admin", PW, "admin")
-        api.STORE.create_user("lecteur", PW, "viewer")
+        common.AUTH = True
+        common.STORE = auth.Store(d / "myservices.db")
+        common.STORE.create_user("admin", PW, "admin")
+        common.STORE.create_user("lecteur", PW, "viewer")
         self.c = TestClient(api.app, client=("192.168.1.20", 50000))
 
     def tearDown(self):
@@ -96,7 +98,7 @@ class Accounts(unittest.TestCase):
     def test_logout_and_token_hashed(self):
         r = self.login()
         token = self.c.cookies["ms_session"]
-        db = sqlite3.connect(api.STORE.path)
+        db = sqlite3.connect(common.STORE.path)
         rows = db.execute("SELECT token_hash FROM sessions").fetchall()
         db.close()
         self.assertNotIn(token, [x[0] for x in rows])  # seule l'empreinte est en base
@@ -178,7 +180,7 @@ class Accounts(unittest.TestCase):
         self.assertEqual(c.patch(u + "/bob", json={"disabled": False}, headers=h).status_code, 200)
         self.assertEqual(c.delete(u + "/bob", headers=h).status_code, 200)
         self.assertEqual(c.delete(u + "/bob", headers=h).status_code, 400)  # déjà supprimé
-        actions = [a["action"] for a in api.STORE.audit_log()]
+        actions = [a["action"] for a in common.STORE.audit_log()]
         for a in ("compte créé", "compte modifié", "mot de passe changé (admin)", "compte supprimé"):
             self.assertIn(a, actions)
 
@@ -201,26 +203,26 @@ class Accounts(unittest.TestCase):
 
     def test_last_admin_kept(self):
         with self.assertRaises(auth.AuthError):
-            api.STORE.update_user("admin", role="viewer")
+            common.STORE.update_user("admin", role="viewer")
         with self.assertRaises(auth.AuthError):
-            api.STORE.update_user("admin", disabled=True)
-        api.STORE.create_user("admin2", PW, "admin")
-        api.STORE.update_user("admin2", disabled=True)  # un admin désactivé ne compte pas
+            common.STORE.update_user("admin", disabled=True)
+        common.STORE.create_user("admin2", PW, "admin")
+        common.STORE.update_user("admin2", disabled=True)  # un admin désactivé ne compte pas
         with self.assertRaises(auth.AuthError):
-            api.STORE.update_user("admin", role="viewer")
-        api.STORE.delete_user("admin2")  # supprimer un admin désactivé reste possible
-        api.STORE.create_user("admin3", PW, "admin")
-        api.STORE.update_user("admin", role="viewer")  # un autre admin actif existe : permis
+            common.STORE.update_user("admin", role="viewer")
+        common.STORE.delete_user("admin2")  # supprimer un admin désactivé reste possible
+        common.STORE.create_user("admin3", PW, "admin")
+        common.STORE.update_user("admin", role="viewer")  # un autre admin actif existe : permis
 
     def test_store_rules(self):
         with self.assertRaises(auth.AuthError):
-            api.STORE.create_user("x y", PW, "viewer")
+            common.STORE.create_user("x y", PW, "viewer")
         with self.assertRaises(auth.AuthError):
-            api.STORE.create_user("autre", "court", "viewer")
+            common.STORE.create_user("autre", "court", "viewer")
         with self.assertRaises(auth.AuthError):
-            api.STORE.create_user("ADMIN", PW, "viewer")  # nom déjà pris (sans tenir compte de la casse)
+            common.STORE.create_user("ADMIN", PW, "viewer")  # nom déjà pris (sans tenir compte de la casse)
         with self.assertRaises(auth.AuthError):
-            api.STORE.delete_user("admin")  # dernier admin
+            common.STORE.delete_user("admin")  # dernier admin
 
 
 @unittest.skipIf(api is None, "argon2 / FastAPI absents : tests à lancer dans l'image")
@@ -233,9 +235,9 @@ class FirstAccount(unittest.TestCase):
         (d / "v2").mkdir(exist_ok=True)
         (d / "v2" / "index.html").write_text("<p>page</p>")   # the compiled front, served at the root
         server.STATIC = server.WEB = d
-        api.AUTH = True
-        api.STORE = auth.Store(d / "myservices.db")
-        api.STARTED = server.time.time()
+        common.AUTH = True
+        common.STORE = auth.Store(d / "myservices.db")
+        common.STARTED = server.time.time()
         self.c = TestClient(api.app, client=("192.168.1.30", 50000))
 
     def tearDown(self):
@@ -255,26 +257,26 @@ class FirstAccount(unittest.TestCase):
         self.assertFalse(self.c.get("/myservices/api/v1/setup").json()["needed"])
         other = TestClient(api.app, client=("192.168.1.31", 50000))
         self.assertEqual(self.setup("intrus", c=other).status_code, 409)  # fermé dès que le compte existe
-        self.assertEqual([u["username"] for u in api.STORE.users()], ["moi"])
-        self.assertIn("premier compte admin créé (page)", [a["action"] for a in api.STORE.audit_log()])
+        self.assertEqual([u["username"] for u in common.STORE.users()], ["moi"])
+        self.assertIn("premier compte admin créé (page)", [a["action"] for a in common.STORE.audit_log()])
 
     def test_window_expired(self):
-        api.STARTED = server.time.time() - api.SETUP_WINDOW - 1
+        common.STARTED = server.time.time() - common.SETUP_WINDOW - 1
         self.assertEqual(self.c.get("/myservices/api/v1/setup").json()["seconds_left"], 0)
         r = self.setup()
         self.assertEqual(r.status_code, 403)
         self.assertIn("redémarrer le conteneur", r.json()["error"])
-        self.assertFalse(api.STORE.has_users())
+        self.assertFalse(common.STORE.has_users())
 
     def test_outside_lan_refused(self):
         outside = TestClient(api.app, client=("8.8.8.8", 50000))
         self.assertEqual(self.setup(c=outside).status_code, 403)
-        self.assertFalse(api.STORE.has_users())
+        self.assertFalse(common.STORE.has_users())
 
     def test_only_one_admin_even_if_concurrent(self):
-        self.assertTrue(api.STORE.create_first_admin("a1", PW))
-        self.assertFalse(api.STORE.create_first_admin("a2", PW))
-        self.assertEqual([u["username"] for u in api.STORE.users()], ["a1"])
+        self.assertTrue(common.STORE.create_first_admin("a1", PW))
+        self.assertFalse(common.STORE.create_first_admin("a2", PW))
+        self.assertEqual([u["username"] for u in common.STORE.users()], ["a1"])
 
 
 if __name__ == "__main__":

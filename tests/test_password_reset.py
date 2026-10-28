@@ -15,6 +15,7 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.api import api
+    from msv.api import common
     from msv.core import auth
     from msv.alerts import mailer
     from msv.api import server
@@ -22,6 +23,7 @@ try:
     from msv.core import tokens
 except ImportError:
     api = None
+    common = None
 
 BASE = "/myservices/api/v1"
 
@@ -33,12 +35,12 @@ class Reset(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         d = Path(self.tmp.name)
         server.STATIC = server.WEB = d
-        api.AUTH = True
-        api.STORE = auth.Store(d / "myservices.db")
-        api.TOKENS = tokens.Tokens(d / "myservices.db")
+        common.AUTH = True
+        common.STORE = auth.Store(d / "myservices.db")
+        common.TOKENS = tokens.Tokens(d / "myservices.db")
         self.pw = "long-" + "p" * 12   # built at run time: the commit guard refuses any literal secret
-        api.STORE.create_user("admin", self.pw, "admin")
-        api.STORE.set_email("admin", "admin@example.test")
+        common.STORE.create_user("admin", self.pw, "admin")
+        common.STORE.set_email("admin", "admin@example.test")
         self.sent = []
         cfg = {"smtp_host": "smtp.example.test", "smtp_from": "ms@example.test", "page_url": "https://ms.example.test"}
         for p in (mock.patch.dict(server.CFG, cfg), mock.patch.object(mailer, "send", lambda c, to, sub, text: self.sent.append((to, text)))):
@@ -79,19 +81,19 @@ class Reset(unittest.TestCase):
         self.forgot("admin")
         tok = self.token()
         with mock.patch.object(auth.time, "time", return_value=time.time() + 31 * 60):
-            self.assertFalse(api.STORE.reset_valid(tok))
+            self.assertFalse(common.STORE.reset_valid(tok))
 
     def test_no_mail_settings(self):
         with mock.patch.dict(server.CFG, {"smtp_host": ""}):
             self.assertEqual(self.forgot("admin").status_code, 503)
 
     def test_email_rules(self):
-        api.STORE.create_user("bob", self.pw, "viewer")
+        common.STORE.create_user("bob", self.pw, "viewer")
         with self.assertRaises(auth.AuthError):
-            api.STORE.set_email("bob", "pas-une-adresse")
+            common.STORE.set_email("bob", "pas-une-adresse")
         with self.assertRaises(auth.AuthError):
-            api.STORE.set_email("bob", "Admin@Example.test")   # already another account's
-        self.assertIsNone(api.STORE.set_email("bob", ""))
+            common.STORE.set_email("bob", "Admin@Example.test")   # already another account's
+        self.assertIsNone(common.STORE.set_email("bob", ""))
 
     def test_mail_settings_hide_password(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.dict("os.environ", {"MYSERVICES_CONFIG": str(Path(d) / "config.json")}):
@@ -152,7 +154,7 @@ class Reset(unittest.TestCase):
         r = self.c.post(BASE + "/system/mail/test", headers=h)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(self.sent[-1][0], "admin@example.test")
-        api.STORE.set_email("admin", "")
+        common.STORE.set_email("admin", "")
         self.assertEqual(self.c.post(BASE + "/system/mail/test", headers=h).status_code, 400)
 
     def test_mail_test_failure(self):
@@ -166,7 +168,7 @@ class Reset(unittest.TestCase):
         for _ in range(12):
             self.c.post(BASE + "/password/forgot", json={"identity": "x"})
         self.assertEqual(self.c.post(BASE + "/password/forgot", json={"identity": "x"}).status_code, 429)
-        api.STORE.create_user("viewer1", self.pw, "viewer")
+        common.STORE.create_user("viewer1", self.pw, "viewer")
         v = TestClient(api.app, client=("192.168.1.71", 50000))
         v.post(BASE + "/login", json={"username": "viewer1", "password": self.pw})
         self.assertEqual(v.get(BASE + "/system/mail").status_code, 403)

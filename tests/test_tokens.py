@@ -15,12 +15,14 @@ try:
 
     from msv.machines import agents
     from msv.api import api
+    from msv.api import common
     from msv.core import auth
     from msv.alerts import mailer  # noqa: F401  (patched by name)
     from msv.api import server
     from msv.core import tokens
 except ImportError:
     api = None
+    common = None
 
 PW = "un mot de passe long"
 
@@ -31,11 +33,11 @@ class Tokens(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         d = Path(self.tmp.name)
         server.STATIC = server.WEB = d
-        api.AUTH = True
-        api.STORE = auth.Store(d / "myservices.db")
-        api.TOKENS = tokens.Tokens(d / "myservices.db")
-        api.AGENTS = agents.Agents(d / "myservices.db")
-        api.STORE.create_user("admin", PW, "admin")
+        common.AUTH = True
+        common.STORE = auth.Store(d / "myservices.db")
+        common.TOKENS = tokens.Tokens(d / "myservices.db")
+        common.AGENTS = agents.Agents(d / "myservices.db")
+        common.STORE.create_user("admin", PW, "admin")
         self.c = TestClient(api.app, client=("192.168.1.50", 50000))
         self.c.post("/myservices/api/v1/login", json={"username": "admin", "password": PW})
         self.h = {"X-CSRF-Token": self.c.cookies["ms_csrf"]}
@@ -128,7 +130,7 @@ class Tokens(unittest.TestCase):
         self.assertNotIn("changelog", tool("settings_config", {"action": "updates_get"})["structuredContent"])   # 200 KB of no use here
         self.assertIn("cid", tool("settings_config", {"action": "channel_delete", "params": {}})["content"][0]["text"])
         self.assertIn("jeton", tool("settings_config", {"action": "mail_test"})["content"][0]["text"])   # creator has no address yet
-        api.STORE.set_email("admin", "admin@example.test")
+        common.STORE.set_email("admin", "admin@example.test")
         with mock.patch.dict(server.CFG, {"smtp_host": "smtp.example.test", "smtp_from": "ms@example.test"}), \
                 mock.patch("msv.alerts.mailer.send") as sent:
             self.assertFalse(tool("settings_config", {"action": "mail_test"}).get("isError"))
