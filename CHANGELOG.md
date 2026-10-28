@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixes
+- **Windows agent: the UPnP (2869) and WSD (5357) ports are ignored.** They are held by the Windows kernel (`System`) and the firewall closes them to other machines, so they were always reported as "unreachable" (TimeoutError) in Services.
+
 ## v0.26.2 (2026-10-28)
 
 > **Young but working: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

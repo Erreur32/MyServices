@@ -368,6 +368,7 @@ class Agents(unittest.TestCase):
                 "boot": "2026-10-10T08:00:00.0000000Z",
                 "ports": [{"p": 445, "a": "0.0.0.0", "n": "System"}, {"p": 8080, "a": "127.0.0.1", "n": "node"},
                           {"p": 8080, "a": "0.0.0.0", "n": "node"}, {"p": 135, "a": "0.0.0.0", "n": "svchost"},
+                          {"p": 2869, "a": "::", "n": "System"}, {"p": 5357, "a": "::", "n": "System"},
                           {"p": 49670, "a": "0.0.0.0", "n": "lsass"}, {"p": 32400, "a": "::", "n": "Plex Media Server"}, {"p": "x"}]}
         rep = {**REPORT, "data": data}
         self.assertEqual(agents.ports_of(rep), {445: {"name": "System", "lan": True, "addr": "0.0.0.0"}, 8080: {"name": "node", "lan": True, "addr": "0.0.0.0"},
