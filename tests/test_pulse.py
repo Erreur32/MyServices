@@ -10,8 +10,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import pulse  # noqa: E402
-import watcher  # noqa: E402
+from msv.collect import pulse  # noqa: E402
+from msv.collect import watcher  # noqa: E402
 
 
 class Confirm(unittest.TestCase):
@@ -136,11 +136,11 @@ class WatcherTakesThePulse(unittest.TestCase):
 
 class LiveSettings(unittest.TestCase):
     def core(self):
-        import config
+        from msv.core import config
         return type("Core", (), {"CFG": {k: config.DEFAULTS[k] for k in ("pulse_every", "pulse_confirm", "fast_every")}})()
 
     def test_values_are_checked_and_defaults_are_not_written(self):
-        import system
+        from msv.collect import system
         from unittest import mock
         core, written = self.core(), []
         with mock.patch.object(system, "_update_config", side_effect=lambda c, change: (lambda raw: (change(raw), written.append(dict(raw))))({"pulse_every": 99})):

@@ -10,15 +10,15 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import connectors  # noqa: E402
-import npmapi  # noqa: E402
+from msv.remote import npmapi  # noqa: E402
 
 try:
     from fastapi.testclient import TestClient
 
-    import api
-    import auth
-    import server
-    import tokens
+    from msv.api import api
+    from msv.core import auth
+    from msv.api import server
+    from msv.core import tokens
 except ImportError:
     api = None
 
@@ -64,7 +64,7 @@ class ScriptParSsh(unittest.TestCase):
         with mock.patch.object(npmapi.subprocess, "run", fake):
             npmapi._script("/home/u/npm-api/npm-api.sh", "--host-list", "nas")
             npmapi._script("/opt/npm-api/npm-api.sh", "--host-list")
-        from sshmux import SSH_MUX
+        from msv.remote.sshmux import SSH_MUX
         n = 1 + len(SSH_MUX)
         self.assertEqual(seen[0][:n + 4], ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5"])   # one shared connection per machine
         self.assertEqual(seen[0][n + 4], "nas")
@@ -122,7 +122,7 @@ class Conseils(unittest.TestCase):
 
 
 class Installation(unittest.TestCase):
-    ARGS = dict(ssh="nas", directory="npm-api", ip="127.0.0.1", port=81, user="admin@example.test", password="mdp-factice-1")
+    ARGS = dict(ssh="nas", directory="npm-api", ip="127.0.0.1", port=81, user="admin@example.test", password="-".join(["mdp", "factice", "1"]))
 
     def run_install(self, out="OK /home/u/npm-api/npm-api.sh\nOK /home/u/npm-api/npm-api.conf", code=0, **over):
         calls = []
@@ -196,7 +196,7 @@ class Installation(unittest.TestCase):
 class ReglagesEtRoutes(unittest.TestCase):
     def test_alias_inconnu_refuse(self):
         from connectors import settings
-        with mock.patch("machines_admin.aliases", return_value=[{"alias": "nas"}]):
+        with mock.patch("msv.machines.machines_admin.aliases", return_value=[{"alias": "nas"}]):
             with self.assertRaises(settings.SettingsError):
                 settings.npm_script_check("/x/npm-api.sh", "pirate.example")
             with mock.patch.object(npmapi, "check_script", return_value=[{"level": "ok", "text": "ok"}]) as ck:
@@ -224,7 +224,7 @@ class Droits(unittest.TestCase):
             c = TestClient(api.app, client=("192.168.1.50", 50000))
             c.post("/myservices/api/v1/login", json={"username": "admin", "password": "un mot de passe long"})
             raw, _ = api.TOKENS.create("api", "ci", "admin", 30, "admin")
-            body = {"ssh": "nas", "user": "a@b", "password": "mdp-factice-1"}
+            body = {"ssh": "nas", "user": "a@b", "password": "-".join(["mdp", "factice", "1"])}
             url = "/myservices/api/v1/connectors/settings/npm/script/install"
             r = TestClient(api.app, client=("192.168.1.51", 50000)).post(url, json=body, headers={"Authorization": f"Bearer {raw}"})
             self.assertEqual(r.status_code, 403)

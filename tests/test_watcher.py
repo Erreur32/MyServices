@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import watcher  # noqa: E402
+from msv.collect import watcher  # noqa: E402
 
 
 def data(ok):
@@ -104,7 +104,7 @@ class Network(unittest.TestCase):
         self.assertEqual(watcher.diff_network(known, None), ([], known))
         self.assertEqual(list(known), ["appareil:10.0.0.7"])   # no MAC: keyed by IP
         self.assertIn("appareil", watcher.LABEL)
-        self.assertIn("appareil", __import__("alerts").KINDS)
+        self.assertIn("appareil", __import__("msv.alerts.alerts", fromlist=["KINDS"]).KINDS)
 
 
 class Virt(unittest.TestCase):
@@ -136,7 +136,7 @@ class Virt(unittest.TestCase):
         self.assertEqual(watcher.virt_snaps(d("stopped", ok=False)), {})   # host not read: nothing to compare
         for k in ("vm_arret", "stockage"):
             self.assertIn(k, watcher.LABEL)
-            self.assertIn(k, __import__("alerts").KINDS)
+            self.assertIn(k, __import__("msv.alerts.alerts", fromlist=["KINDS"]).KINDS)
 
 
 class Threats(unittest.TestCase):
@@ -156,7 +156,7 @@ class Threats(unittest.TestCase):
         self.assertEqual(watcher.diff_threats(known, watcher.threat_snaps(self.data("b")))[0], [])
         self.assertIsNone(watcher.threat_snaps(self.data("c", ok=False)))   # LogviewR not read: known threats kept
         self.assertEqual(watcher.diff_threats(known, None), ([], known))
-        self.assertIn("menace", __import__("alerts").KINDS)
+        self.assertIn("menace", __import__("msv.alerts.alerts", fromlist=["KINDS"]).KINDS)
 
 
 class NextcloudPoints(unittest.TestCase):
@@ -177,7 +177,7 @@ class NextcloudPoints(unittest.TestCase):
         self.assertEqual(watcher.diff_nextcloud(known, None), ([], known))   # Nextcloud not read: points kept
         self.assertIsNone(watcher.nextcloud_snaps(self.data(("debug", "x"), ok=False)))
         self.assertNotIn("nextcloud:p:x", watcher.nextcloud_snaps(self.data()))   # other status connectors: not here
-        self.assertIn("nextcloud", __import__("alerts").KINDS)
+        self.assertIn("nextcloud", __import__("msv.alerts.alerts", fromlist=["KINDS"]).KINDS)
 
 
 class ImageUpdates(unittest.TestCase):
@@ -198,7 +198,7 @@ class ImageUpdates(unittest.TestCase):
         self.assertEqual(watcher.diff_points("maj_image", known, None), ([], known))   # no container tool read: what was known is kept
         self.assertIsNone(watcher.image_snaps(self.data(("web", "x"), ok=False)))
         self.assertIsNone(watcher.image_snaps(self.data(("web", "x"), links_only=True)))
-        self.assertIn("maj_image", __import__("alerts").KINDS)
+        self.assertIn("maj_image", __import__("msv.alerts.alerts", fromlist=["KINDS"]).KINDS)
         self.assertIn("maj_image", watcher.SEVERITY)
         self.assertIn("maj_image", watcher.LABEL)
 
@@ -232,7 +232,7 @@ class JailSurges(unittest.TestCase):
     def test_sans_statistiques_ou_en_panne_rien(self):
         self.assertIsNone(watcher.jail_surge_snaps(self.data(("sshd", 60, 90), stats=False)))
         self.assertIsNone(watcher.jail_surge_snaps(self.data(("sshd", 60, 90), ok=False)))
-        self.assertIn("jail_hausse", __import__("alerts").KINDS)
+        self.assertIn("jail_hausse", __import__("msv.alerts.alerts", fromlist=["KINDS"]).KINDS)
 
 
 class AlertsLevel(unittest.TestCase):

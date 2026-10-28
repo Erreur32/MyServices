@@ -5,7 +5,7 @@ résultat que la version d'avant les connecteurs. Version : GET /api/ (sans auth
 """
 from __future__ import annotations
 
-import npmapi
+from msv.remote import npmapi
 from connectors.base import Connector, ConnectorError, Field, Result
 
 

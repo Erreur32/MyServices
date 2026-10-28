@@ -11,8 +11,8 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import avatars  # noqa: E402
-import custom_icons  # noqa: E402
+from msv.core import avatars  # noqa: E402
+from msv.core import custom_icons  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 SVG = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#09f"/></svg>'
@@ -23,7 +23,7 @@ class CustomIcons(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        p = mock.patch.dict("config.CFG", {"state_dir": self.tmp.name})
+        p = mock.patch.dict("msv.core.config.CFG", {"state_dir": self.tmp.name})
         p.start()
         self.addCleanup(p.stop)
 

@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import services_hidden as sh  # noqa: E402
+from msv.core import services_hidden as sh  # noqa: E402
 
 
 class ServicesHidden(unittest.TestCase):

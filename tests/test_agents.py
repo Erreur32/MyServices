@@ -13,12 +13,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from fastapi.testclient import TestClient
 
-    import agents
-    import api
-    import auth
-    import health
-    import server
-    import tokens
+    from msv.machines import agents
+    from msv.api import api
+    from msv.core import auth
+    from msv.collect import health
+    from msv.api import server
+    from msv.core import tokens
 except ImportError:
     api = None
 
@@ -334,7 +334,7 @@ class Agents(unittest.TestCase):
         self.assertEqual(chains, [["collect"]])   # le premier relevé lance aussi la collecte (système, matériel, ports), une seule fois
 
     def test_verifier_une_machine_lue_par_son_agent(self):
-        import machines_admin
+        from msv.machines import machines_admin
         token, info = self.create()
         m = {"name": "Gamer32", "os": "windows", "ssh": None}
         lines, failed = machines_admin._check_agent("192.168.1.60", m, api.agents_store())

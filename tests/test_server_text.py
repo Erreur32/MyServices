@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FILE = ROOT / "front/src/lib/server-text.json"   # not in the Docker image, only in the repository
 TABLE = json.loads(FILE.read_text(encoding="utf-8")) if FILE.is_file() else {"exact": {}, "templates": []}
-SOURCES = [ROOT / "api.py", *ROOT.glob("*.py"), *(ROOT / "connectors").glob("*.py")]
+SOURCES = [*ROOT.glob("*.py"), *(ROOT / "msv").rglob("*.py"), *(ROOT / "connectors").glob("*.py")]
 FIXED = re.compile(r'(?:deny\(\d+, |ConnectorError\()"([^"{\\]*)"\)')
 
 

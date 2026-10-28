@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import about  # noqa: E402
+from msv.core import about  # noqa: E402
 
 RELEASE = {"tag_name": "v0.9.4", "name": "0.9.4", "html_url": "https://github.com/Erreur32/MyServices/releases/tag/v0.9.4", "published_at": "2026-10-12T08:00:00Z", "body": "Notes", "prerelease": False}
 

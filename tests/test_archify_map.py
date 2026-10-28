@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import archify_map  # noqa: E402
+from msv.diagram import archify_map  # noqa: E402
 
 DATA = {
     "generated": "2026-10-10T01:00:00+00:00",

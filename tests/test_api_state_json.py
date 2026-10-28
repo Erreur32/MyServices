@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
-    import api
+    from msv.api import api
 except ImportError:
     api = None
 

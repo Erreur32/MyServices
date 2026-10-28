@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import alerts  # noqa: E402
-import notifications as nf  # noqa: E402
+from msv.alerts import alerts  # noqa: E402
+from msv.alerts import notifications as nf  # noqa: E402
 
 STATS = {"hosts": [
     {"name": "Gamer32 · 10.0.0.50", "reachable": True, "level": "crit", "res": {"available": True, "cpu_pct": 3.2, "mem_pct": 50.7, "mem_used_mb": 16000, "mem_total_mb": 32000},

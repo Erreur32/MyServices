@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-import backups  # noqa: E402
+from msv.backups import backups  # noqa: E402
 
 
 def load_safety():

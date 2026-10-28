@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import api_link  # noqa: E402
+from msv.api import api_link  # noqa: E402
 from connectors.base import Context  # noqa: E402
 from connectors.dozzle import Dozzle  # noqa: E402
 

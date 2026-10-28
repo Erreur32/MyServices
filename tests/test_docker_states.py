@@ -12,12 +12,12 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import docker_state  # noqa: E402
-import inventory_cache  # noqa: E402
+from msv.core import docker_state  # noqa: E402
+from msv.core import inventory_cache  # noqa: E402
 
 try:
-    import agents
-    import health
+    from msv.machines import agents
+    from msv.collect import health
 except ImportError:
     agents = health = None
 

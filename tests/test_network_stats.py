@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import network_stats as ns  # noqa: E402
+from msv.collect import network_stats as ns  # noqa: E402
 from connectors.base import ConnectorError  # noqa: E402
 from connectors.mynetwork import MynetworK  # noqa: E402
 

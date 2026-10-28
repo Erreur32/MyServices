@@ -11,6 +11,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.28.0 (2026-10-28)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Code layout
+- **The 66 Python modules of the project root now live in a package, `msv/`**, in nine folders: `core` (config, accounts, tokens, secrets, history, models), `api` (API, server, MCP), `collect` (collection, watcher, health, readers, network), `machines` (agents, machine settings, setup, discovery, matching), `backups`, `alerts` (alerts, notifications, mail), `remote` (SSH to hosts, hypervisors, NPM), `diagram` (Archify maps) and `tools` (account and import command lines). Nothing changes for the user.
+- **The image starts `python3 -m msv.api.server`**, and the scheduled tasks (collection, watcher, health, backups) and the infra map run as `python3 -m msv.collect.myservices`, `msv.collect.watcher`, `msv.collect.health`, `msv.backups.backups` and `msv.diagram.archify_map`. The command lines moved the same way: `docker compose exec myservices python3 -m msv.tools.manage users`, `... -m msv.machines.setup --check`, `... -m msv.tools.import_install`.
+- **The old installation without Docker is no longer maintained.** `install.sh`, the systemd units, the nginx and Apache snippets and `refresh-api.py` were moved to `legacy/`, as a reference only (see `legacy/README.md`). Use the Docker image.
+
 ## v0.27.0 (2026-10-28)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

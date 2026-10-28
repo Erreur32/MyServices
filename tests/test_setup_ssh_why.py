@@ -11,7 +11,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
-    import setup as setup_mod
+    from msv.machines import setup as setup_mod
 except ImportError:
     setup_mod = None
 

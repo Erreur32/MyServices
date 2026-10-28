@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import assistant_state as st
+from msv.core import assistant_state as st
 
 
 class State(unittest.TestCase):

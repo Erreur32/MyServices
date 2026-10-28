@@ -1,7 +1,7 @@
 """Recommandation de la méthode de lecture (SSH, agent, connecteur, ping) : une machine par cas de référence."""
 import unittest
 
-import access_advice as adv
+from msv.machines import access_advice as adv
 
 
 def machine(**kw):

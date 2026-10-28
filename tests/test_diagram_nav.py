@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import diagram_nav as dn  # noqa: E402
+from msv.diagram import diagram_nav as dn  # noqa: E402
 
 PAGE = "<html><body><svg></svg></body></html>"
 

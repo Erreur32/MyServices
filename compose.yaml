@@ -1,8 +1,8 @@
 # MyServices v2 : un conteneur (collecte, veille, santé, sauvegardes, page sur :8090/).
-#   1. Importer une installation classique : sudo python3 import_install.py --to ./dev-data/config
-#      (ou partir d'un /config vide, puis : docker compose exec myservices python3 setup.py)
+#   1. Importer une installation classique : sudo python3 -m msv.tools.import_install --to ./dev-data/config
+#      (ou partir d'un /config vide, puis : docker compose exec myservices python3 -m msv.machines.setup)
 #   2. docker compose up -d --build
-#   3. docker compose exec myservices python3 setup.py --check
+#   3. docker compose exec myservices python3 -m msv.machines.setup --check
 services:
   myservices:
     build: .

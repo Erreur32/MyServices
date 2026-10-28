@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import bandwidth as bw  # noqa: E402
-import tile_history as th  # noqa: E402
+from msv.collect import bandwidth as bw  # noqa: E402
+from msv.collect import tile_history as th  # noqa: E402
 
 NOW = 1_793_000_000
 STATE = {"npm/NPM": {"at": NOW, "last": {}},

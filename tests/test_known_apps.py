@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import connectors  # noqa: E402
-import known_apps as ka  # noqa: E402
+from msv.machines import known_apps as ka  # noqa: E402
 
 
 class Identify(unittest.TestCase):

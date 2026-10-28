@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import webservers  # noqa: E402
+from msv.collect import webservers  # noqa: E402
 from connectors import docker_ssh  # noqa: E402
 
 IP = "10.0.0.9"

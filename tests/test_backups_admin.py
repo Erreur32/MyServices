@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import backups_admin as ba  # noqa: E402
+from msv.backups import backups_admin as ba  # noqa: E402
 
 AGENT_OUT = {"local": [{"path": "/home/backup", "size": 5_000_000, "newest": 1_790_000_000, "newest_name": "etc.tar.gz", "readable": True}]}
 
@@ -27,14 +27,14 @@ class Base(unittest.TestCase):
             "10.0.0.4": {"name": "Vieux", "role": "", "ssh": "vieux", "disabled": True}}}), encoding="utf-8")
         self.example = d / "example.json"
         self.example.write_text(json.dumps({"discover": ["/home/backup*"]}), encoding="utf-8")
-        for p in (mock.patch.dict("config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
+        for p in (mock.patch.dict("msv.core.config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
                   mock.patch.object(ba.setup, "META", self.services), mock.patch.object(ba.setup, "EXAMPLE_BACKUPS", self.example)):
             p.start()
             self.addCleanup(p.stop)
         self.addCleanup(self.tmp.cleanup)
 
     def scan_with(self, out):
-        import backups
+        from msv.backups import backups
         state = Path(self.tmp.name) / "state" / "auto.json"
         with mock.patch.object(backups, "run_py", return_value=out):
             return ba.auto_default(state), state
@@ -45,7 +45,7 @@ class Base(unittest.TestCase):
 
 class Discover(Base):
     def test_ne_lit_que_les_machines_avec_ssh_suivies(self):
-        import backups
+        from msv.backups import backups
         with mock.patch.object(backups, "run_py", return_value=(AGENT_OUT, "")) as run:
             out = ba.discover()
         self.assertEqual([m["ip"] for m in out["machines"]], ["10.0.0.2"])  # ni le PC sans SSH, ni la machine non suivie
@@ -56,7 +56,7 @@ class Discover(Base):
         self.assertEqual((folder["path"], folder["default"]), ("/home/backup", True))  # au chemin par défaut : la page le coche
 
     def test_machine_injoignable_dite_sans_planter(self):
-        import backups
+        from msv.backups import backups
         with mock.patch.object(backups, "run_py", return_value=(None, "timeout après 240s")):
             m = ba.discover()["machines"][0]
         self.assertFalse(m["ok"])
@@ -77,7 +77,7 @@ class Patterns(Base):
         self.assertEqual(meta["discover_by_host"], {"10.0.0.2": ["/mnt/nvme0/pve/config", "/srv/commun"]})  # machine inconnue / vide écartée
         self.assertEqual(ba.host_patterns_of(meta, "10.0.0.2"), ["/home/backup", "/srv/commun", "/mnt/nvme0/pve/config"])
         self.assertEqual(ba.host_patterns_of(meta, "10.0.0.3"), ["/home/backup", "/srv/commun"])
-        import backups
+        from msv.backups import backups
         with mock.patch.object(backups, "run_py", return_value=({"local": []}, "")) as run:
             ba.discover()
         self.assertIn("/mnt/nvme0/pve/config", run.call_args.args[2])
@@ -321,7 +321,7 @@ class Copies(Base):
 
 class Rythme(unittest.TestCase):
     def test_rythme_observe(self):
-        import backups
+        from msv.backups import backups
         day = 86400
         weekly = [{"mtime": 1_700_000_000 - k * 7 * day + j * 600} for k in range(4) for j in range(3)]   # 3 fichiers par passage
         self.assertEqual(backups.cadence(weekly), 7.0)
@@ -349,7 +349,7 @@ class ReponseSsh(unittest.TestCase):
     """Un bandeau de connexion avant la réponse de l'agent ne la rend pas illisible (Jarvis, fastfetch dans ~/.bashrc)."""
 
     def run_with(self, stdout, rc=0):
-        import backups
+        from msv.backups import backups
         with mock.patch.object(backups.subprocess, "run", return_value=mock.Mock(returncode=rc, stdout=stdout, stderr="")):
             return backups.run_py("srv", "print(1)", "{}")
 

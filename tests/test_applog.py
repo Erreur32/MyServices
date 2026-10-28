@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import applog  # noqa: E402
+from msv.core import applog  # noqa: E402
 
 
 class AppLog(unittest.TestCase):

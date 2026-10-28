@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from connectors import reqstats
-from sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX
 
 KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts", "status", "network", "security", "containers", "virtualization")
 MAX_BINARY = 3 * 1024 * 1024   # a camera image read for an admin, never kept

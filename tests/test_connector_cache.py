@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from connectors.base import Context  # noqa: E402
-import watcher  # noqa: E402
+from msv.collect import watcher  # noqa: E402
 
 
 class Cache(unittest.TestCase):

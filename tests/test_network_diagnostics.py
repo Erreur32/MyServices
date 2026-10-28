@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import network_diagnostics as nd  # noqa: E402
+from msv.collect import network_diagnostics as nd  # noqa: E402
 
 GW, SW = "aa:00:00:00:00:01", "aa:00:00:00:00:02"
 

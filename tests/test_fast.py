@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import fast  # noqa: E402
+from msv.collect import fast  # noqa: E402
 
 DEVICES = [{"ip": "10.0.0.2", "status": "online", "ping_ms": 0.4, "ports": [22, 445], "ports_at": "2026-10-17T22:04:57Z", "hostname": "x"}]
 

@@ -14,12 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from fastapi.testclient import TestClient
 
-    import api
-    import auth
-    import mailer
-    import server
-    import system
-    import tokens
+    from msv.api import api
+    from msv.core import auth
+    from msv.alerts import mailer
+    from msv.api import server
+    from msv.collect import system
+    from msv.core import tokens
 except ImportError:
     api = None
 

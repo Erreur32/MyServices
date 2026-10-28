@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import connectors  # noqa: E402
-import known_apps  # noqa: E402
+from msv.machines import known_apps  # noqa: E402
 from connectors.base import ConnectorError  # noqa: E402
 from test_homelab import SEEN, Base  # noqa: E402
 

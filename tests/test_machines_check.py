@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import machines_admin  # noqa: E402
+from msv.machines import machines_admin  # noqa: E402
 
 
 class CheckExpiresInventory(unittest.TestCase):
@@ -19,7 +19,7 @@ class CheckExpiresInventory(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.cache = Path(self.tmp.name) / "docker.json"
         self.cache.write_text(json.dumps({"ts": 1791636409.0, "data": {"10.0.0.1": None}}), encoding="utf-8")
-        p = mock.patch.dict("config.CFG", {"cache_dir": self.tmp.name})
+        p = mock.patch.dict("msv.core.config.CFG", {"cache_dir": self.tmp.name})
         p.start()
         self.addCleanup(p.stop)
         self.addCleanup(self.tmp.cleanup)
@@ -338,7 +338,7 @@ class MachineNonSuivie(unittest.TestCase):
         self.assertNotIn("disabled", machines_admin._clean({"name": "PC", "disabled": False}))
 
     def test_la_sante_saute_une_machine_non_suivie(self):
-        import health
+        from msv.collect import health
         meta = {"machines": {"10.0.0.1": {"name": "A", "ssh": "a"}, "10.0.0.2": {"name": "B", "ssh": "b", "disabled": True}}}
         with tempfile.TemporaryDirectory() as d:
             f = Path(d) / "m.json"
@@ -352,7 +352,7 @@ class ReglagesDetectes(unittest.TestCase):
     """La collecte dit quels interrupteurs de machine sont confirmés par la détection (les autres sont grisés dans la page)."""
 
     def flags(self, ip, info, os_=None, gw="10.0.0.1"):
-        import hostinfo
+        from msv.collect import hostinfo
         with mock.patch.object(hostinfo, "default_gateway", return_value=gw):
             return hostinfo.detected_flags(ip, info, {"os": os_} if os_ else {})
 
@@ -363,7 +363,7 @@ class ReglagesDetectes(unittest.TestCase):
         self.assertEqual(self.flags("10.0.0.7", {"virt": None, "npm": False}), [])
 
     def test_vm_windows_reconnue_par_le_modele_de_l_agent(self):
-        import hostinfo
+        from msv.collect import hostinfo
         for maker, model in (("QEMU", "Standard PC (i440FX + PIIX, 1996)"), ("VMware, Inc.", "VMware7,1"), ("Microsoft Corporation", "Virtual Machine"),
                              ("innotek GmbH", "VirtualBox")):
             self.assertTrue(hostinfo.is_vm_hardware({"maker": maker, "model": model}), model)
@@ -374,7 +374,7 @@ class ReglagesDetectes(unittest.TestCase):
             self.assertEqual(hostinfo.detected_flags("10.0.0.9", None, {"os": "windows"}, {"maker": "QEMU", "model": "Standard PC (Q35 + ICH9, 2009)"}), ["vm", "off"])
 
     def test_infos_machine_lit_virt_et_npm(self):
-        import hostinfo
+        from msv.collect import hostinfo
         out = "##OS Debian\n##KERNEL 6.1\n##UP 10\n##SVC apache2=inactive nginx=inactive\n##SSHDR no\n##SSHD\n##DOCKER 2\n##VIRT kvm\n##NPM 1\n"
         with mock.patch.object(hostinfo.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=out)):
             info = hostinfo.host_info("x")
@@ -386,7 +386,7 @@ class ReglagesDetectes(unittest.TestCase):
 
 class PingTtl(unittest.TestCase):
     def test_ttl_de_la_reponse_au_ping(self):
-        import hostinfo
+        from msv.collect import hostinfo
         self.assertEqual(hostinfo.ping_ttl("64 bytes from 10.0.0.9: icmp_seq=1 ttl=128 time=0.6 ms\n"), 128)
         self.assertEqual(hostinfo.ping_ttl("64 bytes from x: TTL=64 time=1 ms"), 64)
         self.assertIsNone(hostinfo.ping_ttl(""))

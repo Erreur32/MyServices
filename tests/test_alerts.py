@@ -18,10 +18,10 @@ try:
     import cryptography  # noqa: F401
     from fastapi.testclient import TestClient
 
-    import alerts
-    import api
-    import auth
-    import server
+    from msv.alerts import alerts
+    from msv.api import api
+    from msv.core import auth
+    from msv.api import server
 except ImportError:
     alerts = None
 

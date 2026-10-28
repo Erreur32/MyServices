@@ -11,8 +11,8 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import backups  # noqa: E402
-import backups_admin as ba  # noqa: E402
+from msv.backups import backups  # noqa: E402
+from msv.backups import backups_admin as ba  # noqa: E402
 from connectors import remote_folder as rf  # noqa: E402
 from connectors.base import ConnectorError, Context  # noqa: E402
 
@@ -120,7 +120,7 @@ class Scan(unittest.TestCase):
 class Collect(unittest.TestCase):
     def test_remote_collect_lit_les_emplacements_suivis(self):
         cfg = {"connectors": [{"type": "backup-folder", "name": "box", "protocol": "ftp", "host": "192.168.1.254"}]}
-        with mock.patch.dict("backups.CFG", cfg), mock.patch.object(rf.RemoteFolder, "list_dir", fake_list):
+        with mock.patch.dict("msv.backups.backups.CFG", cfg), mock.patch.object(rf.RemoteFolder, "list_dir", fake_list):
             res, err = backups.remote_collect({"id": "remote-box", "connector": "box"}, [("s#0", {"path": "/backups/pve", "depth": 1}), ("s#1", {"path": "/nope"})])
             gone, err2 = backups.remote_collect({"id": "x", "connector": "autre"}, [])
         self.assertEqual(err, "")
@@ -156,7 +156,7 @@ class Assistant(unittest.TestCase):
         d = Path(self.tmp.name)
         self.meta, self.config = d / "backups-meta.json", d / "config.json"
         self.config.write_text("{}", encoding="utf-8")
-        for p in (mock.patch.dict("config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
+        for p in (mock.patch.dict("msv.core.config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
                   mock.patch.dict(os.environ, {"MYSERVICES_CONFIG": str(self.config)}),
                   mock.patch.object(ba.setup, "META", d / "services-meta.json"), mock.patch.object(ba.setup, "EXAMPLE_BACKUPS", d / "example.json"),
                   mock.patch.object(rf.RemoteFolder, "list_dir", fake_list)):

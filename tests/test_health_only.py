@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import health  # noqa: E402
+from msv.collect import health  # noqa: E402
 
 A = {"id": "a", "name": "A · 10.0.0.2", "reachable": True}
 B = {"id": "b", "name": "B · 10.0.0.3", "reachable": False}

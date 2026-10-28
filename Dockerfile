@@ -1,4 +1,4 @@
-# MyServices : collecteur, veille, santé, sauvegardes et page, en un conteneur (server.py).
+# MyServices : collecteur, veille, santé, sauvegardes et page, en un conteneur (msv/api/server.py).
 # Outils système : ssh, ping, ip ; Node pour Archify.
 
 # Nouveau front (front/, React + Vite) : tests, contrôle des types, puis compilation ; seul dist/ passe dans l'image
@@ -34,7 +34,7 @@ RUN useradd --uid 10001 --create-home --home-dir /home/myservices --shell /usr/s
  && mkdir -p /config /data && chown myservices:myservices /config /data
 
 WORKDIR /app
-COPY --chown=root:root *.py /app/
+COPY --chown=root:root msv/ /app/msv/
 COPY --chown=root:root CHANGELOG.md /app/CHANGELOG.md
 COPY --chown=root:root connectors/ /app/connectors/
 COPY --chown=root:root agent/ /app/agent/
@@ -72,4 +72,4 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
 # tini en PID 1 : récupère les processus orphelins (ssh lancés par les tâches), sinon ils restent zombies sous server.py jusqu'à
 # remplir la limite de processus du conteneur (« can't start new thread »)
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
-CMD ["python3", "/app/server.py"]
+CMD ["python3", "-m", "msv.api.server"]

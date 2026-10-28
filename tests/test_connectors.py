@@ -422,7 +422,7 @@ class HealthFromBeszel(unittest.TestCase):
     """health.py : machine sans SSH relevée par Beszel seul (disques, SMART, services, mises à jour)."""
 
     def test_parse_and_level(self):
-        import health
+        from msv.collect import health
         with ThreadingHTTPServer(("127.0.0.1", 0), FakeBeszel) as srv:
             threading.Thread(target=srv.serve_forever, daemon=True).start()
             cfg = {"connectors": [{"type": "beszel", "name": "hub", "url": f"http://127.0.0.1:{srv.server_port}",
@@ -497,7 +497,7 @@ class ConfigKey(unittest.TestCase):
     def test_connectors_key_is_read(self):
         import os
         import tempfile
-        import config
+        from msv.core import config
         with tempfile.TemporaryDirectory() as d:
             f = Path(d) / "config.json"
             f.write_text(json.dumps({"connectors": [{"type": "dozzle", "name": "d", "url": "http://x"}]}))
@@ -668,7 +668,7 @@ class BackupApis(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_veeam(self):
-        import backups
+        from msv.backups import backups
         got, err = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
         self.assertEqual(err, "")
         self.assertEqual(sorted(got["veeam_jobs"]), ["Ancien job", "Backup Physical Windows - portable", "PC-Jeu image", "Serveur fichiers"])
@@ -691,7 +691,7 @@ class BackupApis(unittest.TestCase):
     def test_veeam_contenu_des_jobs_et_sauvegardes_sans_job(self):
         """Veeam 12.0: the job settings name the VMs (host they run on, size as localized text), the backups count the restore points,
         and a computer backed up by Veeam Agent (no job in jobs/states) is read from its backup. An imported backup (no job) is left out."""
-        import backups
+        from msv.backups import backups
         got, err = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
         self.assertEqual(err, "")
         objs = got["veeam_jobs"]["PC-Jeu image"]["objects"]
@@ -707,8 +707,8 @@ class BackupApis(unittest.TestCase):
 
     def test_veeam_vm_rattachees_aux_machines(self):
         """A VM goes to the machine of the same name, a choice of the wizard wins, the host address gives the machine it runs on."""
-        import backups
-        import matching
+        from msv.backups import backups
+        from msv.machines import matching
         got, _ = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
         meta = {"hosts": [{"id": "veeam-sources", "label": "Sources Veeam", "api": "none"}, {"id": "veeam", "label": "Veeam", "api": "veeam"}],
                 "sets": [{"id": "pc", "label": "PC de jeu", "origin": "veeam-sources", "max_age_days": 2,
@@ -725,7 +725,7 @@ class BackupApis(unittest.TestCase):
 
     def test_veeam_etat_en_minuscules(self):
         """Veeam 12.0 writes « inactive » (idle): not repeated in the detail; another state (running) is."""
-        import backups
+        from msv.backups import backups
         got, _ = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
         meta = {"hosts": [{"id": "veeam-sources", "label": "Sources Veeam", "api": "none"}, {"id": "veeam", "label": "Veeam", "api": "veeam"}],
                 "sets": [{"id": "pc", "label": "PC", "origin": "veeam-sources", "max_age_days": 2, "locations": [{"host": "veeam", "veeam_job": "PC-Jeu image"}]}]}
@@ -762,7 +762,7 @@ class BackupApis(unittest.TestCase):
 
     def test_veeam_historique_dans_le_jeu(self):
         """The recent failures show in the set's detail, and the runs give the observed rhythm (one a day here)."""
-        import backups
+        from msv.backups import backups
         got, _ = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
         meta = {"hosts": [{"id": "veeam-sources", "label": "Sources Veeam", "api": "none"}, {"id": "veeam", "label": "Veeam", "api": "veeam"}],
                 "sets": [{"id": "pc", "label": "PC de jeu", "origin": "veeam-sources", "max_age_days": 2,
@@ -775,7 +775,7 @@ class BackupApis(unittest.TestCase):
         self.assertEqual((loc["level"], loc["repository"], st["cadence_days"]), ("ok", "NAS", 1.0))
 
     def test_home_assistant(self):
-        import backups
+        from msv.backups import backups
         got, err = backups.api_collect(backups.HomeAssistant, {"id": "ha", "secrets": str(self.dir / "h")}, "API HA")
         self.assertEqual(err, "")
         self.assertEqual(got["disks"][0]["pct"], 40.4)

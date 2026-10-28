@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import history  # noqa: E402
+from msv.core import history  # noqa: E402
 
 
 def iso(dt):

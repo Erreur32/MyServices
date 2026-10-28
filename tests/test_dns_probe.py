@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import dns_probe as dp  # noqa: E402
-import tile_history as th  # noqa: E402
+from msv.collect import dns_probe as dp  # noqa: E402
+from msv.collect import tile_history as th  # noqa: E402
 
 
 class FakeDns:

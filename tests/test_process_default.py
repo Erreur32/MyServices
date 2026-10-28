@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import machines_admin  # noqa: E402
+from msv.machines import machines_admin  # noqa: E402
 
 CONF = {"10.0.0.2": {"alias": "srv", "user": "root"}, "10.0.0.3": {"alias": "pc", "user": "bob"}}
 

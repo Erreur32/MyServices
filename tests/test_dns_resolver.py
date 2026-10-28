@@ -10,10 +10,10 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-import config  # noqa: E402
+from msv.core import config  # noqa: E402
 
 with mock.patch.dict(config.CFG, {"meta": str(ROOT / "services-meta.example.json")}):
-    import myservices  # noqa: E402
+    from msv.collect import myservices  # noqa: E402
 
 
 def row(domain, enabled=True, **kw):

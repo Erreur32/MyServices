@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import machines_admin  # noqa: E402
+from msv.machines import machines_admin  # noqa: E402
 
 
 class Publish(unittest.TestCase):
@@ -18,7 +18,7 @@ class Publish(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.data = Path(self.tmp.name) / "data.json"
-        p = mock.patch.dict("config.CFG", {"web_dir": self.tmp.name})
+        p = mock.patch.dict("msv.core.config.CFG", {"web_dir": self.tmp.name})
         p.start()
         self.addCleanup(p.stop)
 

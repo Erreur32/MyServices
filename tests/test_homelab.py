@@ -419,7 +419,7 @@ class HomeAssistantHote(unittest.TestCase):
         self.assertIsNone(host_sensors([{"entity_id": "sensor.autre", "state": "1"}]))                           # Core seul : pas de bloc machine
 
     def test_sante_lue_par_l_api(self):
-        import health
+        from msv.collect import health
         hc = {"id": "ha", "name": "homeassistant · 10.0.0.7", "os": "linux", "ip": "10.0.0.7", "target": None, "off": False, "sources": []}
         api = {"status": "up", "cpu": 3.0, "mem_pct": 17.5, "temp": 52.0, "disks": [{"mount": "/", "size_gb": 400.0, "used_gb": 380.0, "used_pct": 95}]}
         h = health.read_host(hc, None, None, api=api)
@@ -429,7 +429,7 @@ class HomeAssistantHote(unittest.TestCase):
         self.assertIsNone(health.read_host(hc, None, None))             # sans API : toujours rien (pas de source)
 
     def test_rattachement_a_la_machine(self):
-        import api_link
+        from msv.api import api_link
         rows = [{"connector": "home-assistant", "name": "Home", "label": "Home Assistant", "ok": True, "version": "2026.10.1", "url": "http://10.0.0.7:8123", "message": "OK",
                  "host": {"cpu": 3.0, "ips": ["10.0.0.7"], "secret": "x"}},
                 {"connector": "dockhand", "name": "d", "label": "Dockhand", "ok": False, "url": "http://machine.lan:3000"},        # un nom n'est pas résolu

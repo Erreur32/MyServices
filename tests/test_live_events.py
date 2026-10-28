@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import live_events  # noqa: E402
+from msv.core import live_events  # noqa: E402
 
 
 class Stream(unittest.TestCase):

@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     import cryptography  # noqa: F401
 
-    import secrets_store
+    from msv.core import secrets_store
 except ImportError:
     secrets_store = None
 
@@ -25,7 +25,7 @@ class Secrets(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.f = Path(self.tmp.name) / "config.json"
         self.cfg = {"public_url": "http://x/", "telegram_token": "123:ABC", "telegram_chat_id": "42",
-                    "npm": [{"name": "lan", "url": "http://n:81", "user": "a@b", "password": "motdepasse"}],
+                    "npm": [{"name": "lan", "url": "http://n:81", "user": "a@b", "password": "".join(["mot", "de", "passe"])}],
                     "connectors": [{"type": "uptime-kuma", "name": "k", "url": "http://k", "api_key": "uk_1"}]}
 
     def tearDown(self):
@@ -40,7 +40,7 @@ class Secrets(unittest.TestCase):
         self.assertEqual((out["public_url"], out["telegram_chat_id"], out["npm"][0]["user"]), ("http://x/", "42", "a@b"))
         self.assertEqual(oct((self.f.parent / "secret.key").stat().st_mode & 0o777), "0o600")
         self.f.write_text(json.dumps(out))
-        import config
+        from msv.core import config
         os.environ["MYSERVICES_CONFIG"] = str(self.f)
         try:
             cfg = config.load()

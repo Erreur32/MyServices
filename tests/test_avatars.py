@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import avatars  # noqa: E402
+from msv.core import avatars  # noqa: E402
 
 try:
     import defusedxml  # noqa: F401

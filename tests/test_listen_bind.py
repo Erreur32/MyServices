@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from connectors import process  # noqa: E402
 
 try:
-    import agents
+    from msv.machines import agents
 except ImportError:
     agents = None
 

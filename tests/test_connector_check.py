@@ -13,9 +13,9 @@ from connectors.base import Result  # noqa: E402
 try:
     from fastapi.testclient import TestClient
 
-    import api
-    import auth
-    import server
+    from msv.api import api
+    from msv.core import auth
+    from msv.api import server
 except ImportError:
     api = None
 

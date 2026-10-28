@@ -13,8 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import connectors  # noqa: E402
-import esxi_ssh  # noqa: E402
-import matching  # noqa: E402
+from msv.remote import esxi_ssh  # noqa: E402
+from msv.machines import matching  # noqa: E402
 from connectors.base import Context  # noqa: E402
 from connectors.vmware import VCenter  # noqa: E402
 

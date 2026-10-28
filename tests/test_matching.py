@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import matching  # noqa: E402
+from msv.machines import matching  # noqa: E402
 
 MACHINES = [
     {"ip": "192.168.1.10", "name": "pve"},
