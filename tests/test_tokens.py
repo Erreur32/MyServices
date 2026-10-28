@@ -15,10 +15,10 @@ try:
 
     import agents
     import api
-    import auth
+    from msv.core import auth
     import mailer  # noqa: F401  (patched by name)
     import server
-    import tokens
+    from msv.core import tokens
 except ImportError:
     api = None
 

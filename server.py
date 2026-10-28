@@ -35,7 +35,7 @@ if __name__ == "__main__":
 import fast
 import netscan
 import pulse
-from config import CFG
+from msv.core.config import CFG
 
 HERE = Path(__file__).resolve().parent
 STATIC = HERE / "web"
@@ -194,7 +194,7 @@ def auto_adguard() -> None:
     if not _AUTO_ADGUARD.acquire(blocking=False):
         return
     try:
-        import autodetect
+        from msv.core import autodetect
         import setup
         meta = json.loads(setup.META.read_text(encoding="utf-8")) if setup.META.exists() else {}
         dock = json.loads((Path(CFG["cache_dir"]) / "docker.json").read_text(encoding="utf-8")).get("data", {})
@@ -295,7 +295,7 @@ def tiles_live_round() -> None:
     of its own). Each is kept on its own."""
     import dns_probe
     import tile_history
-    from auth import db_path
+    from msv.core.auth import db_path
     db = db_path(CFG)
     for name, step in {"cadres DNS": lambda: dns_probe.sample(db, local_dns_servers()),
                        "cadres GPU": lambda: tile_history.sample_gpu_live(db, Path(CFG["state_dir"]) / CONNECTORS_FILE)}.items():
@@ -316,7 +316,7 @@ def bandwidth_loop() -> None:
     """The rate of the Internet link, for the Download and Upload tiles of the Network page (bandwidth.py)."""
     import bandwidth
     import unifi_cards
-    from auth import db_path
+    from msv.core.auth import db_path
     while True:
         t0 = time.time()
         try:
@@ -357,7 +357,7 @@ def keep_availability() -> None:
     import agents
     import availability
     import tile_history
-    from auth import db_path
+    from msv.core.auth import db_path
     db = db_path(CFG)
     steps = {
         "disponibilité": lambda: availability.sample(db, WEB / "data.json"),
@@ -380,9 +380,9 @@ def keep_availability() -> None:
 
 def keep_metrics() -> None:
     """The figures of each machine after a health pass (24 h, the small curves of the machine page) and the health count of the Machines tiles (7 days)."""
-    import metrics
+    from msv.core import metrics
     import tile_history
-    from auth import db_path
+    from msv.core.auth import db_path
     try:
         metrics.sample(db_path(CFG), WEB / "health" / "stats.json")
         tile_history.sample(db_path(CFG), WEB / "health" / "stats.json")
@@ -393,8 +393,8 @@ def keep_metrics() -> None:
 def keep_history(name: str, alert: bool = False) -> None:
     """Événements du passage recopiés dans SQLite (un an d'historique ; events.json n'en garde que 90 jours),
     puis envoyés aux règles d'alerte (pas à la reprise du démarrage : déjà annoncés en leur temps)."""
-    import history
-    from auth import db_path
+    from msv.core import history
+    from msv.core.auth import db_path
     f = WEB / ("events.json" if name == "watch" else "health/events.json")
     added: list[dict] = []
     try:
@@ -435,7 +435,7 @@ def alerts_store():
     global _ALERTS
     if _ALERTS is None:
         import alerts
-        from auth import db_path
+        from msv.core.auth import db_path
         _ALERTS = alerts.Alerts(db_path(CFG), CFG)
     return _ALERTS
 
@@ -625,7 +625,7 @@ def update_check() -> None:
     at most every 6 h (one anonymous GET), whatever page is open"""
     if not CFG.get("update_check", True):
         return
-    import about
+    from msv.core import about
     threading.Thread(target=about.latest, args=(Path(CFG["state_dir"]),), kwargs={"current": os.environ.get("MYSERVICES_VERSION")}, daemon=True,
                      name="update-check").start()
 
@@ -800,7 +800,7 @@ def status() -> dict:
 
 
 def main() -> int:
-    import applog
+    from msv.core import applog
     applog.install()   # ce que montre docker logs, gardé aussi pour Réglages → Journaux
     WEB.mkdir(parents=True, exist_ok=True)
     Path(PROGRESS).parent.mkdir(parents=True, exist_ok=True)
@@ -828,7 +828,7 @@ def main() -> int:
 
     import api
     from api import app
-    import live_events
+    from msv.core import live_events
     threading.Thread(target=live_events.watch, args=(api.stream_sources(),), daemon=True, name="events").start()   # page event stream
     if api.AUTH and not api.store().has_users():
         log(f"aucun compte : ouvrir la page pour créer le compte admin (pendant {api.SETUP_WINDOW // 60} min ; "

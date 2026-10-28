@@ -74,7 +74,7 @@ class Base(unittest.TestCase):
         d = Path(self.tmp.name)
         self.meta, self.config = d / "backups-meta.json", d / "config.json"
         self.config.write_text("{}", encoding="utf-8")
-        for p in (mock.patch.dict("config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
+        for p in (mock.patch.dict("msv.core.config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
                   mock.patch.dict(os.environ, {"MYSERVICES_CONFIG": str(self.config)}),
                   mock.patch.object(ba.setup, "META", d / "services-meta.json"),
                   mock.patch.object(ba.setup, "EXAMPLE_BACKUPS", d / "example.json")):
@@ -364,7 +364,7 @@ class AgentBackups(Base):
         fake = mock.MagicMock()
         fake.return_value.fresh_reports.return_value = {"192.168.1.40": {"report": self.REPORT, "seen": 1, "fresh": True}}
         import types
-        no_auth = mock.patch.dict(sys.modules, {"auth": types.SimpleNamespace(db_path=lambda cfg: "/nulle/part")})   # argon2 absent outside the image
+        no_auth = mock.patch.dict(sys.modules, {"msv.core.auth": types.SimpleNamespace(db_path=lambda cfg: "/nulle/part")})   # argon2 absent outside the image
         no_auth.start()
         self.addCleanup(no_auth.stop)
         with mock.patch("agents.Agents", fake):

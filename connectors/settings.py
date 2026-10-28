@@ -17,7 +17,7 @@ import re
 import sys
 from pathlib import Path
 
-import secrets_store
+from msv.core import secrets_store
 from connectors import TYPES
 from connectors.base import EVERY_FIELD, ConnectorError, Context, tally
 

@@ -18,7 +18,7 @@ class Publish(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.data = Path(self.tmp.name) / "data.json"
-        p = mock.patch.dict("config.CFG", {"web_dir": self.tmp.name})
+        p = mock.patch.dict("msv.core.config.CFG", {"web_dir": self.tmp.name})
         p.start()
         self.addCleanup(p.stop)
 

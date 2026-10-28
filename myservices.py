@@ -45,8 +45,8 @@ from pathlib import Path
 
 import connectors
 import readers
-import docker_state
-from docker_state import allowed_names, intended_stop
+from msv.core import docker_state
+from msv.core.docker_state import allowed_names, intended_stop
 import connectors.base as cbase
 from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
@@ -57,17 +57,17 @@ import virt_ssh
 import pve_ssh
 import agents
 import hostinfo
-import inventory_cache
+from msv.core import inventory_cache
 import api_link
 import known_apps
 import new_services
-import last_known as last_known_services
+from msv.core import last_known as last_known_services
 import webservers
 import matching
 from connectors import mynetwork as mynetwork_conn
 import npmapi
 
-from config import CFG, next_timer_run
+from msv.core.config import CFG, next_timer_run
 from sshmux import SSH_MUX
 
 OUT = os.path.join(CFG["web_dir"], "data.json")
@@ -189,7 +189,7 @@ def read_npm():
 def agent_reports() -> dict:
     """Derniers relevés des agents {IP: {"report", "seen", "fresh"}} ; vide si la base n'existe pas (installation sans agents)."""
     try:
-        from auth import db_path
+        from msv.core.auth import db_path
         return agents.Agents(db_path(CFG)).fresh_reports()
     except Exception as e:  # base absente ou illisible : la collecte continue sans agents
         print(f"⚠ agents : {e}", file=sys.stderr)
@@ -1544,7 +1544,7 @@ def main():
 
 
 if __name__ == "__main__":
-    import app_user
+    from msv.core import app_user
     app_user.drop_root()   # docker compose exec : root -> compte 10001 (sa config SSH, fichiers de /data restés à lui)
     # Un seul passage à la fois (cron + lancement manuel) : sinon on sort sans rien faire
     lock = open(os.path.join(os.path.dirname(DOCKER_CACHE), "run.lock"), "w") \

@@ -16,9 +16,9 @@ try:
     from fastapi.testclient import TestClient
 
     import api
-    import auth
+    from msv.core import auth
     import server
-    import tokens
+    from msv.core import tokens
 except ImportError:
     api = None
 
@@ -117,7 +117,7 @@ class ApiModels(unittest.TestCase):
     def test_stream(self):
         """The event stream opens with the current state (status, tasks, manifest), not compressed, and needs a session."""
         import itertools
-        import live_events
+        from msv.core import live_events
         self.put("data.json", DATA)
         real = live_events.stream
         # the test client cannot hang up on an endless body: the first frames only (the current state) are kept
@@ -168,7 +168,7 @@ class ApiModels(unittest.TestCase):
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
 class Validation(unittest.TestCase):
     def test_erreur_422_ne_renvoie_pas_la_valeur_envoyee(self):
-        import auth
+        from msv.core import auth
         import server
         from fastapi.testclient import TestClient
         with tempfile.TemporaryDirectory() as d:

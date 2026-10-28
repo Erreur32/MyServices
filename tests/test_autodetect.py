@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import autodetect as ad  # noqa: E402
+from msv.core import autodetect as ad  # noqa: E402
 
 DOCK = {"10.0.0.2": [{"name": "adguardhome", "image": "adguard/adguardhome:latest"}, {"name": "adguardhome-sync", "image": "ghcr.io/bakito/adguardhome-sync:latest"}],
         "10.0.0.3": [{"name": "plex", "image": "plexinc/pms-docker"}], "10.0.0.4": {"containers": [{"name": "dns", "image": "docker.io/adguard/adguardhome:v0.107"}]},

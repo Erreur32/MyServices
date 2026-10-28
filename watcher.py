@@ -45,7 +45,7 @@ from pathlib import Path
 
 import notify
 import pulse
-from config import CFG, next_timer_run
+from msv.core.config import CFG, next_timer_run
 
 NAME = "myservices-watcher"
 DATA = Path(CFG["web_dir"]) / "data.json"
@@ -593,6 +593,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import app_user
+    from msv.core import app_user
     app_user.drop_root()   # docker compose exec : root -> compte 10001 (sa config SSH, fichiers de /data restés à lui)
     sys.exit(main())

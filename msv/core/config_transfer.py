@@ -253,7 +253,7 @@ def _key_problem(body: bytes) -> str | None:
 
 
 def _encrypted_values(node) -> list[str]:
-    import secrets_store
+    from msv.core import secrets_store
     if isinstance(node, str):
         return [node] if node.startswith(secrets_store.PREFIX) else []
     if isinstance(node, dict):
@@ -265,7 +265,7 @@ def _encrypted_values(node) -> list[str]:
 
 def secrets_status(config_body: bytes, key: bytes | None) -> str:
     """'none' (nothing encrypted in this config.json), 'ok' (the key opens every secret), 'unreadable' (no key, or the wrong one)."""
-    import secrets_store
+    from msv.core import secrets_store
     from cryptography.fernet import Fernet, InvalidToken
     try:
         values = _encrypted_values(json.loads(config_body))

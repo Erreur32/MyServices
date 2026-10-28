@@ -258,7 +258,7 @@ def ports_of(report: dict | None) -> dict[int, dict]:
 
 def docker_states(report: dict | None) -> dict[str, str] | None:
     """{container: status} of a Linux agent report (the `docker ps -a` of the health reading, run every minute); None without it."""
-    import docker_state
+    from msv.core import docker_state
     import health
     data = (report or {}).get("data") or {}
     got = (data.get("cmds") or {}).get(health.DOCKER_PS_CMD) if data.get("kind") == "linux" else None

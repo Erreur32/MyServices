@@ -15,12 +15,12 @@ try:
     from fastapi.testclient import TestClient
 
     import api
-    import auth
+    from msv.core import auth
     import dns_probe
     import server
     import tile_history
-    import tokens
-    from auth import db_path
+    from msv.core import tokens
+    from msv.core.auth import db_path
 except ImportError:
     api = None
 

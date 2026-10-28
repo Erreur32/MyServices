@@ -42,9 +42,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import notify
-from config import CFG, next_timer_run
-import inventory_cache
-from docker_state import allowed_names, intended_stop
+from msv.core.config import CFG, next_timer_run
+from msv.core import inventory_cache
+from msv.core.docker_state import allowed_names, intended_stop
 import readers
 from sshmux import SSH_MUX
 
@@ -1180,7 +1180,7 @@ def agent_reports() -> dict:
     """{IP: {"report", "seen", "fresh"}} des agents actifs ; vide si la base n'existe pas (version sans Docker)."""
     try:
         from agents import Agents
-        from auth import db_path
+        from msv.core.auth import db_path
         return Agents(db_path(CFG)).fresh_reports()
     except Exception as e:  # base absente ou illisible : la santé continue sans agents
         print(f"⚠ agents : {e}", file=sys.stderr)
@@ -1214,8 +1214,8 @@ def agent_figures(hc: dict, a: dict | None, ts: str) -> bool:
     if not (a and a.get("fresh") and isinstance(data, dict)):
         return False
     try:
-        import metrics
-        from auth import db_path
+        from msv.core import metrics
+        from msv.core.auth import db_path
         h = {"name": hc["name"], "reachable": True, "read_at": ts, **parse_agent_data(hc, data)}
         return metrics.store(db_path(CFG), metrics.points({"hosts": [h]})) > 0
     except Exception as e:  # base unavailable: only the curves miss a point
@@ -2246,6 +2246,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import app_user
+    from msv.core import app_user
     app_user.drop_root()   # docker compose exec : root -> compte 10001 (sa config SSH, fichiers de /data restés à lui)
     sys.exit(main())

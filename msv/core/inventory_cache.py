@@ -9,7 +9,7 @@ import json
 import os
 import time
 
-import docker_state
+from msv.core import docker_state
 
 
 def load(path: str, ttl: float) -> dict | None:

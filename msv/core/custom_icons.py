@@ -14,7 +14,7 @@ import threading
 import time
 from pathlib import Path
 
-import avatars
+from msv.core import avatars
 
 MAX_ICONS = 200
 KEY_RE = re.compile(r"custom-[0-9a-f]{12}")
@@ -27,7 +27,7 @@ class IconError(Exception):
 
 
 def _dir() -> Path:
-    import config
+    from msv.core import config
     return Path(config.CFG["state_dir"]) / "icons"
 
 

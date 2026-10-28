@@ -19,7 +19,7 @@ try:
     from fastapi.testclient import TestClient
 
     import api
-    import auth
+    from msv.core import auth
     import server
 except ImportError:
     api = None

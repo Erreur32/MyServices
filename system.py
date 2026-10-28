@@ -13,7 +13,7 @@ import subprocess
 import time
 from pathlib import Path
 
-import secrets_store
+from msv.core import secrets_store
 
 STARTED = time.time()
 LABELS = {"collect": "Collecte", "watch": "Veille (pannes, alertes)", "health": "Santé des machines", "backups": "Sauvegardes"}
@@ -111,14 +111,14 @@ LIVE_OFF = ("pulse_every", "fast_every")
 
 def live_settings(core) -> dict:
     """Pulse (ping of every machine), its confirmation and the fast connector reads: current values, defaults and limits."""
-    from config import DEFAULTS
+    from msv.core.config import DEFAULTS
     return {"values": {k: core.CFG[k] for k in LIVE_LIMITS}, "defaults": {k: DEFAULTS[k] for k in LIVE_LIMITS},
             "limits": {k: list(v) for k, v in LIVE_LIMITS.items()}, "off_allowed": list(LIVE_OFF)}
 
 
 def set_live(core, values: dict) -> dict:
     """Writes the given live-check settings to config.json, applied at the next pass of each loop (no restart)."""
-    from config import DEFAULTS
+    from msv.core.config import DEFAULTS
     clean = {}
     for k, v in values.items():
         lo, hi = LIVE_LIMITS[k]
@@ -193,7 +193,7 @@ def set_netscan_nets(core, nets: list[str]) -> dict:
 
 def set_session_days(core, days: int) -> int:
     """Durée des sessions (1 à 90 jours), écrite dans config.json et appliquée aux prochaines connexions."""
-    import auth
+    from msv.core import auth
     auth.set_session_days(days)  # refuse hors bornes (AuthError)
 
     def change(raw: dict) -> None:
@@ -326,7 +326,7 @@ def set_netscan_discreet(core, on: bool) -> dict:
 def reload_config(core) -> bool:
     """Reads config.json again into the running configuration (the same dict every module holds) and applies its schedules, without a restart.
     False, nothing changed, when the file cannot be read. Settings read only once at the start (the encryption key) still need a restart."""
-    import config
+    from msv.core import config
     try:
         fresh = config.load(fatal=False)
     except config.ConfigError:
@@ -382,7 +382,7 @@ def set_schedule(core, name: str, spec: str | None) -> dict:
 
 def info(core, api) -> dict:
     data = Path(core.WEB).parent
-    from auth import db_path
+    from msv.core.auth import db_path
     return {"version": os.environ.get("MYSERVICES_VERSION", "dev"), "python": platform.python_version(),
             "started": STARTED, "uptime_s": int(time.time() - STARTED), "port": core.PORT,
             "allow": [str(n) for n in core.ALLOW], "auth": api.AUTH,

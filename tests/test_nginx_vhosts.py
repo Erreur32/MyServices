@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-import config  # noqa: E402
+from msv.core import config  # noqa: E402
 
 import hostinfo  # noqa: E402
 from unittest import mock  # noqa: E402

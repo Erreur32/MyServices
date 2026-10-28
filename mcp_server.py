@@ -156,8 +156,8 @@ def t_backups(core, args, ctx):
 
 
 def t_events(core, args, ctx):
-    import history
-    from auth import db_path
+    from msv.core import history
+    from msv.core.auth import db_path
     hours = max(1, min(int(args.get("hours") or 24), 24 * 365))
     rows = history.query(db_path(core.CFG), since=time.time() - hours * 3600, kind=args.get("kind") or None,
                          q=args.get("query") or None, limit=max(1, min(int(args.get("limit") or 100), 1000)))
@@ -382,7 +382,7 @@ def tools_info(states: dict[str, bool]) -> list[dict]:
 
 def handle(msg: dict, ctx: dict, core, states: dict[str, bool]) -> dict | None:
     """Une requête JSON-RPC ; None pour une notification (pas de réponse)."""
-    import tokens
+    from msv.core import tokens
     mid, method, params = msg.get("id"), msg.get("method"), msg.get("params") or {}
     if mid is None:
         return None

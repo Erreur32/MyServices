@@ -39,7 +39,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-import app_user
+from msv.core import app_user
 
 app_user.drop_root()   # docker compose exec : root -> compte 10001 (clés SSH, config.json lisibles par l'app)
 
@@ -48,7 +48,7 @@ import connectors.base as cbase
 import hostinfo
 import notify
 import npmapi
-from config import CFG, DEFAULTS, HERE
+from msv.core.config import CFG, DEFAULTS, HERE
 from sshmux import SSH_MUX
 
 CONFIG = Path(os.environ.get("MYSERVICES_CONFIG") or HERE / "config.json")
@@ -89,7 +89,7 @@ def save(path: Path, data: dict) -> None:
     """JSON en 600, rendu au propriétaire du projet (pas de fichier root dans le dépôt). config.json avec
     une clé de chiffrement (secrets chiffrés, version Docker) : secrets rechiffrés avant écriture."""
     if path == CONFIG:
-        import secrets_store
+        from msv.core import secrets_store
         if secrets_store.key_path(CONFIG).exists():
             data, _ = secrets_store.encrypt_all(data, CONFIG)
     tmp = path.with_suffix(".tmp")
@@ -1194,7 +1194,7 @@ def main() -> int:
         print("\nabandon")
         return 1
     # Relecture : check() s'appuie sur CFG, rechargé avec les fichiers écrits
-    import config
+    from msv.core import config
     CFG.update(config.load())
     FAILED.clear()
     print()

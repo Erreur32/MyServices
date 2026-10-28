@@ -27,7 +27,7 @@ class Base(unittest.TestCase):
             "10.0.0.4": {"name": "Vieux", "role": "", "ssh": "vieux", "disabled": True}}}), encoding="utf-8")
         self.example = d / "example.json"
         self.example.write_text(json.dumps({"discover": ["/home/backup*"]}), encoding="utf-8")
-        for p in (mock.patch.dict("config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
+        for p in (mock.patch.dict("msv.core.config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
                   mock.patch.object(ba.setup, "META", self.services), mock.patch.object(ba.setup, "EXAMPLE_BACKUPS", self.example)):
             p.start()
             self.addCleanup(p.stop)

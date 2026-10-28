@@ -29,7 +29,7 @@ from datetime import datetime
 from pathlib import Path
 
 import notify
-import secrets_store
+from msv.core import secrets_store
 
 # Genres d'événements, par famille (même regroupement que l'onglet Historique). Chaque genre « problème »
 # a son retour à la normale : envoyé avec la règle si elle le demande.

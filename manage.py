@@ -17,12 +17,12 @@ import getpass
 import sys
 from datetime import datetime
 
-import app_user
+from msv.core import app_user
 
 app_user.drop_root()   # docker compose exec : root -> compte 10001, sinon la base et les secrets écrits seraient à root
 
-from auth import AuthError, Store, db_path
-from config import CFG
+from msv.core.auth import AuthError, Store, db_path
+from msv.core.config import CFG
 
 DB = db_path(CFG)
 
@@ -65,7 +65,7 @@ def main() -> int:
             import os
             from pathlib import Path
 
-            import secrets_store
+            from msv.core import secrets_store
             f = Path(os.environ.get("MYSERVICES_CONFIG") or "config.json")
             out, n = secrets_store.encrypt_all(json.loads(f.read_text(encoding="utf-8")), f)
             tmp = f.with_suffix(".tmp")

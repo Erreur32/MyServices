@@ -136,7 +136,7 @@ class WatcherTakesThePulse(unittest.TestCase):
 
 class LiveSettings(unittest.TestCase):
     def core(self):
-        import config
+        from msv.core import config
         return type("Core", (), {"CFG": {k: config.DEFAULTS[k] for k in ("pulse_every", "pulse_confirm", "fast_every")}})()
 
     def test_values_are_checked_and_defaults_are_not_written(self):

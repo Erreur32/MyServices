@@ -19,7 +19,7 @@ class CheckExpiresInventory(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.cache = Path(self.tmp.name) / "docker.json"
         self.cache.write_text(json.dumps({"ts": 1791636409.0, "data": {"10.0.0.1": None}}), encoding="utf-8")
-        p = mock.patch.dict("config.CFG", {"cache_dir": self.tmp.name})
+        p = mock.patch.dict("msv.core.config.CFG", {"cache_dir": self.tmp.name})
         p.start()
         self.addCleanup(p.stop)
         self.addCleanup(self.tmp.cleanup)

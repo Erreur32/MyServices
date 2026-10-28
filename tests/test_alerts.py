@@ -20,7 +20,7 @@ try:
 
     import alerts
     import api
-    import auth
+    from msv.core import auth
     import server
 except ImportError:
     alerts = None

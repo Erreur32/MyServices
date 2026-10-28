@@ -15,11 +15,11 @@ try:
     from fastapi.testclient import TestClient
 
     import api
-    import auth
+    from msv.core import auth
     import mailer
     import server
     import system
-    import tokens
+    from msv.core import tokens
 except ImportError:
     api = None
 

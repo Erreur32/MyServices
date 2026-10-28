@@ -33,10 +33,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-import models
+from msv.core import models
 import server as core
-import auth as auth_mod
-from auth import AuthError, Store, db_path
+from msv.core import auth as auth_mod
+from msv.core.auth import AuthError, Store, db_path
 
 # The app lives at the root of the site: http://<host>:8090/ (page), /api/v1/ (API), /mcp, /agent/… Before 0.10.2 everything sat under /myservices/
 # (and the page under /myservices/v2/): that old prefix is still understood, see LegacyPrefix below, so bookmarks, agents already installed on
@@ -141,7 +141,7 @@ AGENTS = None
 def tokens_store():
     global TOKENS
     if TOKENS is None:
-        import tokens
+        from msv.core import tokens
         TOKENS = tokens.Tokens(db_path(core.CFG))
     return TOKENS
 
@@ -172,7 +172,7 @@ def agent_guard(request: Request, raw: str) -> JSONResponse | None:
 
 def token_guard(request: Request, path: str, raw: str) -> JSONResponse | None:
     """Jeton d'API (routes REST) ou MCP (/mcp) : valable, bonne sorte, niveau suffisant pour la route."""
-    import tokens
+    from msv.core import tokens
     kind = "mcp" if path == MCP else "api"
     try:
         t = tokens_store().check(raw, kind, ip_of(request))
@@ -312,7 +312,7 @@ def stream_sources() -> dict:
 
 @app.get(API + "/stream", tags=["passages"], summary="Flux d'événements (SSE) : status, tasks, manifest, dès qu'ils changent")
 def stream_v1():
-    import live_events
+    from msv.core import live_events
     q = live_events.subscribe()
     first = {k: fn() for k, fn in stream_sources().items()}
     # Content-Encoding set: the gzip middleware leaves the stream alone (it would buffer the events)
@@ -440,7 +440,7 @@ class ServiceKeys(BaseModel):
 
 @app.get(API + "/services/new", tags=["services"], summary="Services apparus sur les machines ces 7 derniers jours, pas encore choisis (admin)")
 def services_new(request: Request):
-    import history
+    from msv.core import history
     import new_services
     if denied := admin_only(request):
         return denied
@@ -1011,7 +1011,7 @@ def machines_advice(request: Request):
 
 @app.get(API + "/assistant", tags=["système"], summary="Progression de l'assistant de démarrage ; null s'il n'a jamais servi (admin)")
 def assistant_get(request: Request):
-    import assistant_state
+    from msv.core import assistant_state
     if denied := admin_only(request):
         return denied
     return {"state": assistant_state.load(Path(core.CFG["state_dir"]) / "assistant.json")}
@@ -1019,7 +1019,7 @@ def assistant_get(request: Request):
 
 @app.put(API + "/assistant", tags=["système"], summary="Enregistrer la progression de l'assistant de démarrage (admin)")
 def assistant_put(body: dict, request: Request):
-    import assistant_state
+    from msv.core import assistant_state
     if denied := admin_only(request):   # pas admin_write : cette route ne touche à aucun compte, et doit marcher aussi sans comptes
         return denied
     return {"state": assistant_state.save(Path(core.CFG["state_dir"]) / "assistant.json", body)}
@@ -1247,13 +1247,13 @@ class ServiceHide(BaseModel):
 
 @app.get(API + "/services/watch-hidden", tags=["services"], summary="Services masqués de « À surveiller » (et du point de l'onglet), avec la signature de leur problème")
 def services_watch_hidden():
-    import services_hidden
+    from msv.core import services_hidden
     return services_hidden.read(_services_hidden_file())
 
 
 @app.post(API + "/services/watch-hidden", tags=["services"], summary="Masquer un service de « À surveiller », ou l'afficher de nouveau (admin)")
 def services_watch_hide(body: ServiceHide, request: Request):
-    import services_hidden
+    from msv.core import services_hidden
     if denied := admin_only(request):
         return denied
     try:
@@ -1499,7 +1499,7 @@ def tokens_list(request: Request):
 
 @app.post(API + "/tokens", tags=["jetons"], summary="Créer un jeton (affiché une seule fois ; admin : mot de passe et durée)")
 def tokens_create(body: NewToken, request: Request):
-    import tokens
+    from msv.core import tokens
     if denied := session_admin(request):
         return denied
     u, ip = request.state.user, ip_of(request)
@@ -1518,7 +1518,7 @@ def tokens_create(body: NewToken, request: Request):
 
 @app.delete(API + "/tokens/{tid}", tags=["jetons"], summary="Révoquer un jeton (session admin)")
 def tokens_revoke(tid: int, request: Request):
-    import tokens
+    from msv.core import tokens
     if denied := session_admin(request):
         return denied
     try:
@@ -2156,7 +2156,7 @@ def backups_unfollow(set_id: str, request: Request):
 
 @app.get(API + "/system/logs", tags=["système"], summary="Journal du conteneur depuis son démarrage, comme docker logs (admin)")
 def system_logs(request: Request, after: int = 0):
-    import applog
+    from msv.core import applog
     return admin_only(request) or JSONResponse(applog.lines(max(after, 0)), headers={"Cache-Control": "no-store"})
 
 
@@ -2193,7 +2193,7 @@ class ImportApplyBody(ImportPreviewBody):
 
 
 def _places():
-    import config_transfer as ct
+    from msv.core import config_transfer as ct
     import system
     return ct.Places(system.api_config_dir(), Path(core.CFG["state_dir"]), db_path(core.CFG))
 
@@ -2221,7 +2221,7 @@ def _confirmed(request: Request, password: str) -> JSONResponse | None:
 
 @app.get(API + "/system/config-parts", tags=["système"], summary="Parties exportables de la configuration et ce que cette installation en a (admin)")
 def system_config_parts(request: Request):
-    import config_transfer as ct
+    from msv.core import config_transfer as ct
     if denied := session_admin(request):
         return denied
     have = ct.present(_places())
@@ -2230,7 +2230,7 @@ def system_config_parts(request: Request):
 
 @app.post(API + "/system/export", tags=["système"], summary="Exporter la configuration en ZIP, tout ou certaines parties (session admin + mot de passe)")
 def system_export(body: ExportBody, request: Request):
-    import config_transfer as ct
+    from msv.core import config_transfer as ct
     if denied := _confirmed(request, body.password):
         return denied
     try:
@@ -2245,7 +2245,7 @@ def system_export(body: ExportBody, request: Request):
 
 @app.post(API + "/system/import/preview", tags=["système"], summary="Lire une archive de configuration sans rien écrire : parties, problèmes (session admin)")
 def system_import_preview(body: ImportPreviewBody, request: Request):
-    import config_transfer as ct
+    from msv.core import config_transfer as ct
     if denied := session_admin(request):
         return denied
     data = _archive_bytes(body.archive)
@@ -2259,7 +2259,7 @@ def system_import_preview(body: ImportPreviewBody, request: Request):
 
 @app.post(API + "/system/import", tags=["système"], summary="Importer des parties d'une archive de configuration (session admin + mot de passe)")
 def system_import(body: ImportApplyBody, request: Request):
-    import config_transfer as ct
+    from msv.core import config_transfer as ct
     if denied := _confirmed(request, body.password):
         return denied
     data = _archive_bytes(body.archive)
@@ -2279,13 +2279,13 @@ def system_import(body: ImportApplyBody, request: Request):
 @app.get(API + "/events", tags=["historique"], summary="Événements (pannes, rétablissements, santé…), un an")
 def events(since: float | None = None, until: float | None = None, kind: str | None = None, machine: str | None = None,
            source: str | None = None, q: str | None = None, limit: int = 500):
-    import history
+    from msv.core import history
     return {"events": history.query(db_path(core.CFG), since, until, kind, machine, source, q, limit)}
 
 
 @app.get(API + "/events/per-day", tags=["historique"], summary="Nombre d'événements par jour et par genre")
 def events_per_day(days: int = 30):
-    import history
+    from msv.core import history
     return {"days": history.per_day(db_path(core.CFG), days)}
 
 
@@ -2301,7 +2301,7 @@ HISTORY_HOURS = (24, 72, 168)
 @app.get(API + "/machines/history", tags=["historique"], summary="Historique des cadres de la page Machines (joignables, santé, processeur et mémoire moyens) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def machines_history(hours: int = 24):
     import availability
-    import metrics
+    from msv.core import metrics
     import tile_history
     h = hours if hours in HISTORY_HOURS else 24
     db = db_path(core.CFG)
@@ -2371,7 +2371,7 @@ def services_history(hours: int = 24):
 
 @app.get(API + "/machines/{ip}/metrics", tags=["historique"], summary="Processeur, mémoire, disque le plus plein et température d'une machine sur 24 h")
 def machine_metrics(ip: str):
-    import metrics
+    from msv.core import metrics
     try:
         ipaddress.ip_address(ip)
     except ValueError:
@@ -2460,7 +2460,7 @@ def logout(request: Request):
 
 
 def _avatar_version(username: str) -> str | None:
-    import avatars
+    from msv.core import avatars
     got = store().avatar(username)
     return avatars.version(got[0]) if got else None
 
@@ -2468,7 +2468,7 @@ def _avatar_version(username: str) -> str | None:
 @app.get(API + "/me", tags=["comptes"], summary="Compte connecté")
 def me(request: Request):
     u = request.state.user or {}
-    import about
+    from msv.core import about
     import mailer
     return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH, "version": os.environ.get("MYSERVICES_VERSION", "dev"),
             "email": store().email_of(u["username"]) if AUTH and u.get("username") and not u.get("token") else None,
@@ -2676,7 +2676,7 @@ from diagram_nav import ARCHIFY_URL, DIAGRAMS  # noqa: E402
 
 
 def about_payload(force: bool) -> dict:
-    import about
+    from msv.core import about
     version = os.environ.get("MYSERVICES_VERSION", "dev")
     got = about.latest(Path(core.CFG["state_dir"]), force=force, enabled=bool(core.CFG.get("update_check", True)), current=version)
     tag = (got.get("release") or {}).get("tag")
@@ -3017,7 +3017,7 @@ class AvatarBody(BaseModel):
 
 @app.put(API + "/me/avatar", tags=["comptes"], summary="Mon avatar : PNG, JPEG, WebP, GIF ou SVG (512 Ko au plus, SVG nettoyé)")
 def set_my_avatar(body: AvatarBody, request: Request):
-    import avatars
+    from msv.core import avatars
     u = request.state.user or {}
     if not AUTH or not u or u.get("token"):
         return deny(400, "comptes désactivés" if not AUTH else SESSION_NEEDED)
@@ -3042,7 +3042,7 @@ def delete_my_avatar(request: Request):
 
 @app.get(API + "/users/{name}/avatar", tags=["comptes"], summary="Avatar d'un compte (image ; 404 sans avatar)")
 def user_avatar(name: str, request: Request):
-    import avatars
+    from msv.core import avatars
     if not AUTH or not request.state.user:
         return deny(404, "aucun avatar")
     got = store().avatar(name)
@@ -3061,7 +3061,7 @@ class IconBody(BaseModel):
 
 @app.get(API + "/icons", tags=["icônes"], summary="Icônes importées pour les machines et les services")
 def icons_list(request: Request):
-    import custom_icons
+    from msv.core import custom_icons
     if AUTH and not request.state.user:
         return deny(401, "session requise")
     return {"icons": custom_icons.listing(), "max": custom_icons.MAX_ICONS}
@@ -3069,8 +3069,8 @@ def icons_list(request: Request):
 
 @app.post(API + "/icons", tags=["icônes"], summary="Importer une icône : PNG, JPEG, WebP, GIF ou SVG (512 Ko au plus, SVG nettoyé) (admin)")
 def icons_add(body: IconBody, request: Request):
-    import avatars
-    import custom_icons
+    from msv.core import avatars
+    from msv.core import custom_icons
     if denied := admin_write(request):
         return denied
     try:
@@ -3084,8 +3084,8 @@ def icons_add(body: IconBody, request: Request):
 
 @app.get(API + "/icons/{key}", tags=["icônes"], summary="Une icône importée (image ; 404 si inconnue)")
 def icons_get(key: str, request: Request):
-    import avatars
-    import custom_icons
+    from msv.core import avatars
+    from msv.core import custom_icons
     if AUTH and not request.state.user:
         return deny(404, "aucune icône")
     got = custom_icons.get(key)
@@ -3099,7 +3099,7 @@ def icons_get(key: str, request: Request):
 
 @app.delete(API + "/icons/{key}", tags=["icônes"], summary="Supprimer une icône importée, si aucune machine ni aucun service ne l'utilise (admin)")
 def icons_delete(key: str, request: Request):
-    import custom_icons
+    from msv.core import custom_icons
     if denied := admin_write(request):
         return denied
     try:

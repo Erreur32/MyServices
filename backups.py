@@ -31,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
-from config import CFG, HERE
+from msv.core.config import CFG, HERE
 from connectors.backup_apis import DSM_FAIL, HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
 from sshmux import SSH_MUX
@@ -368,7 +368,7 @@ def agent_collect(h: dict) -> tuple[dict | None, str]:
     """Windows PC followed by its MyServices agent: the last Veeam Agent and Windows Server Backup runs of its last report (nothing is
     asked of the PC, the agent sends them anyway). The report is used even when the agent went silent: the age of the run says it."""
     import agents
-    from auth import db_path
+    from msv.core.auth import db_path
     try:
         rep = agents.Agents(db_path(CFG)).fresh_reports().get(h.get("ip") or "")
     except Exception as e:  # base absente ou illisible
@@ -887,6 +887,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import app_user
+    from msv.core import app_user
     app_user.drop_root()   # docker compose exec : root -> compte 10001 (sa config SSH, fichiers de /data restés à lui)
     sys.exit(main())

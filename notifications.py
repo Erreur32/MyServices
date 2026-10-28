@@ -272,7 +272,7 @@ class Notifications:
             raise NotificationError("aucun canal actif sélectionné pour cette notification")
         if n["kind"] == "report":
             return self.send_report(n, test=True)
-        import history
+        from msv.core import history
         recent = history.query(self.a.path, time.time() - 30 * 86400, limit=200)   # plus récents d'abord
         found = [e for e in reversed(recent) if self._event_ok(n, e)][-5:]
         ev = found or [{"kind": "essai", "label": "Aucun événement correspondant pour l'instant", "machine": None, "target": None, "detail": "le filtre est valide, rien n'a encore été vu", "ts": time.time()}]

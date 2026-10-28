@@ -156,7 +156,7 @@ class Assistant(unittest.TestCase):
         d = Path(self.tmp.name)
         self.meta, self.config = d / "backups-meta.json", d / "config.json"
         self.config.write_text("{}", encoding="utf-8")
-        for p in (mock.patch.dict("config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
+        for p in (mock.patch.dict("msv.core.config.CFG", {"backups_meta": str(self.meta), "backups_url": ""}),
                   mock.patch.dict(os.environ, {"MYSERVICES_CONFIG": str(self.config)}),
                   mock.patch.object(ba.setup, "META", d / "services-meta.json"), mock.patch.object(ba.setup, "EXAMPLE_BACKUPS", d / "example.json"),
                   mock.patch.object(rf.RemoteFolder, "list_dir", fake_list)):

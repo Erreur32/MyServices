@@ -10,7 +10,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-import config  # noqa: E402
+from msv.core import config  # noqa: E402
 import connectors  # noqa: E402
 import connectors.base as cbase  # noqa: E402
 import health  # noqa: E402

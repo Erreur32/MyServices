@@ -14,7 +14,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[2]   # the project folder (msv/core/config.py -> ../..): config.json, agent/, web/
 
 DEFAULTS = {
     "npm": [],                           # instances Nginx Proxy Manager (voir npmapi.py), une ou plusieurs
@@ -90,7 +90,7 @@ def _read_user(f: Path, fatal: bool) -> dict:
     except ValueError as e:
         _fail(f"{f} illisible : {e}", fatal)
     if any(isinstance(v, (str, list, dict)) and "enc:v1:" in json.dumps(v) for v in user.values()):
-        import secrets_store  # secrets chiffrés (version Docker) : déchiffrés ici, en mémoire seulement
+        from msv.core import secrets_store  # secrets chiffrés (version Docker) : déchiffrés ici, en mémoire seulement
         try:
             user = secrets_store.decrypt_all(user, f)
         except secrets_store.SecretError as e:

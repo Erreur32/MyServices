@@ -497,7 +497,7 @@ class ConfigKey(unittest.TestCase):
     def test_connectors_key_is_read(self):
         import os
         import tempfile
-        import config
+        from msv.core import config
         with tempfile.TemporaryDirectory() as d:
             f = Path(d) / "config.json"
             f.write_text(json.dumps({"connectors": [{"type": "dozzle", "name": "d", "url": "http://x"}]}))

@@ -120,7 +120,7 @@ class Sources(unittest.TestCase):
     def test_inventaire_relu_machine_par_machine(self):
         import json
         import tempfile
-        import inventory_cache as ic
+        from msv.core import inventory_cache as ic
         with tempfile.TemporaryDirectory() as d:
             path, reads = str(Path(d) / "docker.json"), []
 
@@ -147,7 +147,7 @@ class Sources(unittest.TestCase):
     def test_lecture_ratee_reste_a_relire(self):
         import json
         import tempfile
-        import inventory_cache as ic
+        from msv.core import inventory_cache as ic
         with tempfile.TemporaryDirectory() as d:
             path = str(Path(d) / "docker.json")
             ic.refresh(path, 7200, lambda only: {"10.0.0.1": ["a"], "_internal": {}, "_hostinfo": {}})

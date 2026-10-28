@@ -11,7 +11,7 @@ import re
 import urllib.error
 import urllib.request
 
-from config import CFG
+from msv.core.config import CFG
 
 USER_AGENT = "myservices"
 TG_MAX = 4096  # longueur maximale d'un message Telegram

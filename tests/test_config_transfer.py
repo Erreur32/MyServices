@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import config_transfer as ct  # noqa: E402
+from msv.core import config_transfer as ct  # noqa: E402
 
 
 def make_key() -> bytes:
@@ -22,7 +22,7 @@ def make_key() -> bytes:
 
 def encrypted(key: bytes, text: str) -> str:
     from cryptography.fernet import Fernet
-    import secrets_store
+    from msv.core import secrets_store
     return secrets_store.PREFIX + Fernet(key).encrypt(text.encode()).decode()
 
 

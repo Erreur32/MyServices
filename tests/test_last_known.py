@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import last_known
+from msv.core import last_known
 
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=timezone.utc)
 

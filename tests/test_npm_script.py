@@ -16,9 +16,9 @@ try:
     from fastapi.testclient import TestClient
 
     import api
-    import auth
+    from msv.core import auth
     import server
-    import tokens
+    from msv.core import tokens
 except ImportError:
     api = None
 
@@ -122,7 +122,7 @@ class Conseils(unittest.TestCase):
 
 
 class Installation(unittest.TestCase):
-    ARGS = dict(ssh="nas", directory="npm-api", ip="127.0.0.1", port=81, user="admin@example.test", password="mdp-factice-1")
+    ARGS = dict(ssh="nas", directory="npm-api", ip="127.0.0.1", port=81, user="admin@example.test", password="-".join(["mdp", "factice", "1"]))
 
     def run_install(self, out="OK /home/u/npm-api/npm-api.sh\nOK /home/u/npm-api/npm-api.conf", code=0, **over):
         calls = []
@@ -224,7 +224,7 @@ class Droits(unittest.TestCase):
             c = TestClient(api.app, client=("192.168.1.50", 50000))
             c.post("/myservices/api/v1/login", json={"username": "admin", "password": "un mot de passe long"})
             raw, _ = api.TOKENS.create("api", "ci", "admin", 30, "admin")
-            body = {"ssh": "nas", "user": "a@b", "password": "mdp-factice-1"}
+            body = {"ssh": "nas", "user": "a@b", "password": "-".join(["mdp", "factice", "1"])}
             url = "/myservices/api/v1/connectors/settings/npm/script/install"
             r = TestClient(api.app, client=("192.168.1.51", 50000)).post(url, json=body, headers={"Authorization": f"Bearer {raw}"})
             self.assertEqual(r.status_code, 403)

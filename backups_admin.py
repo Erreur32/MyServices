@@ -71,7 +71,7 @@ ALREADY_IN_SET = "cet emplacement est déjà dans le jeu"
 
 
 def _path() -> Path:
-    import config
+    from msv.core import config
     return Path(config.CFG["backups_meta"])
 
 
@@ -168,7 +168,7 @@ def current() -> dict:
                      "archived": bool(s.get("archived")), "schedule": s.get("schedule", ""),
                      "retention": s.get("retention", ""), "note": s.get("note", ""), "mode": s.get("mode", "latest"),
                      "locations": [_location_out(i, l, s, hosts) for i, l in enumerate(s.get("locations", []))]})
-    import config
+    from msv.core import config
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
             "patterns": patterns_of(meta), "host_patterns": meta.get("discover_by_host", {}), "default_path": DEFAULT_PATH, "machines": len(_machines()),
             "ssh_machines": [{"ip": ip, "name": m["name"]} for ip, m in sorted(_machines().items(), key=lambda x: x[1]["name"].lower())],
@@ -188,7 +188,7 @@ def _location_out(i: int, loc: dict, s: dict, hosts: dict) -> dict:
 
 def _last_report() -> dict:
     """{set id: set} of the last backups.json (observed rhythm…), empty when not written yet."""
-    import config
+    from msv.core import config
     try:
         got = json.loads((Path(config.CFG["web_dir"]) / "backups.json").read_text(encoding="utf-8"))
     except (OSError, ValueError, KeyError):
@@ -797,8 +797,8 @@ AGENT_TOOLS = ("Veeam Agent", "Sauvegarde Windows Server")   # agents.windows_ba
 
 def _agent_reports() -> dict:
     import agents
-    from auth import db_path
-    from config import CFG
+    from msv.core.auth import db_path
+    from msv.core.config import CFG
     try:
         return agents.Agents(db_path(CFG)).fresh_reports()
     except Exception:  # no agent database (installation without agents): nothing to offer

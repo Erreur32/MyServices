@@ -228,7 +228,7 @@ def redetect(ips: list[str] | None = None) -> dict:
 def _connectors(ip: str, conts: list) -> list[dict]:
     """Services connus parmi les conteneurs (NPM, Beszel, Uptime Kuma…) : réglages proposés, à finir
     dans Réglages → Connecteurs (compte, clé)."""
-    from config import CFG
+    from msv.core.config import CFG
     try:
         have = connectors.instances(CFG)
     except connectors.ConnectorError:
@@ -397,7 +397,7 @@ def patch(ip: str, fields: dict) -> dict:
 def _rewrite_data(change) -> None:
     """Applies `change(data)` to the published data.json (it returns whether it touched anything) and writes the file back atomically.
     Nothing to do before the first collection."""
-    import config
+    from msv.core import config
     p = Path(config.CFG["web_dir"]) / "data.json"
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
@@ -441,8 +441,8 @@ def expire_inventory(ip: str | None = None) -> None:
     """Accès SSH changé : l'inventaire Docker et machines (cache 2 h) est relu à la prochaine collecte, au lieu
     de garder un relevé fait avec l'ancien accès (ex. « SSH refusé » d'avant l'autorisation de la clé). ip : cette machine
     seulement (les autres restent en cache) ; sans ip, tout est relu."""
-    import inventory_cache
-    from config import CFG
+    from msv.core import inventory_cache
+    from msv.core.config import CFG
     inventory_cache.mark_stale(str(Path(CFG["cache_dir"]) / "docker.json"), ip)
 
 
@@ -542,8 +542,8 @@ def _check_agent(ip: str, m: dict, store=None) -> tuple[list[str], int]:
     try:
         if store is None:
             from agents import Agents
-            from auth import db_path
-            from config import CFG
+            from msv.core.auth import db_path
+            from msv.core.config import CFG
             store = Agents(db_path(CFG))
         a = next((x for x in store.listing() if x["ip"] == ip and x["state"] != "révoqué"), None)
     except Exception:  # base absente ou illisible : pas de ligne agent
@@ -573,7 +573,7 @@ def resolve(key: str) -> str:
 def scan_ssh_port(ip: str) -> int | None:
     """Port SSH vu par la dernière recherche réseau pour cette IP (None si inconnu)."""
     try:
-        import config
+        from msv.core import config
         import netscan
         f = Path(config.CFG["state_dir"]) / "network-scan.json"
         found = netscan.state(f).get("found", []) if f.exists() else []
