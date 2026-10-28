@@ -400,7 +400,7 @@ function RowActions({ ip, busy, confirm, setConfirm, setNote, reload, verify, ca
       <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
       {canRemove && <span className="ml-auto flex items-center gap-1.5">
         {confirm ? <>
-          <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Machines › Appareils non suivis pour la faire revenir)"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
+          <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Machines › Appareils non suivis pour la faire revenir)"), setNote).then((ok) => { if (ok) { reload(); location.hash = "machines"; } })}>{tx("Confirmer le retrait")}</button>
           <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
         </> : <button type="button" className={`${danger} px-2`} onClick={() => setConfirm(true)} aria-label={tx("Retirer")}
           title={tx("Retirer : MyServices ne suit plus cette machine et la recherche réseau ne la propose plus (une confirmation est demandée)")}><Trash2 size={15} aria-hidden /></button>}
