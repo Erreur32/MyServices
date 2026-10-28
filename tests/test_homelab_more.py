@@ -419,7 +419,7 @@ class MiniServ(BaseHTTPRequestHandler):
 class Webmin(unittest.TestCase):
     def test_version_from_header(self):
         srv = HTTPServer(("127.0.0.1", 0), MiniServ)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         try:
             c = connectors.TYPES["webmin"]({"type": "webmin", "name": "w", "url": f"http://127.0.0.1:{srv.server_port}"}, Context(timeout=5))
             d = c.collect()
@@ -430,7 +430,7 @@ class Webmin(unittest.TestCase):
 
     def test_not_webmin(self):
         srv = HTTPServer(("127.0.0.1", 0), type("Quiet", (BaseHTTPRequestHandler,), {"log_message": lambda *a: None}))
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         try:
             with self.assertRaises(ConnectorError):
                 connectors.TYPES["webmin"]({"type": "webmin", "name": "w", "url": f"http://127.0.0.1:{srv.server_port}"}, Context(timeout=5)).collect()

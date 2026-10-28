@@ -11,6 +11,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Speed
+- **The image ships compiled Python (`.pyc`).** `/app` is read-only for the app account, so each task process (collection, watcher, health, which runs once a minute per agent report, backups) used to compile all the sources again at every start. Measured start times (import only): health 182 → 75 ms, collection 228 → 88 ms, watcher 72 → 57 ms, for about 1 MB more in the image. The `.dockerignore` also stops host `__pycache__` folders from entering the image.
+- **Hashed front files are cached for a year.** `assets/index-<hash>.js`, `.css`, fonts and images of the compiled front are served with `Cache-Control: public, max-age=31536000, immutable` (a new build has a new name); the page itself, `data.json` and every other file keep `no-cache, must-revalidate`. A file of the data volume is never given the long lifetime.
+- **Tests run in a third of the time** (local run 40 s → 14 s): the test HTTP servers no longer wait half a second to stop. CI: the SonarCloud job caches pip and npm downloads, and the test and release image builds read each other's layer cache.
+
 ### Code layout
 - **`api.py` (3,300 lines) is split.** `msv/api/common.py` holds the app, its guards (allowed networks, session, CSRF, origin), the stores and the helpers shared by the routes; the 179 routes sit in `msv/api/routes/` (v1, services, machines, access, system, backups, history, accounts, alerts, notifications, page), none above 540 lines. `api.py` only includes them, in the order they were declared. The public API is unchanged (same 177 operations, checked against the previous version).
 - **No more import cycles between the modules** (checked on the whole `msv` package, imports inside functions included). The image now starts `python3 -m msv.api.run` (the web server and the background loops start there; `server.py` is only imported, so the old « module started under two names » workaround is gone). The infra map command line is `python3 -m msv.diagram.archify_cli`. The agents' last reports are read by a small standalone module (`msv.machines.agent_reports`) that both the agents and health modules use.

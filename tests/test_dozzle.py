@@ -69,7 +69,7 @@ class DozzleApi(unittest.TestCase):
     def setUp(self):
         FakeDozzle.login = False
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeDozzle)
-        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=self.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         self.url = f"http://127.0.0.1:{self.srv.server_port}"
         self.addCleanup(self.srv.server_close)
         self.addCleanup(self.srv.shutdown)

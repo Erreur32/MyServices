@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import mimetypes
+import re
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
@@ -11,6 +12,12 @@ from msv.api import server as core
 from msv.api.common import deny, find
 
 router = APIRouter()
+
+# Files Vite names after their content (assets/index-BmiUWhOT.js): a new build is a new name, so a browser may keep them for good
+HASHED_ASSET = re.compile(r"^assets/[\w.-]+-[\w-]{8}\.(?:js|css|woff2?|png|jpe?g|svg|webp)$")
+IMMUTABLE = "public, max-age=31536000, immutable"
+REVALIDATE = "no-cache, must-revalidate"
+
 
 def not_found() -> HTMLResponse:
     return HTMLResponse('<!doctype html><meta charset="utf-8"><title>MyServices</title>'
@@ -37,7 +44,8 @@ def files(rel: str, request: Request):
     ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
     if ctype.startswith("text/") or ctype in ("application/json", "application/javascript", "image/svg+xml"):
         ctype += "; charset=utf-8"
-    resp = FileResponse(f, media_type=ctype, headers={"Cache-Control": "no-cache, must-revalidate"})
+    hashed = HASHED_ASSET.match(rel) and f.is_relative_to((core.STATIC / "v2").resolve())   # only the compiled front, never a file of the volume
+    resp = FileResponse(f, media_type=ctype, headers={"Cache-Control": IMMUTABLE if hashed else REVALIDATE})
     resp.set_stat_headers(f.stat())  # l'ETag n'est posé qu'à l'envoi : on le veut avant, pour comparer
     tags = {t.strip().removeprefix("W/") for t in request.headers.get("if-none-match", "").split(",")}
     if resp.headers.get("etag") in tags:  # inchangé depuis la dernière lecture : pas de corps (data.json pèse ~200 Ko)

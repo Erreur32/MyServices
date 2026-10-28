@@ -37,6 +37,9 @@ WORKDIR /app
 COPY --chown=root:root msv/ /app/msv/
 COPY --chown=root:root CHANGELOG.md /app/CHANGELOG.md
 COPY --chown=root:root connectors/ /app/connectors/
+# Compiled once here: /app is read-only for the app account and PYTHONDONTWRITEBYTECODE is set, so every task process (collect, watch,
+# health once a minute per agent report...) would otherwise compile all the sources again at each start
+RUN python3 -m compileall -q -j 0 /app/msv /app/connectors
 COPY --chown=root:root agent/ /app/agent/
 COPY --chown=root:root web/ /app/web/
 COPY --chown=root:root --chmod=755 deploy/entrypoint.sh /app/entrypoint.sh

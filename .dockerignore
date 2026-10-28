@@ -22,3 +22,5 @@ __pycache__
 !front/**
 front/node_modules
 front/dist
+**/__pycache__
+**/*.pyc

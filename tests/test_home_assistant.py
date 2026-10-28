@@ -71,7 +71,7 @@ class HomeAssistantTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeHA)
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=cls.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_port}"
 
     @classmethod
@@ -159,7 +159,7 @@ class AddonIcons(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeHA)
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=cls.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         cls.ha = connectors.TYPES["home-assistant"]({"type": "home-assistant", "name": "maison", "url": f"http://127.0.0.1:{cls.srv.server_port}", "token": TOKEN},
                                                      Context(timeout=5))
 

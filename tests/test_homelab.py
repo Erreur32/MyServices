@@ -60,7 +60,7 @@ class Base(unittest.TestCase):
     def setUpClass(cls):
         cls.srv = HTTPServer(("127.0.0.1", 0), Fake)
         cls.url = f"http://127.0.0.1:{cls.srv.server_port}"
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        threading.Thread(target=cls.srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
 
     @classmethod
     def tearDownClass(cls):
@@ -357,7 +357,7 @@ class Tailscale(Base):
 class NUTTest(unittest.TestCase):
     def test_onduleur_sur_batterie(self):
         srv = socketserver.TCPServer(("127.0.0.1", 0), Nut)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         self.addCleanup(srv.server_close)
         self.addCleanup(srv.shutdown)
         c = connectors.TYPES["nut"]({"type": "nut", "name": "n", "host": "127.0.0.1", "port": srv.server_address[1]}, Context(timeout=3))
