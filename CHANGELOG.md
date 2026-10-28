@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Fixes
+- **A removed machine disappears from the pages at once.** Removing a machine in Settings left it listed until the next collection pass (up to the collection interval); it is now taken out of the published data right away.
 - **Add machine: choosing « Agent » now creates the agent right away.** The last step used to say the command would be given after the add, then showed « Agent: none » and a button to click again; the token and the command now appear at once.
 - **Windows agent: the UPnP (2869) and WSD (5357) ports are ignored.** They are held by the Windows kernel (`System`) and the firewall closes them to other machines, so they were always reported as "unreachable" (TimeoutError) in Services.
 

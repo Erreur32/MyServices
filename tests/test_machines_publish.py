@@ -36,6 +36,17 @@ class Publish(unittest.TestCase):
         machines_admin.publish("10.0.0.2", {"name": "x", "role": "y"})
         self.assertFalse(self.data.exists())
 
+    def test_machine_retiree_disparait_de_la_liste_publiee(self):
+        self.data.write_text(json.dumps({"machine_list": [{"ip": "10.0.0.2", "name": "srv"}, {"ip": "10.0.0.3", "name": "pc"}],
+                                         "machines": {"10.0.0.2": {"name": "srv"}, "10.0.0.3": {"name": "pc"}}}), encoding="utf-8")
+        machines_admin.unpublish("10.0.0.2")
+        got = json.loads(self.data.read_text(encoding="utf-8"))
+        self.assertEqual([m["ip"] for m in got["machine_list"]], ["10.0.0.3"])
+        self.assertEqual(list(got["machines"]), ["10.0.0.3"])
+        machines_admin.unpublish("10.0.0.9")   # unknown: nothing to rewrite
+        machines_admin.unpublish("10.0.0.3")
+        self.assertEqual(json.loads(self.data.read_text(encoding="utf-8"))["machine_list"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

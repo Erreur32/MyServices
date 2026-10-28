@@ -1337,6 +1337,7 @@ def machines_delete(ip: str, request: Request):
     def go(m):
         name = (m._meta().get("machines", {}).get(ip) or {}).get("name") or ""
         m.delete(ip)
+        m.unpublish(ip)   # gone from the pages now, not after the next collection
         # Removed by hand = not wanted: neither proposed by the network search nor added back by the auto mode (Settings -> Discovery
         # lists it, one click brings it back). An IPv6 or a name is not in the network search: nothing to remember.
         try:
