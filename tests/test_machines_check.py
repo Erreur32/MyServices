@@ -316,6 +316,19 @@ class DetectionDesReglages(unittest.TestCase):
         self.assertFalse(d["machine"]["gateway"])
         self.assertEqual(d["detected"], [])
 
+    def test_detect_ne_coche_pas_souvent_eteinte_pour_un_serveur_windows(self):
+        def run(dns):
+            with mock.patch.object(machines_admin, "_resolve", return_value=("10.0.0.9", None)), \
+                    mock.patch.object(machines_admin, "_meta", return_value={"machines": {}}), \
+                    mock.patch.object(machines_admin, "default_gateway", return_value="10.0.0.1"), \
+                    mock.patch.object(machines_admin.setup, "identify", return_value=(dns, ["Windows (WinRM)", "Windows (RDP)"])), \
+                    mock.patch.object(machines_admin.setup, "_open", return_value=False), \
+                    mock.patch.object(machines_admin.subprocess, "run", return_value=mock.Mock(returncode=0)):
+                return machines_admin.detect("10.0.0.9")["machine"]
+        self.assertNotIn("off", run("WIN-L50HGL065P6"))       # Windows Server: must stay on, an outage deserves an alert
+        self.assertTrue(run("DESKTOP-4F2K9QA")["off"])         # a PC is often switched off
+        self.assertTrue(run("gamer32")["off"])
+
 
 class MachineNonSuivie(unittest.TestCase):
     def test_le_drapeau_disabled_est_garde_par_la_page(self):

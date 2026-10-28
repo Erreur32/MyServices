@@ -1212,7 +1212,7 @@ export const EN: Record<string, string> = {
   "Détectés sur cette machine": "Detected on this machine",
   "Non détectés": "Not detected",
   "Grisés : la détection ne les confirme pas (elle relit la machine à chaque collecte).": "Greyed out: detection does not confirm them (it re-reads the machine at every collection).",
-  "PC, portable : pas d'alerte si elle ne répond pas": "PC, laptop: no alert when it does not answer",
+  "Pour un PC ou un portable souvent éteint ou débranché : MyServices n'enverra pas d'alerte quand il ne répond pas. À laisser décoché pour un serveur, qui doit rester allumé.": "For a PC or laptop that is often switched off or unplugged: MyServices will not alert when it does not answer. Leave unticked for a server, which must stay on.",
   "enregistré": "saved",
   "enregistrement…": "saving…",
   "Non détecté sur cette machine : grisé": "Not detected on this machine: greyed out",

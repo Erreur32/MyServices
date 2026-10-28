@@ -34,7 +34,7 @@ import { UnlinkedDevices } from "../components/UnlinkedDevices";
 import { SshConnections } from "./SshConnections";
 
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
-  { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
+  { k: "off", label: tx("Souvent éteinte"), help: tx("Pour un PC ou un portable souvent éteint ou débranché : MyServices n'enverra pas d'alerte quand il ne répond pas. À laisser décoché pour un serveur, qui doit rester allumé.") },
   { k: "gateway", label: tx("Passerelle"), help: tx("box / routeur : sous-titre de la page") },
   { k: "npm_only", label: tx("Joignable seulement par NPM"), help: tx("pare-feu : ses services sont testés via NPM") },
   { k: "vm", label: tx("Machine virtuelle"), help: tx("ajoute l'étiquette « VM » à la machine (se coche seule si détectée). Sur Linux par SSH, SMART et la température du processeur ne sont plus lus : une VM n'en a pas") },

@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Fixes
+- **Add machine: "Often switched off" is no longer ticked for a Windows Server**, whose generated name is `WIN-` + 11 characters (a server must stay on, an outage deserves an alert). The switch now says it plainly: for a PC or laptop often switched off or unplugged, no alert when it does not answer.
 - **Add machine: the Windows logo shows as soon as Windows is detected.** The automatic icon of the identity step used to stay empty until the machine was added.
 - **A virtual Windows machine is recognised by its agent.** The maker and model the agent reads (QEMU, VMware, Hyper-V, VirtualBox, Xen, Parallels) tick "Virtual machine" by themselves, like `systemd-detect-virt` does over SSH. The switch now says it adds the "VM" tag, and it no longer sits in the add-machine wizard: it stays in the machine's settings. The same goes for "Reachable only through NPM", which nothing detects and which only matters once services fail.
 - **Add machine: a Windows PC or server is recognised without a ping.** The WinRM port (5985) is now a Windows hint, and a host name Windows generates itself (`WIN-` + 11 characters, `DESKTOP-…`, `LAPTOP-…`) selects Windows and the agent by default.

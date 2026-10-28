@@ -22,7 +22,7 @@ type Kind = "linux" | "windows";
 type Step = 1 | 2 | 3;
 
 const OPTIONS: { k: keyof MachineConf; label: string; help: string }[] = [
-  { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
+  { k: "off", label: tx("Souvent éteinte"), help: tx("Pour un PC ou un portable souvent éteint ou débranché : MyServices n'enverra pas d'alerte quand il ne répond pas. À laisser décoché pour un serveur, qui doit rester allumé.") },
   { k: "gateway", label: tx("Passerelle"), help: tx("box / routeur : sous-titre de la page") },
 ];
 

@@ -85,6 +85,9 @@ def _resolve(target: str) -> tuple[str, str | None]:
 default_gateway = hostinfo.default_gateway  # la détection de l'ajout et celle de la collecte partagent le même code
 
 
+WINDOWS_SERVER_NAME = re.compile(r"WIN-[A-Z0-9]{11}", re.I)   # the host name Windows Server generates itself
+
+
 def detect(target: str) -> dict:
     """Proposition pour une machine, nouvelle ou déjà déclarée (ses réglages gardés, détection refaite)."""
     ip, alias = _resolve(target)
@@ -128,8 +131,8 @@ def detect(target: str) -> dict:
         with ThreadPoolExecutor(len(setup.WEB_PORTS)) as px:
             web = [{"port": p, "scheme": setup.WEB_PORTS[p][0], "label": setup.WEB_PORTS[p][1]}
                    for p, o in zip(setup.WEB_PORTS, px.map(lambda p: setup._open(ip, p), setup.WEB_PORTS)) if o]
-        if "off" not in m and ("Windows (RDP)" in hints or m.get("os") == "windows"):
-            m["off"] = True  # poste souvent éteint : proposé, modifiable
+        if "off" not in m and ("Windows (RDP)" in hints or m.get("os") == "windows") and not WINDOWS_SERVER_NAME.fullmatch(dns or ""):
+            m["off"] = True  # poste souvent éteint : proposé, modifiable ; jamais pour un serveur Windows, qui doit rester allumé
     return {"ip": ip, "alias": alias, "up": up, "dns": dns, "hints": hints, "known": known is not None,
             "machine": m, "notes": notes, "detected": detected, "connectors": found, "web": web}
 
