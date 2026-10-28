@@ -51,22 +51,24 @@ describe("logo d'un service", () => {
 });
 
 describe("photos par modèle", () => {
-  it("Freebox : Ultra (aussi « v9 »), Revolution (« v6 »), Pop ; un modèle inconnu n'a pas de photo", () => {
+  it("Freebox : Ultra (aussi « v9 »), Revolution (« v6 »), Pop (aussi « v8 ») ; une autre Freebox a le logo Freebox, un modèle absent rien", () => {
     expect(modelIcon("Freebox v9 (r1)")).toMatch(/freebox-ultra\.png$/);
     expect(modelIcon("Freebox Ultra")).toMatch(/freebox-ultra\.png$/);
     expect(modelIcon("Freebox Revolution")).toMatch(/freebox-revolution\.png$/);
     expect(modelIcon("Freebox v6")).toMatch(/freebox-revolution\.png$/);
     expect(modelIcon("Freebox Pop")).toMatch(/freebox-pop\.png$/);
-    expect(modelIcon("Freebox Delta")).toBeNull();
+    expect(modelIcon("Freebox v8 (r1)")).toMatch(/freebox-pop\.png$/);
+    expect(modelIcon("Freebox Delta")).toMatch(/freebox\.svg$/);
+    expect(modelIcon("Freebox v7 (r1)")).toMatch(/freebox\.svg$/);
     expect(modelIcon(undefined)).toBeNull();
   });
-  it("UniFi : les bornes ont leur photo, une console non", () => {
+  it("UniFi : les bornes ont leur photo, une console ou un switch le logo UniFi", () => {
     for (const m of ["U6-Pro", "U7 Pro", "UAP-AC-Lite", "UniFi AP", "nanoHD"]) expect(modelIcon(m), m).toMatch(/unifi-ap\.png$/);
-    expect(modelIcon("UCG-Fiber")).toBeNull();
-    expect(modelIcon("USW-24")).toBeNull();
+    for (const m of ["UCG-Fiber", "UDMA6A8", "UDM-Pro", "USW-24", "USW Flex 2.5G 8 PoE", "USG-3P", "UNVR"]) expect(modelIcon(m), m).toMatch(/unifi\.svg$/);
+    expect(modelIcon("Raspberry Pi")).toBeNull();
   });
   it("chaque photo existe dans public/icons", () => {
-    for (const m of ["Freebox Ultra", "Freebox Revolution", "Freebox Pop", "U6-Pro"]) {
+    for (const m of ["Freebox Ultra", "Freebox Revolution", "Freebox Pop", "Freebox Delta", "U6-Pro", "UDM-Pro"]) {
       const file = modelIcon(m)!.split("/icons/")[1];
       expect(existsSync(join(__dirname, "../../public/icons", file)), file).toBe(true);
     }
