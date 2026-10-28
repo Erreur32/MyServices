@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import threading
 import time
@@ -28,6 +29,15 @@ class IconError(Exception):
 def _dir() -> Path:
     import config
     return Path(config.CFG["state_dir"]) / "icons"
+
+
+def _file(key: str, mime: str | None) -> Path:
+    """Path of an icon file, always inside the icons folder (the key is also checked by KEY_RE)."""
+    base = os.path.realpath(_dir())
+    path = os.path.realpath(os.path.join(base, f"{key}.{EXT.get(mime, 'bin')}"))
+    if not path.startswith(base + os.sep):
+        raise IconError("clé d'icône invalide")
+    return Path(path)
 
 
 def _index() -> dict[str, dict]:
@@ -59,7 +69,7 @@ def add(raw: bytes, name: str | None = None) -> str:
             raise IconError(f"{MAX_ICONS} icônes importées au plus : en supprimer avant d'en ajouter")
         folder = _dir()
         folder.mkdir(parents=True, exist_ok=True)
-        _write(folder / f"{key}.{EXT[mime]}", raw)
+        _write(_file(key, mime), raw)
         idx[key] = {"label": _label(name), "mime": mime, "created": idx.get(key, {}).get("created") or time.time()}
         _write(folder / "index.json", json.dumps(idx, ensure_ascii=False).encode("utf-8"))
     return key
@@ -73,8 +83,8 @@ def get(key: str) -> tuple[bytes, str] | None:
     if not entry or entry.get("mime") not in EXT:
         return None
     try:
-        return (_dir() / f"{key}.{EXT[entry['mime']]}").read_bytes(), entry["mime"]
-    except OSError:
+        return _file(key, entry["mime"]).read_bytes(), entry["mime"]
+    except (OSError, IconError):
         return None
 
 
@@ -90,7 +100,7 @@ def remove(key: str) -> bool:
         entry = idx.pop(key, None) if KEY_RE.fullmatch(key or "") else None
         if entry is None:
             return False
-        (_dir() / f"{key}.{EXT.get(entry.get('mime'), 'bin')}").unlink(missing_ok=True)
+        _file(key, entry.get("mime")).unlink(missing_ok=True)
         _write(_dir() / "index.json", json.dumps(idx, ensure_ascii=False).encode("utf-8"))
     return True
 
