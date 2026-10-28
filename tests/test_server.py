@@ -4,6 +4,7 @@ contrôle d'origine, réponses de l'API ⟳ et de l'API v1, horaires.
   docker compose run --rm --entrypoint python3 myservices -m unittest discover -s tests   (dépendances de l'image)
 """
 import ipaddress
+import os
 import json
 from unittest import mock
 import threading
@@ -28,6 +29,34 @@ try:
 except ImportError:  # hors image (bibliothèque standard seule) : ces tests sont sautés
     api = None
     common = routes_accounts = routes_alerts = routes_machines = routes_services = None
+
+
+class GeneratedStamp(unittest.TestCase):   # server only: runs without FastAPI
+    """status() runs every second while a page is open: data.json is decoded again only when the collector replaced it."""
+
+    def write(self, path, generated):
+        tmp = path.with_name("data.json.tmp")
+        tmp.write_text(json.dumps({"generated": generated}))
+        os.replace(tmp, path)   # like the collector: a new file, a new inode
+
+    def test_decoded_once_until_replaced(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "data.json"
+            self.write(f, "2026-10-10T00:00:00+00:00")
+            self.assertEqual(server.generated_of(f), "2026-10-10T00:00:00+00:00")
+            with mock.patch.object(server.json, "loads", side_effect=AssertionError("decoded again")):
+                self.assertEqual(server.generated_of(f), "2026-10-10T00:00:00+00:00")   # unchanged file: no decoding
+            self.write(f, "2026-10-10T00:15:00+00:00")                                # same size, new file
+            self.assertEqual(server.generated_of(f), "2026-10-10T00:15:00+00:00")
+
+    def test_missing_or_broken_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "data.json"
+            self.assertIsNone(server.generated_of(f))
+            f.write_text("{pas du json")
+            self.assertIsNone(server.generated_of(f))
+            self.write(f, "x")
+            self.assertEqual(server.generated_of(f), "x")
 
 
 class ArchifyWhy(unittest.TestCase):   # server only: runs without FastAPI
