@@ -19,6 +19,8 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from msv.machines.agent_reports import DEFAULT_INTERVAL, FRESH_MULT, fresh_reports
+
 VERSION = "9"                # Windows agent (agent.ps1)
 LINUX_VERSION = "4"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
@@ -32,9 +34,7 @@ MAX_UNZIPPED = 2 * 1024 * 1024   # octets : un relevé gzip une fois décompress
 # Windows report blocks the agent reads only every 6 h (hardware, physical disks, running services): absent from a report, they are kept
 # from the previous one, so the machine does not lose them between two full reads
 SLOW_KEYS = ("hw", "pd", "sv")
-DEFAULT_INTERVAL = 900    # s : 15 min
 MIN_INTERVAL, MAX_INTERVAL = 60, 86400
-FRESH_MULT = 2.5          # un relevé plus vieux que 2,5 × l'intervalle est périmé
 MAX_LINUX_CMDS, MAX_LINUX_OUT, MAX_LINUX_CMD = 60, 60_000, 4000   # a Linux report: commands per report, characters per output and per command
 MIN_GAP = 60              # s: an agent sends at most one report per minute (the rest gets 429)
 LEGACY_HOST = "[Environment]::MachineName"   # what agents up to version 7 sent instead of the real name (script bug): means "unknown"
@@ -226,13 +226,7 @@ class Agents:
 
     def fresh_reports(self) -> dict[str, dict]:
         """{IP: {"report": relevé, "seen": date, "fresh": bool}} pour les agents actifs ayant déjà envoyé un relevé."""
-        out, now = {}, time.time()
-        with self._db() as db:
-            rows = db.execute("SELECT * FROM agents WHERE revoked IS NULL ORDER BY created").fetchall()
-        for r in rows:
-            out[r["ip"]] = {"report": json.loads(r["report"]) if r["report"] else None, "seen": r["last_seen"],
-                            "fresh": bool(r["last_seen"] and now - r["last_seen"] <= FRESH_MULT * (r["interval"] or DEFAULT_INTERVAL))}
-        return out
+        return fresh_reports(self.path)
 
 
 # Ports Windows sans intérêt dans l'annuaire : RPC dynamique (49152 et au-delà), RPC/DCOM (135), NetBIOS (139), diffusion de l'appli Connected Devices (5040),

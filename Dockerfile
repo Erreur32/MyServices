@@ -1,4 +1,4 @@
-# MyServices : collecteur, veille, santé, sauvegardes et page, en un conteneur (msv/api/server.py).
+# MyServices : collecteur, veille, santé, sauvegardes et page, en un conteneur (msv/api/run.py).
 # Outils système : ssh, ping, ip ; Node pour Archify.
 
 # Nouveau front (front/, React + Vite) : tests, contrôle des types, puis compilation ; seul dist/ passe dans l'image
@@ -72,4 +72,4 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
 # tini en PID 1 : récupère les processus orphelins (ssh lancés par les tâches), sinon ils restent zombies sous server.py jusqu'à
 # remplir la limite de processus du conteneur (« can't start new thread »)
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
-CMD ["python3", "-m", "msv.api.server"]
+CMD ["python3", "-m", "msv.api.run"]

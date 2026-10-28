@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Code layout
+- **No more import cycles between the modules** (checked on the whole `msv` package, imports inside functions included). The image now starts `python3 -m msv.api.run` (the web server and the background loops start there; `server.py` is only imported, so the old « module started under two names » workaround is gone). The infra map command line is `python3 -m msv.diagram.archify_cli`. The agents' last reports are read by a small standalone module (`msv.machines.agent_reports`) that both the agents and health modules use.
+
 ## v0.28.0 (2026-10-28)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

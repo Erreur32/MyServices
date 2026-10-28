@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from msv.diagram import archify_map  # noqa: E402
+from msv.diagram import archify_cli, archify_map  # noqa: E402
 
 DATA = {
     "generated": "2026-10-10T01:00:00+00:00",
@@ -101,12 +101,12 @@ class Backups(unittest.TestCase):
             (web / "health").mkdir(parents=True)
             out.mkdir()
             (web / "data.json").write_text(json.dumps(DATA))
-            sys.argv = ["archify_map.py", str(web), str(out)]
-            archify_map.main()
+            sys.argv = ["archify_cli.py", str(web), str(out)]
+            archify_cli.main()
             self.assertEqual(sorted(f.name for f in out.iterdir()), ["acces.archify.json", "carte.archify.json"])  # sans backups.json ni alertes
             (web / "backups.json").write_text(json.dumps(BACKUPS))
             (out / "alerts-summary.json").write_text(json.dumps({"channels": [{"type": "discord", "name": "D", "enabled": True}], "rules": 1, "reports": 0, "live": 1}))
-            archify_map.main()
+            archify_cli.main()
             self.assertEqual(sorted(f.name for f in out.iterdir()),  ["acces.archify.json", "alertes.archify.json", "alerts-summary.json", "carte.archify.json", "sauvegardes.archify.json"])
 
     def test_schema_inchange_pas_regenere(self):
@@ -117,12 +117,12 @@ class Backups(unittest.TestCase):
             (web / "health").mkdir(parents=True)
             out.mkdir()
             (web / "data.json").write_text(json.dumps(DATA))
-            sys.argv = ["archify_map.py", str(web), str(out)]
+            sys.argv = ["archify_cli.py", str(web), str(out)]
 
             def run():
                 buf = io.StringIO()
                 with contextlib.redirect_stdout(buf):
-                    archify_map.main()
+                    archify_cli.main()
                 return buf.getvalue().split()
             self.assertEqual(len(run()), 2)                          # premier passage : tout est à produire
             for n in ("carte", "acces"):
