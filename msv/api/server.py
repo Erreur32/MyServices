@@ -770,6 +770,28 @@ def first_runs() -> None:
                 time.sleep(2)
 
 
+_GENERATED: tuple = (None, None)   # ((path, mtime_ns, size, inode), generated) of the last data.json read
+
+
+def generated_of(path: Path) -> str | None:
+    """The « generated » stamp of data.json. The event stream asks every second while a page is open, and the file (~160 KB) only
+    changes at a collection: it is decoded again only when it was replaced (the collector writes a new file, so the inode changes)."""
+    global _GENERATED
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    key = (str(path), st.st_mtime_ns, st.st_size, st.st_ino)
+    if _GENERATED[0] == key:
+        return _GENERATED[1]
+    try:
+        generated = json.loads(path.read_text()).get("generated")
+    except (OSError, ValueError):
+        generated = None
+    _GENERATED = (key, generated)
+    return generated
+
+
 def status() -> dict:
     """État du collecteur, lu par la barre de progression du front (GET /api/v1/status)."""
     t, now = TASKS["collect"], time.time()
@@ -784,10 +806,7 @@ def status() -> dict:
                 prog = None  # fichier du passage précédent
         except (OSError, ValueError):
             pass
-    try:
-        generated = json.loads((WEB / "data.json").read_text()).get("generated")
-    except (OSError, ValueError):
-        generated = None
+    generated = generated_of(WEB / "data.json")
     ts = (lambda x: int(x) if x else None)
     return {"running": running, "progress": prog, "started": ts(t["start"]), "ended": ts(t["end"]),
             "result": t["result"], "generated": generated, "cooldown": COOLDOWN, "wait": wait, "now": int(now),
