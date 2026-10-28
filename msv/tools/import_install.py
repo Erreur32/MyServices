@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Import d'une installation classique (systemd) vers le volume /config de la version Docker.
 
-  sudo python3 import_install.py --to ./dev-data/config [--from /opt/myservices] [options]
+  sudo python3 -m msv.tools.import_install --to ./dev-data/config [--from /opt/myservices] [options]
 
 Repris : config.json, services-meta.json, backups-meta.json, alias SSH et clés qu'ils utilisent,
 known_hosts, fichiers de secrets (Veeam, Home Assistant). Pas l'historique (la v2 repart à zéro).
@@ -219,7 +219,7 @@ def main() -> int:
     lock_down(dest, a.uid)
     print(f"\nFait. La machine hôte est lue par l'alias « {HOST_ALIAS} » ({a.host_user}@{host}). Au premier démarrage, le\n"
           "conteneur crée sa clé (/config/ssh/myservices) et affiche dans son journal la commande qui l'autorise sur\n"
-          "l'hôte ; ensuite : docker compose exec myservices python3 setup.py --check")
+          "l'hôte ; ensuite : docker compose exec myservices python3 -m msv.machines.setup --check")
     return 0
 
 

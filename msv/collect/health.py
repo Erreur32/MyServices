@@ -22,7 +22,7 @@ Système (noyau), mises à jour en attente (maj), échecs de connexion 4625 (SSH
 Get-PhysicalDisk (SMART), redémarrage en attente.
 
 Alerte Discord (health_webhook, sinon discord_webhook) : envoyée seulement si le résumé change.
-Usage : python3 health.py [--dry-run]
+Usage : python3 -m msv.collect.health [--dry-run]
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ from msv.alerts import notify
 from msv.core.config import CFG, next_timer_run
 from msv.core import inventory_cache
 from msv.core.docker_state import allowed_names, intended_stop
-import readers
+from msv.collect import readers
 from msv.remote.sshmux import SSH_MUX
 
 STATE_FILE = Path(CFG["state_dir"]) / "health.json"
@@ -1417,7 +1417,7 @@ def api_systems(meta: dict, cached_only: bool = False) -> dict:
     (the pass of one machine after an agent report)."""
     import connectors
     import connectors.base as cbase
-    from api_link import host_ip
+    from msv.api.api_link import host_ip
     try:
         conns = sorted((c for c in connectors.instances(CFG, kind="status") if c.type in ("glances", "netdata", "home-assistant")), key=lambda c: c.type == "home-assistant")
     except connectors.ConnectorError:

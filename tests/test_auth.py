@@ -13,9 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from fastapi.testclient import TestClient
 
-    import api
+    from msv.api import api
     from msv.core import auth
-    import server
+    from msv.api import server
 except ImportError:
     api = None
 

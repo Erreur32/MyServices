@@ -14,10 +14,10 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.machines import agents
-    import api
+    from msv.api import api
     from msv.core import auth
-    import health
-    import server
+    from msv.collect import health
+    from msv.api import server
     from msv.core import tokens
 except ImportError:
     api = None

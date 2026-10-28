@@ -15,7 +15,7 @@ from pathlib import Path
 
 import connectors
 import connectors.base as cbase
-import fast
+from msv.collect import fast
 
 KINDS = ("services", "status", "network", "security", "containers", "logs", "virtualization", "health", "backups", "dns", "inventory")
 SKIP_TYPES = {"npm", "docker", "process"}   # read by the collection itself

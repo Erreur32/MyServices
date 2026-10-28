@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import health  # noqa: E402
+from msv.collect import health  # noqa: E402
 
 NOW = 1792678313   # 2026-10-22 14:11:53 UTC
 

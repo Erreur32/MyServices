@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import health  # noqa: E402
+from msv.collect import health  # noqa: E402
 
 NVIDIA = "NVIDIA GeForce RTX 3060, 12, 45, 1024, 12288, 30.50\nNVIDIA T400, [N/A], 38, 100, 4096, [N/A]\n"
 ROCM = json.dumps({"card0": {"Card Series": "Radeon RX 6600", "GPU use (%)": "7", "Temperature (Sensor edge) (C)": "41.0",

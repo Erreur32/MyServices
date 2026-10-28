@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import health  # noqa: E402
+from msv.collect import health  # noqa: E402
 
 BANNER = "/root/.bashrc: ligne 77 : bind: avertissement\n        _,met$$$$$gg.\n   ,g$$P\"\"\n\x1b[16A\x1b[31Croot@Jarvis\n"
 

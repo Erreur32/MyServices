@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import health  # noqa: E402
-import hostinfo  # noqa: E402
+from msv.collect import health  # noqa: E402
+from msv.collect import hostinfo  # noqa: E402
 
 
 class Ssh(unittest.TestCase):

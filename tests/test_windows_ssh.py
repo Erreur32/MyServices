@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import health  # noqa: E402
+from msv.collect import health  # noqa: E402
 
 HOST = {"id": "pc", "name": "PC", "mode": "ssh", "target": "pc", "os": "windows"}
 ANSWER = {"disks": [{"m": "C:", "s": 500e9, "f": 250e9}], "svc": [], "cpu": 5, "ncpu": 8, "mem": 30, "boot": "2026-10-20T08:00:00Z",

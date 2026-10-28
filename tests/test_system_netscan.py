@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import system  # noqa: E402
+from msv.collect import system  # noqa: E402
 
 
 class NetscanEvery(unittest.TestCase):

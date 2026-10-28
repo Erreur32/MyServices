@@ -364,7 +364,7 @@ class AgentBackups(Base):
         fake = mock.MagicMock()
         fake.return_value.fresh_reports.return_value = {"192.168.1.40": {"report": self.REPORT, "seen": 1, "fresh": True}}
         import types
-        no_auth = mock.patch.dict(sys.modules, {"msv.core.auth": types.SimpleNamespace(db_path=lambda cfg: "/nulle/part")})   # argon2 absent outside the image
+        no_auth = mock.patch("msv.core.auth", types.SimpleNamespace(db_path=lambda cfg: "/nulle/part"))   # argon2 absent outside the image
         no_auth.start()
         self.addCleanup(no_auth.stop)
         with mock.patch("msv.machines.agents.Agents", fake):

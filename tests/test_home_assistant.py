@@ -176,7 +176,7 @@ class AddonIcons(unittest.TestCase):
 
     def test_api_route_caches_and_refuses(self):
         try:
-            import api
+            from msv.api import api
         except ImportError:
             self.skipTest("FastAPI absent : tests à lancer dans l'image")
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(api.core.CFG, {"cache_dir": tmp}), \

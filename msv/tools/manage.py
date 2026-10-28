@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Comptes de la page MyServices (version Docker), en ligne de commande.
 
-  docker compose exec myservices python3 manage.py users                      liste
-  docker compose exec myservices python3 manage.py add <nom> [admin|viewer]   crée (mot de passe demandé)
-  docker compose exec myservices python3 manage.py password <nom>             change le mot de passe
-  docker compose exec myservices python3 manage.py delete <nom>               supprime
-  docker compose exec myservices python3 manage.py audit [N]                  N dernières actions
-  docker compose exec myservices python3 manage.py encrypt-secrets            chiffre les secrets de config.json
+  docker compose exec myservices python3 -m msv.tools.manage users                      liste
+  docker compose exec myservices python3 -m msv.tools.manage add <nom> [admin|viewer]   crée (mot de passe demandé)
+  docker compose exec myservices python3 -m msv.tools.manage password <nom>             change le mot de passe
+  docker compose exec myservices python3 -m msv.tools.manage delete <nom>               supprime
+  docker compose exec myservices python3 -m msv.tools.manage audit [N]                  N dernières actions
+  docker compose exec myservices python3 -m msv.tools.manage encrypt-secrets            chiffre les secrets de config.json
 
 Le premier compte se crée ici (jamais depuis la page : personne d'autre sur le réseau ne peut le prendre).
 Mot de passe : demandé deux fois sans écho, ou lu sur l'entrée standard (--stdin), jamais en argument.

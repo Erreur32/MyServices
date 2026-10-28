@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
-    import hostinfo
+    from msv.collect import hostinfo
 except ImportError:
     hostinfo = None
 

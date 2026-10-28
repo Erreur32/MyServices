@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Assistant de configuration MyServices : écrit config.json et services-meta.json, puis teste.
 
-  python3 setup.py           questions (valeurs actuelles proposées par défaut), relançable sans risque :
+  python3 -m msv.machines.setup           questions (valeurs actuelles proposées par défaut), relançable sans risque :
                              un services-meta.json existant est complété, jamais écrasé
-  python3 setup.py --add [IP|alias]
+  python3 -m msv.machines.setup --add [IP|alias]
                              une seule machine, nouvelle ou déjà déclarée (détection reprise) : ping, ports,
                              SSH Linux ou Windows, docker, AdGuard, VM, souvent éteinte, services web, services
                              connus (NPM…) proposés comme connecteurs ; ne touche pas aux autres machines ;
                              config.json seulement pour un connecteur accepté ; puis vérifie cette machine
-  python3 setup.py --lan     affiche le réseau local (CIDR), utilisé par install.sh
-  python3 setup.py --check   tests seuls, sans question : chaque instance NPM (facultatif), SSH + docker
+  python3 -m msv.machines.setup --lan     affiche le réseau local (CIDR), utilisé par install.sh
+  python3 -m msv.machines.setup --check   tests seuls, sans question : chaque instance NPM (facultatif), SSH + docker
                              par machine, AdGuard, droits de health.py, dossier web ; code de sortie 1
                              si un test échoue (droits facultatifs manquants = simple avertissement)
 
@@ -45,7 +45,7 @@ app_user.drop_root()   # docker compose exec : root -> compte 10001 (clés SSH, 
 
 import connectors
 import connectors.base as cbase
-import hostinfo
+from msv.collect import hostinfo
 from msv.alerts import notify
 from msv.remote import npmapi
 from msv.core.config import CFG, DEFAULTS, HERE
@@ -58,7 +58,7 @@ EXAMPLE_BACKUPS = HERE / "backups-meta.example.json"
 FAILED: list[str] = []
 # Version Docker (image : MYSERVICES_DOCKER=1) : commandes et chemins vus de l'hôte, page dans l'image
 DOCKER = os.environ.get("MYSERVICES_DOCKER") == "1"
-SETUP = "docker compose exec myservices python3 setup.py" if DOCKER else "sudo python3 setup.py"
+SETUP = "docker compose exec myservices python3 -m msv.machines.setup" if DOCKER else "sudo python3 -m msv.machines.setup"
 SSH_CONF = "/config/ssh/config" if DOCKER else "/root/.ssh/config"
 
 
@@ -351,7 +351,7 @@ def ssh_os(alias: str) -> tuple[str | None, subprocess.CompletedProcess | None]:
     if r is not None and r.returncode == 0:
         return "linux", r
     if r is not None and "permission denied" not in r.stderr.lower():
-        import health
+        from msv.collect import health
         w = run(alias, health.ps_command("$PSVersionTable.PSVersion.Major"), timeout=30)
         if w is not None and w.returncode == 0 and w.stdout.strip().isdigit():
             return "windows", w
@@ -845,7 +845,7 @@ def setup_backups(val: dict, machines: dict) -> None:
                            "locations": [{"host": "veeam", "veeam_job": job, "via": "Veeam"}]})
     save(path, bm)
     val["backups_url"] = "backups.json"
-    print("Test : sudo python3 backups.py (écrit web/backups.json), puis sudo ./install.sh pour le timer (07:05, 19:05).")
+    print("Test : python3 -m msv.backups.backups (écrit web/backups.json) ; la veille tourne ensuite toute seule dans le conteneur.")
 
 
 # ---------------------------------------------------------------------------
@@ -854,7 +854,7 @@ def setup_backups(val: dict, machines: dict) -> None:
 
 def check_windows(alias, label: str) -> None:
     """Machine Windows : OpenSSH Server joignable par l'alias « health », PowerShell qui répond."""
-    import health
+    from msv.collect import health
     if not isinstance(alias, str):
         warn(f"{label} : \"os\": \"windows\" sans alias : \"health\": \"<alias SSH>\" (README, santé Windows)")
         return
@@ -986,7 +986,7 @@ def check() -> int:
         bad(f"Python {sys.version.split()[0]} : 3.9 minimum")
     for f in (CONFIG, META):
         if not f.exists():
-            bad(f"{f} absent : python3 setup.py")
+            bad(f"{f} absent : python3 -m msv.machines.setup")
     if FAILED:
         return 1
     conns = []

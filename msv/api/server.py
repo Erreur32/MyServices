@@ -6,7 +6,7 @@ Remplace les unités systemd de l'installation classique :
   myservices-refresh-api + myservices-refresh.path  -> POST /api/v1/refresh (api.py)
   nginx / Apache                                    -> page servie ici (aucune config web à écrire)
 
-Les scripts (myservices.py, watcher.py, health.py, backups.py) tournent inchangés, chacun dans son
+Les tâches (msv.collect.myservices, watcher, health, backups) tournent inchangées, chacun dans son
 processus, un seul passage à la fois par tâche, avec un délai maximal.
 
 Page: / (the old /myservices/ addresses are still understood) ; fichiers produits (data.json, events.json, health/, backups.json) lus dans
@@ -27,17 +27,17 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Started as a script, this module is « __main__ »: api.py then does `import server` and would get a second copy, with its own
+# Started with `python3 -m msv.api.server`, this module is « __main__ »: api.py then does `from msv.api import server` and would get a second copy, with its own
 # TASKS and lock, which the scheduler never touches (the tasks page saw no run and no scheduler). One module under both names.
 if __name__ == "__main__":
-    sys.modules.setdefault("server", sys.modules[__name__])
+    sys.modules.setdefault("msv.api.server", sys.modules[__name__])
 
-import fast
-import netscan
-import pulse
+from msv.collect import fast
+from msv.collect import netscan
+from msv.collect import pulse
 from msv.core.config import CFG
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[2]   # the project folder (msv/api/server.py -> ../..)
 STATIC = HERE / "web"
 WEB = Path(CFG["web_dir"])
 BACKUPS_FILE = "backups.json"
@@ -63,10 +63,10 @@ def parse_at(spec: str) -> tuple[set[int], set[int] | None]:
     return mins, hrs
 
 
-# Tâche -> (script, horaire par défaut, délai max en s). Mêmes horaires que install.sh. Priorité :
+# Tâche -> (module lancé par `python3 -m`, horaire par défaut, délai max en s). Priorité :
 # MYSERVICES_<TÂCHE>_AT (fixe, non modifiable dans la page) > « schedule » de config.json (Réglages → Système) > défaut.
-DEFAULTS_AT = {"collect": ("myservices.py", "0,15,30,45 *", 900), "watch": ("watcher.py", "5,20,35,50 *", 300),
-               "health": ("health.py", "0 0,2,4,6,8,10,12,14,16,18,20,22", 600), "backups": ("backups.py", "5 1,7,13,19", 900)}
+DEFAULTS_AT = {"collect": ("msv.collect.myservices", "0,15,30,45 *", 900), "watch": ("msv.collect.watcher", "5,20,35,50 *", 300),
+               "health": ("msv.collect.health", "0 0,2,4,6,8,10,12,14,16,18,20,22", 600), "backups": ("msv.backups.backups", "5 1,7,13,19", 900)}
 TASKS = {}
 for name, (script, at, timeout) in DEFAULTS_AT.items():
     env = os.environ.get(f"MYSERVICES_{name.upper()}_AT")
@@ -125,7 +125,7 @@ def run_task(name: str, why: str, args: tuple = ()) -> bool:
         env = dict(os.environ, MYSERVICES_PROGRESS=PROGRESS, PYTHONDONTWRITEBYTECODE="1")
         if name in ("watch", "health") and alerts_on():
             env["MYSERVICES_ALERTS_ENGINE"] = "1"  # Réglages → Alertes envoie : le script se tait (pas de doublon)
-        t["proc"] = subprocess.Popen([sys.executable, str(HERE / t["script"]), *args], cwd=HERE, env=env,
+        t["proc"] = subprocess.Popen([sys.executable, "-m", t["script"], *args], cwd=HERE, env=env,
                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         t["start"], t["end"], t["result"] = time.time(), None, None
     log(f"{name} : démarré ({why})")
@@ -224,7 +224,7 @@ def auto_backup_default() -> None:
         return
     try:
         from msv.backups import backups_admin
-        import system
+        from msv.collect import system
         added = backups_admin.auto_default(Path(CFG["state_dir"]) / "backups-auto.json")
         for a in added:
             log(f"sauvegardes : {a['path']} trouvé sur {a['name']}, suivi automatiquement (Réglages → Sauvegardes pour le retirer)")
@@ -293,8 +293,8 @@ TILES_LIVE_EVERY = 60   # s, between two rounds of the tiles read every minute (
 def tiles_live_round() -> None:
     """One round of the tiles read every minute: the DNS servers (a real query to each, dns_probe.py) and the GPU readings the readers hold (no call
     of its own). Each is kept on its own."""
-    import dns_probe
-    import tile_history
+    from msv.collect import dns_probe
+    from msv.collect import tile_history
     from msv.core.auth import db_path
     db = db_path(CFG)
     for name, step in {"cadres DNS": lambda: dns_probe.sample(db, local_dns_servers()),
@@ -314,8 +314,8 @@ def tiles_live_loop() -> None:
 
 def bandwidth_loop() -> None:
     """The rate of the Internet link, for the Download and Upload tiles of the Network page (bandwidth.py)."""
-    import bandwidth
-    import unifi_cards
+    from msv.collect import bandwidth
+    from msv.collect import unifi_cards
     from msv.core.auth import db_path
     while True:
         t0 = time.time()
@@ -330,7 +330,7 @@ def bandwidth_loop() -> None:
 def fast_loop() -> None:
     """One reader per connector (readers.py): every few seconds the connectors that are due are read, their readings go to the shared
     state, and live.json is derived from it for the page. `fast_every` (Settings → System) is the default period, 0 = off."""
-    import readers
+    from msv.collect import readers
     last: dict = {}
     while True:
         t0 = time.time()
@@ -355,8 +355,8 @@ def keep_availability() -> None:
     """Availability of each service, machine and Kuma monitor after a collection (Historique → Disponibilité), and the figures of the tiles with a
     history (Network, Backups, Services, Agents, AI, Virtualization, DNS). Each one is kept on its own: one that fails leaves the others alone."""
     from msv.machines import agents
-    import availability
-    import tile_history
+    from msv.collect import availability
+    from msv.collect import tile_history
     from msv.core.auth import db_path
     db = db_path(CFG)
     steps = {
@@ -381,7 +381,7 @@ def keep_availability() -> None:
 def keep_metrics() -> None:
     """The figures of each machine after a health pass (24 h, the small curves of the machine page) and the health count of the Machines tiles (7 days)."""
     from msv.core import metrics
-    import tile_history
+    from msv.collect import tile_history
     from msv.core.auth import db_path
     try:
         metrics.sample(db_path(CFG), WEB / "health" / "stats.json")
@@ -518,8 +518,8 @@ def _build_map() -> None:
         for suffix in (".html", ".delivery.json"):
             (WEB / f"{stale}{suffix}").unlink(missing_ok=True)
     try:
-        specs = subprocess.run([sys.executable, str(HERE / "archify_map.py"), str(WEB), CFG["state_dir"], ",".join(wanted)],
-                               check=True, capture_output=True, text=True, timeout=60).stdout.split()
+        specs = subprocess.run([sys.executable, "-m", "msv.diagram.archify_map", str(WEB), CFG["state_dir"], ",".join(wanted)],
+                               check=True, capture_output=True, text=True, timeout=60, cwd=HERE).stdout.split()
     except (OSError, subprocess.SubprocessError) as e:
         log(f"⚠ carte : {e}")
         return
@@ -815,7 +815,7 @@ def main() -> int:
     if not Path(CFG["meta"]).exists():
         log(f"⚠ {CFG['meta']} absent : rien ne sera collecté avant la configuration. Importer une installation "
             "(import_install.py), ajouter une machine dans la page (Réglages → Machines), ou lancer : "
-            "docker compose exec myservices python3 setup.py")
+            "docker compose exec myservices python3 -m msv.machines.setup")
     for name in ("watch", "health"):  # reprise de ce que events.json contient déjà (sans doublon)
         keep_history(name)
     threading.Thread(target=scheduler, daemon=True).start()
@@ -826,8 +826,8 @@ def main() -> int:
     threading.Thread(target=first_runs, daemon=True).start()
     import uvicorn
 
-    import api
-    from api import app
+    from msv.api import api
+    from msv.api.api import app
     from msv.core import live_events
     threading.Thread(target=live_events.watch, args=(api.stream_sources(),), daemon=True, name="events").start()   # page event stream
     if api.AUTH and not api.store().has_users():

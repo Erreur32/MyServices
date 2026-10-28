@@ -11,7 +11,7 @@ from msv.machines import machines_admin  # noqa: E402
 from msv.machines import setup  # noqa: E402
 
 try:
-    import server
+    from msv.api import server
 except ImportError:  # server.py needs the API dependencies
     server = None
 

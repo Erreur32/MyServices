@@ -10,7 +10,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import tile_history as th
+from msv.collect import tile_history as th
 
 QUERY_NAME = "cloudflare.com"   # a name no blocklist holds back: an answer, even a refusal, proves the server is alive
 TIMEOUT = 2.0

@@ -5,7 +5,7 @@ import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import fast  # noqa: E402
+from msv.collect import fast  # noqa: E402
 
 
 class Missing(unittest.TestCase):
@@ -27,7 +27,7 @@ class Missing(unittest.TestCase):
 
 
 try:
-    import api
+    from msv.api import api
 except ModuleNotFoundError:   # FastAPI absent outside the image
     api = None
 

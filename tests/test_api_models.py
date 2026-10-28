@@ -15,9 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from fastapi.testclient import TestClient
 
-    import api
+    from msv.api import api
     from msv.core import auth
-    import server
+    from msv.api import server
     from msv.core import tokens
 except ImportError:
     api = None
@@ -169,7 +169,7 @@ class ApiModels(unittest.TestCase):
 class Validation(unittest.TestCase):
     def test_erreur_422_ne_renvoie_pas_la_valeur_envoyee(self):
         from msv.core import auth
-        import server
+        from msv.api import server
         from fastapi.testclient import TestClient
         with tempfile.TemporaryDirectory() as d:
             server.STATIC = server.WEB = Path(d)

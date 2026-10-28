@@ -14,12 +14,12 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import server  # noqa: E402
+from msv.api import server  # noqa: E402
 
 try:
     from fastapi.testclient import TestClient
 
-    import api
+    from msv.api import api
 except ImportError:  # hors image (bibliothèque standard seule) : ces tests sont sautés
     api = None
 
@@ -113,7 +113,7 @@ class Http(unittest.TestCase):
         with mock.patch.object(api.core, "ARCHIFY", __file__), mock.patch.object(api.core, "build_map", built.set), \
                 mock.patch.object(api, "admin_write", lambda request: None), mock.patch.object(api, "store", lambda: mock.Mock()), \
                 mock.patch.object(api, "ip_of", lambda request: "127.0.0.1"), \
-                mock.patch("system.set_diagram_extra", lambda core, key, on: asked.append((key, on))):
+                mock.patch("msv.collect.system.set_diagram_extra", lambda core, key, on: asked.append((key, on))):
             r = api.diagram_set("domaines", api.DiagramAsk(enabled=True), user)
             self.assertEqual(r, {"ok": True})
             self.assertTrue(built.wait(5), "the build was not started")
@@ -239,9 +239,9 @@ class UpdateCheck(unittest.TestCase):
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
 class ConnectorChangeApplied(unittest.TestCase):
     def test_configuration_read_again_and_caches_dropped(self):
-        import system
-        import unifi_cards as uc
-        import network_stats
+        from msv.collect import system
+        from msv.collect import unifi_cards as uc
+        from msv.collect import network_stats
         req = mock.Mock()
         req.state.user = {"username": "admin", "role": "admin"}
         with mock.patch.object(api, "admin_write", return_value=None), mock.patch.object(api, "store"), mock.patch.object(api, "ip_of", return_value="10.0.0.9"), \
@@ -283,7 +283,7 @@ class UpdateSettingsRoute(unittest.TestCase):
         req = mock.Mock()
         req.state.user = {"username": "admin", "role": "admin"}
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(api, "admin_write", return_value=None), mock.patch.object(api, "store"), \
-                mock.patch.object(api, "ip_of", return_value="10.0.0.9"), mock.patch("system.set_update_settings", return_value={"auto": True}) as setter, \
+                mock.patch.object(api, "ip_of", return_value="10.0.0.9"), mock.patch("msv.collect.system.set_update_settings", return_value={"auto": True}) as setter, \
                 mock.patch.dict(api.core.CFG, {"state_dir": tmp, "update_check": True}), mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.11.9"}):
             self.assertEqual(api.about_settings(api.UpdateSettings(auto=True), req), {"auto": True})
             setter.assert_called_once_with(api.core, auto=True)
@@ -324,8 +324,8 @@ class RemoveMachine(unittest.TestCase):
         m._meta.return_value = {"machines": {"10.0.0.9": {"name": "nas"}}}
         user = mock.Mock(state=mock.Mock(user={"username": "admin"}))
         with mock.patch.object(api, "admin_write", lambda request: None), mock.patch.object(api, "store", lambda: mock.Mock()), \
-                mock.patch.object(api, "ip_of", lambda request: "127.0.0.1"), mock.patch.dict(sys.modules, {"machines_admin": m}), \
-                mock.patch("system.set_netscan_ignored", lambda core, ip, name, on: seen.append((ip, name, on))):
+                mock.patch.object(api, "ip_of", lambda request: "127.0.0.1"), mock.patch("msv.machines.machines_admin", m), \
+                mock.patch("msv.collect.system.set_netscan_ignored", lambda core, ip, name, on: seen.append((ip, name, on))):
             self.assertEqual(api.machines_delete("10.0.0.9", user), {"ok": True, "ignored": True})
         m.delete.assert_called_once_with("10.0.0.9")
         self.assertEqual(seen, [("10.0.0.9", "nas", True)])

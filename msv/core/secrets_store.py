@@ -4,7 +4,7 @@ Une valeur chiffrée s'écrit « enc:v1:<jeton Fernet> » (AES-128-CBC + HMAC-SH
 cryptography). La clé est dans un fichier à part (/config/secret.key, 600, créée une fois) : un
 config.json copié, partagé ou sauvegardé seul ne révèle aucun secret. config.load() déchiffre au vol ;
 sans valeur chiffrée, rien ne change (et cryptography n'est même pas chargée).
-  docker compose exec myservices python3 manage.py encrypt-secrets
+  docker compose exec myservices python3 -m msv.tools.manage encrypt-secrets
 """
 from __future__ import annotations
 

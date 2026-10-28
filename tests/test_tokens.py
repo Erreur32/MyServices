@@ -14,10 +14,10 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.machines import agents
-    import api
+    from msv.api import api
     from msv.core import auth
     from msv.alerts import mailer  # noqa: F401  (patched by name)
-    import server
+    from msv.api import server
     from msv.core import tokens
 except ImportError:
     api = None

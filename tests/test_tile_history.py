@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import tile_history as th  # noqa: E402
+from msv.collect import tile_history as th  # noqa: E402
 
 NOW = datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc).timestamp()
 

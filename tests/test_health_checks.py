@@ -1,6 +1,6 @@
 import unittest
 
-import health
+from msv.collect import health
 
 
 def host(**over):

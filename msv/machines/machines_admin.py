@@ -25,7 +25,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 import connectors
-import hostinfo
+from msv.collect import hostinfo
 from msv.machines import setup
 
 # Champs d'une machine réglables depuis la page (le reste du fichier est gardé tel quel)
@@ -148,7 +148,7 @@ def auto_labels() -> set[str]:
     """Étiquettes que la recherche réseau écrit elle-même (indices de ports, applis connues) : seules celles-là sont retirées à la
     redétection, jamais un texte saisi à la main. Y figurent aussi les anciennes formes (« NAS Synology » pour le port 5000)."""
     from msv.machines import known_apps
-    import netscan
+    from msv.collect import netscan
     return ({*netscan.HINT_PORTS.values(), "SSH", "web :80", "web :443", "NAS Synology"} | {a.label for a in known_apps.APPS}
             | {f"SSH :{p}" for p in netscan.SSH_PORTS})
 
@@ -168,7 +168,7 @@ def role_changes(current: str | None, seen: list[str]) -> tuple[list[str], list[
 
 def _seen_tags(ip: str, ssh_port_hint: bool = True) -> list[str]:
     """Étiquettes d'après la détection du réseau (applis reconnues, puis ports par défaut joignables), sans rien écrire."""
-    import netscan
+    from msv.collect import netscan
     d = netscan._describe(ip, ssh=netscan.ssh_ports())
     return list(dict.fromkeys([*d["apps"], *d["hints"]]))
 
@@ -574,7 +574,7 @@ def scan_ssh_port(ip: str) -> int | None:
     """Port SSH vu par la dernière recherche réseau pour cette IP (None si inconnu)."""
     try:
         from msv.core import config
-        import netscan
+        from msv.collect import netscan
         f = Path(config.CFG["state_dir"]) / "network-scan.json"
         found = netscan.state(f).get("found", []) if f.exists() else []
     except Exception:  # noqa: BLE001 : un détail de diagnostic ne casse jamais la vérification

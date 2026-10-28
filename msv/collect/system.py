@@ -399,7 +399,7 @@ def api_config_dir() -> Path:
 def _host_relay() -> str:
     """Where the host's mail relay (postfix, sendmail…) is reached from here: 127.0.0.1 with the host network (the supplied compose files), else the
     container's default gateway, which is the Docker host."""
-    import hostinfo
+    from msv.collect import hostinfo
     from pathlib import Path
     if Path("/sys/class/net/docker0").exists():   # the host's Docker bridge is visible: this container shares the host network
         return "127.0.0.1"

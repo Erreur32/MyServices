@@ -30,7 +30,7 @@ L'état est TOUJOURS sauvegardé, baseline comprise (aucune alerte au premier pa
 
 Réglages (config.json) : web_dir, state_dir, public_url, collector_name, discord_webhook,
 confirm_runs, stale_min, retention_days.
-Usage : python3 watcher.py [--dry-run]
+Usage : python3 -m msv.collect.watcher [--dry-run]
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from msv.alerts import notify
-import pulse
+from msv.collect import pulse
 from msv.core.config import CFG, next_timer_run
 
 NAME = "myservices-watcher"

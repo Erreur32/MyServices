@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cartes de l'infra au format Archify (diagrammes d'architecture), générées depuis les fichiers de la page.
 
-  python3 archify_map.py [web_dir] [dossier de sortie] [schémas proposés à créer, séparés par des virgules]
+  python3 -m msv.diagram.archify_map [web_dir] [dossier de sortie] [schémas proposés à créer, séparés par des virgules]
   node <archify>/bin/archify.mjs deliver architecture <dossier>/carte.archify.json carte.html --json
 
 carte.archify.json (data.json, + health/stats.json s'il existe) : Internet, chaque instance NPM et AdGuard,

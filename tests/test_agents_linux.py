@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from msv.machines import agents  # noqa: E402
-import health  # noqa: E402
+from msv.collect import health  # noqa: E402
 
 HOST = {"id": "box", "name": "Box", "mode": "ssh", "target": "box", "vm": False}
 DF = ("/dev/sda1 100000 91000 9000 91% /\n/dev/sdb1 500000 100000 400000 20% /data\ntmpfs 800 0 800 0% /run\n---\n"
@@ -222,7 +222,7 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertNotIn("ALL=(root) NOPASSWD: ALL", text)
 
     def test_v4_inventaire_lu_comme_par_ssh(self):
-        import hostinfo
+        from msv.collect import hostinfo
         from connectors import docker_ssh, process
         remote = ("##OS Debian GNU/Linux 12 (bookworm)\n##KERNEL 6.1.0\n##UP 3600\n##SVC apache2=active nginx=inactive\n"
                   "##SSHDR no\n##DOCKERBIN yes\n##DOCKER 1\n##VIRT kvm\n")
@@ -249,7 +249,7 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertEqual(agents.linux_inventory({"data": {"kind": "linux", "cmds": missing}})["containers"], [])   # no Docker here
 
     def test_v4_info_machine_gardee_une_heure(self):
-        import hostinfo
+        from msv.collect import hostinfo
         ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
         exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
         self.assertEqual(ns["CACHED"][hostinfo.REMOTE], 3600)

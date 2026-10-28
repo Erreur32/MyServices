@@ -204,7 +204,7 @@ def _ssh_banner(ip: str, port: int) -> str:
 
 def ssh_ports(configured: dict | None = None) -> tuple[int, ...]:
     """Ports SSH à essayer : les courants, plus ceux de la config SSH de l'app (déjà utilisés pour d'autres machines)."""
-    import hostinfo
+    from msv.collect import hostinfo
     cfg = configured if configured is not None else hostinfo.ssh_config()
     return tuple(dict.fromkeys(SSH_PORTS + tuple(sorted(int(v["port"]) for v in cfg.values() if v.get("port")))))
 

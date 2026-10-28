@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import mcp_server  # noqa: E402
+from msv.api import mcp_server  # noqa: E402
 try:
     from msv.machines import machines_admin
 except ImportError:   # its dependencies live in the image; the other tests run without them

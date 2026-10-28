@@ -19,9 +19,9 @@ try:
     from fastapi.testclient import TestClient
 
     from msv.alerts import alerts
-    import api
+    from msv.api import api
     from msv.core import auth
-    import server
+    from msv.api import server
 except ImportError:
     alerts = None
 

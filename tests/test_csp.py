@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
-    import api
+    from msv.api import api
 except Exception:   # noqa: BLE001 : the API needs its dependencies (FastAPI): skipped without them
     api = None
 

@@ -34,7 +34,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from pydantic import BaseModel, Field
 
 from msv.core import models
-import server as core
+from msv.api import server as core
 from msv.core import auth as auth_mod
 from msv.core.auth import AuthError, Store, db_path
 
@@ -322,7 +322,7 @@ def stream_v1():
 
 @app.get(API + "/tasks", tags=["passages"], summary="Tâches planifiées : horaires, dernier passage, résultat")
 def tasks_v1():
-    import system
+    from msv.collect import system
     return {name: {"script": t["script"], "label": system.LABELS.get(name, name), "at": t["at"], "next": core.next_run(name),
                    "minutes": sorted(t["minutes"]),
                    "hours": None if t["hours"] is None else sorted(t["hours"]), "enabled": core.enabled(name),
@@ -724,7 +724,7 @@ def last_statuses() -> list[dict]:
         at = 0
     saved = {k: v for k, v in _saved().items() if v > at}
     rows = list(data.get("connectors", []))
-    import fast
+    from msv.collect import fast
     rows += fast.statuses_missing(fast.read(core.WEB / "live.json"), {(st.get("type"), st.get("name")) for st in rows})   # read lightly, never by the collection
     tests = _tests()
     rows = [_with_test(st, tests.get(f"{st.get('type')}/{st.get('name')}"), at) for st in rows]
@@ -830,9 +830,9 @@ def connector_call(request: Request, action: str, detail: str, fn) -> JSONRespon
 def settings_applied() -> None:
     """A connector saved, turned on or off, or removed: the running configuration is read again in place (the readers, the health check
     and the pages see the change without a restart) and the readings cached from the former set of connectors go."""
-    import network_stats
-    import system
-    import unifi_cards as uc
+    from msv.collect import network_stats
+    from msv.collect import system
+    from msv.collect import unifi_cards as uc
     system.reload_config(core)
     uc.reset()
     network_stats.reset()
@@ -1084,14 +1084,14 @@ def _netscan_file():
 
 @app.get(API + "/network/scan", tags=["réseau"], summary="Dernière recherche de machines sur le réseau local (admin)")
 def network_scan_state(request: Request):
-    import netscan
+    from msv.collect import netscan
     return admin_only(request) or JSONResponse({**netscan.state(_netscan_file()), "ignored": [e["ip"] for e in core.CFG["netscan_ignored"]]},
                                                headers={"Cache-Control": "no-store"})
 
 
 @app.post(API + "/network/scan", tags=["réseau"], summary="Chercher les machines du réseau local : ping, nom, ports (lecture seule) (admin)")
 def network_scan_start(request: Request):
-    import netscan
+    from msv.collect import netscan
 
     def launch(m):
         if not netscan.start(m.known_ips(), _netscan_file(), net=",".join(core.CFG["netscan_nets"]) or None, discreet=core.CFG["netscan_discreet"]):
@@ -1109,13 +1109,13 @@ class NetscanEvery(BaseModel):
 
 @app.get(API + "/network/settings", tags=["réseau"], summary="Fréquence de la recherche réseau automatique (admin)")
 def network_settings(request: Request):
-    import system
+    from msv.collect import system
     return admin_only(request) or system.netscan_settings(core)
 
 
 @app.put(API + "/network/settings", tags=["réseau"], summary="Changer la fréquence de la recherche réseau automatique, 0 = coupée (admin)")
 def network_settings_set(body: NetscanEvery, request: Request):
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     try:
@@ -1140,24 +1140,24 @@ def network_settings_set(body: NetscanEvery, request: Request):
 
 @app.get(API + "/unifi/cards", tags=["réseau"], summary="Appareils UniFi avec leurs ports, pour les cartes de l'onglet Réseau")
 def unifi_cards():
-    import unifi_cards as uc
+    from msv.collect import unifi_cards as uc
     return uc.read(core.CFG)
 
 
 @app.get(API + "/network/stats", tags=["réseau"], summary="Statistiques du scan et volume par client lus par MynetworK (onglet Réseau)")
 def network_stats(traffic: str = "live"):
-    import network_stats as ns
+    from msv.collect import network_stats as ns
     return ns.read(core.CFG, traffic)
 
 
 @app.get(API + "/network/diagnostics", tags=["réseau"], summary="Problèmes possibles du réseau : ports négociés sous leur maximum, équipements hors ligne…")
 def network_diagnostics_route():
-    import network_diagnostics as nd
-    import unifi_cards as uc
+    from msv.collect import network_diagnostics as nd
+    from msv.collect import unifi_cards as uc
     doc = uc.read(core.CFG)
     data = read_produced("data.json") or {}
     clients = [c for row in data.get("network") or [] for c in ((row.get("unifi") or {}).get("clients") or [])]
-    import fast
+    from msv.collect import fast
     live = {ip: d for src in (fast.read(core.WEB / "live.json").get("sources") or {}).values() for ip, d in (src.get("devices") or {}).items()}   # fresher than data.json
     scan = [{**d, **{k: live[d["ip"]][k] for k in ("status", "ping_ms") if k in live.get(d["ip"], {})}} for row in data.get("network") or [] for d in row.get("devices") or [] if d.get("ip")]
     machines = [{"name": m.get("name"), "ip": m.get("ip"), "nics": ((m.get("info") or {}).get("nics")) or (((m.get("agent") or {}).get("hardware") or {}).get("nics")) or []}
@@ -1223,7 +1223,7 @@ class DiagAccept(BaseModel):
 
 @app.post(API + "/network/diagnostics/accepted", tags=["réseau"], summary="Marquer un constat du diagnostic comme normal, ou le rappeler (admin)")
 def network_diagnostics_accept(body: DiagAccept, request: Request):
-    import network_diagnostics as nd
+    from msv.collect import network_diagnostics as nd
     if denied := admin_only(request):
         return denied
     try:
@@ -1272,13 +1272,13 @@ class LiveChecks(BaseModel):
 
 @app.get(API + "/system/live-checks", tags=["système"], summary="Pouls et connecteurs rapides : réglages (admin)")
 def live_checks(request: Request):
-    import system
+    from msv.collect import system
     return admin_only(request) or system.live_settings(core)
 
 
 @app.put(API + "/system/live-checks", tags=["système"], summary="Changer le pouls (ping des machines) et les connecteurs rapides (admin)")
 def live_checks_set(body: LiveChecks, request: Request):
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     values = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -1297,7 +1297,7 @@ class IgnoreBody(BaseModel):
 
 @app.post(API + "/network/ignored", tags=["réseau"], summary="Ne plus proposer un appareil trouvé par la recherche (admin)")
 def network_ignore(body: IgnoreBody, request: Request):
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     try:
@@ -1310,7 +1310,7 @@ def network_ignore(body: IgnoreBody, request: Request):
 
 @app.delete(API + "/network/ignored/{ip}", tags=["réseau"], summary="Proposer de nouveau un appareil ignoré (admin)")
 def network_unignore(ip: str, request: Request):
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     try:
@@ -1323,7 +1323,7 @@ def network_unignore(ip: str, request: Request):
 
 @app.post(API + "/network/scan/stop", tags=["réseau"], summary="Arrêter la recherche en cours (admin)")
 def network_scan_stop(request: Request):
-    import netscan
+    from msv.collect import netscan
     if denied := admin_only(request):
         return denied
     netscan.stop()
@@ -1332,7 +1332,7 @@ def network_scan_stop(request: Request):
 
 @app.delete(API + "/machines/settings/{ip}", tags=["machines"], summary="Retirer une machine (admin)")
 def machines_delete(ip: str, request: Request):
-    import system
+    from msv.collect import system
 
     def go(m):
         name = (m._meta().get("machines", {}).get(ip) or {}).get("name") or ""
@@ -1384,7 +1384,7 @@ def machines_refresh(ip: str, request: Request):
 
 @app.post(MCP, tags=["mcp"], summary="Serveur MCP (JSON-RPC, Streamable HTTP sans état ; jeton msv_mcp_)")
 async def mcp_endpoint(request: Request):
-    import mcp_server
+    from msv.api import mcp_server
     try:
         body = await request.json()
     except ValueError:
@@ -1488,7 +1488,7 @@ def session_admin(request: Request) -> JSONResponse | None:
 
 @app.get(API + "/tokens", tags=["jetons"], summary="Jetons d'API et MCP, outils MCP (session admin)")
 def tokens_list(request: Request):
-    import mcp_server
+    from msv.api import mcp_server
     if denied := admin_only(request):
         return denied
     if (request.state.user or {}).get("token"):
@@ -1734,7 +1734,7 @@ class ToolToggle(BaseModel):
 
 @app.patch(API + "/tokens/tools/{name}", tags=["jetons"], summary="Activer ou couper un outil MCP (session admin)")
 def tokens_tool(name: str, body: ToolToggle, request: Request):
-    import mcp_server
+    from msv.api import mcp_server
     if denied := session_admin(request):
         return denied
     if name not in mcp_server.TOOLS:
@@ -1749,7 +1749,7 @@ def tokens_tool(name: str, body: ToolToggle, request: Request):
 @app.get(API + "/system", tags=["système"], summary="Clé SSH de l'app, tâches et horaires, informations (admin)")
 def system_state(request: Request):
     import sys
-    import system
+    from msv.collect import system
     if denied := admin_only(request):
         return denied
     from connectors.process import host_docker
@@ -1763,7 +1763,7 @@ class Schedule(BaseModel):
 
 @app.put(API + "/system/tasks/{name}/schedule", tags=["système"], summary="Changer l'horaire d'une tâche (vide = défaut) (admin)")
 def system_schedule(name: str, body: Schedule, request: Request):
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     try:
@@ -1831,7 +1831,7 @@ def backups_patterns(body: BackupPatterns, request: Request):
 
 @app.put(API + "/backups/settings", tags=["sauvegardes"], summary="Suivre des dossiers de sauvegarde : écrit l'inventaire, active l'onglet (admin)")
 def backups_follow(body: BackupFollow, request: Request):
-    import system
+    from msv.collect import system
 
     def go(b):
         out = b.follow([i.model_dump() for i in body.items])
@@ -1878,7 +1878,7 @@ def backups_veeam_discover(body: VeeamAccount, request: Request):
 
 @app.put(API + "/backups/veeam", tags=["sauvegardes"], summary="Enregistrer le compte Veeam (mot de passe chiffré) et suivre des jobs (admin)")
 def backups_veeam_follow(body: VeeamFollow, request: Request):
-    import system
+    from msv.collect import system
 
     def go(b):
         out = b.veeam_follow(body.model_dump(exclude={"jobs"}), [j.model_dump() for j in body.jobs])
@@ -1922,7 +1922,7 @@ def backups_remote_browse(body: RemoteBrowse, request: Request):
 
 @app.put(API + "/backups/remote", tags=["sauvegardes"], summary="Enregistrer le compte d'un dossier distant (mot de passe chiffré) et le suivre (admin)")
 def backups_remote_follow(body: RemoteFollow, request: Request):
-    import system
+    from msv.collect import system
 
     def go(b):
         out = b.remote_follow(body.model_dump(exclude={"path", "label", "max_age_days", "copy_of"}), body.path, body.label, body.max_age_days, body.copy_of)
@@ -1968,7 +1968,7 @@ def backups_synology_discover(body: SynologyChoice, request: Request):
 
 @app.put(API + "/backups/synology", tags=["sauvegardes"], summary="Suivre des tâches Hyper Backup d'un NAS Synology (admin)")
 def backups_synology_follow(body: SynologyFollow, request: Request):
-    import system
+    from msv.collect import system
 
     def go(b):
         out = b.synology_follow(body.connector, [t.model_dump() for t in body.tasks])
@@ -1986,7 +1986,7 @@ def backups_pbs_discover(body: PbsChoice, request: Request):
 
 @app.put(API + "/backups/pbs", tags=["sauvegardes"], summary="Suivre des groupes de sauvegarde de Proxmox Backup Server (admin)")
 def backups_pbs_follow(body: PbsFollow, request: Request):
-    import system
+    from msv.collect import system
 
     def go(b):
         out = b.pbs_follow(body.connector, [g.model_dump() for g in body.groups])
@@ -2015,7 +2015,7 @@ def backups_agents_discover(request: Request):
 
 @app.put(API + "/backups/agents", tags=["sauvegardes"], summary="Suivre les sauvegardes Veeam Agent / Windows Server vues par les agents Windows (admin)")
 def backups_agents_follow(body: AgentBackupsFollow, request: Request):
-    import system
+    from msv.collect import system
 
     def go(b):
         out = b.agent_backups_follow([r.model_dump() for r in body.runs])
@@ -2047,7 +2047,7 @@ def backups_vzdump_discover(request: Request):
 
 @app.put(API + "/backups/vzdump", tags=["sauvegardes"], summary="Suivre les sauvegardes vzdump de machines invitées Proxmox VE (admin)")
 def backups_vzdump_follow(body: VzdumpFollow, request: Request):
-    import system
+    from msv.collect import system
 
     def go(b):
         out = b.vzdump_follow([g.model_dump() for g in body.groups])
@@ -2065,7 +2065,7 @@ def backups_ha_check(body: HaFollow, request: Request):
 
 @app.put(API + "/backups/ha", tags=["sauvegardes"], summary="Suivre la sauvegarde automatique de Home Assistant (admin)")
 def backups_ha_follow(body: HaFollow, request: Request):
-    import system
+    from msv.collect import system
 
     def go(b):
         out = b.ha_follow(body.connector, body.label, body.max_age_days)
@@ -2194,7 +2194,7 @@ class ImportApplyBody(ImportPreviewBody):
 
 def _places():
     from msv.core import config_transfer as ct
-    import system
+    from msv.collect import system
     return ct.Places(system.api_config_dir(), Path(core.CFG["state_dir"]), db_path(core.CFG))
 
 
@@ -2270,7 +2270,7 @@ def system_import(body: ImportApplyBody, request: Request):
     except ct.TransferError as e:
         return deny(400, str(e))
     store().audit("configuration importée", request.state.user["username"], ip_of(request), ",".join(body.parts))
-    import system
+    from msv.collect import system
     return {"ok": True, **out, **system.after_import(core, body.parts)}
 
 
@@ -2291,7 +2291,7 @@ def events_per_day(days: int = 30):
 
 @app.get(API + "/availability", tags=["historique"], summary="Disponibilité des services, machines et sondes Uptime Kuma sur une période (taux, temps de réponse, une case par jour ou par heure)")
 def availability_report(days: int = 30):
-    import availability
+    from msv.collect import availability
     return availability.report(db_path(core.CFG), days)
 
 
@@ -2300,9 +2300,9 @@ HISTORY_HOURS = (24, 72, 168)
 
 @app.get(API + "/machines/history", tags=["historique"], summary="Historique des cadres de la page Machines (joignables, santé, processeur et mémoire moyens) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def machines_history(hours: int = 24):
-    import availability
+    from msv.collect import availability
     from msv.core import metrics
-    import tile_history
+    from msv.collect import tile_history
     h = hours if hours in HISTORY_HOURS else 24
     db = db_path(core.CFG)
     return {"hours": h, "reach": availability.reach_series(db, h), "health": tile_history.series(db, tile_history.HEALTH, h),
@@ -2311,8 +2311,8 @@ def machines_history(hours: int = 24):
 
 @app.get(API + "/network/history", tags=["historique"], summary="Historique des cadres de la page Réseau (équipements, clients, appareils en ligne, débit de la Freebox et d'UniFi) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def network_history(hours: int = 24):
-    import bandwidth
-    import tile_history
+    from msv.collect import bandwidth
+    from msv.collect import tile_history
     h = hours if hours in HISTORY_HOURS else 24
     db = db_path(core.CFG)
     return {"hours": h, **{k.split(".")[1]: tile_history.series(db, k, h) for k in tile_history.NETWORK},
@@ -2321,14 +2321,14 @@ def network_history(hours: int = 24):
 
 @app.get(API + "/backups/history", tags=["historique"], summary="Historique des cadres de la page Sauvegardes (à jour, en retard, absentes ou en erreur) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def backups_history(hours: int = 24):
-    import tile_history
+    from msv.collect import tile_history
     h = hours if hours in HISTORY_HOURS else 24
     return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.BACKUPS}}
 
 
 @app.get(API + "/agents/history", tags=["historique"], summary="Historique des cadres de la page Agents (actifs, à mettre à jour) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé (admin)")
 def agents_history(request: Request, hours: int = 24):
-    import tile_history
+    from msv.collect import tile_history
     if denied := admin_write(request):
         return denied
     h = hours if hours in HISTORY_HOURS else 24
@@ -2337,22 +2337,22 @@ def agents_history(request: Request, hours: int = 24):
 
 @app.get(API + "/ai/history", tags=["historique"], summary="Historique des cadres de la page IA et agents (GPU, mémoire, moteurs, modèles, agents) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def ai_history(hours: int = 24):
-    import tile_history
+    from msv.collect import tile_history
     h = hours if hours in HISTORY_HOURS else 24
     return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.AI}}
 
 
 @app.get(API + "/virtualization/history", tags=["historique"], summary="Historique des cadres de la page Virtualisation (hôtes, machines, processeur, mémoire, stockage, sauvegardes) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def virtualization_history(hours: int = 24):
-    import tile_history
+    from msv.collect import tile_history
     h = hours if hours in HISTORY_HOURS else 24
     return {"hours": h, **{k.split(".")[1]: tile_history.series(db_path(core.CFG), k, h) for k in tile_history.VIRT}}
 
 
 @app.get(API + "/dns/history", tags=["historique"], summary="Historique des cadres de la page DNS (serveurs qui répondent, latence des DNS publics) sur 24 h, 72 h ou 7 jours : [heure, valeur, total] par relevé")
 def dns_history(hours: int = 24):
-    import dns_probe
-    import tile_history
+    from msv.collect import dns_probe
+    from msv.collect import tile_history
     h = hours if hours in HISTORY_HOURS else 24
     db = db_path(core.CFG)
     return {"hours": h, "local": tile_history.series(db, dns_probe.LOCAL, h),
@@ -2362,8 +2362,8 @@ def dns_history(hours: int = 24):
 
 @app.get(API + "/services/history", tags=["historique"], summary="Historique des cadres de la page Services (en ligne, en panne, avertissement) sur 24 h, 72 h ou 7 jours : [heure, répondent, total] par relevé")
 def services_history(hours: int = 24):
-    import availability
-    import tile_history
+    from msv.collect import availability
+    from msv.collect import tile_history
     h = hours if hours in HISTORY_HOURS else 24
     return {"hours": h, "up": availability.service_series(db_path(core.CFG), h), "warn": tile_history.series(db_path(core.CFG), tile_history.SERVICES_WARN, h),
             "health": tile_history.series(db_path(core.CFG), tile_history.SERVICES_HEALTH, h)}
@@ -2704,7 +2704,7 @@ class UpdateSettings(BaseModel):
 
 @app.put(API + "/about/settings", tags=["système"], summary="Vérification automatique des mises à jour (admin)")
 def about_settings(body: UpdateSettings, request: Request):
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     out = system.set_update_settings(core, auto=body.auto)
@@ -2741,7 +2741,7 @@ class DiagramAsk(BaseModel):
 @app.put(API + "/diagrams/{key}", tags=["schémas"], summary="Créer (ou retirer) un schéma proposé : réseau, services, domaines, virtualisation (admin)")
 def diagram_set(key: str, body: DiagramAsk, request: Request):
     from msv.diagram import archify_extra
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     if key not in archify_extra.CATALOG:
@@ -2786,7 +2786,7 @@ def current_proposals(data: dict) -> list[dict]:
 def discoveries(request: Request):
     from msv.backups import backups_admin
     from msv.machines import discoveries as disc
-    import netscan
+    from msv.collect import netscan
     if denied := admin_only(request):
         return denied
     state = Path(core.CFG["state_dir"])
@@ -2859,7 +2859,7 @@ class MuteBody(BaseModel):
 
 @app.put(API + "/discoveries/muted", tags=["découvertes"], summary="Couper ou rétablir le rappel d'une découverte à faire (admin)")
 def discovery_mute(body: MuteBody, request: Request):
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     try:
@@ -2980,7 +2980,7 @@ class SessionDays(BaseModel):
 
 @app.put(API + "/security/session-days", tags=["comptes"], summary="Durée des sessions, de 1 à 90 jours (admin)")
 def set_session_days(body: SessionDays, request: Request):
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     try:
@@ -3174,7 +3174,7 @@ def password_reset(body: Reset, request: Request):
 
 @app.get(API + "/system/mail", tags=["système"], summary="Envoi d'e-mails : réglages, sans le mot de passe (admin)")
 def mail_get(request: Request):
-    import system
+    from msv.collect import system
     return admin_only(request) or system.mail_settings(core)
 
 
@@ -3190,7 +3190,7 @@ class MailConf(BaseModel):
 
 @app.put(API + "/system/mail", tags=["système"], summary="Envoi d'e-mails : serveur SMTP, expéditeur, adresse de la page (admin)")
 def mail_put(body: MailConf, request: Request):
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     try:
@@ -3205,7 +3205,7 @@ def mail_put(body: MailConf, request: Request):
 def mail_test(request: Request, body: MailConf | None = None):
     """With a body: tries those values without saving them; without: the saved settings."""
     from msv.alerts import mailer
-    import system
+    from msv.collect import system
     if denied := admin_write(request):
         return denied
     u = request.state.user

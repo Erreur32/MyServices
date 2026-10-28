@@ -58,7 +58,7 @@ def _stopped_ok() -> dict:
 
 
 def t_machines(core, args, ctx):
-    import watcher
+    from msv.collect import watcher
     q = str(args.get("query") or "").casefold()
     stopped_ok = _stopped_ok()
     problems: dict[str, list[dict]] = {}   # per machine: which services are behind « services_down »
@@ -79,7 +79,7 @@ def t_machines(core, args, ctx):
 
 
 def t_services(core, args, ctx):
-    import watcher
+    from msv.collect import watcher
     q = str(args.get("query") or "").casefold()
     only = bool(args.get("problems_only"))
     want = args.get("status")

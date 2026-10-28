@@ -15,9 +15,9 @@ from msv.remote import npmapi  # noqa: E402
 try:
     from fastapi.testclient import TestClient
 
-    import api
+    from msv.api import api
     from msv.core import auth
-    import server
+    from msv.api import server
     from msv.core import tokens
 except ImportError:
     api = None

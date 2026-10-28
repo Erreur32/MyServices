@@ -422,7 +422,7 @@ class HealthFromBeszel(unittest.TestCase):
     """health.py : machine sans SSH relevée par Beszel seul (disques, SMART, services, mises à jour)."""
 
     def test_parse_and_level(self):
-        import health
+        from msv.collect import health
         with ThreadingHTTPServer(("127.0.0.1", 0), FakeBeszel) as srv:
             threading.Thread(target=srv.serve_forever, daemon=True).start()
             cfg = {"connectors": [{"type": "beszel", "name": "hub", "url": f"http://127.0.0.1:{srv.server_port}",

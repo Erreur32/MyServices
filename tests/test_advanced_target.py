@@ -14,7 +14,7 @@ from unittest import mock  # noqa: E402
 
 # CI has no /config/services-meta.json and importing myservices reads it: the example stands in, for the import only (the global config is left as it was)
 with mock.patch.dict(config.CFG, {"meta": str(ROOT / "services-meta.example.json")}):
-    import myservices  # noqa: E402
+    from msv.collect import myservices  # noqa: E402
 
 
 class AdvancedTarget(unittest.TestCase):

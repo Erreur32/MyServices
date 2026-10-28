@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import readers  # noqa: E402
+from msv.collect import readers  # noqa: E402
 import connectors.base as cbase  # noqa: E402
 from connectors.base import ConnectorError  # noqa: E402
 

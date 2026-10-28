@@ -259,7 +259,7 @@ def ports_of(report: dict | None) -> dict[int, dict]:
 def docker_states(report: dict | None) -> dict[str, str] | None:
     """{container: status} of a Linux agent report (the `docker ps -a` of the health reading, run every minute); None without it."""
     from msv.core import docker_state
-    import health
+    from msv.collect import health
     data = (report or {}).get("data") or {}
     got = (data.get("cmds") or {}).get(health.DOCKER_PS_CMD) if data.get("kind") == "linux" else None
     return docker_state.parse_states(got[1]) if isinstance(got, list) and len(got) == 2 and got[0] == 0 else None
@@ -283,7 +283,7 @@ def docker_of(report: dict | None) -> list[dict] | None:
 
 def inventory_commands() -> list[str]:
     """Commands of the SSH inventory the Linux agent runs too (version 4): machine info, Docker containers and networks, listening ports."""
-    import hostinfo
+    from msv.collect import hostinfo
     from connectors.docker_ssh import DOCKER_SH, NET_SH
     from connectors.process import LISTEN_SH
     return [hostinfo.REMOTE, DOCKER_SH, NET_SH, LISTEN_SH]
@@ -291,14 +291,14 @@ def inventory_commands() -> list[str]:
 
 def inventory_cache() -> dict[str, int]:
     """Machine info changes seldom: the agent sends its last output again for an hour (the SSH inventory is kept 2 h)."""
-    import hostinfo
+    from msv.collect import hostinfo
     return {hostinfo.REMOTE: 3600}
 
 
 def linux_inventory(report: dict | None) -> dict | None:
     """Inventaire d'un relevé d'agent Linux, lu avec le code de la lecture SSH : {"info", "containers", "internal", "ports"} (None pour ce
     qui manque ou n'a pas pu être lu : agent ancien, Docker inaccessible au compte de l'agent) ; None si ce n'est pas un relevé Linux."""
-    import hostinfo
+    from msv.collect import hostinfo
     from connectors import docker_ssh, process
     data = (report or {}).get("data") or {}
     if data.get("kind") != "linux" or not isinstance(data.get("cmds"), dict):
@@ -347,7 +347,7 @@ def system_of(report: dict | None) -> dict | None:
 
 def hardware_of(report: dict | None) -> dict | None:
     """Matériel d'un relevé d'agent (clé « hw » : modèle, BIOS, processeur, mémoire, graphique, réseau...) ou None s'il est absent."""
-    import health
+    from msv.collect import health
     data = (report or {}).get("data")
     return health.hardware_of_raw(data.get("hw")) if isinstance(data, dict) else None
 
@@ -434,7 +434,7 @@ def keep_slow_keys(report: dict, prev: dict) -> None:
 
 def report_level(report: dict) -> str | None:
     """Niveau de santé (ok, warn, crit) que donne un relevé, avec les mêmes règles que la page Santé ; None s'il est illisible."""
-    import health
+    from msv.collect import health
     try:
         data = report["data"]
         if data.get("kind") == "linux":
@@ -459,7 +459,7 @@ def validate_report(body) -> dict:
                     or not isinstance(res[0], int) or isinstance(res[0], bool) or not isinstance(res[1], str) or len(res[1]) > MAX_LINUX_OUT):
                 raise AgentError("relevé invalide : sortie de commande illisible")
         return body
-    import health
+    from msv.collect import health
     try:
         health.parse_windows(body["data"])
     except (KeyError, TypeError, ValueError, AttributeError):
@@ -513,10 +513,10 @@ def script(name: str) -> str:
     ASCII seulement : Windows PowerShell 5.1 lit un script sans BOM en ANSI."""
     text = (SCRIPTS / name).read_text(encoding="utf-8")
     if name == PS_AGENT:
-        import health
+        from msv.collect import health
         text = text.replace("#__COLLECT__", health.WIN_PS.strip()).replace("__VERSION__", VERSION)
     elif name == "agent.py":   # the Linux agent runs the commands the SSH collection runs: one list, here
-        import health
+        from msv.collect import health
         text = (text.replace("__VERSION__", LINUX_VERSION).replace("__COMMANDS__", json.dumps(health.LINUX_AGENT_COMMANDS + inventory_commands()))
                 .replace("__SMART_LIST__", json.dumps(health.SMART_LIST_CMD)).replace("__SMART_FMT__", json.dumps(health.smart_cmd("{target}")))
                 .replace("__CACHED__", json.dumps({**health.LINUX_AGENT_CACHE, **inventory_cache()})).replace("__SMART_CACHE__", str(health.SMART_CACHE)))

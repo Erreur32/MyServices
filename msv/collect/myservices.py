@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import connectors
-import readers
+from msv.collect import readers
 from msv.core import docker_state
 from msv.core.docker_state import allowed_names, intended_stop
 import connectors.base as cbase
@@ -56,13 +56,13 @@ from msv.remote import esxi_ssh
 from msv.remote import virt_ssh
 from msv.remote import pve_ssh
 from msv.machines import agents
-import hostinfo
+from msv.collect import hostinfo
 from msv.core import inventory_cache
-import api_link
+from msv.api import api_link
 from msv.machines import known_apps
 from msv.machines import new_services
 from msv.core import last_known as last_known_services
-import webservers
+from msv.collect import webservers
 from msv.machines import matching
 from connectors import mynetwork as mynetwork_conn
 from msv.remote import npmapi

@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
-    import health
+    from msv.collect import health
     from msv.machines import machines_admin
 except ImportError:
     health = None

@@ -14,11 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from fastapi.testclient import TestClient
 
-    import api
+    from msv.api import api
     from msv.core import auth
-    import dns_probe
-    import server
-    import tile_history
+    from msv.collect import dns_probe
+    from msv.api import server
+    from msv.collect import tile_history
     from msv.core import tokens
     from msv.core.auth import db_path
 except ImportError:

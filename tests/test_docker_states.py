@@ -17,7 +17,7 @@ from msv.core import inventory_cache  # noqa: E402
 
 try:
     from msv.machines import agents
-    import health
+    from msv.collect import health
 except ImportError:
     agents = health = None
 
