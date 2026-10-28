@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.29.0 (2026-10-28)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Speed
 - **The image ships compiled Python (`.pyc`).** `/app` is read-only for the app account, so each task process (collection, watcher, health, which runs once a minute per agent report, backups) used to compile all the sources again at every start. Measured start times (import only): health 182 → 75 ms, collection 228 → 88 ms, watcher 72 → 57 ms, for about 1 MB more in the image. The `.dockerignore` also stops host `__pycache__` folders from entering the image.
 - **Hashed front files are cached for a year.** `assets/index-<hash>.js`, `.css`, fonts and images of the compiled front are served with `Cache-Control: public, max-age=31536000, immutable` (a new build has a new name); the page itself, `data.json` and every other file keep `no-cache, must-revalidate`. A file of the data volume is never given the long lifetime.

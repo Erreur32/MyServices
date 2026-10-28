@@ -5,6 +5,13 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.28.0 → 0.29.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: the image starts `python3 -m msv.api.run` (it was `msv.api.server` in 0.28.0); only matters if you override the container command. Browsers keep the hashed front files for a year. Command lines run by hand are unchanged since 0.28.0 (`python3 -m msv.tools.manage ...`).
+
 ## 0.27.0 → 0.28.0
 
 **Nothing required to update.** No change to the compose file, the image's volumes or variables, or `config.json`.
