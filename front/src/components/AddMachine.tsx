@@ -316,7 +316,7 @@ function Added({ d, name, kind, agent, onDone }: Readonly<{ d: Detection; name: 
         <b>{tx("Machine ajoutée")}</b><Dim>{name} · {d.ip}</Dim>
         <Dim>{tx("relevé et santé lancés : sa carte apparaît dans la liste")}</Dim>
       </div>
-      {agent && <AgentBlock ip={d.ip} name={name} kind={kind} onChanged={() => undefined} />}
+      {agent && <AgentBlock ip={d.ip} name={name} kind={kind} create onChanged={() => undefined} />}
       <div><button type="button" className={primary} onClick={onDone}>{tx("Fermer")}</button></div>
     </div>
   );
