@@ -102,7 +102,8 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
       </div>
       {showAccess && <AccessGuide />}
       {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
-      {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
+      {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); location.hash = "machines"; }}
+        onCancel={() => { setDetecting(false); if (location.hash.endsWith("/machines/new")) location.hash = "machines"; }} />}
     </Card>
   );
 }
