@@ -39,7 +39,8 @@ export default defineConfig({
     watch: { awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 } },
     proxy: {
       // Everything the container serves (API, MCP, agent scripts, sign-in page, produced files, diagrams); Vite keeps /, /src, /assets, /icons…
-      "^/(api/|mcp|agent/|healthz|login\\.|data\\.json|events\\.json|backups\\.json|health/|.*\\.html$)": {
+      // /myservices/ is the address the Windows and Linux agents still use (install.ps1, agent.ps1, their report): the container maps it to the root
+      "^/(myservices/|api/|mcp|agent/|healthz|login\\.|data\\.json|events\\.json|backups\\.json|health/|.*\\.html$)": {
         target: BACKEND,
         changeOrigin: false,
         configure: (proxy) => {
