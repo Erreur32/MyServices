@@ -3,7 +3,7 @@
 #   Set-ExecutionPolicy Bypass -Scope Process -Force
 #   $env:MSV_URL   = 'http://<myservices>:8090'
 #   $env:MSV_TOKEN = '<token shown once by MyServices>'
-#   iex (iwr "$env:MSV_URL/myservices/agent/install.ps1" -UseBasicParsing).Content
+#   iex (iwr "$env:MSV_URL/agent/install.ps1" -UseBasicParsing).Content
 #
 # Uninstall: .\install.ps1 -Uninstall   (or set $env:MSV_UNINSTALL = '1' before the iex line)
 # Re-running is safe: it downloads the agent again and renews the config and the scheduled task.
@@ -40,7 +40,7 @@ if ($Minutes -lt 1 -or $Minutes -gt 1440) { Die 'Minutes must be between 1 and 1
 New-Item -ItemType Directory -Path $Dir -Force | Out-Null
 $AgentPath = Join-Path $Dir 'agent.ps1'
 try {
-  $script = (Invoke-WebRequest -Uri "$Url/myservices/agent/agent.ps1" -UseBasicParsing -TimeoutSec 30).Content
+  $script = (Invoke-WebRequest -Uri "$Url/agent/agent.ps1" -UseBasicParsing -TimeoutSec 30).Content
 } catch { Die "Cannot download the agent from $Url : $($_.Exception.Message)" }
 if ($script -is [byte[]]) { $script = [Text.Encoding]::UTF8.GetString($script) }
 # Windows PowerShell 5.1 reads a script without BOM as ANSI: write it with a BOM

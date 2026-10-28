@@ -297,6 +297,12 @@ class Agents(unittest.TestCase):
         self.assertNotIn("#__COLLECT__", agent)
         self.assertEqual(self.anon.get("/myservices/agent/autre.ps1").status_code, 404)
 
+    def test_installateur_windows_telecharge_l_agent_a_la_racine(self):
+        """install.ps1 fetches agent.ps1 at the root like install.sh does: the dev server (Vite) and a server behind a proxy may not map /myservices/."""
+        text = self.anon.get("/agent/install.ps1").text
+        self.assertIn('"$Url/agent/agent.ps1"', text)
+        self.assertNotIn("/myservices/", text)
+
     def test_commande_d_installation(self):
         r = self.c.post(BASE + "/agents", json={"ip": "192.168.1.60", "name": "Gamer32"},
                         headers={**self.h, "X-Forwarded-Proto": "https", "X-Forwarded-Host": "ms.lan"})
