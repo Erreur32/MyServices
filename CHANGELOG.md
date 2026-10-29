@@ -11,6 +11,33 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.30.0 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Video and cameras
+- **Overview page redone.** Tiles (filming, detecting, events over 24 h with the peak hour, last event, storage), an hourly histogram, detected objects, a per-camera detection table, the latest events and the detectors, each block in a pinned frame.
+- **Camera pictures load by themselves** for every signed-in user (no audit line); the live MJPEG stream starts on the play button, lasts 5 minutes, at most 4 at once, and is audited (`/stream/live`).
+- **New sub-page Video > Frigate** (shown only when Frigate reports its system stats): detectors, graphics cards, cameras with their processes, storage and temperatures.
+
+### Machines
+- **Windows names follow the build number**: Windows 11 (build 22000 and above) is no longer shown as 10, Server editions get their year (2008 to 2025) and the feature version (23H2, 25H2) is kept. The Wazuh connector gives the same name to machines the agent does not read. New icons for Windows 7, 8 and Server 2008, 2012, 2016.
+- **A machine always has an icon**: unknown systems get the generic server icon instead of an empty space.
+- **Alert thresholds per machine** (disk and memory, warning and critical percentages) in the machine's settings, Options tab. Checked server side (1 to 100, warning below critical).
+- **The « Services » button of the open-ports frame is « Web services »** and is greyed out when the machine has none.
+
+### Diagrams
+- **Links of the second level are drawn** (each item is chained to the one above it).
+- **New diagrams « DNS » and « Who watches what »**; the « Alert chain » diagram is removed.
+- **Generation no longer gets stuck**: stale Archify locks are cleared at start, a second generation is refused while one is running (409, the button is disabled).
+- **Footer on each diagram**: back to MyServices, the other built diagrams, « Generated with Archify ».
+- The Infra and Diagrams pages stay hidden in released builds.
+
+### Pages
+- **Same head on the list pages**: icon and title, tags, then the actions at the right (link to the connectors as an icon, the period, then the main button last). The main element sits in a pinned frame on Machines, Virtualization, Agents, SSH connections and Diagrams.
+- **The « read only » badge is gone from the page heads**; the tags of the AI page show one name per row plus a « +n » badge so the head stays on one line.
+- **Blue information frames can be hidden** with their cross (kept in the browser) and shown again from Profile or Settings > Appearance. Orange warnings cannot be hidden.
+
 ## v0.29.0 (2026-10-28)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

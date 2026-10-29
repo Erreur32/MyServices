@@ -5,6 +5,14 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.29.0 → 0.30.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour that changes by itself**: camera pictures load without a click for every signed-in user, and the live stream is a new route (`/stream/live`); if a reverse proxy buffers responses, turn buffering off for it. Windows machines get their corrected name at the next health report. Alert thresholds keep the previous defaults until you set them per machine.
+- **Browser side**: hidden information frames are remembered in each browser only.
+
 ## 0.28.0 → 0.29.0
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
