@@ -132,6 +132,7 @@ export interface Machine {
   ssh?: { alias: string; port: number; user?: string; identity?: string | null; key_fp?: string | null; host_key?: string | null; methods?: string[] | null; note?: string | null } | null;
   links?: MachineLinks | null;   // matching layer: MAC, other names, one badge per tool that sees it
   api?: { type: string; name: string; label: string; ok: boolean; stale?: boolean; version?: string | null; message?: string; host?: { cpu?: number; mem_pct?: number; temp?: number; boot?: string } | null }[];   // connecteurs API (Home Assistant…) qui lisent cette machine
+  os_hint?: string | null;   // system name known only by Wazuh (no SSH, no agent)
   agent?: { os: string; kernel?: string | null; uptime_s?: number | null; hardware?: AgentHardware | null; docker?: number | null; apps?: { key: string; label: string }[]; via: "agent" } | null;  // système lu par l'agent (PC Windows)
   info?: {
     via?: "agent";   // read by the Linux agent (absent: over SSH)
@@ -243,13 +244,25 @@ export interface ServiceStatus {
   mcp?: HaMcp | null;   // advanced mode (ha-mcp add-on): backups, apps, integrations, configuration check
   host?: { cpu?: number | null; mem_pct?: number | null; temp?: number | null; disks?: { mount: string; used_pct: number; size_gb?: number; used_gb?: number }[]; ips?: string[]; boot?: string | null };
   ai?: AiBlock;   // AI connectors (connectors/homelab_ai.py): what the « IA et agents » page shows
+  frigate?: FrigateSystem;   // Frigate's own load (connectors/homelab_media.py): the « Frigate » sub-page of Video and cameras
   stream?: StreamBlock;   // video connectors (connectors/homelab_stream.py, Frigate): what the « Vidéo et caméras » page shows
 }
 
+/** CPU and memory (% of the machine) of one Frigate process */
+export interface FrigateProc { cpu?: number | null; mem?: number | null }
+/** What Frigate says about its own load: detectors, GPUs, the processes of each camera, storage (Mo) and temperatures */
+export interface FrigateSystem {
+  detectors: (FrigateProc & { name: string; ms?: number | null; pid?: number | null })[];
+  gpus: { name: string; gpu?: number | null; mem?: number | null; enc?: number | null; dec?: number | null }[];
+  cameras: { name: string; fps?: number | null; process_fps?: number | null; detection_fps?: number | null; skipped_fps?: number | null; ffmpeg: FrigateProc; capture: FrigateProc; detect: FrigateProc }[];
+  storage: { path: string; total?: number | null; used?: number | null; free?: number | null }[];
+  temperatures: Record<string, number>;
+  uptime?: number | null; latest_version?: string | null; version?: string | null;
+}
 /** One model of an AI connector: only what the server said (size and vram in bytes) */
 export interface AiModel { name: string; size?: number; quant?: string; family?: string; params?: string; context?: number; loaded?: boolean; vram?: number; cloud?: boolean }
 /** One camera of a recorder (Frigate, Shinobi): its name only, never its address */
-export interface StreamCamera { name: string; up: boolean | null; fps?: number | null; detect?: boolean | null; record?: boolean | null; events?: number | null; last?: number | null }
+export interface StreamCamera { name: string; up: boolean | null; fps?: number | null; detect?: boolean | null; record?: boolean | null; events?: number | null; last?: number | null; labels?: Record<string, number> }
 /** One stream of a relay (go2rtc, MediaMTX) */
 export interface StreamFlow { name: string; ready: boolean | null; codec?: string | null; readers: number; kinds: string[] }
 /** The « stream » block of a video connector, the same shape for all (connectors/homelab_stream.py) */
@@ -258,6 +271,8 @@ export interface StreamBlock {
   cameras?: StreamCamera[]; streams?: StreamFlow[];
   storage?: { used: number; total: number } | null;
   events?: number | null; labels?: Record<string, number>; detector_ms?: number | null;
+  hourly?: number[] | null;   // events per hour over the last 24 h, the oldest first
+  recent?: { camera: string; label: string; t: number | null }[];   // the latest events (object, camera, time): never a picture
   live?: { online: boolean; viewers: number; since?: string | null; last?: string | null };
   snapshot?: boolean;   // an admin may ask for the picture of a camera (never kept)
 }
@@ -658,6 +673,7 @@ export interface MachineConf {
   vm?: boolean;
   adguard?: string;
   adguard_sync?: string;
+  disk_warn_pct?: number; disk_crit_pct?: number; mem_warn_pct?: number; mem_crit_pct?: number;   // this machine's disk and memory limits (% used); absent: health.py's defaults
   temp_warn_c?: number;          // processor warning threshold of this machine (°C); absent: health.py's default
   [k: string]: unknown;
 }

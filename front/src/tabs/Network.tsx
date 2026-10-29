@@ -316,7 +316,7 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
 
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={NetworkIcon} title={tx("Réseau")} tags={<HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />} actions={<><PeriodSwitch value={hours} onChange={setHours} />{snap.me.role === "admin" && <ConnectorsLink />}</>} />
+      <PageHead icon={NetworkIcon} title={tx("Réseau")} tags={<HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />} actions={<>{snap.me.role === "admin" && <ConnectorsLink />}<PeriodSwitch value={hours} onChange={setHours} /></>} />
       <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={shortNames} failing={failing} hours={hours} stamp={snap.data.generated} onlyFreebox={current === "freebox"} />
 
       {current === "unifi" && <UnifiCards />}

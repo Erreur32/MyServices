@@ -7,9 +7,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
 import type { AgentInfo, MachinesSettings, SystemState } from "../types";
 import { AppKeyBand, keyOf } from "../components/AppKey";
-import { Badge, Card, Count, Dim, type Tone } from "../components/ui";
+import { Badge, Dim, type Tone } from "../components/ui";
 import { StatTile } from "../components/StatTile";
 import { InfoNote } from "../components/InfoNote";
+import { FoldPanel } from "../components/FoldPanel";
+import { PageHead } from "../components/PageHead";
 import { MachineIcon } from "../components/MachineIcon";
 import { sshRows, type SshState } from "../lib/accessLists";
 import { tx } from "../lib/i18n";
@@ -65,6 +67,8 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
   const refused = count("refused");
   return (
     <div className="flex flex-col gap-4">
+      <PageHead icon={Terminal} title={tx("Connexions SSH")} tags={<span className="flex flex-wrap items-center gap-1.5 text-sm"><Badge tone="info" outline>{tx("{0} connexion(s)", rows.length)}</Badge></span>}
+        actions={<a href="#settings/machines/ssh/new" className={`${primary} py-1 no-underline`}><Plus size={14} aria-hidden />{tx("Connexion SSH")}</a>} />
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <StatTile n={count("ok")} label={tx("Lues")} tone="ok" />
         <StatTile n={refused} label={tx("Refusées")} tone={refused ? "bad" : undefined} />
@@ -72,12 +76,8 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
         <StatTile n={count("off")} label={tx("Coupées à la main")} />
       </div>
       {key && <AppKeyBand ssh={key} />}
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><Terminal size={16} aria-hidden />{tx("Connexions SSH")} <Count n={rows.length} /></h2>
-          <a href="#settings/machines/ssh/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Connexion SSH")}</a>
-        </div>
-        <InfoNote className="mt-2">{tx("L'agent MyServices fait les mêmes relevés de santé chaque minute, sans clé SSH sur la machine. Gardez le SSH seulement pour ce que l'agent ne lit pas : sauvegardes, Proxmox ou ESXi, NPM, AdGuard. L'icône de réglage ouvre l'accès d'une machine.")}</InfoNote>
+      <FoldPanel id="ssh-list" icon={Terminal} title={tx("Connexions SSH")} count={rows.length} pinned>
+        <InfoNote>{tx("L'agent MyServices fait les mêmes relevés de santé chaque minute, sans clé SSH sur la machine. Gardez le SSH seulement pour ce que l'agent ne lit pas : sauvegardes, Proxmox ou ESXi, NPM, AdGuard. L'icône de réglage ouvre l'accès d'une machine.")}</InfoNote>
         {rows.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucune machine lue par SSH pour l'instant : l'accès s'active sur la page d'une machine, onglet Accès.")}</p>}
         {rows.length > 0 && (
           <div className="mt-3 overflow-x-auto">
@@ -107,7 +107,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
             </table>
           </div>
         )}
-      </Card>
+      </FoldPanel>
     </div>
   );
 }

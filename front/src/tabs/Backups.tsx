@@ -105,7 +105,7 @@ function SetsTable({ sets, b, snap, sizes = false, grouped = false }: Readonly<{
               <Fragment key={s.id}>
                 <tr className={`border-t border-line/60 ${on ? "bg-bg2/40" : "even:bg-bg/50 hover:bg-bg2/40"}`}>
                   <td className="px-3 py-2"><b className="font-semibold">{short(s.label)}</b>{src?.path && <span className="block truncate font-mono text-[11px] text-dim" title={src.path}>{src.path}</span>}</td>
-                  {!grouped && <td className="px-3 py-2"><span className="flex items-center gap-2">{m ? <MachineIcon m={m} /> : <span className="h-6 w-6 shrink-0" aria-hidden />}{s.origin_label ?? s.origin}</span></td>}
+                  {!grouped && <td className="px-3 py-2"><span className="flex items-center gap-2">{m ? <MachineIcon m={m} /> : <MachineIcon m={{}} />}{s.origin_label ?? s.origin}</span></td>}
                   <td className="px-3 py-2 text-muted">{s.schedule || "-"}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{n ? <>{dateTime(n.mtime * 1000)}<span className="block text-[11px] text-dim">{n.where}</span></> : <span className="text-bad">{tx("aucune")}</span>}</td>
                   {sizes && <td className="px-3 py-2 tabular-nums text-muted">{s.size ? bytes(s.size) : "-"}</td>}
@@ -312,7 +312,7 @@ export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; ini
   return (
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={HardDrive} title={tx("Sauvegardes")} tags={<HeadTags counts={[tx("{0} jeux", sm.sets), { text: tx("{0} machines", sm.hosts), title: sources.join(", ") || undefined }]} at={b.generated} />}
-        actions={<><PeriodSwitch value={hours} onChange={setHours} />{snap.me.role === "admin" && <a href="#settings/backups/add" className={`${primary} py-1 no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter des sauvegardes")}</a>}</>} />
+        actions={<>{snap.me.role === "admin" && <a href="#settings/backups/add" className={`${primary} py-1 no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter des sauvegardes")}</a>}<PeriodSwitch value={hours} onChange={setHours} /></>} />
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <HistoryTile n={fig.ok} label={tx("À jour")} tone="ok" fact={fig.offsiteExpected ? tx("copie ailleurs : {0} sur {1}", fig.offsiteOk, fig.offsiteExpected) : undefined} kind="curve" points={hist?.ok ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
         <HistoryTile n={fig.warn} label={tx("En retard")} tone={fig.warn ? "warn" : undefined} kind="strip" points={hist?.late ?? null} hours={hours} now={now} figure={missing} fmt={(p) => tx("{0} en retard", missing(p))} goodHigh={false} />

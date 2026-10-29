@@ -12,6 +12,9 @@ import { Badge, Card, Count, Dim, Empty, GradientFill } from "../components/ui";
 import { PbsCard } from "../components/InfraCards";
 import { HistoryTile, useVirtHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import { FoldPanel } from "../components/FoldPanel";
+import { HeadTags } from "../components/HeadTags";
+import { PageHead } from "../components/PageHead";
 import { virtFigures } from "../lib/virtFigures";
 import { levelTone, shareTone } from "../lib/figureTones";
 import type { TilePoint } from "../lib/tileHistory";
@@ -212,9 +215,19 @@ export function Virtualization({ snap, onMachine }: { snap: Snapshot; onMachine:
   const stopped = pve.reduce((n, c) => n + (c.guests ?? []).filter((g) => !g.template && g.status !== "running").length, 0);
   return (
     <div className="flex flex-col gap-4 py-1">
+      <PageHead icon={Server} title={tx("Virtualisation")}
+        tags={<HeadTags counts={[tx("{0} hôte(s)", tools.reduce((n, t) => n + t.hosts, 0)), tx("{0} machine(s)", fig.guests)]} sources={tools.map((t) => t.label)} at={snap.data.generated} />}
+        actions={<>
+          {stopped > 0 && (
+            <button type="button" onClick={toggleHide} aria-pressed={hideStopped} title={tx("Cache les machines virtuelles arrêtées")}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm font-semibold transition-colors ${hideStopped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
+              <EyeOff size={14} aria-hidden />{tx("Masquer les arrêtées")}<Count n={stopped} tone="off" />
+            </button>
+          )}
+          {pve.length > 0 && <PeriodSwitch value={hours} onChange={setHours} />}
+        </>} />
       {pve.length > 0 && (
         <>
-          <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
           <div className="flex flex-wrap gap-2.5 pb-1">
             <HistoryTile n={`${fig.hostsUp}/${fig.hosts}`} label={tx("Hôtes en ligne")} tone={shareTone(fig.hostsUp, fig.hosts, "bad")} kind="strip" points={hist?.hosts ?? null} {...common} figure={missing} fmt={(p) => tx("{0} hôte(s) hors ligne", missing(p))} goodHigh />
             <HistoryTile n={`${fig.running}/${fig.guests}`} label={tx("Machines en marche")} fact={tx("{0} machines suivies, modèles exclus", fig.guests)} dips={false} kind="curve" points={hist?.guests ?? null} {...common} figure={(p) => p[1]} fmt={ratio} goodHigh />
@@ -232,22 +245,13 @@ export function Virtualization({ snap, onMachine }: { snap: Snapshot; onMachine:
           </div>
         </>
       )}
-      {stopped > 0 && (
-        <div className="flex justify-end">
-          <button type="button" onClick={toggleHide} aria-pressed={hideStopped} title={tx("Cache les machines virtuelles arrêtées")}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${hideStopped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
-            <EyeOff size={14} aria-hidden />{tx("Masquer les arrêtées")}<Count n={stopped} tone="off" />
-          </button>
-        </div>
-      )}
       {pve.map((c) => <Host key={`${c.via ?? "api"}/${c.name}`} c={c} snap={snap} onMachine={onMachine} hideStopped={hideStopped} />)}
       {pbs.length > 0 && (
-        <section>
-          <h2 className="mb-2 flex items-center gap-2 border-b border-line/60 pb-1 text-xs font-bold uppercase tracking-wider text-dim"><Box size={14} aria-hidden />{tx("Proxmox Backup Server")} <Count n={pbs.length} tone="off" /></h2>
+        <FoldPanel id="virt-pbs" icon={Box} title={tx("Proxmox Backup Server")} count={pbs.length} pinned>
           <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
             {pbs.map((c) => <PbsCard key={`${c.connector}/${c.name}`} c={c} />)}
           </div>
-        </section>
+        </FoldPanel>
       )}
     </div>
   );

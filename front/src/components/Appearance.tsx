@@ -1,12 +1,14 @@
 // Apparence (thème, logo de l'en-tête, langue, menu replié), retenue par le navigateur : dans le profil de chaque compte,
 // lecture seule comprise (c'est un choix personnel, pas un réglage de l'application).
-import { Check, Image, Languages, Moon, MousePointer2, MousePointerClick, Palette, PanelLeft, Sun } from "lucide-react";
+import { Check, Image, Info, Languages, Moon, MousePointer2, MousePointerClick, Palette, PanelLeft, Sun } from "lucide-react";
 import { setFlyout, setHeaderLogo, useFlyout, useHeaderLogo, type FlyoutMode, type HeaderLogo, type Theme } from "../theme";
 import { LANG, setLang, tx, type Lang } from "../lib/i18n";
 import { Flag } from "./Flag";
 import { Card } from "./ui";
 import { IconChoice, type IconOption } from "./IconChoice";
 import { InfoNote } from "./InfoNote";
+import { showAllHints, useHints } from "../lib/hints";
+import { quiet } from "../lib/forms";
 
 /** Réglages d'apparence tenus par App (appliqués à toute la page). */
 export interface Look {
@@ -55,6 +57,18 @@ function ThemeCard({ id, label, light, on, pick }: Readonly<{ id: Theme; label: 
   );
 }
 
+/** The information frames hidden with their cross: how many, and the way to show them again */
+function HintsCard() {
+  const { count } = useHints("");
+  return (
+    <Card>
+      <h2 className="mb-1 flex items-center gap-2 font-bold"><Info size={16} aria-hidden />{tx("Cadres d'information")}</h2>
+      <p className="mb-3 text-sm text-muted">{count ? tx("{0} cadre(s) masqué(s) avec leur croix. Les avertissements en orange ne se masquent pas.", count) : tx("Aucun cadre masqué. Chaque cadre d'information a une croix pour le masquer ; les avertissements en orange restent affichés.")}</p>
+      <button type="button" className={quiet} disabled={!count} onClick={showAllHints}>{tx("Réafficher les cadres masqués")}</button>
+    </Card>
+  );
+}
+
 export function Appearance({ look }: Readonly<{ look: Look }>) {
   return (
     <div className="flex flex-col gap-4">
@@ -69,6 +83,7 @@ export function Appearance({ look }: Readonly<{ look: Look }>) {
         <InfoNote className="mb-3">{tx("L'icône affichée avant le titre. Le changement est immédiat. Le favicon de l'onglet du navigateur ne change pas.")}</InfoNote>
         <IconChoice label={tx("Logo de l'en-tête")} value={useHeaderLogo()} onPick={setHeaderLogo} options={LOGO_OPTIONS} />
       </Card>
+      <HintsCard />
       <Card>
         <h2 className="mb-3 flex items-center gap-2 font-bold"><Languages size={16} aria-hidden />{tx("Langue")}</h2>
         <div className="flex flex-wrap gap-2">
