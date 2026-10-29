@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ipaddress
+import threading
 import json
 import time
 from typing import Literal
@@ -9,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from msv.api import server as core
@@ -221,10 +222,8 @@ def _camera_picture(connector: str, name: str, camera: str) -> bytes | JSONRespo
         return deny(502, str(e))
 
 
-@router.get(API + "/stream/snapshot", tags=["services"], summary="Image du moment d'une caméra, lue à la demande et jamais gardée (admin)")
+@router.get(API + "/stream/snapshot", tags=["services"], summary="Image du moment d'une caméra, lue à la demande et jamais gardée (tout utilisateur connecté)")
 def stream_snapshot(connector: str, name: str, camera: str, request: Request):
-    if denied := admin_only(request):
-        return denied
     if not _stream_camera_known(connector, name, camera):
         return deny(404, "caméra inconnue (pas vue à la dernière collecte)")
     img = _camera_picture(connector, name, camera)
@@ -232,8 +231,55 @@ def stream_snapshot(connector: str, name: str, camera: str, request: Request):
         return img
     if img[:3] != b"\xff\xd8\xff" and img[:8] != b"\x89PNG\r\n\x1a\n":   # JPEG or PNG only
         return deny(502, "la réponse n'est pas une image")
-    store().audit("image de caméra vue", request.state.user["username"], ip_of(request), f"{name} · {camera}"[:200])
-    return Response(img, media_type=PNG if img[:4] == b"\x89PNG" else "image/jpeg", headers={"Cache-Control": "no-store"})
+    return Response(img, media_type=PNG if img[:4] == b"\x89PNG" else "image/jpeg", headers={"Cache-Control": "no-store"})   # not audited: the page asks one per tile
+
+
+LIVE_MAX_S = 300        # a live feed stops by itself after this long: nothing keeps a camera open
+LIVE_MAX_OPEN = 4       # feeds relayed at the same time, all users together
+_live_open = 0
+_live_lock = threading.Lock()
+
+
+def _live_feed(upstream, user: str, ip: str, label: str):
+    """Relays the camera's MJPEG feed chunk by chunk until the time limit, the end of the feed or the client leaving; always closes the source."""
+    global _live_open
+    t0 = time.monotonic()
+    try:
+        while time.monotonic() - t0 < LIVE_MAX_S:
+            chunk = upstream.read(16384)
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        upstream.close()
+        with _live_lock:
+            _live_open -= 1
+        store().audit("flux de caméra arrêté", user, ip, f"{label} · {round(time.monotonic() - t0)} s")
+
+
+@router.get(API + "/stream/live", tags=["services"], summary="Flux vidéo en direct d'une caméra (MJPEG), relayé 5 minutes au plus, sur clic (tout utilisateur connecté)")
+def stream_live(connector: str, name: str, camera: str, request: Request):
+    global _live_open
+    import connectors
+    if not _stream_camera_known(connector, name, camera):
+        return deny(404, "caméra inconnue (pas vue à la dernière collecte)")
+    inst = next((c for c in connectors.instances(core.CFG, kind="status") if c.type == connector and c.name == name), None)
+    if inst is None or not hasattr(inst, "mjpeg"):
+        return deny(404, "ce connecteur n'offre pas de flux en direct")
+    with _live_lock:
+        if _live_open >= LIVE_MAX_OPEN:
+            return deny(429, f"déjà {LIVE_MAX_OPEN} flux ouverts : fermez-en un")
+        _live_open += 1
+    try:
+        upstream = inst.mjpeg(camera)
+    except connectors.ConnectorError as e:
+        with _live_lock:
+            _live_open -= 1
+        return deny(502, str(e))
+    label = f"{name} · {camera}"[:200]
+    store().audit("flux de caméra ouvert", request.state.user["username"], ip_of(request), label)
+    return StreamingResponse(_live_feed(upstream, request.state.user["username"], ip_of(request), label),
+                             media_type=upstream.headers.get("Content-Type") or "multipart/x-mixed-replace", headers={"Cache-Control": "no-store"})
 
 
 class ServicePublic(BaseModel):

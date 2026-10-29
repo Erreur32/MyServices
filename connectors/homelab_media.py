@@ -25,7 +25,7 @@ class Frigate(StatusConnector):
     """Frigate NVR : caméras (images par seconde), détecteurs, stockage, événements des 24 dernières heures.
 
     Routes lues (GET) : /api/version, /api/stats, /api/config (detection and recording of each camera), /api/events,
-    /api/<camera>/latest.jpg (the picture an admin asks for, never kept). Port 5000 (internal, no sign-in) needs no account; port 8971
+    /api/<camera>/latest.jpg (the picture shown on the camera tile, never kept), /api/<camera> (live MJPEG feed, relayed on a click). Port 5000 (internal, no sign-in) needs no account; port 8971
     (Frigate 0.14+, sign-in) takes an account: POST /api/login gives the frigate_token cookie (a JWT), kept in memory only and sent with
     each call. D'après la documentation de Frigate (API HTTP) : à confirmer sur un vrai Frigate."""
     type = "frigate"
@@ -99,7 +99,7 @@ class Frigate(StatusConnector):
                     rec = {"used": (num(v["total"]) - num(v["free"])) * 1048576, "total": num(v["total"]) * 1048576}
         events, ev = None, []
         try:
-            ev = rows(self.get(f"/api/events?limit=100&after={int(time.time()) - 86400}"))
+            ev = rows(self.get(f"/api/events?limit=500&after={int(time.time()) - 86400}"))
             events = len(ev)
         except ConnectorError:
             pass   # événements indisponibles (version, droits) : le reste est lu
@@ -110,18 +110,55 @@ class Frigate(StatusConnector):
             pct = 100 * (free[1] - free[0]) / free[1] if free[1] else 0
             facts.append(fact("Stockage", f"{size(free[0])} libres", "bad" if pct >= 95 else "warn" if pct >= 90 else None))
         if events is not None:
-            facts.append(fact("Événements 24 h", f"{events}{'+' if events >= 100 else ''}"))
+            facts.append(fact("Événements 24 h", f"{events}{'+' if events >= 500 else ''}"))
         if service.get("uptime") is not None:
             facts.append(fact("En marche", duration(num(service.get("uptime")))))
         out = self.out(service.get("version"), facts, [f"caméra « {c} » sans image (0 image/s)" for c in down])
         out["stream"] = self._block(cams, ev, events, rec or ({"used": free[1] - free[0], "total": free[1]} if free else None), max(speeds) if speeds else None)
+        out["frigate"] = self._system(stats, service, cams)
         return out
+
+    @staticmethod
+    def _system(stats: dict, service: dict, cams: dict) -> dict:
+        """What Frigate says about its own load (/api/stats), for the Frigate tab: detectors, GPUs, each camera's processes, storage, temperatures.
+        Process figures come from `cpu_usages`, keyed by pid (percent of CPU and of memory)."""
+        usage = stats.get("cpu_usages") if isinstance(stats.get("cpu_usages"), dict) else {}
+
+        def proc(pid) -> dict:
+            u = usage.get(str(pid)) if pid is not None else None
+            return {"cpu": num(u.get("cpu")), "mem": num(u.get("mem"))} if isinstance(u, dict) else {}
+        dets = [{"name": str(k), "ms": num(v.get("inference_speed")), "pid": v.get("pid"), **proc(v.get("pid"))}
+                for k, v in (stats.get("detectors") or {}).items() if isinstance(v, dict)]
+        def pct(v):   # « 12.5 % » (a string)
+            return num(str(v).replace("%", "").strip()) if v is not None else None
+        gpus = [{"name": str(k), "gpu": pct(v.get("gpu")), "mem": pct(v.get("mem")), "enc": pct(v.get("enc")), "dec": pct(v.get("dec"))}
+                for k, v in (stats.get("gpu_usages") or {}).items() if isinstance(v, dict)]
+        cameras = [{"name": k, "fps": num(v.get("camera_fps")), "process_fps": num(v.get("process_fps")), "detection_fps": num(v.get("detection_fps")),
+                    "skipped_fps": num(v.get("skipped_fps")), "ffmpeg": proc(v.get("ffmpeg_pid")), "capture": proc(v.get("capture_pid")), "detect": proc(v.get("pid"))}
+                   for k, v in list(cams.items())[:64]]
+        storage = [{"path": str(k), "total": num(v.get("total")), "used": num(v.get("used")), "free": num(v.get("free"))}   # Mo
+                   for k, v in (service.get("storage") or {}).items() if isinstance(v, dict)]
+        temps = {str(k): num(v) for k, v in (service.get("temperatures") or {}).items() if num(v) is not None}
+        return {"detectors": dets, "gpus": gpus, "cameras": cameras, "storage": storage, "temperatures": temps, "uptime": num(service.get("uptime")),
+                "latest_version": service.get("latest_version"), "version": service.get("version")}
 
     def _block(self, cams: dict, ev: list[dict], events: int | None, storage: dict | None, speed: float | None) -> dict:
         """The « stream » block (see homelab_stream): each camera with what its config says it does, its events of the last 24 h."""
         conf = self.get_opt("/api/config") or {}
         cc = conf.get("cameras") if isinstance(conf, dict) and isinstance(conf.get("cameras"), dict) else {}
         per = Counter(str(e.get("camera")) for e in ev)
+        by_cam: dict[str, Counter] = {}
+        for e in ev:
+            if e.get("label"):
+                by_cam.setdefault(str(e.get("camera")), Counter())[str(e["label"])] += 1
+        now = time.time()
+        hourly = [0] * 24   # index 0 = the oldest hour of the last 24, 23 = the hour just gone
+        for e in ev:
+            t = num(e.get("start_time"))
+            if t is not None and 0 <= now - t < 86400:
+                hourly[23 - int((now - t) // 3600)] += 1
+        recent = [{"camera": str(e.get("camera")), "label": str(e.get("label") or "?"), "t": num(e.get("start_time"))}
+                  for e in sorted((e for e in ev if num(e.get("start_time")) is not None), key=lambda e: -num(e.get("start_time")))[:5]]
         last: dict[str, float] = {}
         for e in ev:
             t = num(e.get("start_time"))
@@ -132,13 +169,35 @@ class Frigate(StatusConnector):
             c = cc.get(name) if isinstance(cc.get(name), dict) else {}
             fps = num(v.get("camera_fps"))
             out.append({"name": name, "up": fps is None or fps > 0, "fps": fps, "detect": _enabled(c, "detect"), "record": _enabled(c, "record"),
-                        "events": per.get(name, 0) if events is not None else None, "last": last.get(name)})
+                        "events": per.get(name, 0) if events is not None else None, "last": last.get(name),
+                        "labels": dict(by_cam.get(name, Counter()).most_common(4))})
         labels = dict(Counter(str(e.get("label")) for e in ev if e.get("label")).most_common(6))
         return {"role": "nvr", "engine": "Frigate", "cameras": out, "events": events, "labels": labels, "storage": storage,
-                "detector_ms": speed, "snapshot": True}
+                "detector_ms": speed, "snapshot": True, "hourly": hourly if events is not None else None, "recent": recent}
 
     def snapshot(self, cam: str) -> bytes:
         return self.get(f"/api/{urllib.parse.quote(cam, safe='')}/latest.jpg?h=360", binary=True)
+
+    def mjpeg(self, cam: str):
+        """The live MJPEG feed of a camera (Frigate /api/<camera>?fps=5&h=480), opened for the server to relay as it comes: the raw response, the
+        caller closes it. Signs in again once when the session token is refused."""
+        url = f"{self.base_url()}/api/{urllib.parse.quote(cam, safe='')}?fps=5&h=480"
+        ctx = None if self.tls() else ssl._create_unverified_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
+        for retry in (False, True):
+            headers = {"User-Agent": "myservices"}
+            if self.conf.get("user"):
+                if self._token is None:
+                    self._token = self._login()
+                headers.update({"Authorization": f"Bearer {self._token}", "Cookie": f"frigate_token={self._token}"})
+            try:
+                return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=self.ctx.timeout, context=ctx)
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403) and self.conf.get("user") and not retry:
+                    self._token = None
+                    continue
+                raise ConnectorError(f"flux refusé : HTTP {e.code}") from None
+            except OSError as e:
+                raise ConnectorError(f"injoignable ({getattr(e, 'reason', e.__class__.__name__)})") from None
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
