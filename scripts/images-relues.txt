@@ -203,3 +203,13 @@ cb5dd42b47c84ae628331a2d0307c62c  front/public/icons/shinobi.png
 d84f17ed65dfce55bc284928c0708d40  front/public/icons/zoneminder.png
 c88b98eb796ec9754780b09c9f9e4c48  front/public/icons/scrypted.png
 e1350d6a076b29f10fd50a4c9bbdae93  front/public/icons/agent-dvr.png
+f0bd8e3dbacdbb2607ac8601dc038db8  front/public/icons/windows-7.svg
+a950b05f2dee755f1f2854f24e34d7cc  front/public/icons/windows-8.svg
+c482f3fc8d0a304806b8a695cfc6aba1  front/public/icons/windows-server-2008.svg
+f88fb5b3afa2ded3fb492ccec7e4ea90  front/public/icons/windows-server-2012.svg
+b5014b49b2cb7b3163afb47a4278b118  front/public/icons/windows-server-2016.svg
+3aab52c22dd06abf035e75a96861484b  front/public/icons/windows-7.svg
+003f9c38c4326a455d0d07aa6a74ae34  front/public/icons/windows-8.svg
+56f7d6334c8775d7a0a15a3d21657d23  front/public/icons/windows-server-2008.svg
+cfb63e00681dd50e53827daf59e1df4c  front/public/icons/windows-server-2012.svg
+ea4fef3644f06dabd2a9dfd04d016aa0  front/public/icons/windows-server-2016.svg

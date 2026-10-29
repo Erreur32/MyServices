@@ -1455,6 +1455,10 @@ def main():
     # Avant « out » : ces lectures ajoutent leur état à CONNECTOR_STATUS, que « connectors » (ci-dessous) recopie ;
     # lues dans le dictionnaire, après « connectors », leur état manquait et la page disait « pas encore lu »
     services_status, network, security, containers, virtualization = connector_rows(("status", "network", "security", "containers", "virtualization")).values()
+    wazuh_os = {ip: w["os"] for st in services_status if st.get("connector") == "wazuh" for ip, w in (st.get("machines") or {}).items() if w.get("os")}
+    for m in machines_out:   # system name known only by Wazuh (no SSH, no agent): lets the page pick the right logo
+        if m["ip"] in wazuh_os and not (m["info"] or {}).get("os") and not (m["agent"] or {}).get("os"):
+            m["os_hint"] = wazuh_os[m["ip"]]
     # An API without version (Dockhand…): the one of the container behind the connector URL, when its image says it
     urls = {}
     with contextlib.suppress(connectors.ConnectorError):

@@ -44,6 +44,7 @@ from pathlib import Path
 from msv.alerts import notify
 from msv.core.config import CFG, next_timer_run
 from msv.core import inventory_cache
+from msv.machines.winname import windows_name
 from msv.core.docker_state import allowed_names, intended_stop
 from msv.collect import readers
 from msv.remote.sshmux import SSH_MUX
@@ -117,7 +118,8 @@ def load_hosts(agent_ips: frozenset | set = frozenset()) -> tuple[list[dict], di
         hosts.append({"id": hid, "name": f"{m['name']} · {ip}",  # « Nom · IP » : l'IP est relue par la page
                       "mode": "local" if alias == "local" else "ssh", "target": alias, "vm": bool(m.get("vm")),
                       "os": m.get("os", "linux"), "ip": ip, "off": bool(m.get("off")),
-                      "sources": _list_of(m, "health_sources"), "stopped_ok": _list_of(m, "stopped_ok"), "temp_warn_c": m.get("temp_warn_c")})
+                      "sources": _list_of(m, "health_sources"), "stopped_ok": _list_of(m, "stopped_ok"), "temp_warn_c": m.get("temp_warn_c"),
+                      **{k: m.get(k) for k in LIMIT_KEYS}})
     return hosts, meta
 
 
@@ -430,7 +432,26 @@ def resources_level(res) -> str:
     p = res.get("mem_pct") if isinstance(res, dict) else None
     if not isinstance(p, (int, float)):
         return "na"
-    return "crit" if p >= MEM_CRIT_PCT else "warn" if p >= MEM_WARN_PCT else "ok"
+    warn, crit = res.get("warn_pct") or MEM_WARN_PCT, res.get("crit_pct") or MEM_CRIT_PCT   # the machine's own limits (apply_limits) or the defaults
+    return "crit" if p >= crit else "warn" if p >= warn else "ok"
+
+
+LIMIT_KEYS = ("disk_warn_pct", "disk_crit_pct", "mem_warn_pct", "mem_crit_pct")   # per-machine alert limits (Machines › Settings), all optional
+
+
+def apply_limits(h: dict, hc: dict) -> None:
+    """Puts a machine's own disk and memory limits on its reading: the `warning`/`critical` flags of each disk and the memory limits
+    that resources_level() reads. A machine without limits keeps the defaults."""
+    dw, dc = hc.get("disk_warn_pct") or DISK_WARN_PCT, hc.get("disk_crit_pct") or DISK_CRIT_PCT
+    if (dw, dc) != (DISK_WARN_PCT, DISK_CRIT_PCT):
+        for d in h.get("disks") or []:
+            inode = d.get("inode_pct") or 0
+            d["critical"] = d["used_pct"] >= dc or inode >= dc
+            d["warning"] = d["used_pct"] >= dw or inode >= INODE_WARN_PCT
+    if isinstance(h.get("res"), dict) and (hc.get("mem_warn_pct") or hc.get("mem_crit_pct")):
+        h["res"]["warn_pct"], h["res"]["crit_pct"] = hc.get("mem_warn_pct") or MEM_WARN_PCT, hc.get("mem_crit_pct") or MEM_CRIT_PCT
+    if any(hc.get(k) for k in LIMIT_KEYS):
+        h["limits"] = {k: hc[k] for k in LIMIT_KEYS if hc.get(k)}
 
 
 TEMP_WARN_C, TEMP_CRIT_C = 85, 95  # °C du processeur ; au-delà, la machine bride ou s'éteint
@@ -1109,7 +1130,7 @@ def parse_windows(raw: dict) -> dict:
                     else {"failed_24h": 0, "available": False, "reason": "journal Sécurité réservé aux administrateurs"},
         "smart": {"accessible": bool(pd), "disks": [{"device": d.get("n", "?"), "healthy": d.get("h") == "Healthy",
                                                      "failed": d.get("h") not in ("Healthy", "", None)} for d in pd]},
-        "system": {"os": (raw.get("os") or {}).get("n"), "version": (raw.get("os") or {}).get("v"), "build": (raw.get("os") or {}).get("b"),
+        "system": {"os": windows_name((raw.get("os") or {}).get("n"), (raw.get("os") or {}).get("b")), "version": (raw.get("os") or {}).get("v"), "build": (raw.get("os") or {}).get("b"),
                    "boot": raw.get("boot")} if isinstance(raw.get("os"), dict) else None,
         "hardware": hardware_of_raw(raw.get("hw")),
         "res": ({"available": True, "cpu_pct": round(raw["cpu"], 1), "mem_pct": round(raw["mem"], 1)}
@@ -2189,6 +2210,7 @@ def main() -> int:
                 asleep.append(asleep_entry(hc, agents.get(hc["ip"])))
             continue
         track_heat(h, hc.get("temp_warn_c"), prev_hot.get(h["id"]), now)
+        apply_limits(h, hc)
         if not dry and isinstance(h.get("docker"), dict) and h["docker"].get("states"):   # fresh `docker ps -a`: the services keep the real container states between two inventories
             inventory_cache.update_states(DOCKER_CACHE, hc["ip"], h["docker"]["states"])
         if h.get("reachable") and "disks" in h:   # the temperature level may have changed with the machine's threshold or the duration

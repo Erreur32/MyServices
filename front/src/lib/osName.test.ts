@@ -10,6 +10,8 @@ describe("nom de système abrégé", () => {
     expect(shortOs("Microsoft Windows 11 Édition Familiale")).toBe("Windows 11 Home");
     expect(shortOs("Microsoft Windows Server 2022 Standard")).toBe("Windows Server 2022");
     expect(shortOs("Microsoft Windows 7")).toBe("Windows 7");
+    expect(shortOs("Microsoft Windows 11 Professionnel 23H2")).toBe("Windows 11 Pro 23H2");
+    expect(shortOs("Microsoft Windows 10 Pro 22H2")).toBe("Windows 10 Pro 22H2");
   });
   it("Linux : GNU/Linux retiré", () => {
     expect(shortOs("Debian GNU/Linux 13 (trixie)")).toBe("Debian 13 (trixie)");

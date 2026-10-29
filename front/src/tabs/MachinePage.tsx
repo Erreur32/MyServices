@@ -73,12 +73,13 @@ function PortsCard({ snap, m, onMachine }: Readonly<{ snap: Snapshot; m: Machine
   const wz = wazuhOf(snap.data.services_status, m.ip, m.name, new Set(snap.data.machine_list.map((x) => x.ip)));
   const sheet = snap.data.sheets?.[m.ip], rows = portRows(m, snap.data.hosts, sheet, { mynetwork: net?.ports, wazuh: wz?.m.ports });
   if (!rows.length) return null;
+  const hasWeb = m.services > 0 || (m.web?.length ?? 0) > 0;   // a service seen on this machine (NPM, Docker, web server): else the button leads nowhere
   const scanned = !!sheet?.scan, at = sheet?.scan?.ports_at ?? net?.ports_at;
   return (
     <section className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Ports ouverts")}>
       <div className="-mx-4 -mt-4 mb-2 flex flex-wrap items-center gap-2 border-b border-line/60 bg-bg px-4 py-2">
         <h2 className="flex items-center gap-2 font-bold"><EthernetPort size={16} aria-hidden />{tx("Ports ouverts")} <span className="text-sm font-normal text-dim">{rows.length}{at && ` · ${tx("scannés le {0}", dateTime(at))}`}</span></h2>
-        <button type="button" onClick={() => onMachine(m.ip)} className={`${quiet} ml-auto`}>{tx("Ses services")}<ArrowRight size={14} aria-hidden /></button>
+        <button type="button" onClick={() => onMachine(m.ip)} disabled={!hasWeb} title={hasWeb ? undefined : tx("Aucun service web actif sur cette machine")} className={`${quiet} ml-auto disabled:cursor-not-allowed disabled:opacity-50`}>{tx("Services Web")}<ArrowRight size={14} aria-hidden /></button>
       </div>
       <table className="mt-2 w-full text-sm">
         <thead><tr className="text-left text-xs text-muted"><th className="w-4 py-1 pr-2" aria-label={tx("État")} /><th className="py-1 pr-3 font-semibold">{tx("Service")}</th><th className="py-1 pr-3 font-semibold">{tx("Port")}</th><th className="py-1 font-semibold">{tx("Exposé")}</th></tr></thead>

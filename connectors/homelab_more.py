@@ -521,6 +521,24 @@ def _first_key(agg: dict | None) -> str | None:
     return next((str(x.get("key")) for x in rows((agg or {}).get("buckets"))), None)
 
 
+def _os_of_policy(sca: list[dict]) -> str | None:
+    """Windows version named by a CIS benchmark (« CIS Microsoft Windows 11 Enterprise Benchmark »), when syscollector has no system name."""
+    for p in sca:
+        m = re.search(r"Windows (Server \d{4}|1[01]|[78](?:\.1)?)", str(p.get("name") or ""))
+        if m:
+            return f"Microsoft Windows {m.group(1)}"
+    return None
+
+
+def _os_name(os: object) -> str | None:
+    """System name of a Wazuh agent (« Microsoft Windows 11 Pro »), Windows 10 corrected to 11 by the build (10.0.<build>.x) ; None when unknown."""
+    from msv.machines.winname import windows_name
+    if not isinstance(os, dict) or not os.get("name"):
+        return None
+    build = str(os.get("version") or "").split(".")[2:3]
+    return windows_name(str(os["name"]).strip(), build[0] if build else None)
+
+
 class Wazuh(StatusConnector):
     """Wazuh (server API, 55000): version, agents active / disconnected / never connected. Read-only API user (Basic, then a JWT).
     Routes: POST /security/user/authenticate, GET /, /agents/summary/status, /agents?status=disconnected.
@@ -590,7 +608,7 @@ class Wazuh(StatusConnector):
         agents = self.agents(h)
         read = {a["id"] for a in agents if a.get("status") == "active"}
         read = set(sorted(read)[:self.MAX_AGENTS])
-        machines = {a["ip"]: {"agent": a.get("name"), "status": a.get("status"), **(self.inventory(h, a["id"]) if a["id"] in read else {})} for a in agents}
+        machines = {a["ip"]: {"agent": a.get("name"), "status": a.get("status"), **({"os": a["os"]} if a.get("os") else {}), **(self.inventory(h, a["id"]) if a["id"] in read else {})} for a in agents}
         summary = {"active": int(num(conn.get("active"), 0)), "disconnected": disc, "never": never, "total": int(num(conn.get("total"), 0))}
         alerts = None
         if str(self.conf.get("indexer_url") or "").strip():
@@ -601,7 +619,7 @@ class Wazuh(StatusConnector):
 
     def agents(self, h: dict) -> list[dict]:
         """The Wazuh agents with a usable IP (the manager itself, 000, left out): [{id, name, ip, status}]."""
-        got = rows((_data(self.get_opt("/agents?select=id,name,ip,status&limit=500", h)) or {}).get("affected_items"))
+        got = rows((_data(self.get_opt("/agents?select=id,name,ip,status,os.name,os.version&limit=500", h)) or {}).get("affected_items"))
         out = []
         for a in got:
             try:
@@ -609,7 +627,7 @@ class Wazuh(StatusConnector):
             except ValueError:
                 continue
             if a.get("id") != "000" and not ipaddress.ip_address(ip).is_loopback:
-                out.append({"id": str(a.get("id")), "name": a.get("name"), "ip": ip, "status": a.get("status")})
+                out.append({"id": str(a.get("id")), "name": a.get("name"), "ip": ip, "status": a.get("status"), "os": _os_name(a.get("os"))})
         return out
 
     def inventory(self, h: dict, aid: str) -> dict:
@@ -619,6 +637,7 @@ class Wazuh(StatusConnector):
     def _inventory(self, h: dict, aid: str) -> dict:
         sca = [{"name": p.get("name") or p.get("policy_id"), "score": int(num(p.get("score"), 0)), "pass": int(num(p.get("pass"), 0)),
                 "fail": int(num(p.get("fail"), 0))} for p in rows((_data(self.get_opt(f"/sca/{aid}", h)) or {}).get("affected_items"))]
+        so = next(iter(rows((_data(self.get_opt(f"/syscollector/{aid}/os", h)) or {}).get("affected_items"))), {})
         hw = next(iter(rows((_data(self.get_opt(f"/syscollector/{aid}/hardware", h)) or {}).get("affected_items"))), {})
         cpu, ram = hw.get("cpu") or {}, hw.get("ram") or {}
         pk = _data(self.get_opt(f"/syscollector/{aid}/packages?limit=1", h)) or {}
@@ -626,7 +645,8 @@ class Wazuh(StatusConnector):
         loop = ("127.", "::1", "localhost")   # listening on the machine only: not reachable from the network
         listen = sorted({(int(num((p.get("local") or {}).get("port"), 0)), str(p.get("protocol") or ""), str(p.get("process") or ""),
                           str((p.get("local") or {}).get("ip") or "").startswith(loop)) for p in ports})
-        return {"sca": sca,
+        osn = _os_name(so.get("os")) or _os_of_policy(sca)
+        return {"sca": sca, **({"os": osn} if osn else {}),
                 "hardware": {"cpu": cpu.get("name"), "cores": cpu.get("cores"), "ram_gb": round(num(ram.get("total"), 0) / 1024 ** 2, 1) or None} if hw else None,
                 "packages": pk.get("total_affected_items") if isinstance(pk.get("total_affected_items"), int) else None,
                 "ports": [{"port": p, "proto": pr, "process": pc or None, **({"local": True} if lo else {})} for p, pr, pc, lo in listen if p][:80]}
