@@ -10,22 +10,22 @@ PAGE = "<html><body><svg></svg></body></html>"
 
 
 class Nav(unittest.TestCase):
-    def test_bandeau_avec_retour_autres_schemas_et_origine(self):
+    def test_bandeau_liens_seulement_vers_les_schemas_construits(self):
         out = dn.inject(PAGE, "carte", ["carte", "acces"])
-        self.assertIn('href="./"', out)                              # back to the app (the root, relative to /carte.html)
-        self.assertIn('href="acces.html"', out)                       # autre schéma
+        self.assertIn('href="./"', out)                              # retour à l'appli (la racine, relative à /carte.html)
+        self.assertIn('href="acces.html"', out)                       # autre schéma construit
         self.assertNotIn('href="carte.html"', out)                    # celui qu'on regarde n'est pas un lien
-        self.assertIn("Généré avec", out)
-        self.assertIn(dn.ARCHIFY_URL, out)
         self.assertNotIn('href="sauvegardes.html"', out)              # schéma absent : pas de lien mort
+        self.assertNotIn(dn.ARCHIFY_URL, out)                         # l'origine est du texte
+        self.assertIn("Généré avec Archify", out)
         self.assertTrue(out.index("ms-nav") < out.index("</body>"))
 
     def test_idempotent(self):
         once = dn.inject(PAGE, "carte", ["carte", "acces"])
         twice = dn.inject(once, "carte", ["carte", "acces"])
         self.assertEqual(once, twice)
-        self.assertEqual(twice.count("ms-nav"), 1)
-        self.assertEqual(dn.inject(once, "carte", ["carte", "acces", "alertes"]).count('id="ms-nav"'), 1)   # nouvelle liste : remplacé, pas doublé
+        self.assertEqual(twice.count('id="ms-nav"'), 1)
+        self.assertEqual(dn.inject(once, "carte", ["carte", "acces", "sauvegardes"]).count('id="ms-nav"'), 1)   # nouvelle liste : remplacé, pas doublé
 
     def test_page_sans_body_inchangee(self):
         self.assertEqual(dn.inject("<svg/>", "carte", ["carte"]), "<svg/>")

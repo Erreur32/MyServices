@@ -23,14 +23,13 @@ def main() -> int:
     specs = {"carte": archify_map.build(data, health), "acces": archify_map.build_access(data, health)}
     if (bk := archify_map.read(web / "backups.json")) is not None:
         specs["sauvegardes"] = archify_map.build_backups(bk)
-    if (chain := archify_map.read(out / "alerts-summary.json")) is not None:
-        specs["alertes"] = archify_map.build_alert_chain(chain, data.get("generated", ""))
     wanted = [x for x in (sys.argv[3] if len(sys.argv) > 3 else "").split(",") if x]   # schémas proposés que l'on a demandé de créer
     if wanted:
         for key in wanted:
             if key in archify_extra.BUILD and archify_extra.available(key, data):
                 specs[key] = archify_extra.BUILD[key](data)
-    (out / "connecteurs.archify.json").unlink(missing_ok=True)   # NOSONAR S8707: command-line tool, the paths are the ones its operator typed ; ancien schéma « Qui lit quoi », retiré
+    for old in ("connecteurs.archify.json", "alertes.archify.json", "alerts-summary.json"):   # retired: « Qui lit quoi », the alert chain and the summary it read
+        (out / old).unlink(missing_ok=True)   # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
     for name, spec in specs.items():
         f = out / f"{name}.archify.json"
         old = archify_map.read(f)

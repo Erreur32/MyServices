@@ -20,6 +20,7 @@ import json
 import re
 import socket
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -456,20 +457,6 @@ def refresh_nav() -> None:
             log(f"⚠ schéma {k} : bandeau non ajouté ({e})")
 
 
-def write_alerts_summary() -> None:
-    """Chiffres du schéma « chaîne d'alertes » (canaux, règles actives, notifications) dans state_dir/alerts-summary.json ; sans secret."""
-    try:
-        a, n = alerts_store(), notifications_store().list()
-        out = {"channels": [{"type": c["type"], "name": c["name"], "enabled": c["enabled"]} for c in a.channels()],
-               "rules": sum(1 for r in a.rules() if r["enabled"]),
-               "reports": sum(1 for x in n if x["kind"] == "report" and x["enabled"]), "live": sum(1 for x in n if x["kind"] == "events" and x["enabled"]),
-               "collect_at": TASKS["collect"]["at"], "watch_at": TASKS["watch"]["at"]}
-        f = Path(CFG["state_dir"]) / "alerts-summary.json"
-        f.write_text(json.dumps(out), encoding="utf-8")
-    except Exception as e:  # noqa: BLE001 : facultatif, le schéma d'alertes manquera simplement
-        log(f"⚠ schéma des alertes : {type(e).__name__}: {e}")
-
-
 MAP_STATE: dict = {"running": False, "started": None, "last_seconds": None, "last_end": None}   # state of the diagram build, shown by the Diagrams tab
 
 
@@ -501,15 +488,25 @@ def archify_why(stdout: str, stderr: str) -> str:
     return str(d.get("error") or "; ".join(errs[:3]) or f"stage {d.get('stage') or '?'}, {(stderr or '').strip()[-200:] or 'no detail'}")
 
 
+def clear_stale_locks() -> None:
+    """Archify refuses to deliver while a lock of an earlier delivery remains (one killed by its timeout or a restart leaves it for good).
+    Builds run one at a time (build_map), so at the start of a build every lock and half-written delivery folder is a leftover."""
+    for f in [*WEB.glob(".archify-delivery-lock.json"), *WEB.glob("*.delivery-lock.json")]:
+        f.unlink(missing_ok=True)
+    for d in WEB.glob(".archify-delivery-*"):
+        if d.is_dir():
+            shutil.rmtree(d, ignore_errors=True)
+
+
 def _build_map() -> None:
     """Cartes de l'infra (carte.html, sauvegardes.html ; Archify) depuis les fichiers de la page. Facultatif :
     sans Archify ou en échec, la carte précédente reste, les tâches n'en dépendent pas."""
     if not (ARCHIFY and Path(ARCHIFY).exists()):
         return
-    write_alerts_summary()
+    clear_stale_locks()
     from msv.diagram import archify_extra
     wanted = [k for k in CFG.get("diagrams_extra") or [] if k in archify_extra.CATALOG]
-    for stale in ["connecteurs", *[k for k in archify_extra.CATALOG if k not in wanted]]:   # ancien schéma retiré, schémas proposés qu'on n'a pas (ou plus) demandés
+    for stale in ["connecteurs", "alertes", *[k for k in archify_extra.CATALOG if k not in wanted]]:   # ancien schéma retiré, schémas proposés qu'on n'a pas (ou plus) demandés
         for suffix in (".html", ".delivery.json"):
             (WEB / f"{stale}{suffix}").unlink(missing_ok=True)
     try:

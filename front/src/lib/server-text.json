@@ -2,6 +2,8 @@
  "exact": {
   "API REST introuvable (vCenter 6.7 ou plus récent ?)": "REST API not found (vCenter 6.7 or newer?)",
   "Archify n'est pas installé dans cette image": "Archify is not installed in this image",
+  "ce connecteur n'offre pas de flux en direct": "this connector has no live stream",
+  "une génération est déjà en cours": "a generation is already running",
   "DNS : réponses de chaque serveur, réécritures AdGuard": "DNS: answers of each server, AdGuard rewrites",
   "Le contrôleur UniFi ne répond pas (détail dans les journaux)": "The UniFi controller does not answer (details in the logs)",
   "MCP : jeton msv_mcp_ requis (Authorization: Bearer …)": "MCP: msv_mcp_ token required (Authorization: Bearer …)",
