@@ -109,11 +109,11 @@ function ToDealHead({ count, crit, folded, toggle }: Readonly<{ count: number; c
   );
 }
 
-/** « À traiter maintenant »: every alert with what to do; its badges filter the list; folds to its title and count, the choice kept in this browser */
+/** « À traiter maintenant »: every alert with what to do; its badges filter the list; folds to its title and count (folded until opened), the choice kept in this browser */
 function ToDeal({ items, admin, go, goFilter }: Readonly<{ items: Attention[]; admin: boolean; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
   const [all, setAll] = useState(false);
   const [only, setOnly] = useState<Category | null>(null);
-  const [folded, setFolded] = useStoredFlag("myservices.home.todo.folded", false);
+  const [folded, setFolded] = useStoredFlag("myservices.home.todo.folded", true);
   const cats = [...new Set(items.map((i) => i.category))];
   const kept = only && cats.includes(only) ? items.filter((i) => i.category === only) : items;
   const shown = all ? kept : kept.slice(0, LIMIT);

@@ -1,8 +1,9 @@
 // A short explanation that is not part of the page's data: an icon in front, a tinted band with a coloured edge, so it reads as a hint
 // and not as one more line of content. `warn` is for a caution (something is lost, locked out or sensitive): it stays. A hint carries a cross
 // that hides it in this browser (lib/hints.ts); Appearance shows them all again.
-import { Info, TriangleAlert, X } from "lucide-react";
-import type { ReactNode } from "react";
+// A `warn` note is folded by default (one click opens it); `open` keeps it unfolded when it carries an action.
+import { ChevronDown, Info, TriangleAlert, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { hideHint, hintId, textOf, useHints } from "../lib/hints";
 import { tx } from "../lib/i18n";
 
@@ -11,11 +12,17 @@ const LOOK = {
   warn: { box: "border-warn/40 bg-warn/5", edge: "border-l-warn", icon: "text-warn" },
 } as const;
 
-export function InfoNote({ children, tone = "info", className = "" }: Readonly<{ children: ReactNode; tone?: keyof typeof LOOK; className?: string }>) {
+export function InfoNote({ children, tone = "info", className = "", open = false }: Readonly<{ children: ReactNode; tone?: keyof typeof LOOK; className?: string; open?: boolean }>) {
+  const [shown, setShown] = useState(open);
   const look = LOOK[tone], Icon = tone === "warn" ? TriangleAlert : Info;
   const id = hintId(textOf(children));
   const { hidden } = useHints(id);
   if (tone === "info" && hidden) return null;
+  if (tone === "warn" && !shown) return (
+    <button type="button" onClick={() => setShown(true)} aria-expanded={false} className={`flex w-full items-center gap-2 rounded-lg border border-l-4 px-3 py-1.5 text-left text-xs font-semibold text-warn hover:bg-warn/10 ${look.box} ${look.edge} ${className}`}>
+      <Icon size={14} className="shrink-0" aria-hidden />{tx("Avertissement")}<ChevronDown size={14} className="ml-auto shrink-0" aria-hidden />
+    </button>
+  );
   return (
     <div role="note" className={`flex items-start gap-2 rounded-lg border border-l-4 px-3 py-2 text-xs leading-relaxed text-muted ${look.box} ${look.edge} ${className}`}>
       <Icon size={14} className={`mt-0.5 shrink-0 ${look.icon}`} aria-hidden />

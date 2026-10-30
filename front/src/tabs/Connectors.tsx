@@ -395,7 +395,7 @@ function ToggleNote({ note, onForce }: Readonly<{ note: Note; onForce?: () => vo
           <div className="mt-4 flex flex-wrap items-center justify-end gap-2">{force}<button type="button" className={primary} onClick={() => setClosed(note)}>{tx("OK")}</button></div>
         </Overlay>
       )}
-      <InfoNote tone="warn" className="mt-2"><span className="block">{note.text}</span>{force}</InfoNote>
+      <InfoNote tone="warn" open className="mt-2"><span className="block">{note.text}</span>{force}</InfoNote>
     </>
   );
 }
@@ -417,8 +417,8 @@ function CardHead({ inst, category, view, open }: Readonly<{ inst: ConnectorInst
   const s = inst.status, icon = appIcon([inst.label]);
   const sub = [inst.name === inst.type ? "" : inst.name, category ? catName(category) : ""].filter(Boolean).join(" · ");
   return (
-    <span className="flex items-center gap-2.5 px-3 pt-2.5">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-card">
+    <span className="flex items-center gap-2.5 rounded-t-xl border-b border-line/40 bg-card px-3 py-2.5">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">
         {icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}
       </span>
       <span className="min-w-0 flex-1">
@@ -480,10 +480,10 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
       <button type="button" className="group rounded-t-xl text-left hover:bg-link/10 disabled:cursor-default disabled:hover:bg-transparent" disabled={locked} aria-expanded={edit}
         title={openTip(locked, edit)} onClick={() => setEdit(!edit)}>
         <CardHead inst={inst} category={type.category} view={view} open={edit} />
-        {edit && detail ? <span className="block h-2" /> : <span className="grid grid-cols-3 gap-2 px-3 pb-2 pt-1.5">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
+        {edit && detail ? <span className="block h-2" /> : <span className="grid grid-cols-3 gap-2 px-3 pb-2 pt-2.5">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
       </button>
       {inst.enabled && (!s || s.pending || !s.ok || s.stale || s.warning) && <div className="px-3 pb-2 text-sm"><StatusLine s={s && { ...s, found: [] }} collect={collect} /></div>}
-      <div className="mt-auto flex items-center gap-1 border-t border-line/40 py-1 pl-3 pr-2">
+      <div className={`mt-auto flex items-center gap-1 border-t border-line/40 bg-card py-1.5 pl-3 pr-2 ${edit ? "" : "rounded-b-xl"}`}>
         <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>
         <span className="ml-1 flex items-center" title={tx("Le connecteur est lu par le serveur à sa période (voir Modifier) ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
           <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />

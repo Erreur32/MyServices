@@ -33,7 +33,7 @@ function text429(r: RequestRow): string {
   return r.retry_after === null ? String(r.n429) : `${r.n429} (${r.retry_after} s)`;
 }
 
-function watchText(w: RequestWatch): string {
+export function watchText(w: RequestWatch): string {
   if (w.n429 > 0) return w.retry_after === null ? tx("429 reçu sur {0} ({1})", w.route, w.owner) : tx("429 reçu sur {0} ({1}), réessai dans {2} s", w.route, w.owner, w.retry_after);
   return tx("{0} appels par minute sur {1} ({2}), limite {3}", w.per_min, w.route, w.owner, w.limit ?? "?");
 }
