@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- **Windows Admin Center connector** (read only): the servers, clusters and PCs listed by a WAC gateway (`GET /api/connections`), signed in with a Windows account (NTLMv2, written in the standard library in `connectors/ntlm.py`, checked against Microsoft's MS-NLMP test vectors). A self-signed certificate is accepted by default. Written without a WAC instance at hand: the answer is read leniently, and a gateway set to form sign-in (no Windows sign-in offered) is said in words. To be tried on a real instance.
+
 ## v0.31.4 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
