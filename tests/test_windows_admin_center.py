@@ -44,7 +44,8 @@ class Gateway(BaseHTTPRequestHandler):
 
     def do_GET(self):
         auth = self.headers.get("Authorization", "")
-        scheme, _, token = auth.partition(" ")
+        word, _, token = auth.partition(" ")
+        scheme = "NTLM" if word.upper() == "NTLM" else "Negotiate"   # a fixed word, never the client's text, in a header
         if not auth:
             return self._send(401, www=list(self.offered))
         raw = base64.b64decode(token)
@@ -90,13 +91,15 @@ class Collect(unittest.TestCase):
         self.assertEqual([r["name"] for r in d["connections"]], ["srv2"])
 
     def test_a_wrong_password_is_said(self):
+        wrong = connector(self.serve(), password="wrong")
         with self.assertRaises(ConnectorError) as e:
-            connector(self.serve(), password="wrong").collect()
+            wrong.collect()
         self.assertIn("compte refusé", str(e.exception))
 
     def test_a_gateway_without_the_windows_sign_in_is_said(self):
+        form_only = connector(self.serve(offered=("Basic realm=\"wac\"",)))
         with self.assertRaises(ConnectorError) as e:
-            connector(self.serve(offered=("Basic realm=\"wac\"",))).collect()
+            form_only.collect()
         self.assertIn("n'est pas proposée", str(e.exception))
 
     def test_test_gives_the_count(self):

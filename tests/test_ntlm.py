@@ -24,7 +24,8 @@ class Md4(unittest.TestCase):
         self.assertEqual(ntlm.md4(b"").hex(), "31d6cfe0d16ae931b73c59d7e0c089c0")
         self.assertEqual(ntlm.md4(b"abc").hex(), "a448017aaf21d8525fc10ae87aa6729d")
         self.assertEqual(ntlm.md4(b"message digest").hex(), "d9130a8164549fe818874806e1c7014b")
-        self.assertEqual(ntlm.md4(b"a" * 100).hex(), ntlm.md4(b"a" * 100).hex())   # more than one block does not fail
+        self.assertEqual(ntlm.md4(b"abcdefghijklmnopqrstuvwxyz").hex(), "d79e1c308aa5bbcdeea8ed63df412da9")
+        self.assertEqual(ntlm.md4(b"1234567890" * 8).hex(), "e33b4ddc9c38f2199c3e7b164fcc0536")   # two blocks
 
     def test_nt_hash_of_the_documented_password(self):
         self.assertEqual(ntlm.md4(PW.encode("utf-16-le")).hex(), "a4f49c406510bdcab6824ee7c30fd852")
@@ -50,5 +51,6 @@ class Messages(unittest.TestCase):
         self.assertIn(struct.pack("<HHI", 6, 4, 2), msg[offset:offset + 200])   # MsvAvFlags: MIC present
 
     def test_not_a_challenge_is_refused(self):
+        negotiate_message = b"NTLMSSP\x00" + struct.pack("<I", 1) + b"\x00" * 60
         with self.assertRaises(ValueError):
-            ntlm.parse_challenge(b"NTLMSSP\x00" + struct.pack("<I", 1) + b"\x00" * 60)
+            ntlm.parse_challenge(negotiate_message)
