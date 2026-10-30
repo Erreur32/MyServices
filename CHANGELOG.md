@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.7 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Fixed
 
 - **Netatmo through Home Assistant**: the cameras show on the Video page and on Domotique, Netatmo, with their picture, without a Netatmo connector. A camera read by both stays once.
