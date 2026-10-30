@@ -134,6 +134,13 @@ class Collect(unittest.TestCase):
         self.assertIn("2 appareil(s) trouvé(s) mais refusé(s) (Invalid camera credentials)", line)   # the same reason is said once
         self.assertIn("compte caméra", line)
 
+    def test_a_device_that_does_not_answer_the_reading_is_not_blamed_on_the_account(self):
+        cause = 'DiscoveryError { ip: "10.0.0.11", source: Http(reqwest::Error { kind: Request, url: "http://10.0.0.11/app", ' + "x" * 80 + ' connection timed out }) }'
+        line = tapo.Tapo._summary([], [cause])["problems"][0]
+        self.assertIn("1 appareil(s) trouvé(s) mais illisible(s) (10.0.0.11 : ", line)
+        self.assertIn("connection timed out", line)
+        self.assertNotIn("compte", line)
+
     def test_a_missing_library_is_said(self):
         c = tapo.Tapo({"name": "t"}, None)
         with mock.patch.object(tapo, "_lib", side_effect=ImportError), self.assertRaises(ConnectorError):

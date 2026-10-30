@@ -1495,6 +1495,10 @@
    "$1 device(s) found but refused ($2): check the Tapo account; a camera needs its camera account, set in the Tapo app"
   ],
   [
+   "^(\\d+) appareil\\(s\\) trouvé\\(s\\) mais illisible\\(s\\) \\((.+)\\) : ils répondent à la recherche, pas à la lecture$",
+   "$1 device(s) found but unreadable ($2): they answer the search, not the reading"
+  ],
+  [
    "^(\\d+) appareil\\(s\\) trouvé\\(s\\) mais refusé\\(s\\) : compte Tapo à vérifier$",
    "$1 device(s) found but refused: check the Tapo account"
   ],

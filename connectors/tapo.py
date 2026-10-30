@@ -7,6 +7,7 @@ The library is imported when a read starts, so the rest of MyServices runs witho
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -23,6 +24,13 @@ def _lib():
     # Not in every image, and only needed when a read starts.
     import tapo   # noqa: PLC0415
     return tapo
+
+
+def _reason(error: str) -> str:
+    """The address of the device, then the end of the error of the library: its cause comes last, after a long head."""
+    text = error.strip()
+    ip = re.search(r'ip: "([^"]+)"', text)
+    return f"{ip.group(1)} : {text[-120:]}" if ip else text[:160]
 
 
 def _ip(d) -> str:
@@ -182,8 +190,11 @@ class Tapo(Connector):
         problems += [f"{d['name']} ne répond plus" for d in devices if not d["online"]]
         problems += [f"{d['name']} : pile faible" for d in devices if d.get("battery_low")]
         if errors:
-            reasons = " ; ".join(dict.fromkeys(e.strip()[:100] for e in errors if e.strip()))[:240]
-            problems.append(f"{len(errors)} appareil(s) trouvé(s) mais refusé(s) ({reasons or 'raison inconnue'}) : compte Tapo à vérifier ; une caméra demande son compte caméra, réglé dans l'appli Tapo")
+            reasons = " ; ".join(dict.fromkeys(_reason(e) for e in errors if e.strip()))[:320] or "raison inconnue"
+            if any(w in e.lower() for e in errors for w in AUTH_WORDS):
+                problems.append(f"{len(errors)} appareil(s) trouvé(s) mais refusé(s) ({reasons}) : compte Tapo à vérifier ; une caméra demande son compte caméra, réglé dans l'appli Tapo")
+            else:
+                problems.append(f"{len(errors)} appareil(s) trouvé(s) mais illisible(s) ({reasons}) : ils répondent à la recherche, pas à la lecture")
         return {"version": None, "facts": facts[:MAX_FACTS], "problems": problems[:MAX_PROBLEMS], "devices": devices}
 
     def test(self) -> Result:
