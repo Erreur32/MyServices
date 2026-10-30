@@ -97,6 +97,16 @@ def advise(f: dict) -> dict:
             "agent_possible": agent_possible, "agent_kind": agent_kind, "agent_state": f.get("agent_state")}
 
 
+def _plan_closed(f: dict, closed: str, connectors: list[str]) -> tuple[str, str, list[str], bool, str | None]:
+    """A closed system: its connector first, else SSH when it answers, else the ping. ESXi allows an agent as the last option (VMware does not
+    plan for it); a closed NAS never does."""
+    ssh = bool(f.get("ssh_ok") or f.get("ssh_alias") or f.get("ssh_port"))
+    usable = [m for m, ok in (("connector", connectors), ("ssh", ssh)) if ok] or ["ping"]
+    if closed == "esxi":
+        return usable[0], closed, [*usable[1:], "agent"], True, "linux"
+    return usable[0], closed, usable[1:], False, None
+
+
 def _plan(f: dict, kind: str, connectors: list[str]) -> tuple[str, str, list[str], bool, str | None]:
     """(méthode, motif, alternatives, agent possible, type d'agent) pour une machine de ce système, dans l'ordre des règles du module."""
     via_tool = "connector" if connectors else "ping"
@@ -105,12 +115,8 @@ def _plan(f: dict, kind: str, connectors: list[str]) -> tuple[str, str, list[str
     if is_home_assistant_os(f):   # ni SSH ni agent : l'API
         return via_tool, "home_assistant", ["ping"], False, None
     closed = closed_system(f)
-    if closed:   # its connector first, else SSH when it answers, else the ping
-        ssh = bool(f.get("ssh_ok") or f.get("ssh_alias") or f.get("ssh_port"))
-        usable = [m for m, ok in (("connector", connectors), ("ssh", ssh)) if ok] or ["ping"]
-        if closed == "esxi":   # an agent is allowed but unsupported by VMware: the connector or SSH stays the way to read it
-            return usable[0], closed, [*usable[1:], "agent"], True, "linux"
-        return usable[0], closed, usable[1:], False, None
+    if closed:
+        return _plan_closed(f, closed, connectors)
     if kind == "windows":
         return "agent", "windows", ["connector"] if connectors else [], True, "windows"
     if kind in ("ios", "network"):

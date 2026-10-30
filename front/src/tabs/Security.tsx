@@ -179,6 +179,19 @@ function siteChecks(r: Host): { label: string; ok: boolean | null }[] {
   ];
 }
 
+const barTone = (pct: number): string => {
+  if (pct === 100) return "bg-ok";
+  return pct >= 60 ? "bg-warn" : "bg-bad";
+};
+const checkTone = (ok: boolean | null): "off" | "ok" | "warn" => {
+  if (ok === null) return "off";
+  return ok ? "ok" : "warn";
+};
+const checkMark = (ok: boolean | null): React.ReactNode => {
+  if (ok === null) return "?";
+  return ok ? <Check size={11} aria-hidden /> : <X size={11} aria-hidden />;
+};
+
 function SitesList({ snap, ctl }: Readonly<{ snap: Snapshot; ctl?: IgnoreCtl }>) {
   const rows = useMemo(() => exposedSites(snap.data.hosts).map((r) => ({ r, issues: siteIssues(r), checks: siteChecks(r) })).sort((a, b) => b.issues.length - a.issues.length), [snap.data.hosts]);
   if (!rows.length) return <Empty>{tx("Aucun site public : tous les hôtes de Nginx Proxy Manager sont derrière une liste d'accès.")}</Empty>;
@@ -198,10 +211,10 @@ function SitesList({ snap, ctl }: Readonly<{ snap: Snapshot; ctl?: IgnoreCtl }>)
                 <span className="flex items-center gap-1.5 truncate text-xs text-dim">{r.machine ?? ""}{r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}{off && <Badge tone="off">{tx("ignoré")}</Badge>}</span>
               </span>
               <span className="flex items-center gap-2" title={tx("{0} contrôle(s) sur {1} passent", ok, read.length)}>
-                <span className="h-2 flex-1 overflow-hidden rounded-full bg-line/60"><span className={`block h-full rounded-full ${pct === 100 ? "bg-ok" : pct >= 60 ? "bg-warn" : "bg-bad"}`} style={{ width: `${pct}%` }} /></span>
+                <span className="h-2 flex-1 overflow-hidden rounded-full bg-line/60"><span className={`block h-full rounded-full ${barTone(pct)}`} style={{ width: `${pct}%` }} /></span>
                 <span className="w-8 text-right font-mono text-xs text-muted">{ok}/{read.length}</span>
               </span>
-              <span className="flex flex-wrap gap-1">{checks.map((c) => <Badge key={c.label} tone={c.ok === null ? "off" : c.ok ? "ok" : "warn"}>{c.ok === null ? "?" : c.ok ? <Check size={11} aria-hidden /> : <X size={11} aria-hidden />} {c.label}</Badge>)}</span>
+              <span className="flex flex-wrap gap-1">{checks.map((c) => <Badge key={c.label} tone={checkTone(c.ok)}>{checkMark(c.ok)} {c.label}</Badge>)}</span>
               <span className="flex justify-end">{issues.length > 0 && <IgnoreButton ctl={ctl} f={f} />}</span>
             </li>
           );
