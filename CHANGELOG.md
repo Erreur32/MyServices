@@ -11,6 +11,19 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.6 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- **Windows Admin Center: recent gateways** (login page, port 20443 by default) are now signed in the way their page does it (csrf value, public key from `/api/user/key`, RSA-OAEP SHA-256 packet to `/api/user/login`, session cookies). The Windows sign-in (NTLM) stays for older gateways, and the connector picks by the first answer. Written from the code of a real login page and checked against a simulated gateway, not tried on a real gateway yet.
+
+### Fixed
+
+- **Windows Admin Center**: the access rule said in the guide is the local Users group or WAC Settings, Access (the group named before does not exist).
+- **Tapo**: a refused device says why, with a reminder about the camera account, and the address of a device is its IP alone.
+
 ## v0.31.5 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

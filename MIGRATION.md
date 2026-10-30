@@ -5,13 +5,17 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
-## 0.31.5 → next version
+## 0.31.6 → next version
 
 **Nothing required yet.**
 
+## 0.31.5 → 0.31.6
+
+**Nothing required.** Pull the new image (`docker compose pull`, then `up -d`). If a Windows Admin Center connector failed on a recent gateway (port 20443), run its test again after the update: no setting changes.
+
 ## 0.31.4 → 0.31.5
 
-**Nothing required.** Pull the new image (`docker compose pull`, then `up -d`). The new Windows Admin Center connector is added from Connectors when you want it (address of the gateway, a Windows account in the local group « Windows Admin Center Gateway Users »).
+**Nothing required.** Pull the new image (`docker compose pull`, then `up -d`). The new Windows Admin Center connector is added from Connectors when you want it (address of the gateway, a Windows account allowed to open WAC: by default any member of the local « Users » group of the WAC server).
 
 ## 0.31.3 → 0.31.4
 

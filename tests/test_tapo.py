@@ -39,7 +39,7 @@ class Hub:
 
 
 def found(model, handler, **info):
-    return NS(device_info=Res(model=model, **info), handler=handler, address="192.0.2.9", model=model)
+    return NS(device_info=Res(model=model, **info), handler=handler, address=("192.0.2.9", 443), model=model)   # (ip, port) like the real library
 
 
 class Maybe:
@@ -83,6 +83,13 @@ class Collect(unittest.TestCase):
         self.assertEqual(d["facts"][1]["value"], "86 W")
         self.assertEqual(d["problems"], [])
 
+    def test_the_address_is_the_ip_alone(self):
+        c, p = conn([found("P110M", Plug(), nickname="Prise", device_id="p1")])
+        with p:
+            self.assertEqual(c.collect()["devices"][0]["ip"], "192.0.2.9")
+        self.assertEqual(tapo._ip(NS(address="192.0.2.30")), "192.0.2.30")
+        self.assertEqual(tapo._ip(NS()), "")
+
     def test_a_hub_lists_its_sensors_and_a_camera_is_only_online(self):
         c, p = conn([found("H100", Hub(), nickname="Hub", device_id="h1"), found("C325WB", object(), nickname="Salon", device_id="c0")])
         with p:
@@ -118,6 +125,14 @@ class Collect(unittest.TestCase):
         with p, self.assertRaises(ConnectorError) as e:
             c.collect()
         self.assertIn("adresse de recherche", str(e.exception))
+
+    def test_a_refused_device_next_to_a_readable_one_says_why(self):
+        c, p = conn([found("P110M", Plug(), nickname="Prise", device_id="p1"), RuntimeError("Invalid camera credentials"), RuntimeError("Invalid camera credentials")])
+        with p:
+            d = c.collect()
+        line = next(x for x in d["problems"] if "refusé" in x)
+        self.assertIn("2 appareil(s) trouvé(s) mais refusé(s) (Invalid camera credentials)", line)   # the same reason is said once
+        self.assertIn("compte caméra", line)
 
     def test_a_missing_library_is_said(self):
         c = tapo.Tapo({"name": "t"}, None)

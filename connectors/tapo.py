@@ -25,6 +25,12 @@ def _lib():
     return tapo
 
 
+def _ip(d) -> str:
+    """The address of a discovered device: the library gives (ip, port), a plain text is taken as it is."""
+    addr = getattr(d, "address", None)
+    return str(addr[0] if isinstance(addr, (tuple, list)) and addr else addr or "")
+
+
 def _dict(obj) -> dict:
     """A library result as a plain dict (each has to_dict), tolerant of a missing field."""
     if isinstance(obj, dict):
@@ -92,7 +98,7 @@ class Tapo(Connector):
                 except Exception as e:   # noqa: BLE001
                     errors.append(str(e))
                     continue
-                key = _dict(getattr(d, "device_info", None)).get("device_id") or getattr(d, "address", None) or id(d)
+                key = _dict(getattr(d, "device_info", None)).get("device_id") or _ip(d) or id(d)
                 if key not in seen:
                     seen.add(key)
                     found.append(d)
@@ -126,7 +132,7 @@ class Tapo(Connector):
 
     async def _read(self, lib, d) -> list[dict]:
         info = _dict(getattr(d, "device_info", None))
-        ip = str(info.get("ip") or getattr(d, "address", None) or "")
+        ip = str(info.get("ip") or _ip(d))
         model = str(info.get("model") or getattr(d, "model", "") or "")
         name = info.get("nickname") or info.get("device_name") or model
         row = {"id": str(info.get("device_id") or info.get("mac") or ip), "name": name, "model": model, "kind": kind_of(model), "ip": ip, "mac": info.get("mac"),
@@ -160,10 +166,10 @@ class Tapo(Connector):
             if any(w in e.lower() for e in errors for w in AUTH_WORDS):
                 raise ConnectorError("Tapo refuse ce compte : e-mail ou mot de passe à vérifier")
             raise ConnectorError(f"aucun appareil lisible ({errors[0]})" if errors else "aucun appareil Tapo trouvé : l'adresse de recherche est-elle la bonne ?")
-        return self._summary(devices, len(errors))
+        return self._summary(devices, errors)
 
     @staticmethod
-    def _summary(devices: list[dict], refused: int) -> dict:
+    def _summary(devices: list[dict], errors: list[str]) -> dict:
         plugs = [d for d in devices if d.get("power_w") is not None]
         cams = [d for d in devices if d["kind"] == "camera"]
         facts = [fact("Appareils", len(devices))]
@@ -175,8 +181,9 @@ class Tapo(Connector):
         problems = [f"{d['name']} : lecture impossible ({d['error']})" for d in devices if d.get("error")]
         problems += [f"{d['name']} ne répond plus" for d in devices if not d["online"]]
         problems += [f"{d['name']} : pile faible" for d in devices if d.get("battery_low")]
-        if refused:
-            problems.append(f"{refused} appareil(s) trouvé(s) mais refusé(s) : compte Tapo à vérifier")
+        if errors:
+            reasons = " ; ".join(dict.fromkeys(e.strip()[:100] for e in errors if e.strip()))[:240]
+            problems.append(f"{len(errors)} appareil(s) trouvé(s) mais refusé(s) ({reasons or 'raison inconnue'}) : compte Tapo à vérifier ; une caméra demande son compte caméra, réglé dans l'appli Tapo")
         return {"version": None, "facts": facts[:MAX_FACTS], "problems": problems[:MAX_PROBLEMS], "devices": devices}
 
     def test(self) -> Result:
