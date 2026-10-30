@@ -281,7 +281,14 @@ export function ResStrip({ h, first }: Readonly<{ h?: HealthHost; first?: React.
   );
 }
 
-const LEVEL_EDGE: Record<string, string> = { crit: "border-l-bad", down: "border-l-bad", warn: "border-l-warn" };
+/** The look of a card by health level: its left edge, the tint of its head and of its foot, the colour and words of the state. Unread health: neutral */
+const LEVEL_LOOK: Record<string, { edge: string; frame: string; head: string; foot: string; text: string; label: () => string }> = {
+  ok: { edge: "border-l-ok", frame: "border-line", head: "bg-ok/10", foot: "bg-ok/5", text: "text-ok", label: () => tx("En ordre") },
+  warn: { edge: "border-l-warn", frame: "border-warn/60", head: "bg-warn/10", foot: "bg-warn/5", text: "text-warn", label: () => tx("À surveiller") },
+  crit: { edge: "border-l-bad", frame: "border-bad/60", head: "bg-bad/10", foot: "bg-bad/5", text: "text-bad", label: () => tx("Critique") },
+  down: { edge: "border-l-bad", frame: "border-bad/60", head: "bg-bad/10", foot: "bg-bad/5", text: "text-bad", label: () => tx("Injoignable") },
+};
+const NEUTRAL_LOOK = { edge: "", frame: "border-line", head: "bg-bg", foot: "bg-bg", text: "text-dim", label: () => "" };
 /** Health level of a machine for its card edge: « down » when unreachable, "" when health is not read */
 const levelKey = (h?: HealthHost): string => (h?.reachable === false ? "down" : h?.level ?? "");
 
@@ -1698,10 +1705,10 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
   off: boolean; state: React.ReactNode; shown: boolean; onToggle: () => void; onMachine: (ip: string) => void; detail: React.ReactNode;
 }>) {
   const up = uptimeOf(m, unifi, freeboxOf(m, snap.data.network), ha);
-  const edge = LEVEL_EDGE[levelKey(h)] ?? "";
+  const look = LEVEL_LOOK[levelKey(h)] ?? NEUTRAL_LOOK;
   return (
-    <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
-      <div className="-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 bg-bg px-3 py-2.5">
+    <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] ${look.frame} bg-card p-3 transition-colors hover:border-link/50 ${look.edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
+      <div className={`-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 px-3 py-2.5 ${look.head}`}>
         <AlertDot items={watch}><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifi) }} scan={scan} reserve /></AlertDot>
         <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tipAction(tx("Clic : liste des services de {0}", m.name))}>
           <b className="flex items-center gap-1.5 truncate font-semibold hover:text-link"><VmMark m={m} h={h} /><span className={`truncate ${vmName(m, h)}`}>{m.name}</span></b>
@@ -1720,10 +1727,13 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
         {ha?.addons?.length ? <AddonStrip s={ha} max={6} /> : <Servers m={m} snap={snap} max={4} />}{/* Home Assistant: its add-ons stand for the servers */}
         <WatchList ip={m.ip} items={watch} />
       </div>
-      <button type="button" onClick={onToggle} aria-expanded={shown} className="flex items-center gap-1.5 border-t border-line/60 pt-2 text-xs text-muted hover:text-txt">
-        <ChevronRight size={13} className={`transition-transform ${shown ? "rotate-90" : ""}`} aria-hidden />{shown ? tx("Replier") : tx("Détails")}
-      </button>
-      {shown && <div className="-mx-3 -mb-3 border-t border-line/60 bg-bg2/40">{detail}</div>}
+      {shown && <div className="-mx-3 border-t border-line/60 bg-bg2/40">{detail}</div>}
+      <div className={`-mx-3 -mb-3 flex items-center justify-between gap-2 border-t border-line/60 px-3 py-2 text-xs ${look.foot}`}>
+        <button type="button" onClick={onToggle} aria-expanded={shown} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-2.5 py-1 font-semibold text-txt shadow-sm hover:border-link hover:text-link">
+          <ChevronRight size={14} className={`transition-transform ${shown ? "rotate-90" : ""}`} aria-hidden />{shown ? tx("Replier") : tx("Détails")}
+        </button>
+        {look.label() && <span className={`inline-flex items-center gap-1.5 font-semibold ${look.text}`}><span className="size-2 rounded-full bg-current" aria-hidden />{look.label()}</span>}
+      </div>
     </div>
   );
 }

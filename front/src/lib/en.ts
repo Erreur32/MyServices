@@ -2469,6 +2469,7 @@ export const EN: Record<string, string> = {
   "Pièces chauffées": "Heated rooms",
   "Caméras en ligne": "Cameras online",
   "{0} capteur(s)": "{0} sensor(s)",
+  "En ordre": "All good",
   "Jeux": "Sets",
   "À relier": "To link",
   "Aucun dossier de sauvegarde local vu sur les machines lues par SSH.": "No local backup folder seen on the machines read over SSH.",
