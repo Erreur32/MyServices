@@ -3,6 +3,7 @@
   À lancer dans l'image : python3 -m unittest discover -s tests
 """
 import io
+import importlib.util
 import unittest
 import urllib.error
 from email.message import Message
@@ -22,6 +23,9 @@ BASE = "http://192.168.178.1:49000"
 TYPE = "urn:dslforum-org:service:"
 CONTROLS = {"DeviceInfo:1": "deviceinfo", "UserInterface:1": "userif", "WANCommonInterfaceConfig:1": "common", "WANIPConnection:1": "ip", "WANPPPConnection:1": "ppp",
             "WLANConfiguration:1": "wlan1", "WLANConfiguration:2": "wlan2", "WLANConfiguration:3": "wlan3"}
+
+
+NEEDS_XML = unittest.skipIf(importlib.util.find_spec("defusedxml") is None, "defusedxml absent : tests à lancer dans l'image")
 
 
 def description(*skip: str, other_host: str = "") -> bytes:
@@ -169,6 +173,7 @@ class Address(unittest.TestCase):
             self.assertIn("attendu", str(e.exception))
 
 
+@NEEDS_XML
 class Description(unittest.TestCase):
     def test_services_by_name_and_instance(self):
         s = services_of(parse_xml(description()), BASE)
@@ -181,6 +186,7 @@ class Description(unittest.TestCase):
         self.assertIn(("DeviceInfo", 1), s)
 
 
+@NEEDS_XML
 class Reading(unittest.TestCase):
     def test_full_box(self):
         d, ctx = read(FULL)
@@ -233,6 +239,7 @@ class Reading(unittest.TestCase):
         self.assertEqual((d["box"]["down_bps"], d["box"]["up_bps"]), (0, 0))
 
 
+@NEEDS_XML
 class Failures(unittest.TestCase):
     def test_a_refused_login_stops_at_the_first_call(self):
         ctx = FakeContext(FULL, refused=True)

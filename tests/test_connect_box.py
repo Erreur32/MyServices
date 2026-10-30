@@ -2,6 +2,7 @@
 
   À lancer dans l'image : python3 -m unittest discover -s tests
 """
+import importlib.util
 import unittest
 
 from connectors import connect_box
@@ -12,6 +13,9 @@ from connectors.upnp_box import parse_xml
 PUBLIC_IP = ".".join(("1", "1", "1", "42"))
 SECRET = "pw" + "-".join(("a", "b", "c")) + "&x"   # built at run time, never a literal
 BASE = "http://192.168.0.1"
+
+
+NEEDS_XML = unittest.skipIf(importlib.util.find_spec("defusedxml") is None, "defusedxml absent : tests à lancer dans l'image")
 
 
 def xml(body: str) -> bytes:
@@ -51,6 +55,7 @@ class FakeBox(ConnectBox):
         return answer
 
 
+@NEEDS_XML
 class Helpers(unittest.TestCase):
     def test_temperature_fahrenheit(self):
         self.assertEqual((celsius("122"), celsius(None), celsius("abc"), celsius("-500")), (50.0, None, None, None))
@@ -62,6 +67,7 @@ class Helpers(unittest.TestCase):
         self.assertEqual(flow_rates(parse_xml(CMSTATUS)), (400_000_000, 50_000_000))
 
 
+@NEEDS_XML
 class Reading(unittest.TestCase):
     def setUp(self):
         connect_box.REFUSED_BY.clear()

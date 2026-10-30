@@ -2,6 +2,7 @@
 
   À lancer dans l'image : python3 -m unittest discover -s tests
 """
+import importlib.util
 import unittest
 
 import connectors
@@ -11,6 +12,9 @@ from connectors.sfrbox import SFRBox, bits, celsius, line_of
 
 PUBLIC_IP = ".".join(("1", "1", "1", "42"))   # a global address: the documentation ranges are not
 BASE = "http://192.168.1.1"
+
+
+NEEDS_XML = unittest.skipIf(importlib.util.find_spec("defusedxml") is None, "defusedxml absent : tests à lancer dans l'image")
 
 
 def rsp(tag: str, **attrs) -> bytes:
@@ -56,6 +60,7 @@ class Helpers(unittest.TestCase):
         self.assertEqual((bits("20000"), bits(0), bits(None)), (20_000_000, None, None))
 
 
+@NEEDS_XML
 class Reading(unittest.TestCase):
     def test_fibre_box(self):
         d, ctx = read(FTTH)
