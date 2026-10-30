@@ -230,3 +230,4 @@ affd7ee69e447356e3d6a08cc64ac116  front/public/icons/tmobile-home-internet.svg
 384356fd0d26321791ea1e7f05c12cb0  front/public/icons/verizon-fios.svg
 9e1d885293142bc4304b38d3ab01c811  front/public/icons/arris-surfboard.svg
 8509501b77f506b22720dcb6998ac710  front/public/icons/tapo.svg
+fcb1635b48e497c0b8331ccd8ae56d9c  front/public/icons/windows-admin-center.svg

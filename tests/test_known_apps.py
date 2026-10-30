@@ -35,6 +35,8 @@ class Identify(unittest.TestCase):
         self.assertEqual(self.key(title="Uptime Kuma"), ("uptime-kuma", ka.PROBABLE))
         self.assertEqual(self.key(title="Apache2 Debian Default Page: It works"), ("apache", ka.PROBABLE))
         self.assertEqual(self.key(title="Login to Webmin"), ("webmin", ka.PROBABLE))
+        self.assertEqual(self.key(title="Windows Admin Center"), ("wac", ka.PROBABLE))
+        self.assertEqual([a.key for a in ka.apps_from_services([{"name": "ServerManagementGateway", "display": "Windows Admin Center"}])], ["wac"])
 
     def test_port_distinctif_est_possible(self):
         self.assertEqual(self.key(port=8384), ("syncthing", ka.POSSIBLE))
