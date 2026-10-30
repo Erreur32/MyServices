@@ -17,6 +17,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Common « box » shape** (`connectors/box_kit.py`) for the Internet box connectors to come: each fills what its protocol gives, a field left empty is not shown.
 - `Context.http` can post a raw body (`payload`).
 - **Connector « FRITZ!Box »**, read-only, by TR-064 (port 49000, or 49443 with TLS): reads the model, firmware and update available, the line type, its state, the current and maximum rates, the public address, the uptime and the Wi-Fi. It needs a FRITZ!Box user and « Allow access for applications ». The temperature and the number of connected devices are not read. Not tested on a real box yet: it is written from AVM's TR-064 documentation and the `fritzconnection` library, and checked against frozen answers.
+- **Menu**: in the Protection group, Security now comes before Backups.
 - `Context.http` can answer a Digest challenge once (`digest=(user, password)`): a second refusal is reported as it is, because an Internet box locks an address that keeps trying a wrong password.
 - **Network › Internet box** page, shown when a box connector answers: line, rates with 24 h curves, system; whatever the box does not tell has no line. The public address is shown in clear.
 
