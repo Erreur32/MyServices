@@ -119,6 +119,14 @@ class Collect(unittest.TestCase):
             c.collect()
         self.assertIn("adresse de recherche", str(e.exception))
 
+    def test_a_refused_device_next_to_a_readable_one_says_why(self):
+        c, p = conn([found("P110M", Plug(), nickname="Prise", device_id="p1"), RuntimeError("Invalid camera credentials"), RuntimeError("Invalid camera credentials")])
+        with p:
+            d = c.collect()
+        line = next(x for x in d["problems"] if "refusé" in x)
+        self.assertIn("2 appareil(s) trouvé(s) mais refusé(s) (Invalid camera credentials)", line)   # the same reason is said once
+        self.assertIn("compte caméra", line)
+
     def test_a_missing_library_is_said(self):
         c = tapo.Tapo({"name": "t"}, None)
         with mock.patch.object(tapo, "_lib", side_effect=ImportError), self.assertRaises(ConnectorError):

@@ -1043,6 +1043,7 @@
     "qBittorrent n'est plus connecté au réseau": "qBittorrent is no longer connected to the network",
     "session requise": "sign-in required",
   "Tapo": "Tapo",
+  "raison inconnue": "unknown reason",
   "Windows Admin Center": "Windows Admin Center",
   "Adresse de Windows Admin Center": "Windows Admin Center address",
   "https://<serveur>:<port> (443 ou 6600 selon l'installation)": "https://<server>:<port> (443 or 6600 depending on the install)",
@@ -1482,6 +1483,10 @@
   [
    "^(.+) : pile faible$",
    "$1: low battery"
+  ],
+  [
+   "^(\\d+) appareil\\(s\\) trouvé\\(s\\) mais refusé\\(s\\) \\((.+)\\) : compte Tapo à vérifier ; une caméra demande son compte caméra, réglé dans l'appli Tapo$",
+   "$1 device(s) found but refused ($2): check the Tapo account; a camera needs its camera account, set in the Tapo app"
   ],
   [
    "^(\\d+) appareil\\(s\\) trouvé\\(s\\) mais refusé\\(s\\) : compte Tapo à vérifier$",
