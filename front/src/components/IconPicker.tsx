@@ -67,7 +67,7 @@ export function IconPicker({ value, onPick, disabled, autoHint, auto }: {
               className={`inline-flex h-9 items-center rounded-lg border px-3 text-xs font-semibold ${!value ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>{tx("Automatique")}</button>
             <span className="text-xs text-dim">{shown.length} {tx("icônes")}</span>
           </div>
-          <div className="flex max-h-72 flex-col gap-3 overflow-y-auto pr-1" role="radiogroup" aria-label={tx("Icône de la machine")}>
+          <div className="flex flex-col gap-3" role="radiogroup" aria-label={tx("Icône de la machine")}>
             {FAMILIES.map(([fam, name]) => {
               const list = shown.filter((i) => i.family === fam);
               return list.length ? (
