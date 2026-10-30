@@ -256,6 +256,7 @@ function ServiceCard({ g, open, onToggle, hiddenMap, watchKeys, admin }: Readonl
   const url = lead ? openUrl(lead) : g.cards[0]?.url;
   const text = g.domains[0] ?? addressOf(g, lead);
   const more = [moreDomains(g.domains.length), g.hosts.some((r) => exposure(r) === "public" || exposure(r) === "ouvert") ? tx("Public") : ""].filter(Boolean).join(" · ");
+  const reasons = g.hosts.filter((r) => status(r)[0] !== "off").flatMap((r) => checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => ({ k, where: hostDomains(r)[0] ?? targetOf(r) })));   // what turned the card « À vérifier »
   return (
     <article className={`min-w-0 rounded-xl border bg-bg2 ${open ? "col-span-full border-link" : GROUP_EDGE[g.tone]}`}>
       <button type="button" onClick={onToggle} aria-expanded={open} title={open ? tx("Fermer") : tx("Ouvrir")} className="group flex w-full items-center gap-2.5 rounded-t-xl px-3 pt-2.5 text-left hover:bg-link/10">
@@ -271,6 +272,10 @@ function ServiceCard({ g, open, onToggle, hiddenMap, watchKeys, admin }: Readonl
       {open && (
         <div className="flex flex-col gap-3 border-t border-line/60 p-3">
           {(g.hosts.length > 0 || g.cards.length > 0) && <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />}
+          {reasons.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+              <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À vérifier")}</h4>
+              <ul className="divide-y divide-warn/20 text-sm">{reasons.map(({ k, where }) => <li key={`${k}:${where}`} className="py-1"><b>{CHECK[k][0]}</b> <span className="text-muted">({where})</span> : {CHECK[k][1]}</li>)}</ul>
+            </div>}
           {g.problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
               <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
               <ul className="divide-y divide-warn/20 text-sm">{g.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
@@ -374,6 +379,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
       <PageHead icon={Boxes} title={tx("Services")} tags={<HeadTags counts={[groupsTitle(groups), tx("{0} machines", every.machines)]} at={snap.data.generated} />}
         actions={<>{admin && <a href="#services/new" className={`${primary} py-1 no-underline`} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</a>}<PeriodSwitch value={hours} onChange={setHours} /></>} />
       <ServicesTiles hosts={snap.data.hosts} hidden={hiddenMap} generated={snap.data.generated} hours={hours} />
+      {(view === "all" || view === "watch") && admin && <PublicIgnore />}
       {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}
       {(view === "all" || view === "watch") && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={groups.filter((g) => !g.tech).length} pinned>
         <FilterBar f={{ ...f, shown: shownReal, total: groups.filter((g) => !g.tech).length }} oneLine bare placeholder={tx("Nom, domaine, IP…")}   // one line in the panel's frame; the others behind « More filters »
@@ -405,7 +411,6 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
           </section>}
         </div>}
       </FoldPanel>}
-      {(view === "all" || view === "watch") && admin && <PublicIgnore />}
     </div>
   );
 }

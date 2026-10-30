@@ -11,6 +11,19 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.2 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+
+- **Menu**: « AI and agents » now sits right after Domotique in the Inventory group.
+- **Services**: the « Ignored domains » panel moved to the top of the page, just under the tiles (still folded by default, admin only).
+
+### Fixed
+
+- **Services**: an opened card marked « To check » now says why. The reasons that turn a card to check (no access list, name not resolving outside the LAN, unknown target, not identified...) were only in the tooltip of a small flag, so a card whose only cause was a proxy check opened onto nothing. They are now listed under a « To check » block, with their explanation and the address concerned.
+
 ## v0.31.1 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
