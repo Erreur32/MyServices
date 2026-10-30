@@ -812,7 +812,7 @@ class Rybbit(_Analytics):
 
 class Tautulli(StatusConnector):
     """Tautulli (Plex statistics): Plex reachable, streams in progress, Tautulli update. API key (query string, as Tautulli requires).
-    Commands (GET /api/v2): get_tautulli_info, get_server_status, get_activity, update_check."""
+    Commands (GET /api/v2): get_tautulli_info, server_status, get_activity, update_check."""
     type = "tautulli"
     label = "Tautulli"
     images = ("tautulli/tautulli", "linuxserver/tautulli", "ghcr.io/tautulli/tautulli")
@@ -836,7 +836,7 @@ class Tautulli(StatusConnector):
 
     def collect(self) -> dict:
         info = self.cmd("get_tautulli_info")
-        plex = self.cmd("get_server_status")
+        plex = self.cmd("server_status")
         act = self.cmd("get_activity")
         connected = plex.get("connected") is True
         streams = int(num(act.get("stream_count"), 0))

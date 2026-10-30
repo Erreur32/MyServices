@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Connectors
+
+- **Tautulli**: the connector always failed with HTTP 400, even with a good API key: it asked for a command that does not exist. It now reads `server_status`.
+
 ## v0.30.1 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
