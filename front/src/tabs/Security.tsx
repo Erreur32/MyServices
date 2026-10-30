@@ -1,9 +1,9 @@
 // Security in « state » mode: a title line naming the tools read, six figures, then « To watch » (one row per problem, worst first, the
 // detail unfolding in the row) and, under it, one sub-tab per area (Fail2ban, public sites, SSH access, access to MyServices, network
 // ports, certificates). Read only.
-import { Ban, ChevronDown, ChevronUp, FileBadge, Globe, KeyRound, Radar, ShieldCheck, UserCog, Wrench, type LucideIcon } from "lucide-react";
+import { Ban, Check, ChevronDown, ChevronUp, EyeOff, FileBadge, Globe, KeyRound, Radar, ShieldCheck, UserCog, Wrench, X, type LucideIcon } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import type { Snapshot } from "../api";
+import { send, type Snapshot } from "../api";
 import { Certificates, CERT_SOON } from "../components/Certificates";
 import { Fail2banCard } from "../components/Fail2banCard";
 import { Fail2banStats } from "../components/Fail2banStats";
@@ -16,16 +16,18 @@ import { BarsTile } from "../components/HistoryTile";
 import { sumSeries } from "../lib/tileHistory";
 import { WatchPanel } from "../components/WatchPanel";
 import { splitHostName } from "../lib/format";
-import { quiet, worstTone } from "../lib/forms";
+import { act, quiet, worstTone, type Note } from "../lib/forms";
 import { watchRows, type WatchRow } from "../lib/securityWatch";
 import { tx } from "../lib/i18n";
-import { exposedSites, securityFindings, SENSITIVE, siteIssues, type Area, type Finding } from "../lib/securityFindings";
+import { areaKey, exposedSites, findingKey, portFinding, securityFindings, SENSITIVE, siteFinding, siteIssues, type Area, type Finding } from "../lib/securityFindings";
 import { risky } from "../lib/ssh";
 import { accessFindings } from "../lib/accessFindings";
 import { useAccessData } from "../components/SecurityAccess";
 import { HeadTags } from "../components/HeadTags";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { WazuhPage } from "../components/WazuhPage";
+import type { Host } from "../types";
+import { NoteLine } from "../components/form";
 
 type Sub = "overview" | "fail2ban" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area: Area }[] = [
@@ -68,7 +70,7 @@ function Figures({ snap, findings, admin }: Readonly<{ snap: Snapshot; findings:
 }
 
 /** « To watch »: one row per problem, the detail unfolding in the row with the things it covers and the way to the sub-tab or the machine */
-function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => void }>) {
+function Watch({ rows, open, ignore }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => void; ignore?: (keys: string[]) => void }>) {
   const [on, setOn] = useState<string | null>(null);
   const worst = worstTone(rows.some((r) => r.sev === "bad"), rows.length > 0);
   return (
@@ -89,7 +91,9 @@ function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => vo
                       <td className="px-3 py-2"><b className="font-semibold">{r.title}</b>{r.sub && <span className="block truncate font-mono text-[11px] text-dim" title={r.sub}>{r.sub}</span>}</td>
                       <td className="px-3 py-2 text-muted">{r.detail}</td>
                       <td className="px-3 py-2 text-xs text-muted"><span className="flex items-start gap-1.5"><Wrench size={12} className="mt-0.5 shrink-0" aria-hidden />{r.fix}</span></td>
-                      <td className="px-3 py-2 text-right"><button type="button" onClick={() => setOn(isOn ? null : r.key)} aria-expanded={isOn} className={`${quiet} py-1`}>{isOn ? tx("Replier") : tx("Détail")}{isOn ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}</button></td>
+                      <td className="px-3 py-2"><span className="flex items-center justify-end gap-1">
+                        {ignore && <button type="button" onClick={() => ignore(r.items.map(findingKey))} className={`${quiet} py-1`} title={tx("Ne plus signaler ce point (il revient si son détail change)")} aria-label={tx("Ne plus signaler")}><EyeOff size={14} aria-hidden /></button>}
+                        <button type="button" onClick={() => setOn(isOn ? null : r.key)} aria-expanded={isOn} className={`${quiet} py-1`}>{isOn ? tx("Replier") : tx("Détail")}{isOn ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}</button></span></td>
                     </tr>
                     {isOn && (
                       <tr><td colSpan={5} className="bg-link/5 px-4 py-3 shadow-[inset_3px_0_0_rgb(var(--link))]">
@@ -104,6 +108,7 @@ function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => vo
                         <div className="flex flex-wrap gap-2">
                           <button type="button" className={`${quiet} py-1`} onClick={() => open(AREA_SUB[r.area])}>{tx("Voir dans {0}", SUBS.find((s) => s.id === AREA_SUB[r.area])?.label ?? "")}</button>
                           {r.items.length === 1 && r.items[0].href && <a href={r.items[0].href} className={`${quiet} py-1`}>{tx("Ouvrir {0}", r.items[0].title)}</a>}
+                          {ignore && <button type="button" className={`${quiet} py-1`} onClick={() => ignore([areaKey(r.area)])} title={tx("Couper cette vérification : plus aucun point de ce type n'est signalé")}>{tx("Ne plus vérifier : {0}", AREA_LABEL[r.area])}</button>}
                         </div>
                       </td></tr>
                     )}
@@ -118,20 +123,102 @@ function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => vo
   );
 }
 
-function SitesList({ snap }: Readonly<{ snap: Snapshot }>) {
-  const rows = useMemo(() => exposedSites(snap.data.hosts).map((r) => ({ r, issues: siteIssues(r) })).sort((a, b) => b.issues.length - a.issues.length), [snap.data.hosts]);
+/** What the admin switched off: single findings (back when their detail changes) and whole checks; each can be put back */
+function Ignored({ keys, restore }: Readonly<{ keys: string[]; restore: (key: string) => void }>) {
+  const label = (k: string) => {
+    const [area, title, ...rest] = k.endsWith(":*") ? [k.slice(0, -2)] : k.split("|");
+    const name = AREA_LABEL[area as Area] ?? area;
+    return k.endsWith(":*") ? { main: tx("Vérification coupée : {0}", name), more: "" } : { main: `${name} · ${title}`, more: rest.join("|") };
+  };
+  return (
+    <FoldPanel id="security.ignored" icon={EyeOff} title={tx("Points ignorés")} count={keys.length} startFolded>
+      <InfoNote className="mb-2">{tx("Ces points ne sont plus signalés ni comptés dans le menu. Un point précis revient si son détail change ; une vérification coupée ne revient que si tu la remets.")}</InfoNote>
+      <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
+        {keys.map((k) => { const l = label(k); return (
+          <li key={k} className="flex items-center justify-between gap-3 px-2 py-1.5">
+            <span className="min-w-0"><b className="font-semibold">{l.main}</b>{l.more && <span className="ml-2 text-xs text-muted">{l.more}</span>}</span>
+            <button type="button" className={`${quiet} shrink-0 py-1`} onClick={() => restore(k)}>{tx("Remettre")}</button>
+          </li>); })}
+      </ul>
+    </FoldPanel>
+  );
+}
+
+/** What the lists of this page can do with a point: the keys switched off, switch one off, put one back (an admin's tools) */
+interface IgnoreCtl { keys: string[]; add: (keys: string[]) => void; remove: (key: string) => void }
+
+/** The « stop checking this kind of point » switch of a list, and its way back */
+function AreaSwitch({ ctl, area }: Readonly<{ ctl?: IgnoreCtl; area: Area }>) {
+  if (!ctl) return null;
+  const off = ctl.keys.includes(areaKey(area));
+  return off
+    ? <button type="button" className={`${quiet} py-1`} onClick={() => ctl.remove(areaKey(area))}>{tx("Remettre la vérification : {0}", AREA_LABEL[area])}</button>
+    : <button type="button" className={`${quiet} py-1`} onClick={() => ctl.add([areaKey(area)])} title={tx("Couper cette vérification : plus aucun point de ce type n'est signalé")}><EyeOff size={14} aria-hidden />{tx("Ne plus vérifier : {0}", AREA_LABEL[area])}</button>;
+}
+
+/** One point of a list: « stop reporting » (back when its detail changes), or « put back » once ignored */
+function IgnoreButton({ ctl, f }: Readonly<{ ctl?: IgnoreCtl; f: Finding }>) {
+  if (!ctl || ctl.keys.includes(areaKey(f.area))) return null;
+  const key = findingKey(f);
+  return ctl.keys.includes(key)
+    ? <button type="button" className={`${quiet} py-1`} onClick={() => ctl.remove(key)}>{tx("Remettre")}</button>
+    : <button type="button" className={`${quiet} py-1`} onClick={() => ctl.add([key])} title={tx("Ne plus signaler ce point (il revient si son détail change)")} aria-label={tx("Ne plus signaler")}><EyeOff size={14} aria-hidden /></button>;
+}
+
+const isOff = (ctl: IgnoreCtl | undefined, f: Finding): boolean => !!ctl && (ctl.keys.includes(findingKey(f)) || ctl.keys.includes(areaKey(f.area)));
+
+/** The five checks of a public site: true passed, false failed, null not read */
+function siteChecks(r: Host): { label: string; ok: boolean | null }[] {
+  const w = r.webcheck, days = w?.cert_days;
+  return [
+    { label: tx("HTTPS forcé"), ok: !!(r.ssl && r.ssl_forced) },
+    { label: "HSTS", ok: w?.hsts ?? null },
+    { label: "Block exploits", ok: !!r.block_exploits },
+    { label: tx("En-têtes"), ok: w?.headers_total ? (w.headers_ok ?? 0) >= w.headers_total / 2 : null },
+    { label: tx("Certificat"), ok: days == null ? null : days > CERT_SOON },
+  ];
+}
+
+const barTone = (pct: number): string => {
+  if (pct === 100) return "bg-ok";
+  return pct >= 60 ? "bg-warn" : "bg-bad";
+};
+const checkTone = (ok: boolean | null): "off" | "ok" | "warn" => {
+  if (ok === null) return "off";
+  return ok ? "ok" : "warn";
+};
+const checkMark = (ok: boolean | null): React.ReactNode => {
+  if (ok === null) return "?";
+  return ok ? <Check size={11} aria-hidden /> : <X size={11} aria-hidden />;
+};
+
+function SitesList({ snap, ctl }: Readonly<{ snap: Snapshot; ctl?: IgnoreCtl }>) {
+  const rows = useMemo(() => exposedSites(snap.data.hosts).map((r) => ({ r, issues: siteIssues(r), checks: siteChecks(r) })).sort((a, b) => b.issues.length - a.issues.length), [snap.data.hosts]);
   if (!rows.length) return <Empty>{tx("Aucun site public : tous les hôtes de Nginx Proxy Manager sont derrière une liste d'accès.")}</Empty>;
   return (
     <FoldPanel id="security.sites" icon={Globe} title={tx("Sites exposés à Internet")} count={rows.length}>
-      <InfoNote className="mb-2">{tx("Hôtes de Nginx Proxy Manager actifs et sans liste d'accès : joignables de partout. Ce qui manque est en orange.")}</InfoNote>
-      <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
-        {rows.map(({ r, issues }) => (
-          <li key={`${r.npm}-${r.id}`} className="grid grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-2 py-2 md:grid-cols-[minmax(0,16rem)_minmax(0,9rem)_minmax(0,1fr)]">
-            <span className="truncate font-semibold">{r.domains[0]}</span>
-            <span className="flex items-center gap-1.5 truncate text-dim">{r.machine ?? ""}{r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}</span>
-            <span className="flex flex-wrap gap-1">{issues.length ? issues.map((x) => <Badge key={x} tone="warn">{x}</Badge>) : <Badge tone="ok">{tx("rien à signaler")}</Badge>}</span>
-          </li>
-        ))}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <InfoNote>{tx("Hôtes de Nginx Proxy Manager actifs et sans liste d'accès : joignables de partout. La barre dit combien de contrôles passent, ce qui manque est en orange.")}</InfoNote>
+        <AreaSwitch ctl={ctl} area="sites" />
+      </div>
+      <ul className="flex flex-col divide-y divide-line/60 text-sm">
+        {rows.map(({ r, issues, checks }) => {
+          const f = siteFinding(r, issues), off = isOff(ctl, f), read = checks.filter((c) => c.ok !== null), ok = read.filter((c) => c.ok).length, pct = read.length ? Math.round((ok / read.length) * 100) : 0;
+          return (
+            <li key={`${r.npm}-${r.id}`} className={`flex flex-col gap-2 px-3 py-3 md:grid md:grid-cols-[minmax(0,16rem)_8rem_minmax(0,1fr)_auto] md:items-center md:gap-4 ${off ? "opacity-50" : "even:bg-bg/50"}`}>
+              <span className="min-w-0">
+                <a href={`https://${r.domains[0]}`} target="_blank" rel="noopener" className="block truncate font-semibold text-link hover:underline">{r.domains[0]}</a>
+                <span className="flex items-center gap-1.5 truncate text-xs text-dim">{r.machine ?? ""}{r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}{off && <Badge tone="off">{tx("ignoré")}</Badge>}</span>
+              </span>
+              <span className="flex items-center gap-2" title={tx("{0} contrôle(s) sur {1} passent", ok, read.length)}>
+                <span className="h-2 flex-1 overflow-hidden rounded-full bg-line/60"><span className={`block h-full rounded-full ${barTone(pct)}`} style={{ width: `${pct}%` }} /></span>
+                <span className="w-8 text-right font-mono text-xs text-muted">{ok}/{read.length}</span>
+              </span>
+              <span className="flex flex-wrap gap-1">{checks.map((c) => <Badge key={c.label} tone={checkTone(c.ok)}>{checkMark(c.ok)} {c.label}</Badge>)}</span>
+              <span className="flex justify-end">{issues.length > 0 && <IgnoreButton ctl={ctl} f={f} />}</span>
+            </li>
+          );
+        })}
       </ul>
     </FoldPanel>
   );
@@ -183,19 +270,26 @@ function SshCell({ label, value, warn, known }: Readonly<{ label: string; value?
   );
 }
 
-function PortsList({ snap }: Readonly<{ snap: Snapshot }>) {
+function PortsList({ snap, ctl }: Readonly<{ snap: Snapshot; ctl?: IgnoreCtl }>) {
   const rows = (snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => ({ d, hit: d.ports.filter((p) => SENSITIVE[p]) })).filter((x) => x.hit.length).sort((a, b) => b.hit.length - a.hit.length);
   if (!rows.length) return <Empty>{tx("Aucun port sensible ouvert vu sur le réseau.")}</Empty>;
   return (
     <FoldPanel id="security.ports" icon={Radar} title={tx("Ports sensibles ouverts sur le réseau")} count={rows.length} tone="warn">
-      <InfoNote className="mb-2">{tx("Vus par le scanner de MynetworK : protocoles en clair, prise de main à distance, bases de données. À fermer s'ils ne servent pas.")}</InfoNote>
-      <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
-        {rows.map(({ d, hit }) => (
-          <li key={d.ip} className="grid items-center gap-x-4 gap-y-1 px-2 py-2 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-            <span className="truncate font-semibold">{d.hostname || d.vendor || d.ip} <Dim>{d.ip}</Dim></span>
-            <span className="flex flex-wrap gap-1">{hit.map((p) => <Badge key={p} tone="warn">{p} · {SENSITIVE[p]}</Badge>)}</span>
-          </li>
-        ))}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <InfoNote>{tx("Vus par le scanner de MynetworK : protocoles en clair, prise de main à distance, bases de données. À fermer s'ils ne servent pas. Le scanner voit le réseau local, pas ce que ton routeur ouvre sur Internet : ignore un appareil dont le port reste local.")}</InfoNote>
+        <AreaSwitch ctl={ctl} area="ports" />
+      </div>
+      <ul className="flex flex-col divide-y divide-line/60 text-sm">
+        {rows.map(({ d, hit }) => {
+          const f = portFinding(d, hit), off = isOff(ctl, f);
+          return (
+            <li key={d.ip} className={`grid items-center gap-x-4 gap-y-1 px-2 py-2 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)_auto] ${off ? "opacity-50" : "even:bg-bg/50"}`}>
+              <span className="truncate font-semibold">{d.hostname || d.vendor || d.ip} <Dim>{d.ip}</Dim>{off && <Badge tone="off">{tx("ignoré")}</Badge>}</span>
+              <span className="flex flex-wrap gap-1">{hit.map((p) => <Badge key={p} tone="warn">{p} · {SENSITIVE[p]}</Badge>)}</span>
+              <span className="flex justify-end"><IgnoreButton ctl={ctl} f={f} /></span>
+            </li>
+          );
+        })}
       </ul>
     </FoldPanel>
   );
@@ -218,6 +312,11 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
   const admin = snap.me.role === "admin", access = useAccessData(admin), now = Math.floor(Date.now() / 1000);
   const findings = useMemo(() => securityFindings(snap, access ? accessFindings(access, now) : []), [snap, access, now]);
   const rows = useMemo(() => watchRows(findings), [findings]);
+  const ignored = snap.data.security_ignore ?? [], [note, setNote] = useState<Note>(null);
+  const saveIgnored = (keys: string[], done: string) => void act(async () => { await send("PUT", "security/ignore", { keys: [...new Set(keys)] }); }, done, setNote);
+  const ignore = (add: string[]) => saveIgnored([...ignored, ...add], tx("point ignoré"));
+  const restore = (key: string) => saveIgnored(ignored.filter((k) => k !== key), tx("point remis"));
+  const ctl: IgnoreCtl | undefined = admin ? { keys: ignored, add: ignore, remove: restore } : undefined;
   const sources = snap.data.security ?? [];
   const tools = [sources.length ? tx("Fail2ban par {0}", [...new Set(sources.map((c) => c.name))].join(", ")) : "", Object.keys(snap.data.npm_instances ?? {}).length ? tx("Nginx Proxy Manager ({0})", Object.keys(snap.data.npm_instances).length) : "",
     (snap.data.network ?? []).length ? "MynetworK" : ""];
@@ -233,10 +332,12 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={ShieldCheck} title={tx("Sécurité")} tags={<HeadTags counts={[bySsh]} sources={tools} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
       <Figures snap={snap} findings={findings} admin={admin} />
-      {sub === "overview" && <Watch rows={rows} open={pick} />}
-      {sub === "sites" && <SitesList snap={snap} />}
+      {sub === "overview" && <Watch rows={rows} open={pick} ignore={admin ? ignore : undefined} />}
+      {sub === "overview" && admin && ignored.length > 0 && <Ignored keys={ignored} restore={restore} />}
+      <NoteLine note={note} />
+      {sub === "sites" && <SitesList snap={snap} ctl={ctl} />}
       {sub === "access" && <AccessList snap={snap} />}
-      {sub === "network" && <PortsList snap={snap} />}
+      {sub === "network" && <PortsList snap={snap} ctl={ctl} />}
       {sub === "certs" && <Certificates snap={snap} />}
       <InfoNote>{tx("Cette page lit ce que vos outils savent (Fail2ban par LogviewR, Nginx Proxy Manager, SSH, MynetworK). Elle ne change rien et ne donne pas de note : des faits, du plus grave au moins grave.")}</InfoNote>
       {sources.length === 0 && <InfoNote tone="warn">{tx("Aucun Fail2ban n'est relié : reliez LogviewR (Réglages, Connecteurs) pour voir les bannissements et les menaces.")}</InfoNote>}

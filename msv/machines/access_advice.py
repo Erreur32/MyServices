@@ -22,7 +22,7 @@ METHODS = ("ssh", "agent", "connector", "ping")
 APPLIANCE_ICONS = {"freebox", "free", "nut", "unifi"}
 APPLIANCE_APPS = {"unifi", "freebox", "opnsense", "pfsense", "openwrt", "mikrotik", "ubiquiti"}
 APPLIANCE_ROLE = re.compile(r"passerelle|gateway|routeur|router|firewall|\bbox\b", re.IGNORECASE)
-# Closed systems where nothing gets installed, read by their connector or over SSH: VMware ESXi, NAS systems
+# Closed systems read by their connector or over SSH: VMware ESXi (an agent is possible, not supported), NAS systems (nothing gets installed)
 ESXI = re.compile(r"esxi|vmware", re.IGNORECASE)
 CLOSED_NAS = re.compile(r"synology|qnap|\bwd\b|my ?cloud|truenas|freenas|unraid", re.IGNORECASE)
 
@@ -71,11 +71,12 @@ def is_home_assistant_os(f: dict) -> bool:
 
 
 def closed_system(f: dict) -> str | None:
-    """« esxi » or « nas » for a closed system read by its connector or over SSH (never an agent), from the SSH reading, the icon, the
-    apps recognised or the connectors; None otherwise."""
-    words = " ".join(str(w) for w in [f.get("info_os") or "", f.get("icon") or "", *(f.get("apps") or []), *(f.get("connectors") or [])])
-    if ESXI.search(words):
+    """« esxi » or « nas » for a closed system read by its connector or over SSH, from the SSH reading, the icon, the apps recognised or the
+    connectors; None otherwise. ESXi is judged on the machine itself only: a VMware connector (vCenter, ESXi) also lists the guests it hosts."""
+    own = " ".join(str(w) for w in [f.get("info_os") or "", f.get("icon") or "", *(f.get("apps") or [])])
+    if ESXI.search(own):
         return "esxi"
+    words = " ".join([own, *(str(w) for w in f.get("connectors") or [])])
     return "nas" if CLOSED_NAS.search(words) else None
 
 
@@ -96,6 +97,16 @@ def advise(f: dict) -> dict:
             "agent_possible": agent_possible, "agent_kind": agent_kind, "agent_state": f.get("agent_state")}
 
 
+def _plan_closed(f: dict, closed: str, connectors: list[str]) -> tuple[str, str, list[str], bool, str | None]:
+    """A closed system: its connector first, else SSH when it answers, else the ping. ESXi allows an agent as the last option (VMware does not
+    plan for it); a closed NAS never does."""
+    ssh = bool(f.get("ssh_ok") or f.get("ssh_alias") or f.get("ssh_port"))
+    usable = [m for m, ok in (("connector", connectors), ("ssh", ssh)) if ok] or ["ping"]
+    if closed == "esxi":
+        return usable[0], closed, [*usable[1:], "agent"], True, "linux"
+    return usable[0], closed, usable[1:], False, None
+
+
 def _plan(f: dict, kind: str, connectors: list[str]) -> tuple[str, str, list[str], bool, str | None]:
     """(méthode, motif, alternatives, agent possible, type d'agent) pour une machine de ce système, dans l'ordre des règles du module."""
     via_tool = "connector" if connectors else "ping"
@@ -104,10 +115,8 @@ def _plan(f: dict, kind: str, connectors: list[str]) -> tuple[str, str, list[str
     if is_home_assistant_os(f):   # ni SSH ni agent : l'API
         return via_tool, "home_assistant", ["ping"], False, None
     closed = closed_system(f)
-    if closed:   # its connector first, else SSH when it answers, else the ping
-        ssh = bool(f.get("ssh_ok") or f.get("ssh_alias") or f.get("ssh_port"))
-        usable = [m for m, ok in (("connector", connectors), ("ssh", ssh)) if ok] or ["ping"]
-        return usable[0], closed, usable[1:], False, None
+    if closed:
+        return _plan_closed(f, closed, connectors)
     if kind == "windows":
         return "agent", "windows", ["connector"] if connectors else [], True, "windows"
     if kind in ("ios", "network"):

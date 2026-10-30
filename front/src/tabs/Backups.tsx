@@ -145,7 +145,7 @@ function MachineHeader({ name, sets, m, cols }: Readonly<{ name: string; sets: B
 }
 
 /** The view by machine (the former page): filters, one row per machine, local folders, unclaimed cron lines */
-function ByMachine({ b, initial, onSets }: Readonly<{ b: BackupsData; initial?: Selected; onSets: (h: BackupHost) => void }>) {
+function ByMachine({ b, initial, onSets, known }: Readonly<{ b: BackupsData; initial?: Selected; onSets: (h: BackupHost) => void; known: ReadonlySet<string> }>) {
   const sets = useMemo(() => new Map((b.sets || []).map((s) => [s.id, s])), [b]);
   const facets = useMemo((): Facet<BackupHost>[] => [
     { key: "state", label: tx("État"), get: stateOf, name: (v) => LEVEL[v]?.[1] || v, order: ["crit", "down", "warn", "ok", "off", "na"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
@@ -173,11 +173,13 @@ function ByMachine({ b, initial, onSets }: Readonly<{ b: BackupsData; initial?: 
     if (!own.length) return <Dim>{tx("aucun")}</Dim>;
     const worst = own.reduce((w, x) => (rank(x.level) > rank(w.level) ? x : w), own[0]);
     return (
-      <button type="button" className="hover:opacity-80" title={[...own.map((x) => short(x.label) + " · " + (x.schedule ?? "")), tx("Voir ses jeux")].join("\n")} onClick={() => onSets(h)}>
-        <Level level={worst.level} outline plainText>{tx("{0} jeu(x)", own.length)}</Level>
+      <button type="button" className={`${quiet} py-1`} title={[...own.map((x) => short(x.label) + " · " + (x.schedule ?? "")), tx("Voir ses jeux")].join("\n")} onClick={() => onSets(h)}>
+        <Layers size={14} aria-hidden /><Dot tone={LEVEL[worst.level]?.[0] ?? "off"} />{tx("{0} jeu(x)", own.length)}
       </button>
     );
   };
+  const name = (h: BackupHost) => known.has(h.ip)
+    ? <a href={`#machines/${h.ip}`} className="font-bold text-txt no-underline hover:underline" title={tx("Ouvrir {0}", h.label)}>{h.label}</a> : <b>{h.label}</b>;
   const disks = (h: BackupHost) => h.disks.length ? (
     <div className="flex flex-col gap-1">
       {h.disks.map((d) => (
@@ -198,7 +200,7 @@ function ByMachine({ b, initial, onSets }: Readonly<{ b: BackupsData; initial?: 
           <Table head={<><Th>{tx("Machine")}</Th><Th>{tx("État")}</Th><Th>{tx("Disques")}</Th><Th>{tx("Dernier backup local")}</Th><Th>{tx("Copié ailleurs")}</Th><Th>{tx("Jeux produits")}</Th></>}>
             {f.shown.map((h) => (
               <tr key={h.id} className="even:bg-bg/50 hover:bg-bg2/40">
-                <Td><b>{h.label}</b><span className="block text-xs text-dim">{h.ip} · {h.kind}</span></Td>
+                <Td>{name(h)}<span className="block text-xs text-dim">{h.ip} · {h.kind}</span></Td>
                 <Td><Level level={stateOf(h)} /></Td><Td>{disks(h)}</Td><Td>{last(h)}</Td><Td>{copies(h)}</Td><Td>{produced(h)}</Td>
               </tr>
             ))}
@@ -206,7 +208,7 @@ function ByMachine({ b, initial, onSets }: Readonly<{ b: BackupsData; initial?: 
           <Cards>
             {f.shown.map((h) => (
               <div key={h.id} className="flex flex-col gap-2 rounded-2xl border border-line bg-card p-3.5">
-                <div className="flex items-start justify-between gap-2"><div><b>{h.label}</b><span className="block text-xs text-dim">{h.ip} · {h.kind}</span></div><Level level={stateOf(h)} /></div>
+                <div className="flex items-start justify-between gap-2"><div>{name(h)}<span className="block text-xs text-dim">{h.ip} · {h.kind}</span></div><Level level={stateOf(h)} /></div>
                 <div className="text-sm"><span className="text-muted">{tx("Dernier local :")} </span>{last(h)}</div>
                 {copies(h)}{produced(h)}
               </div>
@@ -323,7 +325,7 @@ export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; ini
       {(view === "all" || view === "watch") && <SetsView key={setsFrom.n} sets={all} b={b} snap={snap} initial={setsFrom.sel} alerts={view === "watch" || !!alerts} />}
       {view === "machines" && (
         <FoldPanel id="backups-hosts" icon={Monitor} title={tx("Par machine")} count={b.hosts?.length ?? 0} pinned>
-          <ByMachine b={b} initial={hostSel} onSets={(h) => { setSetsFrom((x) => ({ sel: { machine: [h.id] }, n: x.n + 1 })); location.hash = "backups/all"; }} />
+          <ByMachine b={b} initial={hostSel} known={new Set(snap.data.machine_list.map((m) => m.ip))} onSets={(h) => { setSetsFrom((x) => ({ sel: { machine: [h.id] }, n: x.n + 1 })); location.hash = "backups/all"; }} />
         </FoldPanel>
       )}
     </div>
