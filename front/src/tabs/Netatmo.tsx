@@ -17,6 +17,8 @@ const BAT: Record<"low" | "mid" | "hi", string> = { low: "bg-bad", mid: "bg-warn
 const ORANGE = "#ff8d15";
 const PANEL = "overflow-hidden rounded-2xl border border-[#ff8d15]/30 bg-card/70 shadow-sm";
 const HEAD = "flex items-baseline justify-between gap-3 border-b border-[#ff8d15]/30 bg-[#ff8d15]/10 px-4 py-2.5";
+const ANCHOR = ["start", "middle", "middle", "middle", "end"] as const;
+const PROGRESS = "block w-full appearance-none overflow-hidden [&::-webkit-progress-bar]:bg-transparent [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[#ff8d15] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[#ff8d15]";
 const TRACK = "relative h-2 rounded-full bg-muted/20";
 const PINNED = "absolute -top-[3px] h-3.5 w-1 -translate-x-1/2 rounded-sm bg-txt shadow-[0_0_0_2px_rgb(var(--card))]";
 const COLORS = [ORANGE, "#4aa8ff", "#c792ea", "#4cd07f", "#e8a33d", "#f06a6a", "#4acbd6", "#a3e635"];
@@ -39,7 +41,10 @@ function useCurves(sensors: NetatmoModule[]): Curves {
   return all;
 }
 
-const foot = (m: NetatmoModule): string => !m.reachable && m.last_seen ? tx("Dernier signal : {0}", dateTime(m.last_seen * 1000)) : m.battery != null ? tx("Pile {0} %", Math.round(m.battery)) : "";
+const foot = (m: NetatmoModule): string => {
+  if (!m.reachable && m.last_seen) return tx("Dernier signal : {0}", dateTime(m.last_seen * 1000));
+  return m.battery == null ? "" : tx("Pile {0} %", Math.round(m.battery));
+};
 const first = (m: NetatmoModule) => (typeof m.values.temperature === "number" ? "temperature" : "");
 
 /** The line of a sensor, filled below, in a 200 × 44 box: the temperature, else the first measure it has */
@@ -126,7 +131,13 @@ function Chart({ metric, sensors, curves, colors }: Readonly<{ metric: (typeof M
   const W = 560, H = 230, L = 42, R = 10, T = 10, B = 24, w = W - L - R, h = H - T - B;
   const step = sc ? metric.round * Math.max(1, Math.ceil((sc.hi - sc.lo) / metric.round / 5)) : 1;
   const ticks = sc ? Array.from({ length: Math.floor((sc.hi - sc.lo) / step) + 1 }, (_, i) => sc.lo + i * step) : [];
-  const toggle = (id: string) => setOff((x) => { const n = new Set(x); if (!n.delete(id)) n.add(id); return n; });
+  const toggle = (id: string) => setOff((x) => {
+    const n = new Set(x);
+    if (!n.delete(id)) {
+      n.add(id);
+    }
+    return n;
+  });
   return (
     <section className={PANEL} aria-label={metric.title()}>
       <div className={HEAD}><h2 className="text-sm font-bold">{metric.title()}</h2><span className="text-xs text-muted">{metric.note()}</span></div>
@@ -146,9 +157,9 @@ function Chart({ metric, sensors, curves, colors }: Readonly<{ metric: (typeof M
             const y = T + h - ((v - sc.lo) / (sc.hi - sc.lo)) * h;
             return <g key={v}><line x1={L} x2={W - R} y1={y} y2={y} className="stroke-line" /><text x={L - 6} y={y + 4} textAnchor="end" className="fill-muted font-mono text-[10px]">{v}{metric.unit.trim()}</text></g>;
           })}
-          {sc && [0, 1, 2, 3, 4].map((i) => <text key={i} x={L + (i / 4) * w} y={H - 7} textAnchor={i === 0 ? "start" : i === 4 ? "end" : "middle"} className="fill-muted font-mono text-[10px]">{hhmm(sc.t0 + (i / 4) * (sc.t1 - sc.t0))}</text>)}
+          {sc && [0, 1, 2, 3, 4].map((i) => <text key={i} x={L + (i / 4) * w} y={H - 7} textAnchor={ANCHOR[i]} className="fill-muted font-mono text-[10px]">{hhmm(sc.t0 + (i / 4) * (sc.t1 - sc.t0))}</text>)}
           {sc && shown.map(({ m, pts }) => {
-            const last = pts[pts.length - 1], c = colors.get(m.id ?? "");
+            const last = pts.at(-1) ?? pts[0], c = colors.get(m.id ?? "");
             return (
               <g key={m.id} transform={`translate(${L} ${T})`}>
                 <path d={linePath(pts, sc, w, h)} fill="none" stroke={c} strokeWidth={2} strokeLinejoin="round" />
@@ -176,7 +187,7 @@ function Shutters({ list, title }: Readonly<{ list: NetatmoModule[]; title: stri
               </div>
               <div className="min-w-0 truncate text-[13px] font-semibold">{m.name}{m.room && <small className="block text-[11.5px] font-normal text-muted">{m.room}</small>}</div>
               <span className="min-w-16 text-right font-mono text-[13px] font-bold">{shutterState(m).replace(/^ouvert à /, "")}</span>
-              {pos !== null && <div className={`${TRACK} col-span-2 col-start-2`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pos} aria-label={m.name}><span className="absolute inset-y-0 left-0 rounded-full bg-[#ff8d15]" style={{ width: `${pos}%` }} /></div>}
+              {pos !== null && <progress className={`${TRACK} ${PROGRESS} col-span-2 col-start-2`} max={100} value={pos} aria-label={m.name} />}
             </li>
           );
         })}
@@ -215,7 +226,7 @@ function Plain({ title, aside, rows }: Readonly<{ title: string; aside?: React.R
   );
 }
 
-const OUTDOOR_CAMERAS = ["NOC", "NDB"];
+const OUTDOOR_CAMERAS = new Set(["NOC", "NDB"]);
 
 /** A camera: its picture of the moment as a thumbnail (read by the server, never kept), its place and whether it watches */
 function CameraCard({ m, picture }: Readonly<{ m: NetatmoModule; picture: boolean }>) {
@@ -233,7 +244,7 @@ function CameraCard({ m, picture }: Readonly<{ m: NetatmoModule; picture: boolea
       </div>
       <div className="grid gap-0.5 px-3.5 py-2.5">
         <h3 className="truncate text-sm font-bold">{m.name}</h3>
-        <p className="truncate text-xs text-muted">{[m.room, OUTDOOR_CAMERAS.includes(m.type ?? "") ? tx("extérieure") : tx("intérieure"), watching ? tx("surveillance active") : tx("surveillance coupée")].filter(Boolean).join(" · ")}</p>
+        <p className="truncate text-xs text-muted">{[m.room, OUTDOOR_CAMERAS.has(m.type ?? "") ? tx("extérieure") : tx("intérieure"), watching ? tx("surveillance active") : tx("surveillance coupée")].filter(Boolean).join(" · ")}</p>
       </div>
     </article>
   );

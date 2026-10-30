@@ -13,6 +13,7 @@ const TEAL = "#4acbd6";
 const PANEL = "overflow-hidden rounded-2xl border border-[#4acbd6]/30 bg-card/70 shadow-sm";
 const HEAD = "flex items-baseline justify-between gap-3 border-b border-[#4acbd6]/30 bg-[#4acbd6]/10 px-4 py-2.5";
 const CARD = "flex min-w-0 flex-col gap-2.5 rounded-2xl border border-[#4acbd6]/30 bg-card px-3.5 py-3 shadow-sm";
+const BORDER: Record<string, string> = { bad: "border-bad", warn: "border-warn" };
 const TRACK = "relative h-2 rounded-full bg-muted/20";
 const TEXT: Record<TapoTone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
 const DOT: Record<TapoTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad" };
@@ -30,7 +31,10 @@ function Wifi({ rssi }: Readonly<{ rssi?: number | null }>) {
 
 function State({ d }: Readonly<{ d: TapoDevice }>) {
   const tone: TapoTone = !d.online || d.error ? "bad" : "ok";
-  return <span className={`flex items-center gap-1.5 whitespace-nowrap text-xs font-bold ${TEXT[tone]}`}><span className={`size-2 rounded-full ${DOT[tone]}`} />{!d.online ? tx("Hors ligne") : d.error ? tx("Lecture impossible") : tx("En ligne")}</span>;
+  let label = tx("En ligne");
+  if (!d.online) label = tx("Hors ligne");
+  else if (d.error) label = tx("Lecture impossible");
+  return <span className={`flex items-center gap-1.5 whitespace-nowrap text-xs font-bold ${TEXT[tone]}`}><span className={`size-2 rounded-full ${DOT[tone]}`} />{label}</span>;
 }
 
 function Title({ d }: Readonly<{ d: TapoDevice }>) {
@@ -112,9 +116,9 @@ function OtherCard({ d }: Readonly<{ d: TapoDevice }>) {
 }
 
 function Banner({ snap, devices }: Readonly<{ snap: Snapshot; devices: number }>) {
-  const st = tapoState(snap), text = st.tone === "ok" ? tx("Compte Tapo connecté") : st.tone === "warn" ? tx("Dernière lecture ancienne") : st.message;
+  const st = tapoState(snap), text = ({ ok: tx("Compte Tapo connecté"), warn: tx("Dernière lecture ancienne") } as Record<string, string>)[st.tone] ?? st.message;
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card px-4 py-3 ${st.tone === "bad" ? "border-bad" : st.tone === "warn" ? "border-warn" : "border-line"}`}>
+    <div className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card px-4 py-3 ${BORDER[st.tone] ?? "border-line"}`}>
       <div className="flex flex-wrap gap-x-8 gap-y-1">
         <div><span className="block text-[11px] text-muted">{tx("Connecteur")}</span><b className={`text-[13px] ${TEXT[st.tone]}`}>{text}</b></div>
         <div><span className="block text-[11px] text-muted">{tx("Appareils trouvés")}</span><b className="text-[13px]">{devices}</b></div>

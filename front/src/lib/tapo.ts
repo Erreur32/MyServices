@@ -55,4 +55,8 @@ export function tapoState(snap: Snapshot): { tone: TapoTone; message: string } {
 }
 
 /** Wi-Fi signal as 0 to 4 bars from the RSSI in dBm */
-export const wifiBars = (rssi: number | null | undefined): number => (rssi == null ? 0 : rssi >= -55 ? 4 : rssi >= -65 ? 3 : rssi >= -75 ? 2 : 1);
+export const wifiBars = (rssi: number | null | undefined): number => {
+  if (rssi == null) return 0;
+  const step = [-55, -65, -75].findIndex((limit) => rssi >= limit);
+  return step < 0 ? 1 : 4 - step;
+};

@@ -20,7 +20,8 @@ _series: dict[str, tuple[float, list]] = {}   # shortcut: kept in memory per pro
 
 
 def _lib():
-    import tapo   # noqa: PLC0415 -- not in every image, and only needed when a read starts
+    # Not in every image, and only needed when a read starts.
+    import tapo   # noqa: PLC0415
     return tapo
 
 
@@ -88,7 +89,7 @@ class Tapo(Connector):
             async for maybe in await client.discover_devices(target, DISCOVERY_S):
                 try:
                     d = maybe.get()
-                except Exception as e:   # noqa: BLE001 -- one device refusing must not hide the others
+                except Exception as e:   # noqa: BLE001
                     errors.append(str(e))
                     continue
                 key = _dict(getattr(d, "device_info", None)).get("device_id") or getattr(d, "address", None) or id(d)
@@ -136,7 +137,7 @@ class Tapo(Connector):
                 await self._plug(lib, h, row)
             if hasattr(h, "get_child_device_list"):
                 rows = await self._children(h, name)
-        except Exception as e:   # noqa: BLE001 -- the device answered the discovery but not the reading: it is listed with the reason
+        except Exception as e:   # noqa: BLE001
             row["error"] = str(e)[:160]
         return [row, *rows]
 
@@ -151,7 +152,7 @@ class Tapo(Connector):
             return found, errors, [await self._read(lib, d) for d in found]
 
         try:
-            found, errors, groups = asyncio.run(run())
+            _, errors, groups = asyncio.run(run())
         except OSError as e:
             raise ConnectorError(f"recherche impossible ({e.strerror or e.__class__.__name__})") from None
         devices = [r for g in groups for r in g]

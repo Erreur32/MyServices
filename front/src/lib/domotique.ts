@@ -121,7 +121,10 @@ export function linePath(p: Point[], s: Scale, w: number, h: number, pad = 0): s
 
 /** Where a CO2 reading falls on the bar (400 to 1500 ppm: green to 800, orange to 1000... red above) and a battery level's colour */
 export const co2Pin = (ppm: number): number => Math.min(100, Math.max(0, ((ppm - 400) / 1100) * 100));
-export const batteryTone = (pct: number): "low" | "mid" | "hi" => (pct < 30 ? "low" : pct < 60 ? "mid" : "hi");
+export const batteryTone = (pct: number): "low" | "mid" | "hi" => {
+  if (pct < 30) return "low";
+  return pct < 60 ? "mid" : "hi";
+};
 
 /** How many covers (shutters or blinds) are open at least a little */
 export const openCount = (ms: NetatmoModule[]): number => ms.filter((m) => typeof m.values.current_position === "number" && m.values.current_position > 0).length;
@@ -130,12 +133,16 @@ export interface DeviceRow { key: string; name: string; brand: "Netatmo" | "Tapo
 
 const TAPO_KINDS = (): Record<string, string> => ({ plug: tx("Prise"), light: tx("Ampoule"), hub: tx("Hub"), camera: tx("Caméra"), sensor: tx("Capteur"), other: tx("Autre") });
 
+const lineState = (d: { online: boolean; battery_low?: boolean }): { tone: HouseTone; label: string } => {
+  if (!d.online) return { tone: "bad", label: tx("Hors ligne") };
+  return d.battery_low ? { tone: "warn", label: tx("Pile faible") } : { tone: "ok", label: tx("En ligne") };
+};
+
 /** Every device of the house on one list, by brand: what it is, where, whether it answers, its battery */
 export function deviceRows(snap: Snapshot): DeviceRow[] {
   const h = house(snap), kinds: [NetatmoModule[], string][] = [[h.sensors, tx("Capteur")], [h.shutters, tx("Volet roulant")], [h.blinds, tx("Store extérieur")], [h.cameras, tx("Caméra")], [h.others, tx("Autre")]];
   const netatmo = kinds.flatMap(([list, kind]) => list.map((m): DeviceRow => ({ key: `n:${m.id ?? m.name}`, name: m.name, brand: "Netatmo", kind, room: m.room ?? "", tone: moduleState(m).tone, state: moduleState(m).label, battery: m.battery })));
   const names = TAPO_KINDS();
-  const tapo = tapoDevices(snap).map((d): DeviceRow => ({ key: `t:${d.id}`, name: d.name, brand: "Tapo", kind: names[d.kind] ?? d.kind, room: "", tone: d.online ? (d.battery_low ? "warn" : "ok") : "bad",
-    state: d.online ? (d.battery_low ? tx("Pile faible") : tx("En ligne")) : tx("Hors ligne"), battery: null }));
+  const tapo = tapoDevices(snap).map((d): DeviceRow => ({ key: `t:${d.id}`, name: d.name, brand: "Tapo", kind: names[d.kind] ?? d.kind, room: "", tone: lineState(d).tone, state: lineState(d).label, battery: null }));
   return [...netatmo, ...tapo];
 }

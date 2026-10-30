@@ -69,7 +69,7 @@ def fake_lib(results):
 def conn(results):
     tapo._series.clear()
     c = tapo.Tapo({"name": "t", "username": "me@example.com", "password": PW, "targets": "192.0.2.255"}, None)
-    return c, mock.patch.object(tapo, "_lib", lambda: fake_lib(results))
+    return c, mock.patch.object(tapo, "_lib", return_value=fake_lib(results))
 
 
 class Collect(unittest.TestCase):
