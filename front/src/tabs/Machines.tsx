@@ -42,6 +42,7 @@ import { DetailRow, DetailSection } from "../components/DetailSection";
 import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
 import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
 import { primary, quiet } from "../lib/forms";
+import { flash } from "../lib/flash";
 import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { InfoNote } from "../components/InfoNote";
@@ -440,11 +441,7 @@ function WatchList({ items, wrap = false, quiet = false, ip }: Readonly<{ items:
 }
 /** Scrolls the machine window to what explains a notice (the exact row when there is one, else its section) and makes it flash */
 function showWatch(root: HTMLElement | null, kind: WatchKind) {
-  const el = root?.querySelector<HTMLElement>(`[data-watch="${kind}"]`) ?? root?.querySelector<HTMLElement>(`[data-sec="${WATCH_SECTION[kind]}"]`);
-  if (!el) return;
-  el.scrollIntoView({ block: "center", behavior: "smooth" });
-  el.classList.add("ring-2", "ring-warn", "animate-pulse");
-  setTimeout(() => el.classList.remove("ring-2", "ring-warn", "animate-pulse"), 2600);
+  flash(root?.querySelector<HTMLElement>(`[data-watch="${kind}"]`) ?? root?.querySelector<HTMLElement>(`[data-sec="${WATCH_SECTION[kind]}"]`));
 }
 const WATCH_SMALL_KEY = "ms.machine.watch.small";
 

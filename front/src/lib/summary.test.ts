@@ -112,12 +112,18 @@ describe("avertissements de l'accueil", () => {
     expect(a.filter((x) => x.text.includes("Docker illisible"))).toHaveLength(1);
     expect(a.some((x) => x.text.startsWith("Connecteur"))).toBe(false);
   });
-  it("entrées NPM avec avertissement : une ligne groupée", () => {
-    const d = data([host({ id: 1, domains: ["a.lan"], public: { err: "gaierror" } }), host({ id: 2, domains: ["b.lan"], public: { err: "gaierror" } }), host({ id: 3 })]);
-    const a = attention({ data: d, now: NOW }).filter((x) => x.text.includes("NPM avec avertissement"));
-    expect(a).toHaveLength(1);
+  const dnsLost = (id: number) => host({ id, domains: [`h${id}.lan`], public: { err: "gaierror" } });
+  it("peu d'entrées NPM avec avertissement : la raison exacte et le lien vers leur cadre", () => {
+    const a = attention({ data: data([dnsLost(1), dnsLost(2), host({ id: 3 })]), now: NOW }).filter((x) => x.category === "services");
+    expect(a.map((x) => x.text)).toEqual(["**h1.lan** : DNS absent", "**h2.lan** : DNS absent"]);
     expect(a[0].level).toBe("warn");
-    expect(a[0].text).toContain("2 entrées");
+    expect(a[0].href).toBe("services/all/proxy1");
+  });
+  it("beaucoup d'entrées NPM avec avertissement : une ligne groupée", () => {
+    const a = attention({ data: data([1, 2, 3, 4].map(dnsLost)), now: NOW }).filter((x) => x.text.includes("NPM avec avertissement"));
+    expect(a).toHaveLength(1);
+    expect(a[0].text).toContain("4 entrées");
+    expect(a[0].href).toBeUndefined();
   });
 });
 

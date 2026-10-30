@@ -1,10 +1,10 @@
 // Accueil : ce qui demande l'attention (tous onglets confondus, trié par gravité) et le paragraphe des dernières 24 h.
 // Texte en phrases, avec les noms (3 au plus, puis « … et N autres ») ; **gras** rendu par <Rich>.
 import { serviceKey } from "./servicesHidden";
-import type { Backups, Data, Event, Events, Health, HealthHost, Level } from "../types";
+import type { Backups, Data, Event, Events, Health, HealthHost, Host, Level } from "../types";
 import type { Selected } from "./filter";
 import { splitHostName } from "./format";
-import { certIssue, dnsDown, dnsSync, hostName, status } from "./status";
+import { CHECK, CLEANUP, certIssue, checks, dnsDown, dnsSync, hostName, status } from "./status";
 import { tx } from "./i18n";
 import { healthCauses } from "./machineWatch";
 
@@ -69,6 +69,22 @@ export const DOT_FILTER: Partial<Record<string, Selected>> = {
   machines: HEALTH_SEL, services: { alert: ["on"] }, network: { alert: ["on"] }, backups: { alerts: ["on"] }, dns: { alerts: ["on"] },
 };
 
+/** Lines shown one by one above that many NPM entries in warning they are grouped: the home page stays short */
+const NPM_LINES = 3;
+/** The service in the list, opened on what to check */
+const serviceHref = (r: Host) => `services/all/${encodeURIComponent(serviceKey(r))}`;
+
+/** NPM entries in warning: each with its exact reason and its link, or one line when there are many */
+function npmWarnings(hosts: Host[]): Attention[] {
+  const warn = hosts.filter((r) => r.type !== "local" && r.enabled && !r.paused && status(r)[0] === "warn"), sel = { src: ["npm"], status: ["warn"] };
+  if (warn.length > NPM_LINES)
+    return [{ category: "services", level: "warn", text: tx("{0} NPM avec avertissement : {1}", plural(warn.length, "entrée"), names(warn.map(hostName))), tab: "services", action: tx("Voir les entrées"), sel }];
+  return warn.map((r) => {
+    const why = checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => CHECK[k][0]).join(", ") || status(r)[1];
+    return { category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), why), tab: "services", action: tx("Voir le service"), sel, href: serviceHref(r) };
+  });
+}
+
 /** A machine whose health needs a look: its name, the exact trouble, and a link to the frame of its page that explains it */
 function healthLine(h: HealthHost, l: "down" | "crit" | "warn", data: Data): Attention {
   const ip = splitHostName(h.name)[1], name = data.machine_list.find((m) => m.ip === ip)?.name || machineOf(h);
@@ -84,15 +100,12 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
   const out: Attention[] = [];
   for (const m of data.machine_list)
     if (!m.ping && !m.off && !m.disabled) out.push({ category: "machines", level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines", action: tx("Voir la machine"), sel: { state: ["down"] }, href: `machines/${m.ip}`, fix: machineFix(m.ip) });
-  // NPM : entrées actives avec un avertissement (accès, SSL, DNS…), en une seule ligne
-  const npmWarn = data.hosts.filter((r) => r.type !== "local" && r.enabled && !r.paused && status(r)[0] === "warn");
-  if (npmWarn.length)
-    out.push({ category: "services", level: "warn", text: tx("{0} NPM avec avertissement : {1}", plural(npmWarn.length, "entrée"), names(npmWarn.map(hostName))), tab: "services", action: tx("Voir les entrées"), sel: { src: ["npm"], status: ["warn"] } });
+  out.push(...npmWarnings(data.hosts));
   for (const r of data.hosts) {
     const [cls, label] = status(r);
-    if (cls === "bad") out.push({ category: "services", level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", r.machine) : ""), tab: "services", action: tx("Voir le service"), sel: { status: ["bad"] }, fix: { label: tx("Régler le service"), href: `services/edit/${encodeURIComponent(serviceKey(r))}` } });
+    if (cls === "bad") out.push({ category: "services", level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", r.machine) : ""), tab: "services", action: tx("Voir le service"), sel: { status: ["bad"] }, href: serviceHref(r), fix: { label: tx("Régler le service"), href: `services/edit/${encodeURIComponent(serviceKey(r))}` } });
     const cert = r.enabled && !r.paused ? certIssue(r) : "";
-    if (cert) out.push({ category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), cert), tab: "services", action: tx("Voir le site"), sel: { status: ["warn"] } });
+    if (cert) out.push({ category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), cert), tab: "services", action: tx("Voir le site"), sel: { status: ["warn"] }, href: serviceHref(r) });
   }
   for (const h of health?.hosts || []) {
     const l = healthLevel(h);
