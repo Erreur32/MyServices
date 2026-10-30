@@ -292,6 +292,13 @@ const NEUTRAL_LOOK = { edge: "", frame: "border-line", head: "bg-bg", foot: "bg-
 /** Health level of a machine for its card edge: « down » when unreachable, "" when health is not read */
 const levelKey = (h?: HealthHost): string => (h?.reachable === false ? "down" : h?.level ?? "");
 
+/** The look of a card: the worse of the health level and the tone of its notices */
+function cardLook(lvl: string, tone: string | null) {
+  if (lvl === "down") return LEVEL_LOOK.down;
+  if (lvl === "crit" || tone === "bad") return LEVEL_LOOK.crit;
+  return LEVEL_LOOK[lvl === "warn" || tone === "warn" ? "warn" : lvl] ?? NEUTRAL_LOOK;
+}
+
 const WATCH_ICON: Record<WatchKind, LucideIcon> = {
   down: WifiOff, ssh: KeyRound, disk: HardDrive, systemd: ServerCrash, docker: Container, kernel: Bug, smart: ScanSearch, load: Gauge, ssh_auth: ShieldAlert,
   mem: MemoryStick, temp: Thermometer, reboot: RotateCw, updates: ArrowUpCircle, services: Globe, connector: Plug, access: Unplug,
@@ -1706,7 +1713,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
 }>) {
   const up = uptimeOf(m, unifi, freeboxOf(m, snap.data.network), ha);
   const w = worst(watch), tone = w ? TONE_OF_RANK[w] : null, lvl = levelKey(h);   // the colour follows the dot of the icon (the notices) as much as the health level
-  const bad = lvl === "crit" || lvl === "down" || tone === "bad", look = LEVEL_LOOK[bad ? (lvl === "down" ? "down" : "crit") : lvl === "warn" || tone === "warn" ? "warn" : lvl] ?? NEUTRAL_LOOK;
+  const look = cardLook(lvl, tone);
   return (
     <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] ${look.frame} bg-card p-3 transition-colors hover:border-link/50 ${look.edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
       <div className={`-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 px-3 py-2.5 ${look.head}`}>
