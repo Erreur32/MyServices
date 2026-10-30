@@ -11,6 +11,9 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from connectors import ntlm  # noqa: E402
 from connectors.base import ConnectorError  # noqa: E402
@@ -34,10 +37,12 @@ class Gateway(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _send(self, code: int, body: bytes = b"", www: list[str] | None = None):
+    def _send(self, code: int, body: bytes = b"", www: list[str] | None = None, cookies: tuple = ()):
         self.send_response(code)
         for w in www or []:
             self.send_header("WWW-Authenticate", w)
+        for c in cookies:
+            self.send_header("Set-Cookie", c)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -60,6 +65,40 @@ class Gateway(BaseHTTPRequestHandler):
         if user != "alice" or nt[:16] != expected:
             return self._send(401, www=list(self.offered))
         self._send(200, json.dumps(self.answer).encode())
+
+
+KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+CSRF = "csrf&amp;1"
+
+
+def _b64url(number: int) -> str:
+    return base64.urlsafe_b64encode(number.to_bytes((number.bit_length() + 7) // 8, "big")).rstrip(b"=").decode()
+
+
+class RecentGateway(Gateway):
+    """The recent gateway: a login page and cookies, the calls of its page, no Windows challenge."""
+
+    def do_GET(self):
+        cookie = self.headers.get("Cookie", "")
+        if self.path == "/api/connections" and "WAC-TOKEN=signed" in cookie:
+            return self._send(200, json.dumps(self.answer).encode())
+        if self.path == "/":
+            page = f'<input type="text" name="username" /><input type="hidden" name="csrf" id="csrf" value="{CSRF}" />'
+            return self._send(403, page.encode(), cookies=("WAC-SESSION=s1; path=/; HttpOnly",))
+        self._send(403, b'{"error":{"code":"UnauthorizedExpiredError"}}', cookies=("WAC-TOKEN=; path=/",))
+
+    def do_POST(self):
+        got = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if "WAC-SESSION=s1" not in self.headers.get("Cookie", "") or got.get("csrf") != "csrf&1":
+            return self._send(403)
+        if self.path == "/api/user/key":
+            numbers = KEY.public_key().public_numbers()
+            return self._send(200, json.dumps({"jwk": {"kty": "RSA", "n": _b64url(numbers.n), "e": _b64url(numbers.e)}}).encode())
+        sealed = padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+        who = json.loads(KEY.decrypt(base64.b64decode(got["packet"]), sealed))
+        if who != {"username": "DOMAIN\\alice", "password": PW, "csrf": "csrf&1"}:
+            return self._send(401)
+        self._send(200, b"{}", cookies=("WAC-TOKEN=signed; path=/; HttpOnly",))
 
 
 def serve(**attrs):
@@ -102,18 +141,31 @@ class Collect(unittest.TestCase):
             form_only.collect()
         self.assertIn("n'est pas proposée", str(e.exception))
 
-    def test_a_gateway_that_signs_in_by_a_web_page_is_said(self):
-        class Recent(Gateway):
-            def do_GET(self):
-                self._send(403, b'{"error":{"code":"UnauthorizedExpiredError"}}')   # no challenge, like the recent gateway
-        s = ThreadingHTTPServer(("127.0.0.1", 0), Recent)
+    def recent(self, gateway=RecentGateway):
+        s = ThreadingHTTPServer(("127.0.0.1", 0), gateway)
         threading.Thread(target=s.serve_forever, daemon=True).start()
         self.addCleanup(s.server_close)
         self.addCleanup(s.shutdown)
-        recent = connector(s)
+        return s
+
+    def test_a_recent_gateway_is_read_after_its_login_page(self):
+        d = connector(self.recent()).collect()
+        self.assertEqual([r["name"] for r in d["connections"]], ["srv1", "cl1", "pc1"])
+
+    def test_a_wrong_password_on_the_login_page_is_said(self):
+        wrong = connector(self.recent(), password="wrong")
         with self.assertRaises(ConnectorError) as e:
-            recent.collect()
-        self.assertIn("page de connexion", str(e.exception))
+            wrong.collect()
+        self.assertIn("compte refusé", str(e.exception))
+
+    def test_a_login_page_without_csrf_is_said(self):
+        class NoPage(RecentGateway):
+            def do_GET(self):
+                self._send(403, b"<html></html>")
+        unknown = connector(self.recent(NoPage))
+        with self.assertRaises(ConnectorError) as e:
+            unknown.collect()
+        self.assertIn("non reconnue", str(e.exception))
 
     def test_test_gives_the_count(self):
         r = connector(self.serve()).test()

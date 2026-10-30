@@ -7,7 +7,7 @@ Keep a copy of `config/` and `data/` before any update.
 
 ## 0.31.5 → next version
 
-**Nothing required yet.**
+**Nothing required yet.** If a Windows Admin Center connector failed on a recent gateway (port 20443), run its test again after the update: no setting changes.
 
 ## 0.31.4 → 0.31.5
 
