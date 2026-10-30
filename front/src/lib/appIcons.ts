@@ -7,9 +7,9 @@ const FILES: Record<string, string> = {
   "proxmox backup server": "proxmox", "proxmox backup": "proxmox", dockhand: "dockhand", logviewr: "logviewr", mynetwork: "mynetwork",
   frigate: "frigate", opnsense: "opnsense", "pi-hole": "pihole", pihole: "pihole", portainer: "portainer", truenas: "truenas", "synology dsm": "synology", synology: "synology",
   "unifi network": "unifi", sonarr: "sonarr", radarr: "radarr", "sonarr / radarr / prowlarr…": "sonarr", tailscale: "tailscale", "tailscale / headscale": "tailscale",
-  jellyfin: "jellyfin", netatmo: "netatmo", netdata: "netdata", prometheus: "prometheus",
+  jellyfin: "jellyfin", netatmo: "netatmo", tapo: "tapo", netdata: "netdata", prometheus: "prometheus",
   "web-check": "web-check", webcheck: "web-check", veeam: "veeam", "veeam backup & replication": "veeam",
-  "vmware vcenter": "vcenter", vcenter: "vcenter", "vmware esxi": "vmware-esxi", esxi: "vmware-esxi", vmware: "vmware-esxi",
+  "windows admin center": "windows-admin-center.png", "vmware vcenter": "vcenter", vcenter: "vcenter", "vmware esxi": "vmware-esxi", esxi: "vmware-esxi", vmware: "vmware-esxi",
   nextcloud: "nextcloud", freebox: "freebox", "box internet (upnp igd)": "upnp-box", "fritz!box": "fritzbox", "sfr box": "sfrbox", livebox: "livebox", "vodafone station": "vodafone-station", "sagemcom f@st": "sagemcom-fast", "bbox bouygues": "bbox", "swisscom internet-box": "swisscom-box", "compal connect box": "connect-box", "telekom speedport": "speedport", "passerelle technicolor (homeware)": "technicolor-gateway", "t-mobile home internet": "tmobile-home-internet", "hitron coda": "hitron-coda", "verizon fios router": "verizon-fios", "arris surfboard": "arris-surfboard", healthchecks: "healthchecks", crowdsec: "crowdsec", "technitium dns": "technitium", technitium: "technitium",
   "onduleur (nut)": "nut", nut: "nut", "network ups tools": "nut", "western digital": "wd", "wd my cloud": "wd", mycloud: "wd",
   pulse: "pulse", "pulse (agent)": "pulse", arcane: "arcane", "arcane (agent)": "arcane", glances: "glances", gpuviewr: "gpuviewr.png", "gpuviewr (agent)": "gpuviewr.png",   // GpuViewR's own favicon

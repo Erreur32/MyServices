@@ -1041,7 +1041,23 @@
     "mise à jour de Tautulli disponible": "Tautulli update available",
     "aucune sauvegarde trouvée": "no backup found",
     "qBittorrent n'est plus connecté au réseau": "qBittorrent is no longer connected to the network",
-    "session requise": "sign-in required"
+    "session requise": "sign-in required",
+  "Tapo": "Tapo",
+  "Compte Tapo (e-mail)": "Tapo account (email)",
+  "Celui de l'application Tapo": "The one of the Tapo app",
+  "Mot de passe Tapo": "Tapo password",
+  "Adresse de recherche": "Search address",
+  "Adresse de diffusion de ton réseau (par exemple 192.168.1.255) ou IP d'un appareil. Plusieurs : séparées par des virgules. Les appareils répondent sur le réseau local.": "Broadcast address of your network (for example 192.168.1.255) or the IP of a device. Several: separated by commas. The devices answer on the local network.",
+  "Ouvre l'application Tapo et note l'e-mail et le mot de passe du compte qui possède tes appareils.": "Open the Tapo app and note the email and password of the account that owns your devices.",
+  "Colle-les dans les champs ci-dessus. MyServices lit seulement : il n'allume ni n'éteint rien.": "Paste them in the fields above. MyServices only reads: it switches nothing on or off.",
+  "Adresse de recherche : laisse 255.255.255.255, ou mets l'adresse de diffusion de ton réseau (la dernière adresse, par exemple 192.168.1.255). Pour un seul appareil, mets son IP.": "Search address: leave 255.255.255.255, or enter the broadcast address of your network (its last address, for example 192.168.1.255). For a single device, enter its IP.",
+  "Les appareils sont lus sur ton réseau local, pas par le cloud. Une caméra Tapo donne son état, pas son image, dans cette version.": "The devices are read on your local network, not through the cloud. A Tapo camera gives its state, not its picture, in this version.",
+  "Clique sur Tester : un appareil qui ne répond pas à la recherche n'est pas listé.": "Click Test: a device that does not answer the search is not listed.",
+  "Caméras en ligne": "Cameras online",
+  "Puissance": "Power",
+  "Tapo refuse ce compte : e-mail ou mot de passe à vérifier": "Tapo refuses this account: check the email or the password",
+  "bibliothèque « tapo » absente de cette image": "the « tapo » library is missing from this image",
+  "aucun appareil Tapo trouvé : l'adresse de recherche est-elle la bonne ?": "no Tapo device found: is the search address right?"
  },
  "templates": [
   ["^en ligne \\((.+)\\)$", "online ($1)"],
@@ -1439,6 +1455,26 @@
   [
    "^(.+) agent\\(s\\) déconnecté\\(s\\)$",
    "$1 agent(s) disconnected"
+  ],
+  [
+   "^(.+) : lecture impossible \\((.+)\\)$",
+   "$1: cannot be read ($2)"
+  ],
+  [
+   "^(.+) : pile faible$",
+   "$1: low battery"
+  ],
+  [
+   "^(\\d+) appareil\\(s\\) trouvé\\(s\\) mais refusé\\(s\\) : compte Tapo à vérifier$",
+   "$1 device(s) found but refused: check the Tapo account"
+  ],
+  [
+   "^aucun appareil lisible \\((.+)\\)$",
+   "no readable device ($1)"
+  ],
+  [
+   "^recherche impossible \\((.+)\\)$",
+   "search failed ($1)"
   ]
  ]
 }

@@ -44,7 +44,7 @@ const MINE = "settings/connectors";
 const WATCH = "*watch", OFF = "*off";   // filters of « My connectors », beside the categories
 // The page that shows what a connector reads
 const PAGE: Record<string, string> = {
-  netatmo: "domotique/netatmo", mynetwork: "network", unifi: "network", freebox: "network", "upnp-box": "network", fritzbox: "network", sfrbox: "network", livebox: "network", "vodafone-station": "network", "sagemcom-fast": "network", bbox: "network", "swisscom-box": "network", "connect-box": "network", "speedport": "network", "technicolor-gateway": "network", "tmobile-home-internet": "network", "hitron-coda": "network", "verizon-fios": "network", "arris-surfboard": "network", logviewr: "security", wazuh: "security", npm: "services",
+  netatmo: "domotique/netatmo", tapo: "domotique/tapo", mynetwork: "network", unifi: "network", freebox: "network", "upnp-box": "network", fritzbox: "network", sfrbox: "network", livebox: "network", "vodafone-station": "network", "sagemcom-fast": "network", bbox: "network", "swisscom-box": "network", "connect-box": "network", "speedport": "network", "technicolor-gateway": "network", "tmobile-home-internet": "network", "hitron-coda": "network", "verizon-fios": "network", "arris-surfboard": "network", logviewr: "security", wazuh: "security", npm: "services",
   ollama: "ai", "open-webui": "ai", hermes: "ai", gpuviewr: "ai", frigate: "stream",
 };
 const DOT: Record<CardTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", off: "bg-dim" };

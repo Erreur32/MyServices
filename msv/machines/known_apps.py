@@ -196,6 +196,7 @@ APPS: tuple[App, ...] = (
     App("kopia", "Kopia", "Infra / virtualisation", ports=(51515,), title=r"^kopia", images=("kopia/kopia",)),
     App("urbackup", "UrBackup", "Infra / virtualisation", ports=(55414,), title=r"urbackup", connector="urbackup"),
     App("unraid", "Unraid", "Infra / virtualisation", title=r"^unraid|unraid webgui", host=r"^unraid", connector="unraid"),
+    App("wac", "Windows Admin Center", "Infra / virtualisation", ports=(6600,), title=r"windows admin center"),   # read by no connector yet: Windows sign-in (NTLM), to build with a real instance
     App("pdm", "Proxmox Datacenter Manager", "Infra / virtualisation", title=r"proxmox datacenter manager", connector="pdm"),
     App("xen-orchestra", "Xen Orchestra", "Infra / virtualisation", title=r"xen orchestra", images=("ronivay/xen-orchestra", "ezka77/xen-orchestra-ce")),
     App("libvirt", "KVM / libvirt", "Infra / virtualisation", ui="none", proc=r"^libvirtd|^virtqemud"),
@@ -307,7 +308,7 @@ WINDOWS_SERVICES: tuple[tuple[str, str], ...] = (
     (r"plex media server|plexupdateservice", "plex"), (r"adguard ?home", "adguard"), (r"jellyfin", "jellyfin"), (r"^sonarr|\bsonarr\b", "sonarr"),
     (r"^radarr|\bradarr\b", "radarr"), (r"^prowlarr", "prowlarr"), (r"^lidarr", "lidarr"), (r"syncthing", "syncthing"), (r"^grafana", "grafana"),
     (r"^prometheus", "prometheus"), (r"netdata", "netdata"), (r"home ?assistant", "homeassistant"), (r"veeam backup service|veeamdeploymentservice", "veeam"),
-    (r"portainer", "portainer"), (r"uptime ?kuma", "uptime-kuma"), (r"frigate", "frigate"), (r"crowdsec", "crowdsec"),
+    (r"portainer", "portainer"), (r"uptime ?kuma", "uptime-kuma"), (r"frigate", "frigate"), (r"crowdsec", "crowdsec"), (r"servermanagementgateway|windows admin center", "wac"),
 )
 WEB_PORTS = {"adguard": 3000, "plex": 32400, "jellyfin": 8096, "grafana": 3000, "prometheus": 9090, "sonarr": 8989, "radarr": 7878, "uptime-kuma": 3001}   # port web par défaut quand l'appli n'en déclare pas
 _WIN = [(re.compile(rx, re.I), key) for rx, key in WINDOWS_SERVICES]

@@ -6,6 +6,7 @@ import { tx } from "./i18n";
 import { hasNetwork } from "./network";
 import { aiCards, aiGpus, aiModels, hasAi } from "./ai";
 import { hasDomotique } from "./domotique";
+import { hasTapo } from "./tapo";
 import { hasStream, streamCameras, streamCards, streamFlows } from "./video";
 
 /** Cartes de services (hors outils réseau, qui ont leur onglet) et conteneurs lus par une API : l'onglet Infra */
@@ -68,8 +69,10 @@ export const NAV: NavGroup[] = [
       sub("stream-recordings", "stream/recordings", "stream", Film, tx("Enregistrements"), (s) => streamCards(s).some((c) => c.role === "nvr" && !c.unread)),
       sub("stream-frigate", "stream/frigate", "stream", Gauge, tx("Frigate"), (s) => (s.data.services_status ?? []).some((c) => c.connector === "frigate" && !!c.frigate)),
     ] },
-    { id: "domotique", hash: "domotique/netatmo", tab: "domotique", icon: House, label: tx("Domotique"), subs: [
-      sub("domotique-netatmo", "domotique/netatmo", "domotique", House, tx("Vue d'ensemble")),
+    { id: "domotique", hash: "domotique/overview", tab: "domotique", icon: House, label: tx("Domotique"), subs: [
+      sub("domotique-overview", "domotique/overview", "domotique", LayoutDashboard, tx("Vue d'ensemble")),
+      sub("domotique-netatmo", "domotique/netatmo", "domotique", House, "Netatmo"),
+      sub("domotique-tapo", "domotique/tapo", "domotique", Plug, "Tapo"),
     ] },
     { id: "ai", hash: "ai", tab: "ai", icon: Bot, label: tx("IA et agents"), subs: [
       sub("ai-overview", "ai/overview", "ai", LayoutDashboard, tx("Vue d'ensemble")),
@@ -146,7 +149,7 @@ export function visible(id: TabId, s: Snapshot): boolean {
   if (UNRELEASED.includes(id) && !isDevBuild(s)) return false;
   switch (id) {
     case "ai": return hasAi(s);   // an AI service in Services, an AI connector or GpuViewR
-    case "domotique": return hasDomotique(s);
+    case "domotique": return hasDomotique(s) || hasTapo(s);
     case "stream": return hasStream(s);   // a « Stream » service in Services or a video connector
     case "backups": return !!s.backups;
     case "dns": return !!s.data.dns;

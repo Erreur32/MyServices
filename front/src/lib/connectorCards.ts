@@ -9,7 +9,7 @@ export interface CardView {
 }
 
 // Plain words for what a connector counts; `facts` and `problems` are told by the card itself, the others say the same number twice
-const HIDDEN = new Set(["facts", "problems", "unavailable_names", "netatmo", "home", "box", "threat_count", "bans", "stats", "metrics", "log_sources"]);
+const HIDDEN = new Set(["facts", "problems", "unavailable_names", "netatmo", "devices", "home", "box", "threat_count", "bans", "stats", "metrics", "log_sources"]);
 const WATCHED = new Set(["dead", "unavailable", "batteries_low"]);   // above zero: worth a look
 const WORDS = (): Record<string, string> => ({
   hosts: tx("hôtes"), redirects: tx("redirections"), dead: tx("morts"), streams: tx("flux"), acls: tx("listes d'accès"), monitors: tx("sondes"),

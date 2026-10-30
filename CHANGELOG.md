@@ -11,6 +11,25 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.4 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- **Domotique**: three sub-pages in the menu, « Overview », « Netatmo » and « Tapo ». The overview shows the house in one look, a folded « To deal with » panel, one card per brand with its main figures, and a table of all devices.
+- **Tapo connector** (read only, `tapo` library): plugs with power, today and month energy and a 24 h curve, cameras (online or not), lights, hub sensors, and a table of all devices. It finds the devices on the local network (UDP discovery) and reads them with the Tapo account. Not tested against a real account yet. Rebuild the image to get the library.
+
+### Changed
+
+- **Machines > Cards**: each card has a foot with a « Details » button that stands out and the health state in words, and its head, foot and edge take the colour of the level (green, orange, red). A card with a warning (the orange or red dot on its icon), or in a critical state, or unreachable, gets a coloured frame too.
+- **Netatmo page redone**: the 24 h curves are in view without opening anything (temperature, humidity and CO2 charts side by side, a legend switches a line on or off), room cards with bars for CO2, humidity and battery, roller shutters and outdoor blinds in two panels, a heating scale, and cameras with a picture thumbnail.
+
+### Fixed
+
+- **Machines**: in the « Table » view the cards were shown under the table as well, both views mixed. The cards now only show in the « Cards » view, and as the phone fallback of the table.
+- **Icon import**: an SVG could not be imported. The page now sends a `.svg` whose file type the browser left empty as an SVG, and the server accepts what editors write: a leading comment, a plain `DOCTYPE`, a metadata block (RDF), `sodipodi:namedview` and more filter elements. Scripts, entities, outside links and a DOCTYPE with an internal subset stay refused.
+
 ## v0.31.3 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

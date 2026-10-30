@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
 import type { NetatmoModule } from "../types";
-import { curveRows, hasDomotique, house, measures, moduleState, shutterState } from "./domotique";
+import { batteryTone, deviceRows, co2Pin, curveRows, hasDomotique, house, linePath, measures, moduleState, scaleOf, shutterState } from "./domotique";
 
 const mod = (o: Partial<NetatmoModule>): NetatmoModule => ({ name: "x", reachable: true, battery: null, low: false, values: {}, ...o });
 const snap = (modules: NetatmoModule[], problems: string[] = []) => ({ data: { services_status: [{ connector: "netatmo", modules, problems }] } }) as unknown as Snapshot;
@@ -64,5 +64,32 @@ describe("house page", () => {
     expect(shutterState(mod({ values: { current_position: 0 } }))).toBe("fermé");
     expect(shutterState(mod({ values: { current_position: 40 } }))).toBe("ouvert à 40 %");
     expect(shutterState(mod({}))).toBe("position inconnue");
+  });
+
+  it("draws the series on one scale, widened to round values", () => {
+    const a: [number, number][] = [[0, 18.3], [100, 21.2]], b: [number, number][] = [[0, 10], [100, 12]];
+    const sc = scaleOf([a, b], 2);
+    expect(sc).toEqual({ t0: 0, t1: 100, lo: 10, hi: 22 });
+    expect(linePath(b, sc!, 100, 12)).toBe("M0.0 12.0 L100.0 10.0");
+    expect(scaleOf([[[0, 1]]])).toBeNull();
+    expect(scaleOf([[[0, 5], [1, 5]]])?.hi).toBe(6);
+  });
+
+  it("places a CO2 reading and a battery on their bars", () => {
+    expect([co2Pin(300), co2Pin(950), co2Pin(2000)]).toEqual([0, 50, 100]);
+    expect([batteryTone(10), batteryTone(45), batteryTone(90)]).toEqual(["low", "mid", "hi"]);
+  });
+
+  it("keeps the outdoor blinds apart from the roller shutters", () => {
+    const h = house(snap([mod({ type: "NBR", name: "Volet salon" }), mod({ type: "NBO", name: "Stores EXT Combinés" }), mod({ type: "NBR", name: "Store banne" })]));
+    expect([h.shutters.map((m) => m.name), h.blinds.map((m) => m.name), h.others.length]).toEqual([["Volet salon"], ["Stores EXT Combinés", "Store banne"], 0]);
+  });
+
+  it("lists every device of the house with its brand, kind and state", () => {
+    const s2 = { data: { services_status: [
+      { connector: "netatmo", modules: [mod({ type: "NAMain", name: "Salon", room: "Salon", battery: 15 }), mod({ type: "NOC", name: "Cam", reachable: false })] },
+      { connector: "tapo", devices: [{ id: "1", name: "Prise", model: "P110", kind: "plug", online: true }] },
+    ] } } as unknown as Snapshot;
+    expect(deviceRows(s2).map((r) => [r.brand, r.name, r.kind, r.tone])).toEqual([["Netatmo", "Salon", "Capteur", "warn"], ["Netatmo", "Cam", "Caméra", "bad"], ["Tapo", "Prise", "Prise", "ok"]]);
   });
 });

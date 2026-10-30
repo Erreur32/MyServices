@@ -146,7 +146,7 @@ export default function App() {
       {!profile && !side && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={homeSub} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} route={hash} />}
-      {current === "domotique" && <Domotique snap={snap} />}
+      {current === "domotique" && <Domotique snap={snap} route={hash} />}
       {current === "ai" && <Ai snap={snap} route={hash} />}
       {current === "stream" && <Video snap={snap} route={hash} />}
       {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}

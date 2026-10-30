@@ -5,6 +5,7 @@
 import { Box, Container, Cpu, EyeOff, Fan, HardDrive, Monitor, Server, Thermometer } from "lucide-react";
 import { useState } from "react";
 import type { Snapshot } from "../api";
+import { appIcon } from "../lib/appIcons";
 import { bytes, dur } from "../lib/format";
 import { tx } from "../lib/i18n";
 import type { BackupSet, Machine, VirtualizationConnector } from "../types";
@@ -124,16 +125,18 @@ function Host({ c, snap, onMachine, hideStopped }: { c: VirtualizationConnector;
   const envs = (snap.data.containers ?? []).flatMap((x) => x.environments ?? []);
   const machineOf = (g: Guest) => machines.find((m) => m.links?.guest?.vmid === g.vmid && m.links.guest.node === g.node && m.links.guest.instance === c.name);
   const via = c.via === "ssh" ? tx("lu par SSH ({0})", VIA[c.connector] ?? "ssh") : c.via === "agent" ? tx("lu par l'agent Windows") : tx("lu par l'API");
+  const logo = appIcon([c.connector, c.label]);
   const vmware = !["proxmox", "pdm", "pulse"].includes(c.connector);   // vzdump backups and « node » wording are Proxmox's only (Pulse reads Proxmox)
   // One section per node with its own guests and storage; a host without nodes (or guests on an unknown node) gets a section of its own
   const nodes = c.nodes ?? [];
   const storageOf = (node?: string) => (c.storage ?? []).filter((st) => (node ? st.node === node : !nodes.some((n) => n.name === st.node)));
   const orphan = !nodes.length || guests.some((g) => !nodes.some((n) => n.name === g.node)) || storageOf().length > 0;   // guests or storage on no known node (ESXi datastores)
-  const byNode = [...nodes.map((n) => ({ node: n as typeof nodes[number] | undefined, list: guests.filter((g) => g.node === n.name) })),
-    ...(orphan ? [{ node: undefined, list: guests.filter((g) => !nodes.some((n) => n.name === g.node)) }] : [])];
+  const perNode = nodes.map((n) => ({ node: n as typeof nodes[number] | undefined, list: guests.filter((g) => g.node === n.name) }));
+  const loose = orphan ? [{ node: undefined, list: guests.filter((g) => !nodes.some((n) => n.name === g.node)) }] : [];
+  const byNode = vmware ? [...loose, ...perNode] : [...perNode, ...loose];   // vCenter/ESXi: the datastores (« System » frame) come first, as the Proxmox node frame does
   return (
     <Card className={c.ok ? "" : "border-bad/40"}>
-      <h2 className="-mx-4 -mt-4 flex flex-wrap items-center gap-2 rounded-t-2xl border-b border-line/60 bg-bg px-4 py-3 font-bold"><Server size={16} aria-hidden />{c.name}
+      <h2 className="-mx-4 -mt-4 flex flex-wrap items-center gap-2 rounded-t-2xl border-b border-line/60 bg-bg px-4 py-3 font-bold">{logo ? <img src={logo} alt="" className="size-5" /> : <Server size={16} aria-hidden />}{c.name}
         <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>
         {c.version && <span className="font-mono text-xs text-dim">{c.label} {c.version}</span>}
         <Badge tone="info">{via}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}

@@ -46,6 +46,7 @@ from connectors.hitron_coda import HitronCoda
 from connectors.verizon_fios import VerizonFios
 from connectors.arris_surfboard import ArrisSurfboard
 from connectors.netatmo import Netatmo
+from connectors.tapo import Tapo
 from connectors.npm import NPM
 from connectors.process import Process
 from connectors.proxmox import ProxmoxBackup, ProxmoxVE
@@ -55,7 +56,7 @@ from connectors.upnp_box import UPnPBox
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, RemoteFolder, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, OpenAICompatible, OpenWebUI, Shinobi, Go2rtc, MediaMTX, Owncast, Netatmo, UPnPBox, FritzBox, SFRBox, Livebox, VodafoneStation, SagemcomFast, BouyguesBbox, SwisscomBox, ConnectBox, Speedport, TechnicolorGateway, TMobileHome, HitronCoda, VerizonFios, ArrisSurfboard, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, RemoteFolder, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, OpenAICompatible, OpenWebUI, Shinobi, Go2rtc, MediaMTX, Owncast, Netatmo, UPnPBox, FritzBox, SFRBox, Livebox, VodafoneStation, SagemcomFast, BouyguesBbox, SwisscomBox, ConnectBox, Speedport, TechnicolorGateway, TMobileHome, HitronCoda, VerizonFios, ArrisSurfboard, Tapo, Discord, Telegram)}
 
 
 def declared(cfg: dict, meta: dict | None = None) -> list[dict]:
