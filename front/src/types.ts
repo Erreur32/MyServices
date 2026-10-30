@@ -230,6 +230,8 @@ export interface ServiceStatus {
   entities?: number;
   facts?: { label: string; value: string; tone?: "ok" | "warn" | "bad" }[];  // connecteurs « état d'un service » : chiffres clés
   problems?: string[];                                                       // et ce qui est à regarder
+  modules?: NetatmoModule[];             // Netatmo only: every device of the account
+  rooms?: { name: string; temperature: number | null; setpoint: number | null }[];   // Netatmo only: the heated rooms
   updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
   instance?: string;                     // connector instance name (« name » can be the app's own, Home Assistant's place)
   machines?: Record<string, WazuhMachine>;   // Wazuh only: what it knows of each machine, by the IP of its agent
@@ -262,7 +264,12 @@ export interface FrigateSystem {
 /** One model of an AI connector: only what the server said (size and vram in bytes) */
 export interface AiModel { name: string; size?: number; quant?: string; family?: string; params?: string; context?: number; loaded?: boolean; vram?: number; cloud?: boolean }
 /** One camera of a recorder (Frigate, Shinobi): its name only, never its address */
-export interface StreamCamera { name: string; up: boolean | null; fps?: number | null; detect?: boolean | null; record?: boolean | null; events?: number | null; last?: number | null; labels?: Record<string, number> }
+/** One Netatmo device (connectors/netatmo.py) */
+export interface NetatmoModule {
+  id?: string | null; name: string; type?: string | null; group?: string; room?: string | null; reachable: boolean;
+  battery: number | null; low: boolean; last_seen?: number | null; values: Record<string, number | string>;
+}
+export interface StreamCamera { name: string; place?: "int" | "ext"; up: boolean | null; fps?: number | null; detect?: boolean | null; record?: boolean | null; events?: number | null; last?: number | null; labels?: Record<string, number> }
 /** One stream of a relay (go2rtc, MediaMTX) */
 export interface StreamFlow { name: string; ready: boolean | null; codec?: string | null; readers: number; kinds: string[] }
 /** The « stream » block of a video connector, the same shape for all (connectors/homelab_stream.py) */

@@ -1,6 +1,6 @@
 // Lecture des fichiers produits par les tâches et de l'API v1 (même origine, cookie de session).
-import { serverText, translateConnectorMessages, translateLabels } from "./lib/serverText";
-import type { AddressSheet, Backups, Data, Event, Events, Health, Me, StoredEvent } from "./types";
+import { serverText, translateConnectorMessages, translateConnectorTypes, translateLabels } from "./lib/serverText";
+import type { AddressSheet, Backups, ConnectorType, Data, Event, Events, Health, Me, StoredEvent } from "./types";
 import { tx } from "./lib/i18n";
 
 export const ROOT = "/";   // the app is served at the root of the site (before 0.10.2: /myservices/)
@@ -240,7 +240,7 @@ const inflight = new Map<string, Promise<unknown>>();
 export function read<T>(path: string): Promise<T> {
   const running = inflight.get(path);
   if (running) return running as Promise<T>;
-  const p = get<T>(`api/v1/${path}`).then((r) => r!).finally(() => { if (inflight.get(path) === p) inflight.delete(path); });
+  const p = get<T>(`api/v1/${path}`).then((r) => (path === "connectors/settings" ? translateConnectorTypes(r as { types: ConnectorType[] }) as T : r!)).finally(() => { if (inflight.get(path) === p) inflight.delete(path); });
   inflight.set(path, p);
   return p;
 }

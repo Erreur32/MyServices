@@ -209,7 +209,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
         )}
         {oneLine && <div ref={measureRef} aria-hidden className="pointer-events-none invisible absolute h-0 overflow-hidden">{renderInline(wanted, true)}</div>}
         {f.active > 0 && (
-          <button type="button" onClick={f.reset} className="inline-flex items-center gap-1 text-sm text-link hover:underline">
+          <button type="button" onClick={f.reset} className="inline-flex shrink-0 items-center whitespace-nowrap gap-1 text-sm text-link hover:underline">
             <X size={14} />{tx("Tout effacer")}
           </button>
         )}

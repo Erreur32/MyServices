@@ -109,7 +109,7 @@ Un menu à gauche réunit toutes les pages, en quatre groupes ; les vues d'une p
 | Groupe | Pages |
 |---|---|
 | **En bref** | **Accueil** (tableau de bord : ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; puis l'historique : les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur, et la disponibilité ; statistiques) |
-| **Inventaire** | **Machines** (chaque machine, avec sa page et ses réglages ; appareils vus par vos outils mais pas suivis ; agents ; connexions SSH et clé SSH de l'app), **Services** (hôtes NPM et services locaux, chacun avec sa page, lue et modifiée sur place ; nouveaux services ; déclarer un service), **Réseau** (UniFi, Freebox, scan, équipements et appareils, diagnostic), **DNS** (AdGuard Home : serveurs, détails), **Virtualisation**, **IA et agents** (vue d'ensemble, modèles, agents et MCP, GPU ; visible dès qu'un service ou un connecteur IA existe), **Vidéo et caméras** (vue d'ensemble, caméras, flux, enregistrements ; visible dès qu'un service Stream ou un connecteur vidéo existe), **Infra** (services lus par leur API, conteneurs), **Schémas** |
+| **Inventaire** | **Machines** (chaque machine, avec sa page et ses réglages ; appareils vus par vos outils mais pas suivis ; agents ; connexions SSH et clé SSH de l'app), **Services** (hôtes NPM et services locaux, chacun avec sa page, lue et modifiée sur place ; nouveaux services ; déclarer un service), **Réseau** (UniFi, Freebox, scan, équipements et appareils, diagnostic), **DNS** (AdGuard Home : serveurs, détails), **Virtualisation**, **IA et agents** (vue d'ensemble, modèles, agents et MCP, GPU ; visible dès qu'un service ou un connecteur IA existe), **Vidéo et caméras** (vue d'ensemble, caméras, flux, enregistrements ; visible dès qu'un service Stream ou un connecteur vidéo existe), **Schémas** |
 | **Protection** | **Sauvegardes** (par machine, jeux, ajouter des sauvegardes, à relier, copies ailleurs, emplacements cherchés), **Sécurité** (vue d'ensemble, sites exposés, accès SSH, ports du réseau, certificats, Fail2ban, Wazuh) |
 | **Collecte** | **Connecteurs** (les miens, disponibles, détectés à relier, déjà lus par SSH ou agent), **Découverte** (mode automatique, à faire, autres suggestions), **Tâches et horaires** |
 | **Administration** | **Notifications** (canaux, règles d'alerte, mes notifications, exemples, derniers envois), **Comptes et accès** (comptes et sessions, jetons API et MCP), **Application** (mises à jour, e-mail, export et import, requêtes, journal d'audit, journaux, informations) |
@@ -198,7 +198,7 @@ Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** 
 | Famille | Connecteurs |
 |---|---|
 | **Web et proxys** | **Nginx Proxy Manager**, **Web-Check** |
-| **Applis** | **Home Assistant**, Nextcloud, Jellyfin, Tautulli, Overseerr / Jellyseerr, Sonarr / Radarr / Prowlarr…, Bazarr, qBittorrent, Transmission |
+| **Applis** | **Home Assistant**, Netatmo, Nextcloud, Jellyfin, Tautulli, Overseerr / Jellyseerr, Sonarr / Radarr / Prowlarr…, Bazarr, qBittorrent, Transmission |
 | **DNS** | **AdGuard Home**, Pi-hole, Technitium DNS |
 | **Supervision** | **Beszel**, **Uptime Kuma**, **Dozzle**, **Glances**, **LogviewR**, Prometheus, Healthchecks, Netdata, Pulse, Speedtest Tracker, Webmin, Umami, Rybbit |
 | **Réseau** | **MynetworK** (UniFi et Freebox par lui), UniFi Network (direct), Tailscale / Headscale, OPNsense, NetAlertX |

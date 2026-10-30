@@ -13,7 +13,7 @@ import { Dns } from "./tabs/Dns";
 import { Security } from "./tabs/Security";
 import { Virtualization } from "./tabs/Virtualization";
 import { Network } from "./tabs/Network";
-import { Infra } from "./tabs/Infra";
+import { Domotique } from "./tabs/Domotique";
 import { Ai } from "./tabs/Ai";
 import { Video } from "./tabs/Video";
 import { Machines } from "./tabs/Machines";
@@ -131,9 +131,7 @@ export default function App() {
   let top: React.ReactNode = null;   // a page apart (Profile, Help, About) with its « Back » link
   if (profile) top = <SidePage><Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme }} /></SidePage>;
   else if (side) top = <SidePage>{side.render(snap)}</SidePage>;
-  let homeSub: "history" | "stats" | "overview" = "overview";
-  if (hash.startsWith("#history")) homeSub = "history";
-  else if (hash.startsWith("#stats")) homeSub = "stats";
+  const homeSub = hash.startsWith("#history") ? "history" : "overview";
 
   return (
     <div className="flex min-h-screen">
@@ -148,7 +146,7 @@ export default function App() {
       {!profile && !side && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={homeSub} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} route={hash} />}
-      {current === "infra" && <Infra snap={snap} />}
+      {current === "domotique" && <Domotique snap={snap} />}
       {current === "ai" && <Ai snap={snap} route={hash} />}
       {current === "stream" && <Video snap={snap} route={hash} />}
       {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}

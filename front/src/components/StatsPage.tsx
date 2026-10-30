@@ -1,5 +1,5 @@
-// Accueil → Statistiques : une ligne de chiffres clés, puis les compteurs de chaque sujet en grille (deux colonnes, trois sur
-// un très grand écran) et les horaires ; clic sur le titre d'un groupe = ouvrir sa page, clic sur un compteur = l'ouvrir filtrée.
+// Home page figures: a line of key figures, then the counters of each subject in a grid (two columns, three on a very large screen);
+// a click on a group title opens its page, a click on a counter opens it filtered.
 import { Boxes, HardDrive, HeartPulse, Layers, Monitor, PackageCheck, Plug, ShieldCheck } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read } from "../api";
@@ -10,13 +10,13 @@ import { CLEANUP, checks, dnsSync, status } from "../lib/status";
 import { mState } from "../lib/machines";
 import type { TabId } from "../lib/summary";
 import { tx } from "../lib/i18n";
-import { ScheduleCard } from "./ScheduleCard";
 import { hasNetwork } from "../lib/network";
 import { connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCounts } from "../lib/statsExtra";
 import { NetworkGroup } from "./NetworkGroup";
 import { Group, Mark, type Cell, type Open } from "./StatGroup";
 import type { Selected } from "../lib/filter";
 import { hiddenNow, isHidden } from "../lib/servicesHidden";
+import { keyCounts } from "../lib/homeStory";
 
 /** Groupes de compteurs, par onglet : la colonne de droite les empile tous, l'accueil range chacun sous son paragraphe */
 export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, ReactNode[]>> {
@@ -103,33 +103,30 @@ function useWeekAvailability(generated: string): number | null {
   return avg;
 }
 
-/** The key figures on top: each one a ratio of what is fine */
-function KeyFigures({ snap }: Readonly<{ snap: Snapshot }>) {
-  const { data, health, backups } = snap;
-  const ms = (data.machine_list || []).filter((m) => !m.disabled), up = ms.filter((m) => mState(m) !== "down").length;
-  const hidden = hiddenNow(), hosts = data.hosts.filter((r) => r.enabled && status(r)[0] !== "off" && !isHidden(r, hidden)), online = hosts.filter((r) => status(r)[0] === "ok").length;
-  const hOk = (health?.hosts ?? []).filter((h) => h.reachable !== false && h.level === "ok").length, hAll = health?.hosts.length ?? 0;
-  const c = connectorCounts(snap), week = useWeekAvailability(data.generated);
+/** The key figures on top: each one a ratio of what is fine, a click opens its page */
+export function KeyFigures({ snap, go }: Readonly<{ snap: Snapshot; go: (t: TabId) => void }>) {
+  const k = keyCounts(snap), week = useWeekAvailability(snap.data.generated);
   return (
-    <div className="flex gap-2.5 overflow-x-auto pb-1">
-      <StatTile n={`${up}/${ms.length}`} label={tx("Machines joignables")} tone={ratioTone(up, ms.length)} />
-      <StatTile n={`${online}/${hosts.length}`} label={tx("Services en ligne")} tone={ratioTone(online, hosts.length)} />
-      {hAll > 0 && <StatTile n={`${hOk}/${hAll}`} label={tx("Santé")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ratioTone(hOk, hAll)} />}
-      {backups && <StatTile n={`${backups.summary.ok}/${backups.summary.sets}`} label={tx("Sauvegardes à jour")} tone={ratioTone(backups.summary.ok, backups.summary.sets)} />}
-      {c.ok + c.failing > 0 && <StatTile n={`${c.ok}/${c.ok + c.failing}`} label={tx("Connecteurs qui répondent")} tone={ratioTone(c.ok, c.ok + c.failing)} />}
+    <nav className="flex gap-2.5 overflow-x-auto pb-1" aria-label={tx("Chiffres clés")}>
+      <StatTile n={`${k.machinesUp}/${k.machines}`} label={tx("Machines joignables")} sub={tx("{0} éteinte(s) exprès", k.machinesOff)} tone={ratioTone(k.machinesUp, k.machines)} onClick={() => go("machines")} />
+      <StatTile n={`${k.servicesUp}/${k.services}`} label={tx("Services en ligne")} sub={tx("sites et applis du parc")} tone={ratioTone(k.servicesUp, k.services)} onClick={() => go("services")} />
+      {k.health > 0 && <StatTile n={`${k.healthOk}/${k.health}`} label={tx("Santé")} sub={tx("disques et mémoire")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ratioTone(k.healthOk, k.health)} onClick={() => go("machines")} />}
+      {k.backups > 0 && <StatTile n={`${k.backupsOk}/${k.backups}`} label={tx("Sauvegardes à jour")} sub={tx("{0} jeu(x) suivis", k.backups)} tone={ratioTone(k.backupsOk, k.backups)} onClick={() => go("backups")} />}
+      {k.connectors > 0 && <StatTile n={`${k.connectorsOk}/${k.connectors}`} label={tx("Connecteurs qui répondent")} sub={tx("tes outils reliés")} tone={ratioTone(k.connectorsOk, k.connectors)} />}
       {week != null && <StatTile n={pct(week)} label={tx("Disponibilité sur 7 jours")} tone={tileTone(week)} sub={tx("services et machines")} />}
-    </div>
+    </nav>
   );
 }
 
-export function StatsPage({ snap, go, goFilter }: Readonly<{ snap: Snapshot; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
+/** « Tout ton parc en chiffres »: the counters of every subject */
+export function Counters({ snap, go, goFilter }: Readonly<{ snap: Snapshot; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
   return (
-    <div className="flex flex-col gap-4">
-      <KeyFigures snap={snap} />
-      <section className="grid items-start gap-3 md:grid-cols-2 2xl:grid-cols-3" aria-label={tx("Compteurs")}>
-        {Object.values(statGroups(snap, { go, goFilter })).flat()}
-      </section>
-      <ScheduleCard />
-    </div>
+    <section className="overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm" aria-label={tx("Tout ton parc en chiffres")}>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line/60 bg-bg px-5 py-3">
+        <h2 className="text-base font-bold">{tx("Tout ton parc en chiffres")}</h2>
+        <span className="text-xs text-dim">{tx("Clique sur un chiffre pour ouvrir la liste filtrée")}</span>
+      </div>
+      <div className="grid items-start gap-3 p-3 md:grid-cols-2 2xl:grid-cols-3">{Object.values(statGroups(snap, { go, goFilter })).flat()}</div>
+    </section>
   );
 }

@@ -40,6 +40,17 @@ export const hasStream = (snap: Snapshot): boolean =>
 /** One camera row, with the recorder that films it and the relays that carry a stream of the same name */
 export interface CameraRow extends StreamCamera { key: string; card: StreamCard; relays: string[] }
 
+const OUTDOOR = /(^|[^a-z])(ext|exterieur|extérieur|outdoor|jardin|terrasse|garage|portail|cour|rue|parking|facade|façade|garden|street)([^a-z]|$)/i;
+const INDOOR = /(^|[^a-z])(int|interieur|intérieur|indoor|salon|chambre|couloir|cuisine|bureau|sejour|séjour|bedroom|kitchen)([^a-z]|$)/i;
+export type CameraPlace = "int" | "ext" | "other";
+
+/** Where a camera films: what its connector knows, else what its name says */
+export const cameraPlace = (c: { name: string; place?: "int" | "ext" }): CameraPlace => {
+  if (c.place) return c.place;
+  if (OUTDOOR.test(c.name)) return "ext";
+  return INDOOR.test(c.name) ? "int" : "other";
+};
+
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 export function streamCameras(cards: StreamCard[]): CameraRow[] {

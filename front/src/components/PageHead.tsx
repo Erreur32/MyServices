@@ -5,10 +5,10 @@ import { Plug, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { tx } from "../lib/i18n";
 
-export function PageHead({ icon: Icon, title, tags, actions }: Readonly<{ icon: LucideIcon; title: string; tags: ReactNode; actions?: ReactNode }>) {
+export function PageHead({ icon: Icon, logo, title, tags, actions }: Readonly<{ icon: LucideIcon; logo?: string | null; title: string; tags: ReactNode; actions?: ReactNode }>) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <h1 className="flex items-center gap-2 text-xl font-bold"><Icon size={18} aria-hidden />{title}</h1>
+      <h1 className="flex items-center gap-2 text-xl font-bold">{logo ? <img src={logo} alt="" className="h-5 w-5" /> : <Icon size={18} aria-hidden />}{title}</h1>
       {tags}
       {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
