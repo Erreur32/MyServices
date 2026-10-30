@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.4 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - **Domotique**: three sub-pages in the menu, « Overview », « Netatmo » and « Tapo ». The overview shows the house in one look, a folded « To deal with » panel, one card per brand with its main figures, and a table of all devices.

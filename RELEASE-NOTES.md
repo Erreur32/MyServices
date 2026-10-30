@@ -1,24 +1,23 @@
-# Release notes: MyServices 0.31.3
+# Release notes: MyServices 0.31.4
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.31.3** (30 October 2026) lets you stop caring about Security findings that do not matter to you, and fixes how a machine seen by VMware is told what access it can have.
+**0.31.4** (30 October 2026) gives the Domotique page three sub-pages, redoes the Netatmo page, adds a read-only Tapo connector, and fixes the import of SVG icons.
 
 ## For everyone
 
 **What's new?**
-- **Security: ignore what does not matter.** Every finding has a « Stop reporting » button, and each area (sites, ports, SSH, certificates, Fail2ban, access) can be switched off as a whole. Ignored points sit in a folded « Ignored points » panel with a « Put back » button, and no longer count in the menu dot or the tiles. Handy for ports that are open on your local network only.
-- **Security > Exposed sites** has a new design: one row per site, a bar for how many of the 5 checks pass, and one badge per check.
-- **Backups > By machine**: the « Sets produced » column is now a button that opens the sets of that machine, and the machine name opens its page.
-- **Fix, access advice.** A machine listed by a VMware connector (a Windows PC seen by vCenter, for instance) was taken for an ESXi host and told « No agent possible ». It now gets the right advice.
-- **ESXi hosts** can have an agent. It is offered last, after the connector and SSH, with a warning: VMware does not plan for it and it may disappear after a reboot.
+- **Domotique has an Overview.** The menu now holds « Overview », « Netatmo » and « Tapo ». The overview shows the house in one look: the main figures, a folded « To deal with » panel, one card per brand, and a table of all your devices.
+- **Netatmo, redone.** The 24 hour curves are in view without opening anything: temperature, humidity and CO2 side by side, with a legend that switches a line on or off. Each room card has bars for CO2, humidity and battery. Roller shutters and outdoor blinds are in two panels, the heating has its own scale, and the cameras show a picture thumbnail.
+- **Tapo connector (new, read only).** Plugs with their power, today's and this month's energy and a 24 hour curve; cameras (online or not); lights; hub sensors. It finds your devices on the local network and reads them with your Tapo account. It has not been tried against a real account yet: tell us what you see.
+- **Fix, icon import.** An SVG that could not be imported now is, including the ones written by editors such as Inkscape or Illustrator.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change, see [MIGRATION.md](MIGRATION.md).
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.31.3` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
-- **API and storage**: new `GET/PUT /api/v1/security/ignore` (admin) and a `security_ignore` list in `services-meta.json`, empty by default.
+- **Image**: `ghcr.io/erreur32/myservices:0.31.4` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit. It carries the new `tapo` library.
+- **API and storage**: no change.
 - **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
-- **Migration**: nothing required from 0.31.2, see [MIGRATION.md](MIGRATION.md).
+- **Migration**: nothing required from 0.31.3, see [MIGRATION.md](MIGRATION.md).
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).
