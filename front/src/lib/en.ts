@@ -3687,6 +3687,7 @@ export const EN: Record<string, string> = {
   "Trier : {0}": "Sort: {0}",
   "Inverser l'ordre": "Reverse the order",
   "Box internet": "Internet box",
+  "Autres relevés": "Other readings",
   "Connectée depuis": "Connected since",
   "Débits": "Rates",
   "Débit de la ligne": "Line rate",

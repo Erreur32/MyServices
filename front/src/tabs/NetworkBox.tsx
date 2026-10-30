@@ -1,5 +1,5 @@
 // Network › Internet box: one sheet per box connector, built like the Freebox sheet (line, rates, system). Whatever the connector did not read has no line.
-import { Cpu, Gauge, Router } from "lucide-react";
+import { Cpu, Gauge, Layers, Router } from "lucide-react";
 import { BandwidthTile } from "../components/BandwidthTile";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { useNetworkHistory } from "../components/HistoryTile";
@@ -13,6 +13,8 @@ import type { Period, TilePoint } from "../lib/tileHistory";
 import type { BoxReading, ServiceStatus } from "../types";
 
 const BOX_DIRECTIONS = ["down", "up"] as const;
+/** What the sheet already says from the box's own fields: the other facts of a card (the Freebox's fibre, storage, fans…) get a section of their own */
+const SAID = new Set(["Ligne", "Débit actuel", "Débit max", "Connectée depuis", "Mise à jour", "Appareils", "Appareils actifs", "Wi-Fi", "Température", "Température max"]);
 
 /** A direction: the rate in use, the line's rate after it, and the bar of what is used */
 function RateRow({ k, text, rate, max }: Readonly<{ k: string; text?: string; rate: number | null; max: number | null }>) {
@@ -64,6 +66,18 @@ function SystemSection({ b }: Readonly<{ b: BoxReading }>) {
   );
 }
 
+const TONE_CLASS: Record<string, string> = { bad: "text-bad", warn: "text-warn" };
+
+function MoreSection({ c }: Readonly<{ c: ServiceStatus }>) {
+  const more = (c.facts ?? []).filter((f) => !SAID.has(f.label));
+  if (!more.length) return null;
+  return (
+    <DetailSection icon={Layers} title={tx("Autres relevés")} tone="link">
+      {more.map((f) => <DetailRow key={f.label} k={f.label}><span className={f.tone ? TONE_CLASS[f.tone] : undefined}>{f.value}</span></DetailRow>)}
+    </DetailSection>
+  );
+}
+
 function BoxSheet({ c, b, curves }: Readonly<{ c: ServiceStatus; b: BoxReading; curves?: React.ReactNode }>) {
   const state = boxState(b), tiles = boxTiles(b), icon = appIcon([c.label]);
   return (
@@ -78,6 +92,7 @@ function BoxSheet({ c, b, curves }: Readonly<{ c: ServiceStatus; b: BoxReading; 
         <LineSection b={b} />
         <RatesSection b={b} curves={curves} />
         <SystemSection b={b} />
+        <MoreSection c={c} />
       </div>
     </section>
   );
@@ -98,9 +113,10 @@ function Curves({ bw, hours, setHours }: Readonly<{ bw: Record<string, TilePoint
 export function NetworkBox({ cards, stamp }: Readonly<{ cards: ServiceStatus[]; stamp: string }>) {
   const [hours, setHours] = usePeriod(), bw = useNetworkHistory(hours, stamp)?.bw;
   const drawn = bw && BOX_DIRECTIONS.some((d) => bw[`box.${d}`]?.length);
+  const curved = cards.findIndex((c) => c.connector !== "freebox");   // the Freebox's own curves are the ones of the figures above the page; the box connectors share one series
   return (
     <div className="flex flex-col gap-6">
-      {cards.map((c, i) => c.box && <BoxSheet key={c.instance ?? c.name} c={c} b={c.box} curves={i === 0 && drawn ? <Curves bw={bw} hours={hours} setHours={setHours} /> : undefined} />)}
+      {cards.map((c, i) => c.box && <BoxSheet key={c.instance ?? c.name} c={c} b={c.box} curves={i === curved && drawn ? <Curves bw={bw} hours={hours} setHours={setHours} /> : undefined} />)}
     </div>
   );
 }

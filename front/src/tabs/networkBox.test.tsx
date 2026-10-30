@@ -30,4 +30,23 @@ describe("NetworkBox", () => {
     expect(html).toContain("coupée");
     expect(html).not.toContain("Débits");
   });
+
+  it("the Freebox read through MynetworK: its own readings in a section, no second set of curves", () => {
+    const freebox = { ...card({ model: "Freebox Ultra", line: "fibre", connected: true, down_bps: 10_000_000, up_bps: 1_000_000, line_down_bps: 8_000_000_000, firmware: "4.9.4", devices: 12, temperature: 78 }),
+      connector: "freebox", label: "Freebox Ultra (via MynetworK)",
+      facts: [{ label: "Ligne", value: "en ligne (FTTH)" }, { label: "Température max", value: "78 °C" }, { label: "Fibre", value: "-15.7 dBm reçus", tone: "ok" },
+        { label: "Stockage", value: "91 % (NVME)", tone: "bad" }] } as ServiceStatus;
+    const html = renderToStaticMarkup(<NetworkBox cards={[freebox]} stamp="2026-10-30T12:00:00" />);
+    expect(html).toContain("Freebox Ultra");
+    expect(html).toContain("Autres relevés");
+    expect(html).toContain("-15.7 dBm reçus");
+    expect(html).toContain("91 % (NVME)");
+    expect(html.match(/Stockage/g)).toHaveLength(1);
+    expect(html).not.toContain("Température max");   // already said by the box's own field
+  });
+
+  it("a box connector gives no second section: its facts are all said already", () => {
+    const fritz = { ...card({ model: "FRITZ!Box 7590", connected: true }), facts: [{ label: "Ligne", value: "en ligne" }, { label: "Débit actuel", value: "2 Mb/s" }] } as ServiceStatus;
+    expect(renderToStaticMarkup(<NetworkBox cards={[fritz]} stamp="2026-10-30T12:00:00" />)).not.toContain("Autres relevés");
+  });
 });

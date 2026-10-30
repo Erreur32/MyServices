@@ -24,11 +24,14 @@ from __future__ import annotations
 import ipaddress
 import threading
 import re
+from dataclasses import asdict
 
 from connectors.base import Connector, ConnectorError, Field, Result
+from connectors.box_kit import Box
 from connectors.status_kit import duration, fact
 
 FREEBOX_HOT = (75, 85)   # °C : warn, bad
+FREEBOX_LINES = {"ftth": "fibre", "xdsl": "dsl"}   # « ethernet » is whatever sits behind the port: never guessed (as in upnp_box.py)
 
 PAGE = 1000   # maximum accepté par MynetworK
 MAX_ITEMS = 5000  # garde-fou : un réseau plus grand n'est pas lu en entier
@@ -296,6 +299,26 @@ def _full_tone(pct: float) -> str:
     return "warn" if pct >= 80 else "ok"
 
 
+def _number(v) -> float | None:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def freebox_box(fb: dict) -> dict:
+    """The Freebox in the common shape of the Internet box page (connectors/box_kit.py), from what MynetworK already read: not a call more to the Freebox.
+    The public address is not in the summary, and the uptime of the box is not the one of the connection: both stay empty."""
+    c, s, wifi = fb.get("connection") or {}, fb.get("system") or {}, fb.get("wifi") or {}
+    server = (fb.get("firmware_update") or {}).get("server") or {}
+    rates = [None if (n := _number(c.get(k))) is None else round(n * 8) for k in ("rate_down", "rate_up")]   # bytes/s -> bit/s
+    caps = [round(n) if (n := _number(c.get(k))) else None for k in ("bandwidth_down", "bandwidth_up")]   # 0 is « not measured »
+    temps = [x["value"] for x in s.get("sensors") or [] if isinstance(x, dict) and _number(x.get("value")) is not None]
+    update = s["update_available"] if s.get("update_available") is not None else server.get("update_available")
+    return asdict(Box(
+        model=s.get("model"), line=FREEBOX_LINES.get(c.get("media") or ""), connected=c["state"] == "up" if c.get("state") else None,
+        down_bps=rates[0], up_bps=rates[1], line_down_bps=caps[0], line_up_bps=caps[1], firmware=s.get("firmware") or server.get("installed"),
+        update_available=update, latest_firmware=(s.get("latest_firmware") or server.get("latest")) if update else None,
+        devices=fb.get("hosts_active"), wifi=wifi.get("enabled"), temperature=max(temps) if temps else None))
+
+
 def freebox_status(row: dict) -> dict | None:
     """Carte « Service via API » de la Freebox lue par MynetworK (même forme que les connecteurs status), None sans Freebox."""
     fb = row.get("freebox")
@@ -346,4 +369,4 @@ def freebox_status(row: dict) -> dict | None:
         facts.append(fact("Appareils actifs", f"{fb['hosts_active']}" + (f" (+{fb['hosts'] - fb['hosts_active']} dans l'historique)" if fb["hosts"] > fb["hosts_active"] else "")))
     return {"connector": "freebox", "name": row.get("name") or "", "label": f"{s.get('model') or 'Freebox'} (via MynetworK)",
             "ok": bool(row.get("ok")), "stale": row.get("stale"), "message": row.get("message"), "version": s.get("firmware"),
-            "url": row.get("url"), "facts": facts[:11], "problems": problems}  # NOSONAR S6466: a slice never raises IndexError
+            "url": row.get("url"), "facts": facts[:11], "problems": problems, "box": freebox_box(fb)}  # NOSONAR S6466: a slice never raises IndexError

@@ -56,7 +56,7 @@ interface Watch { key: string; sev: "bad" | "warn"; area: string; title: string;
 /** What the Internet access cards report (the Freebox ones open its own sub-tab) */
 function internetWatch(internet: ServiceStatus[]): Watch[] {
   return internet.filter((x) => x.ok && x.connector !== "unifi").flatMap((c) => (c.problems ?? []).map((pb): Watch => (
-    { key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: c.connector === "freebox" ? "freebox" : "list" })));
+    { key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: c.connector === "freebox" ? "box" : "list" })));
 }
 
 function toWatch(rows: Row[], internet: ServiceStatus[], sources: { label: string; ok: boolean; message: string; stale?: boolean }[]): Watch[] {
@@ -165,7 +165,7 @@ function MachineLink({ r, onMachine }: { r: Row; onMachine: (ip: string) => void
 
 
 /** The views of the page, sub-pages of « Réseau › Vue » in the side menu (#network/<view>); UniFi, Freebox, Box and Scan only when their source is there */
-const SUBS = ["watch", "unifi", "freebox", "box", "scan", "list", "diagnostic"] as const;
+const SUBS = ["watch", "unifi", "box", "scan", "list", "diagnostic"] as const;
 type Sub = (typeof SUBS)[number];
 
 type Tone3 = "ok" | "warn" | "bad" | undefined;
@@ -277,9 +277,8 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
   const unifi = unifiConn && !unifiConn.ok && !unifiConn.stale ? unifiConn : unifiCard(rows, unifiConn);   // a failing connector shows its error
   const internet = [...cards.filter((c) => c.connector === "freebox"), ...(unifi ? [unifi] : []), ...cards.filter((c) => INTERNET.includes(c.connector) && c.connector !== "freebox")];
   const others = cards.filter((c) => !INTERNET.includes(c.connector) && c.connector !== "unifi");
-  const freebox = cards.find((c) => c.connector === "freebox");
   const boxes = cards.filter((c) => c.box);
-  const has: Record<Sub, boolean> = { watch: true, unifi: !!unifi, freebox: !!freebox, box: boxes.length > 0, scan: net.some((c) => c.connector === "mynetwork"), list: true, diagnostic: true };
+  const has: Record<Sub, boolean> = { watch: true, unifi: !!unifi, box: boxes.length > 0, scan: net.some((c) => c.connector === "mynetwork"), list: true, diagnostic: true };
   const all = (k: Kind) => rows.filter((r) => r.kind === k);
   const gearAll = all("gear"), gearDown = gearAll.filter((r) => !r.up).length, updates = gearAll.filter((r) => r.gear?.updatable).length;
   const devAll = all("device"), unfollowed = devAll.filter((r) => r.up && !r.machine).length;
@@ -306,17 +305,16 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
   const sourceNames = [...new Set([...net.map((c) => c.label), ...cards.map((c) => c.label)])];
   const openWatch = (w: Watch) => { if (w.href) location.hash = w.href.slice(1); else pickSub(w.sub); };
   const firstView = SUBS.find((v) => v !== "watch" && has[v])!;
-  const view = usePageView(route, "network", SUBS, initial?.alert ? "list" : firstView);   // the menu's dot: the list on « Alerts »
+  const view = usePageView(route.replace("#network/freebox", "#network/box"), "network", SUBS, initial?.alert ? "list" : firstView);   // the menu's dot: the list on « Alerts »
   const current = currentView(view, has, firstView);
   if (!hasNetwork(snap)) return <Empty>{tx("Aucune source réseau : reliez MynetworK, UniFi, OPNsense ou NetAlertX dans Réglages → Connecteurs.")}</Empty>;
 
   return (
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={NetworkIcon} title={tx("Réseau")} tags={<HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />} actions={<>{snap.me.role === "admin" && <ConnectorsLink />}<PeriodSwitch value={hours} onChange={setHours} /></>} />
-      <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} hours={hours} stamp={snap.data.generated} onlyFreebox={current === "freebox"} />
+      <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} hours={hours} stamp={snap.data.generated} onlyFreebox={current === "box"} />
 
       {current === "unifi" && <><UnifiCards /><UnifiSfp admin={snap.me.role === "admin"} /></>}
-      {current === "freebox" && freebox && <div className="grid items-start gap-3 lg:grid-cols-2"><ServiceCard s={freebox} /></div>}
       {current === "box" && <NetworkBox cards={boxes} stamp={snap.data.generated} />}
       {current === "scan" && <NetworkScanStats />}
 

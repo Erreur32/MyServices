@@ -22,7 +22,6 @@ const sub = (id: string, hash: string, tab: TabId, icon: LucideIcon, label: stri
 const group = (id: string, tab: TabId, icon: LucideIcon, label: string, subs: NavItem[]): NavItem => ({ id, hash: subs[0].hash, tab, icon, label, subs });
 const views = (id: string, tab: TabId, subs: NavItem[]): NavItem => group(id, tab, Eye, tx("Vue"), subs);
 const unifiShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "unifi") || (s.data.network ?? []).some((c) => !!c.unifi);
-const freeboxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "freebox");
 const boxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => !!c.box);
 const scanShown = (s: Snapshot) => (s.data.network ?? []).some((c) => c.connector === "mynetwork");
 
@@ -51,8 +50,7 @@ export const NAV: NavGroup[] = [
     { id: "network", hash: "network", tab: "network", icon: Router, label: tx("Réseau"), subs: [
       views("network-view", "network", [
         sub("network-unifi", "network/unifi", "network", LayoutDashboard, tx("UniFi"), unifiShown),
-        sub("network-freebox", "network/freebox", "network", House, tx("Freebox"), freeboxShown),
-        sub("network-box", "network/box", "network", Router, tx("Box internet"), boxShown),
+        { ...sub("network-box", "network/box", "network", Router, tx("Box internet"), boxShown), also: ["network/freebox"] },   // the Freebox is read here now
         sub("network-scan", "network/scan", "network", Radar, tx("Scan"), scanShown),
         sub("network-list", "network/list", "network", List, tx("Équipements et appareils")),
         sub("network-diagnostic", "network/diagnostic", "network", Stethoscope, tx("Diagnostic")),
