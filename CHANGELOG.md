@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.5 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - **Windows Admin Center connector** (read only): the servers, clusters and PCs listed by a WAC gateway (`GET /api/connections`), signed in with a Windows account (NTLMv2, written in the standard library in `connectors/ntlm.py`, checked against Microsoft's MS-NLMP test vectors). A self-signed certificate is accepted by default. Written without a WAC instance at hand: the answer is read leniently, and a gateway set to form sign-in (no Windows sign-in offered) is said in words. To be tried on a real instance.
@@ -26,12 +30,19 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 
+- **Virtualisation**: the host header shows the brand logo (vCenter, ESXi, Proxmox), and the vCenter / ESXi datastores frame comes first.
+- **Icon picker**: the frame no longer scrolls inside, it grows with its content.
+- **Windows Admin Center** is recognised by its page title, port or Windows service, with its logo; Tapo uses the TP-Link logo.
+
 - **Machines > Cards**: each card has a foot with a « Details » button that stands out and the health state in words, and its head, foot and edge take the colour of the level (green, orange, red). A card with a warning (the orange or red dot on its icon), or in a critical state, or unreachable, gets a coloured frame too.
 - **Netatmo page redone**: the 24 h curves are in view without opening anything (temperature, humidity and CO2 charts side by side, a legend switches a line on or off), room cards with bars for CO2, humidity and battery, roller shutters and outdoor blinds in two panels, a heating scale, and cameras with a picture thumbnail.
 
 ### Fixed
 
 - **Machines**: in the « Table » view the cards were shown under the table as well, both views mixed. The cards now only show in the « Cards » view, and as the phone fallback of the table.
+- **Machine icon**: the icon picked in a machine's settings is published at once (like the name and tags), so the machine page no longer waits for the next collection to show it.
+- **SVG import** (security): the plain DOCTYPE is dropped with a linear search instead of a regex (CodeQL `py/polynomial-redos`).
+- **Tapo**: a device the library cannot drive (no handler) no longer breaks the whole reading, and the 18 SonarCloud remarks of the Domotique and Tapo code are fixed.
 - **Icon import**: an SVG could not be imported. The page now sends a `.svg` whose file type the browser left empty as an SVG, and the server accepts what editors write: a leading comment, a plain `DOCTYPE`, a metadata block (RDF), `sodipodi:namedview` and more filter elements. Scripts, entities, outside links and a DOCTYPE with an internal subset stay refused.
 
 ## v0.31.3 (2026-10-30)
