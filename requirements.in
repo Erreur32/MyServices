@@ -4,6 +4,8 @@ fastapi==0.143.0
 uvicorn==0.54.0
 argon2-cffi==25.1.0
 cryptography==50.0.2
+# Tapo connector (smart plugs, cameras read on the LAN): Rust wheels for amd64 and arm64, MIT; imported only when a Tapo read starts
+tapo==0.12.1
 # avatars SVG : lecture XML sans DTD ni entité (pur Python)
 defusedxml==0.7.1
 # tests (TestClient) : petit, pur Python
