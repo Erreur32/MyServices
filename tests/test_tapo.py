@@ -39,7 +39,7 @@ class Hub:
 
 
 def found(model, handler, **info):
-    return NS(device_info=Res(model=model, **info), handler=handler, address="192.0.2.9", model=model)
+    return NS(device_info=Res(model=model, **info), handler=handler, address=("192.0.2.9", 443), model=model)   # (ip, port) like the real library
 
 
 class Maybe:
@@ -82,6 +82,13 @@ class Collect(unittest.TestCase):
         self.assertEqual([w for _, w in plug["series"]], [40, 142])   # an hour without data is left out
         self.assertEqual(d["facts"][1]["value"], "86 W")
         self.assertEqual(d["problems"], [])
+
+    def test_the_address_is_the_ip_alone(self):
+        c, p = conn([found("P110M", Plug(), nickname="Prise", device_id="p1")])
+        with p:
+            self.assertEqual(c.collect()["devices"][0]["ip"], "192.0.2.9")
+        self.assertEqual(tapo._ip(NS(address="192.0.2.30")), "192.0.2.30")
+        self.assertEqual(tapo._ip(NS()), "")
 
     def test_a_hub_lists_its_sensors_and_a_camera_is_only_online(self):
         c, p = conn([found("H100", Hub(), nickname="Hub", device_id="h1"), found("C325WB", object(), nickname="Salon", device_id="c0")])

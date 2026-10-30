@@ -25,6 +25,12 @@ def _lib():
     return tapo
 
 
+def _ip(d) -> str:
+    """The address of a discovered device: the library gives (ip, port), a plain text is taken as it is."""
+    addr = getattr(d, "address", None)
+    return str(addr[0] if isinstance(addr, (tuple, list)) and addr else addr or "")
+
+
 def _dict(obj) -> dict:
     """A library result as a plain dict (each has to_dict), tolerant of a missing field."""
     if isinstance(obj, dict):
@@ -92,7 +98,7 @@ class Tapo(Connector):
                 except Exception as e:   # noqa: BLE001
                     errors.append(str(e))
                     continue
-                key = _dict(getattr(d, "device_info", None)).get("device_id") or getattr(d, "address", None) or id(d)
+                key = _dict(getattr(d, "device_info", None)).get("device_id") or _ip(d) or id(d)
                 if key not in seen:
                     seen.add(key)
                     found.append(d)
@@ -126,7 +132,7 @@ class Tapo(Connector):
 
     async def _read(self, lib, d) -> list[dict]:
         info = _dict(getattr(d, "device_info", None))
-        ip = str(info.get("ip") or getattr(d, "address", None) or "")
+        ip = str(info.get("ip") or _ip(d))
         model = str(info.get("model") or getattr(d, "model", "") or "")
         name = info.get("nickname") or info.get("device_name") or model
         row = {"id": str(info.get("device_id") or info.get("mac") or ip), "name": name, "model": model, "kind": kind_of(model), "ip": ip, "mac": info.get("mac"),
