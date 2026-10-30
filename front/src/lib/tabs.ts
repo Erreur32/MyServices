@@ -61,12 +61,6 @@ export const NAV: NavGroup[] = [
       sub("dns-all", "dns/all", "dns", Layers, tx("Détails")),
     ] },
     { id: "virtualization", hash: "virtualization", tab: "virtualization", icon: Server, label: tx("Virtualisation") },
-    { id: "ai", hash: "ai", tab: "ai", icon: Bot, label: tx("IA et agents"), subs: [
-      sub("ai-overview", "ai/overview", "ai", LayoutDashboard, tx("Vue d'ensemble")),
-      sub("ai-models", "ai/models", "ai", Boxes, tx("Modèles"), (s) => aiModels(s).length > 0),
-      sub("ai-agents", "ai/agents", "ai", Workflow, tx("Agents et MCP"), (s) => aiCards(s).some((c) => c.role === "agent" || c.role === "interface" || c.role === "mcp")),
-      sub("ai-gpu", "ai/gpu", "ai", Cpu, "GPU", (s) => aiGpus(s).length > 0 || aiModels(s).some((m) => !!m.vram)),
-    ] },
     { id: "stream", hash: "stream", tab: "stream", icon: Video, label: tx("Vidéo et caméras"), subs: [
       sub("stream-overview", "stream/overview", "stream", LayoutDashboard, tx("Vue d'ensemble")),
       sub("stream-cameras", "stream/cameras", "stream", Camera, tx("Caméras"), (s) => streamCameras(streamCards(s)).length > 0),
@@ -76,6 +70,12 @@ export const NAV: NavGroup[] = [
     ] },
     { id: "domotique", hash: "domotique/netatmo", tab: "domotique", icon: House, label: tx("Domotique"), subs: [
       sub("domotique-netatmo", "domotique/netatmo", "domotique", House, tx("Vue d'ensemble")),
+    ] },
+    { id: "ai", hash: "ai", tab: "ai", icon: Bot, label: tx("IA et agents"), subs: [
+      sub("ai-overview", "ai/overview", "ai", LayoutDashboard, tx("Vue d'ensemble")),
+      sub("ai-models", "ai/models", "ai", Boxes, tx("Modèles"), (s) => aiModels(s).length > 0),
+      sub("ai-agents", "ai/agents", "ai", Workflow, tx("Agents et MCP"), (s) => aiCards(s).some((c) => c.role === "agent" || c.role === "interface" || c.role === "mcp")),
+      sub("ai-gpu", "ai/gpu", "ai", Cpu, "GPU", (s) => aiGpus(s).length > 0 || aiModels(s).some((m) => !!m.vram)),
     ] },
     { id: "diagrams", hash: "diagrams", tab: "diagrams", icon: Workflow, label: tx("Schémas") },
   ] },
