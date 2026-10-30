@@ -32,6 +32,15 @@ class Check(unittest.TestCase):
         self.assertEqual(avatars.check(OK_SVG), "image/svg+xml")
         self.assertEqual(avatars.check(b'<?xml version="1.0"?>\n' + OK_SVG), "image/svg+xml")
 
+    def test_svg_written_by_an_editor_kept(self):
+        doctype = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">'
+        inkscape = (b'<svg xmlns="http://www.w3.org/2000/svg" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" '
+                    b'xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><sodipodi:namedview id="n"/><metadata><rdf:RDF><rdf:Description/></rdf:RDF></metadata>'
+                    b'<filter id="f"><feComponentTransfer><feFuncA type="linear" slope="1"/></feComponentTransfer></filter><rect/></svg>')
+        self.assertEqual(avatars.check(b'<!-- made with a tool -->\n' + OK_SVG), "image/svg+xml")
+        self.assertEqual(avatars.check(b'<?xml version="1.0"?>\n<!-- x -->\n' + doctype + b'\n' + OK_SVG), "image/svg+xml")
+        self.assertEqual(avatars.check(inkscape), "image/svg+xml")
+
     def test_dangerous_svg_refused(self):
         for bad in (b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
                     b'<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>',

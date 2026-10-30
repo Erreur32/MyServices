@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+
+- **Icon import**: an SVG could not be imported. The page now sends a `.svg` whose file type the browser left empty as an SVG, and the server accepts what editors write: a leading comment, a plain `DOCTYPE`, a metadata block (RDF), `sodipodi:namedview` and more filter elements. Scripts, entities, outside links and a DOCTYPE with an internal subset stay refused.
+
 ## v0.31.3 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

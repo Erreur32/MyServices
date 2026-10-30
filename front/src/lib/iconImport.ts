@@ -13,10 +13,14 @@ const asUrl = (b: Blob) => new Promise<string>((ok, ko) => {
   r.readAsDataURL(b);
 });
 
+/** The type of the file: the browser leaves it empty for a .svg when the system does not know the extension, so the name tells */
+export const typeOf = (file: { type: string; name: string }): string => file.type || (/\.svg$/i.test(file.name) ? "image/svg+xml" : "");
+
 export async function iconData(file: File): Promise<string> {
-  if (file.type === "image/svg+xml" || file.type === "image/gif") {
+  const type = typeOf(file);
+  if (type === "image/svg+xml" || type === "image/gif") {
     if (file.size > ICON_MAX_BYTES) throw new Error(tx("image trop lourde : 512 Ko au plus"));
-    return asUrl(file);
+    return asUrl(file.type ? file : new Blob([file], { type }));   // a data URL with an empty type is refused by the server
   }
   const img = await createImageBitmap(file);
   const scale = Math.min(1, ICON_SIDE / Math.max(img.width, img.height));

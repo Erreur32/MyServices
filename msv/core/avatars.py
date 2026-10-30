@@ -17,7 +17,10 @@ _RASTER = ((b"\x89PNG\r\n\x1a\n", "image/png"), (b"\xff\xd8\xff", "image/jpeg"),
 _SVG_TAGS = {"svg", "g", "defs", "title", "desc", "symbol", "use", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
              "text", "tspan", "textPath", "linearGradient", "radialGradient", "stop", "clipPath", "mask", "pattern", "image",
              "filter", "feGaussianBlur", "feOffset", "feBlend", "feColorMatrix", "feMerge", "feMergeNode", "feFlood", "feComposite",
-             "feDropShadow", "metadata", "style"}
+             "feDropShadow", "metadata", "style", "switch", "marker", "namedview", "feComponentTransfer", "feFuncR", "feFuncG", "feFuncB", "feFuncA",
+             "feTurbulence", "feMorphology", "feTile", "feConvolveMatrix", "feDiffuseLighting", "feSpecularLighting", "feDistantLight", "fePointLight",
+             "feSpotLight", "feDisplacementMap"}
+_PLAIN_DOCTYPE = re.compile(rb"<!DOCTYPE[^\[>]*>", re.I)   # the one editors write (Illustrator, Inkscape); none with an internal subset, which stays refused
 _OUTSIDE_CSS = re.compile(r"@import|url\s*\(\s*['\"]?(?!#)|expression\s*\(", re.I)
 _OUTSIDE_VALUE = re.compile(r"javascript:|url\s*\(\s*['\"]?(?!#)", re.I)
 _SAFE_DATA = re.compile(r"^data:image/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=\s]+$")
@@ -51,7 +54,7 @@ def check(raw: bytes) -> str:
     if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
         return "image/webp"
     head = raw[:512].lstrip(b"\xef\xbb\xbf \t\r\n").lower()
-    if head.startswith((b"<svg", b"<?xml")):
+    if head.startswith((b"<svg", b"<?xml", b"<!--", b"<!doctype")):
         _check_svg(raw)
         return "image/svg+xml"
     raise AvatarError("format non reconnu : PNG, JPEG, WebP, GIF ou SVG")
@@ -61,15 +64,19 @@ def _check_svg(raw: bytes) -> None:
     from defusedxml import DefusedXmlException
     from defusedxml.ElementTree import ParseError, fromstring
     try:
-        root = fromstring(raw, forbid_dtd=True, forbid_entities=True, forbid_external=True)   # no DTD, entity or outside file
+        root = fromstring(_PLAIN_DOCTYPE.sub(b"", raw, count=1), forbid_dtd=True, forbid_entities=True, forbid_external=True)   # no DTD, entity or outside file
     except DefusedXmlException:
         raise AvatarError("SVG refusé : DOCTYPE ou entité") from None
     except ParseError:
         raise AvatarError("SVG illisible") from None
     if _local(root.tag) != "svg":
         raise AvatarError("SVG attendu")
-    for el in root.iter():
+    todo = [root]
+    while todo:   # a metadata block (editors fill it with RDF) is inert and not looked into
+        el = todo.pop()
         _check_element(el)
+        if _local(el.tag) != "metadata":
+            todo.extend(el)
 
 
 def _check_element(el) -> None:
