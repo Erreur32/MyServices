@@ -113,6 +113,8 @@ class WindowsAdminCenter(Connector):
         conn, base = self._conn()
         try:
             status, www, body = self._ask(conn, base, None)
+            if status not in (200, 401):   # recent gateways answer 403 with a JSON « sign in again » and no challenge: they sign in by a web page
+                raise ConnectorError(f"cette version de Windows Admin Center ouvre sa session par une page de connexion (HTTP {status}, pas de connexion Windows) : pas encore gérée")
             if status == 401:
                 scheme = self._scheme(www)
                 first = ntlm.negotiate()

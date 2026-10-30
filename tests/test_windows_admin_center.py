@@ -102,6 +102,19 @@ class Collect(unittest.TestCase):
             form_only.collect()
         self.assertIn("n'est pas proposée", str(e.exception))
 
+    def test_a_gateway_that_signs_in_by_a_web_page_is_said(self):
+        class Recent(Gateway):
+            def do_GET(self):
+                self._send(403, b'{"error":{"code":"UnauthorizedExpiredError"}}')   # no challenge, like the recent gateway
+        s = ThreadingHTTPServer(("127.0.0.1", 0), Recent)
+        threading.Thread(target=s.serve_forever, daemon=True).start()
+        self.addCleanup(s.server_close)
+        self.addCleanup(s.shutdown)
+        recent = connector(s)
+        with self.assertRaises(ConnectorError) as e:
+            recent.collect()
+        self.assertIn("page de connexion", str(e.exception))
+
     def test_test_gives_the_count(self):
         r = connector(self.serve()).test()
         self.assertTrue(r.ok)

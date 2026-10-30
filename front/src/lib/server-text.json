@@ -1485,6 +1485,10 @@
    "$1: low battery"
   ],
   [
+   "^cette version de Windows Admin Center ouvre sa session par une page de connexion \\(HTTP (\\d+), pas de connexion Windows\\) : pas encore gérée$",
+   "this Windows Admin Center version signs in by a login page (HTTP $1, no Windows sign-in): not handled yet"
+  ],
+  [
    "^(\\d+) appareil\\(s\\) trouvé\\(s\\) mais refusé\\(s\\) \\((.+)\\) : compte Tapo à vérifier ; une caméra demande son compte caméra, réglé dans l'appli Tapo$",
    "$1 device(s) found but refused ($2): check the Tapo account; a camera needs its camera account, set in the Tapo app"
   ],
