@@ -7,7 +7,7 @@ Keep a copy of `config/` and `data/` before any update.
 
 ## 0.31.3 → next version
 
-**Nothing required yet.**
+**Nothing required.** Pull the new image (`docker compose pull`, then `up -d`): it carries the `tapo` library the new Tapo connector needs. The Tapo connector finds the devices by UDP broadcast on the local network, which works with the compose file's `network_mode: host`; nothing to change if you already use it. A Tapo account is only needed if you add the Tapo connector.
 
 ## 0.31.2 → 0.31.3
 
