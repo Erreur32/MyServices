@@ -284,9 +284,9 @@ export function ResStrip({ h, first }: Readonly<{ h?: HealthHost; first?: React.
 /** The look of a card by health level: its left edge, the tint of its head and of its foot, the colour and words of the state. Unread health: neutral */
 const LEVEL_LOOK: Record<string, { edge: string; frame: string; head: string; foot: string; text: string; label: () => string }> = {
   ok: { edge: "border-l-ok", frame: "border-line", head: "bg-ok/10", foot: "bg-ok/5", text: "text-ok", label: () => tx("En ordre") },
-  warn: { edge: "border-l-warn", frame: "border-warn/60", head: "bg-warn/10", foot: "bg-warn/5", text: "text-warn", label: () => tx("À surveiller") },
-  crit: { edge: "border-l-bad", frame: "border-bad/60", head: "bg-bad/10", foot: "bg-bad/5", text: "text-bad", label: () => tx("Critique") },
-  down: { edge: "border-l-bad", frame: "border-bad/60", head: "bg-bad/10", foot: "bg-bad/5", text: "text-bad", label: () => tx("Injoignable") },
+  warn: { edge: "border-l-warn", frame: "border-warn", head: "bg-warn/10", foot: "bg-warn/5", text: "text-warn", label: () => tx("À surveiller") },
+  crit: { edge: "border-l-bad", frame: "border-bad", head: "bg-bad/10", foot: "bg-bad/5", text: "text-bad", label: () => tx("Critique") },
+  down: { edge: "border-l-bad", frame: "border-bad", head: "bg-bad/10", foot: "bg-bad/5", text: "text-bad", label: () => tx("Injoignable") },
 };
 const NEUTRAL_LOOK = { edge: "", frame: "border-line", head: "bg-bg", foot: "bg-bg", text: "text-dim", label: () => "" };
 /** Health level of a machine for its card edge: « down » when unreachable, "" when health is not read */
@@ -1705,7 +1705,8 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
   off: boolean; state: React.ReactNode; shown: boolean; onToggle: () => void; onMachine: (ip: string) => void; detail: React.ReactNode;
 }>) {
   const up = uptimeOf(m, unifi, freeboxOf(m, snap.data.network), ha);
-  const look = LEVEL_LOOK[levelKey(h)] ?? NEUTRAL_LOOK;
+  const w = worst(watch), tone = w ? TONE_OF_RANK[w] : null, lvl = levelKey(h);   // the colour follows the dot of the icon (the notices) as much as the health level
+  const bad = lvl === "crit" || lvl === "down" || tone === "bad", look = LEVEL_LOOK[bad ? (lvl === "down" ? "down" : "crit") : lvl === "warn" || tone === "warn" ? "warn" : lvl] ?? NEUTRAL_LOOK;
   return (
     <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] ${look.frame} bg-card p-3 transition-colors hover:border-link/50 ${look.edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
       <div className={`-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 px-3 py-2.5 ${look.head}`}>

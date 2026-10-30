@@ -22,7 +22,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 
-- **Machines > Cards**: each card has a foot with a « Details » button that stands out and the health state in words, and its head, foot and edge take the colour of the level (green, orange, red). A card in warning or critical state, or unreachable, gets a coloured frame too.
+- **Machines > Cards**: each card has a foot with a « Details » button that stands out and the health state in words, and its head, foot and edge take the colour of the level (green, orange, red). A card with a warning (the orange or red dot on its icon), or in a critical state, or unreachable, gets a coloured frame too.
 - **Netatmo page redone**: the 24 h curves are in view without opening anything (temperature, humidity and CO2 charts side by side, a legend switches a line on or off), room cards with bars for CO2, humidity and battery, roller shutters and outdoor blinds in two panels, a heating scale, and cameras with a picture thumbnail.
 
 ### Fixed
