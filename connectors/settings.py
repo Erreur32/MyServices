@@ -27,7 +27,7 @@ TEST_TIMEOUT = 20
 # Category of a connector in the « add » picker: the one of its known app (known_apps), except the backup tools grouped apart and
 # the connectors without a known app
 BACKUP_TYPES = {"backup-folder", "backrest", "borgmatic", "urbackup", "veeam", "veeam-m365", "proxmox-backup"}
-CATEGORY = {"netatmo": "Domotique", "upnp-box": "Réseau / DNS", "fritzbox": "Réseau / DNS", "sfrbox": "Réseau / DNS", "livebox": "Réseau / DNS", "vodafone-station": "Réseau / DNS", "sagemcom-fast": "Réseau / DNS", "bbox": "Réseau / DNS", "vcenter": "Infra / virtualisation", "synology": "Fichiers / sync"}
+CATEGORY = {"netatmo": "Domotique", "upnp-box": "Réseau / DNS", "fritzbox": "Réseau / DNS", "sfrbox": "Réseau / DNS", "livebox": "Réseau / DNS", "vodafone-station": "Réseau / DNS", "sagemcom-fast": "Réseau / DNS", "bbox": "Réseau / DNS", "swisscom-box": "Réseau / DNS", "connect-box": "Réseau / DNS", "speedport": "Réseau / DNS", "technicolor-gateway": "Réseau / DNS", "vcenter": "Infra / virtualisation", "synology": "Fichiers / sync"}
 
 
 def category(type_: str) -> str:

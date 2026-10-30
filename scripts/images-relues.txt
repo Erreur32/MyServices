@@ -221,3 +221,7 @@ aeb55073c9021e7331373dd2103d5549  front/public/icons/sfrbox.svg
 80d50192ed535ca7cb47ae83c2c2d948  front/public/icons/vodafone-station.svg
 41428f90781ec078b7fb9d21c998b111  front/public/icons/sagemcom-fast.svg
 845dd9becd2949c40d2036feed4849a1  front/public/icons/bbox.svg
+93185a14b75e4597e0fae0c4f5902150  front/public/icons/swisscom-box.svg
+80d50192ed535ca7cb47ae83c2c2d948  front/public/icons/connect-box.svg
+affd7ee69e447356e3d6a08cc64ac116  front/public/icons/speedport.svg
+0e00defbac4f2a1c1c693ea27e45b783  front/public/icons/technicolor-gateway.svg
