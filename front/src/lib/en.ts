@@ -1927,7 +1927,7 @@ export const EN: Record<string, string> = {
   "machines du réseau": "network machines",
   "tâches cron de sauvegarde": "backup cron jobs",
   "Fréquence, réseaux à parcourir et mode discret : dans Tâches et horaires": "Frequency, networks to search and discreet mode: in Tasks and schedules",
-  "Dernière version publiée sur GitHub (celle de la prod)": "Last version published on GitHub (the one in prod)",
+  "Version en service sur la prod (lue sur son conteneur Docker)": "Version running in prod (read from its Docker container)",
   "prod": "prod",
   "État git d'où vient cette image": "Git state this image was built from",
   "+{0} depuis {1}": "+{0} since {1}",

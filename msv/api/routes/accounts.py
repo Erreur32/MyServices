@@ -114,7 +114,8 @@ def me(request: Request):
             # image de développement : le dépôt git d'où elle vient (describe) et la version prévue d'après le journal des changements
             "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
             # last release written in this build's changelog: an image built from a branch shows it (« 0.10.1+ · main abc1234 »)
-            "released": about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
+            "released": (about.prod_version(core.WEB / "data.json") if os.environ.get("MYSERVICES_VERSION", "dev") == "dev" else None)
+                        or about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md")),   # dev: the version really running in prod (its container), else the changelog
             # a newer release published, from the last check kept (no request here), automatic or by « Check now »
             "update": about.cached(Path(core.CFG["state_dir"]), os.environ.get("MYSERVICES_VERSION", "dev"))}
 

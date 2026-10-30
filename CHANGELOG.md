@@ -38,6 +38,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **The « read only » badge is gone from the page heads**; the tags of the AI page show one name per row plus a « +n » badge so the head stays on one line.
 - **Softer state tiles and clearer menu**: the warning yellow of the tiles (figure, bars, dips line) is softer in every theme, and an open menu group gets a vertical bar over the whole block, its active sub-page frame starting right of that line.
 - **« Data N min ago » in the header opens the scheduled tasks card** (the one of the Statistics page, with the exact time of the last reading) on hover, or on click (kept open until a click elsewhere or Escape).
+- **Dev image: « prod » shows the version really running in prod**, read from the OCI label of the MyServices container the Docker tools see (it said the last changelog version before, wrong between the version commit and the tag). Other images are unchanged.
 - **Blue information frames can be hidden** with their cross (kept in the browser) and shown again from Profile or Settings > Appearance. Orange warnings cannot be hidden.
 
 ## v0.29.0 (2026-10-28)

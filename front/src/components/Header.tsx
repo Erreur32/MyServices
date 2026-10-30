@@ -53,7 +53,7 @@ function DevState({ git, released, planned }: Readonly<{ git?: string; released?
   const pill = "rounded border border-line bg-bg2/60 px-1.5 py-0.5 font-mono";
   return (
     <span className="flex flex-wrap items-center gap-1.5 text-xs font-normal tracking-normal text-dim">
-      {released && <span title={tx("Dernière version publiée sur GitHub (celle de la prod)")}>{tx("prod")} <code className={`${pill} text-muted`}>{released}</code></span>}
+      {released && <span title={tx("Version en service sur la prod (lue sur son conteneur Docker)")}>{tx("prod")} <code className={`${pill} text-muted`}>{released}</code></span>}
       {git && (parts ? (
         <span className="inline-flex flex-wrap items-center gap-1" title={tx("État git d'où vient cette image")}>
           git <code className={`${pill} ${branch === "main" ? "text-muted" : "text-warn"}`}>{branch}</code>

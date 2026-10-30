@@ -46,6 +46,24 @@ def released(changelog: str) -> str | None:
     return m[1] if m else None
 
 
+_PROD: dict = {"mtime": None, "version": None}
+
+
+def prod_version(data_json: Path) -> str | None:
+    """Version of the published image running on the network (the « myservices » container the Docker tools read, from its OCI version label), the
+    highest one when several are seen; None without one. Kept per data.json modification time: the profile call runs often, the file is large."""
+    try:
+        mtime = data_json.stat().st_mtime
+        if _PROD["mtime"] != mtime:
+            hosts = json.loads(data_json.read_text(encoding="utf-8")).get("hosts") or []
+            seen = [str(s["version"]) for h in hosts if isinstance(h, dict) for s in [h.get("service") or {}]
+                    if s.get("kind") == "docker" and str(s.get("image", "")).lower().startswith("ghcr.io/erreur32/myservices") and parse(str(s.get("version") or ""))]
+            _PROD.update(mtime=mtime, version=max(seen, key=lambda v: parse(v) or ()) if seen else None)
+    except (OSError, ValueError, AttributeError):
+        return None
+    return _PROD["version"]
+
+
 def newer(latest: str | None, current: str | None) -> bool:
     """Vrai seulement si `latest` est strictement plus récent : une version locale en avance sur son étiquette (« dev », commit local) n'est pas
     présentée comme « plus ancienne que la dernière »."""
