@@ -42,6 +42,7 @@ import { DetailRow, DetailSection } from "../components/DetailSection";
 import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
 import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
 import { primary, quiet } from "../lib/forms";
+import { flash } from "../lib/flash";
 import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { InfoNote } from "../components/InfoNote";
@@ -440,11 +441,7 @@ function WatchList({ items, wrap = false, quiet = false, ip }: Readonly<{ items:
 }
 /** Scrolls the machine window to what explains a notice (the exact row when there is one, else its section) and makes it flash */
 function showWatch(root: HTMLElement | null, kind: WatchKind) {
-  const el = root?.querySelector<HTMLElement>(`[data-watch="${kind}"]`) ?? root?.querySelector<HTMLElement>(`[data-sec="${WATCH_SECTION[kind]}"]`);
-  if (!el) return;
-  el.scrollIntoView({ block: "center", behavior: "smooth" });
-  el.classList.add("ring-2", "ring-warn", "animate-pulse");
-  setTimeout(() => el.classList.remove("ring-2", "ring-warn", "animate-pulse"), 2600);
+  flash(root?.querySelector<HTMLElement>(`[data-watch="${kind}"]`) ?? root?.querySelector<HTMLElement>(`[data-sec="${WATCH_SECTION[kind]}"]`));
 }
 const WATCH_SMALL_KEY = "ms.machine.watch.small";
 
@@ -1433,7 +1430,7 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
               <span className="inline-flex items-center gap-1"><Sshd m={m} what="pwd" />{tx("mot de passe")}</span>
             </span>
           </Row>
-        </> : <Row k={tx("SSH")}>{m.local ? tx("local") : <Dim>{tx("pas d'accès SSH configuré")}</Dim>}</Row>}
+        </> : m.local && <Row k={tx("SSH")}>{tx("local")}</Row>}
         {m.agent && <Row k={tx("Agent")}>{tx("relevé par l'agent MyServices")}</Row>}
       </Section>
   );
@@ -1443,9 +1440,9 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
 function dockerValue(m: Machine): React.ReactNode {
   const i = m.info;
   if (m.containers === null) {
-    if (m.ssh) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;   // SSH is set up but Docker cannot be read: a real problem
     if (m.agent?.docker) return tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker);
-    return <Dim>{m.agent ? tx("aucun conteneur") : tx("non lu (pas d'accès SSH)")}</Dim>;   // nothing reads Docker here: not a fault
+    if (m.ssh && !m.agent) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;   // SSH is the only way in and Docker cannot be read: a real problem
+    return <Dim>{m.agent ? tx("aucun conteneur") : tx("non lu")}</Dim>;   // nothing reads Docker here: not a fault
   }
   if (i?.docker) return tx("{0} conteneur(s) en cours", i.docker);
   if (m.agent?.docker != null) return m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>;
@@ -1829,6 +1826,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   // The page of one machine (#machines/<ip>, /access for its settings): the address is the state, so a link, a reload or « back » all work
   const [target, setTarget] = useState(() => machineFromHash(location.hash));
   useEffect(() => { const on = () => setTarget(machineFromHash(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
+  useEffect(() => { if (target?.watch) setFocus((f) => ({ kind: target.watch as WatchKind, n: (f?.n ?? 0) + 1 })); }, [target?.ip, target?.watch]);   // a link from the home page: open on that notice's frame
   const pageM = target ? snap.data.machine_list.find((x) => x.ip === target.ip) : undefined;
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine, extra?: React.ReactNode) => {

@@ -11,6 +11,16 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.8 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- **Machines**: an open SSH port no longer asks for anything (notice, « SSH access to set up » badge, reminder in the network search): the agent comes first. The texts say « no agent or SSH » when nothing reads a machine. A machine read by its agent gets no warning about a refused key, a wrong port or an unreadable Docker; these checks stay for a machine that depends on SSH.
+- **Home**: a health warning names the machine and its exact trouble with its value (« disk / 91 % full »), two causes at most, and its button opens the machine page on the frame that explains it (new address `#machines/<ip>/watch/<notice>`). The button « Machine settings » is now « Settings ».
+- **Home**: a service in trouble gives its exact reason and opens the list on its card, with the « To check » frame in view and flashing (new address `#services/all/<key>`). Up to three NPM entries in warning get a line each; more stay grouped.
+
 ## v0.31.7 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

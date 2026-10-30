@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Data, Host } from "../types";
+import type { Data, HealthHost, Host } from "../types";
 import { checks, status } from "./status";
 import { attention, names } from "./summary";
 
@@ -62,7 +62,7 @@ describe("accueil", () => {
     const d = data([host({ domains: ["plex.lan"], backend: { up: false } }), host({ id: 2, domains: ["x.lan"], webcheck: { cert_days: 5 } })]);
     const items = attention({
       data: d, now: NOW,
-      health: { timestamp: "", hosts: [{ id: "srv", name: "srv · prod · 10.0.0.2", reachable: true, level: "warn",
+      health: { timestamp: "", hosts: [{ id: "srv", name: "srv · prod · 10.0.0.77", reachable: true, level: "warn",
         disks: [{ mount: "/", used_pct: 91, warning: true }] }] },
       backups: { generated: "", summary: { ok: 1, warn: 0, crit: 1, sets: 2, hosts: 1, volume: 0, no_offsite: 1 },
         issues: [{ level: "crit", set: "HA", text: "aucune copie hors machine à jour" }] },
@@ -70,7 +70,31 @@ describe("accueil", () => {
     expect(items.map((i) => [i.level, i.tab])).toEqual([
       ["crit", "services"], ["crit", "backups"], ["warn", "services"], ["warn", "machines"]]);
     expect(items[0].text).toBe("**plex.lan** ne répond plus (backend down), sur srv");
-    expect(items[3].text).toBe("Santé : **srv · prod** est à surveiller (disque / à 91 %)");  // nom avec « · » gardé entier
+    expect(items[3].text).toBe("Santé : **srv · prod** : disque / rempli à 91 %");  // nom avec « · » gardé entier
+    expect(items[3].href).toBe("machines/10.0.0.77/watch/disk");   // the link opens on the frame of the trouble
+    expect(items[3].fix).toEqual({ label: "Régler", href: "machines/10.0.0.77/settings" });
+  });
+});
+
+describe("santé sur l'accueil", () => {
+  const line = (h: Partial<HealthHost>, machines: { ip: string; name: string; ping: boolean }[] = []) => attention({ data: { ...data([]), machine_list: machines as unknown as Data["machine_list"] }, now: NOW,
+    health: { timestamp: "", hosts: [{ id: "a", name: "10.0.0.2 · 10.0.0.2", reachable: true, level: "warn", ...h }] } })[0];
+
+  it("donne le nom de la machine et la cause signalée par le serveur, pas ce qui attend", () => {
+    const it0 = line({ checks: { load: "warn" }, load: { available: true, load_1: 8, ncpu: 4 } as HealthHost["load"], apt: { upgradable: 3 } as HealthHost["apt"] }, [{ ip: "10.0.0.2", name: "Tower", ping: true }]);
+    expect(it0.text).toBe("Santé : **Tower** : charge 8 pour 4 CPU");
+    expect(it0.href).toBe("machines/10.0.0.2/watch/load");
+  });
+
+  it("deux causes au plus, le reste compté", () => {
+    const disks = ["/", "/a", "/b"].map((mount) => ({ mount, used_pct: 91, warning: true }));
+    expect(line({ disks }).text).toBe("Santé : **10.0.0.2** : disque / rempli à 91 %, disque /a rempli à 91 % (+1)");
+  });
+
+  it("sans cause connue : la phrase générale et la page de la machine", () => {
+    const it0 = line({});
+    expect(it0.text).toBe("Santé : **10.0.0.2** est à surveiller");
+    expect(it0.href).toBe("machines/10.0.0.2");
   });
 });
 
@@ -88,12 +112,18 @@ describe("avertissements de l'accueil", () => {
     expect(a.filter((x) => x.text.includes("Docker illisible"))).toHaveLength(1);
     expect(a.some((x) => x.text.startsWith("Connecteur"))).toBe(false);
   });
-  it("entrées NPM avec avertissement : une ligne groupée", () => {
-    const d = data([host({ id: 1, domains: ["a.lan"], public: { err: "gaierror" } }), host({ id: 2, domains: ["b.lan"], public: { err: "gaierror" } }), host({ id: 3 })]);
-    const a = attention({ data: d, now: NOW }).filter((x) => x.text.includes("NPM avec avertissement"));
-    expect(a).toHaveLength(1);
+  const dnsLost = (id: number) => host({ id, domains: [`h${id}.lan`], public: { err: "gaierror" } });
+  it("peu d'entrées NPM avec avertissement : la raison exacte et le lien vers leur cadre", () => {
+    const a = attention({ data: data([dnsLost(1), dnsLost(2), host({ id: 3 })]), now: NOW }).filter((x) => x.category === "services");
+    expect(a.map((x) => x.text)).toEqual(["**h1.lan** : DNS absent", "**h2.lan** : DNS absent"]);
     expect(a[0].level).toBe("warn");
-    expect(a[0].text).toContain("2 entrées");
+    expect(a[0].href).toBe("services/all/proxy1");
+  });
+  it("beaucoup d'entrées NPM avec avertissement : une ligne groupée", () => {
+    const a = attention({ data: data([1, 2, 3, 4].map(dnsLost)), now: NOW }).filter((x) => x.text.includes("NPM avec avertissement"));
+    expect(a).toHaveLength(1);
+    expect(a[0].text).toContain("4 entrées");
+    expect(a[0].href).toBeUndefined();
   });
 });
 

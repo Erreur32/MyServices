@@ -139,8 +139,8 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   const ignoredAll = [...ignoredSeen, ...ignoredGone];                    // rangés dans « autres appareils », avec « Reprendre »
   const rest = webOnly.length + pingOnly.length + ignoredAll.length;
   const sum = net && net.phase === "done" ? summarize(net.found, known) : null;
-  // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le SSH ou le jeton Home Assistant manque
-  const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !forgot.has(h.ip) && needsLink(h, machines, connected));
+  // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le jeton Home Assistant manque
+  const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !forgot.has(h.ip) && needsLink(h, machines, connected) === "ha");
   const toLink = [...Object.values(added), ...pending].filter((h) => !forgot.has(h.ip) && needsLink(h, machines, connected));   // seulement ce qui reste à régler : le reste est dans « déjà ajoutées »
   const recall = (ip: string) => void act(async () => {
     setJustForgot((f) => f.filter((x) => x !== ip));   // the access asks again: off the server list and the old browser one
@@ -355,7 +355,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
           <ul className="mt-2 flex flex-col gap-1.5">
             {declared.map((m) => {
               const seen = net?.found.find((h) => h.ip === m.ip);
-              const link = seen ? needsLink(seen, machines, connected) : null;
+              const link = !!seen && needsLink(seen, machines, connected) === "ha";
               return (
                 <li key={m.ip} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
                   <AppIcon apps={seen?.apps} />
@@ -366,7 +366,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
                     <Badge tone="off">{tx("accès oublié")}</Badge>
                     <button type="button" className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-link hover:bg-link/10" onClick={() => recall(m.ip)}>
                       <RotateCcw size={12} aria-hidden />{tx("Rappeler")}</button>
-                  </> : <Badge tone="warn">{link === "ha" ? tx("jeton à régler") : tx("accès SSH à régler")}</Badge>)}
+                  </> : <Badge tone="warn">{tx("jeton à régler")}</Badge>)}
                   {!m.off && m.ping === false && <Badge tone="bad">{tx("hors ligne")}</Badge>}
                   {m.off && <Badge tone="off">{tx("éteinte volontairement")}</Badge>}
                 </li>

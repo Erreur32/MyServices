@@ -133,6 +133,14 @@ function connectorItems(m: Machine, connectors: Connector[]): WatchItem[] {
   return out;
 }
 
+/** Why the health of a machine is not « ok », short: what the server flagged when it says, the worst first; `kind` is the frame that explains it */
+export function healthCauses(h: HealthHost, max = 2): { text: string; kind?: WatchKind } {
+  const flagged = new Set(Object.entries(h.checks ?? {}).filter(([, level]) => level === "warn" || level === "crit").map(([check]) => CHECK_KIND[check]));
+  const items = healthItems(h).filter((i) => i.tone !== "info" && (!flagged.size || flagged.has(i.kind))).sort((a, b) => RANK[b.tone] - RANK[a.tone]);
+  const shown = items.slice(0, max).map((i) => i.text).join(", ");
+  return { text: items.length > max ? tx("{0} (+{1})", shown, items.length - max) : shown, kind: items[0]?.kind };
+}
+
 /** Tout ce qui est à surveiller sur une machine : accès (ping, SSH), santé, services en panne, connecteurs en échec ; le plus grave d'abord.
  *  Une machine non suivie ou éteinte volontairement n'a rien à surveiller. downList : les services en panne (nom : cause). readByTool : lue par l'API d'un outil réseau (Freebox, UniFi), « sans SSH » n'est pas un manque. */
 export function watchItems(m: Machine, h: HealthHost | undefined, connectors: Connector[] = [], readByTool = false, downList: string[] = []): WatchItem[] {

@@ -7,6 +7,8 @@ describe("machine page address", () => {
     expect(machineFromHash("#machines/10.0.0.5")).toEqual({ ip: "10.0.0.5" });
     expect(machineFromHash("#machines/10.0.0.5/access")).toEqual({ ip: "10.0.0.5", tab: "access" });
     expect(machineFromHash("#machines/10.0.0.5/settings")).toEqual({ ip: "10.0.0.5", tab: "settings" });
+    expect(machineFromHash("#machines/10.0.0.5/watch/ssh_auth")).toEqual({ ip: "10.0.0.5", watch: "ssh_auth" });
+    expect(machineFromHash('#machines/10.0.0.5/watch/x"]')).toEqual({ ip: "10.0.0.5" });
   });
   it("the list, another tab or a bad address: nothing", () => {
     expect(machineFromHash("#machines")).toBeNull();

@@ -3,7 +3,7 @@
 import { scoreTone } from "../lib/figureTones";
 import { usePageView } from "../lib/route";
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ExternalLink, EyeOff, Globe, Layers, Pencil, Plus, Server, Boxes, Undo2 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ipNum } from "../lib/format";
@@ -30,6 +30,7 @@ import { PageHead } from "../components/PageHead";
 import { HistoryTile, useServicesHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import type { Period } from "../lib/tileHistory";
+import { flash } from "../lib/flash";
 import { isHidden, serviceKey, setServiceHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidden";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
@@ -251,14 +252,16 @@ function PlacesTable({ g, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGr
 }
 
 /** One service: the top opens it, the link under its name opens the service itself */
-function ServiceCard({ g, open, onToggle, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; open: boolean; onToggle: () => void; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
+function ServiceCard({ g, open, focus, onToggle, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; open: boolean; focus: boolean; onToggle: () => void; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
+  const box = useRef<HTMLElement>(null);
+  useEffect(() => { if (focus) setTimeout(() => flash(box.current?.querySelector<HTMLElement>("[data-watch]") ?? box.current), 120); }, [focus]);   // reached by a link (#services/all/<key>): show what to check
   const lead = leadOf(g);
   const url = lead ? openUrl(lead) : g.cards[0]?.url;
   const text = g.domains[0] ?? addressOf(g, lead);
   const more = [moreDomains(g.domains.length), g.hosts.some((r) => exposure(r) === "public" || exposure(r) === "ouvert") ? tx("Public") : ""].filter(Boolean).join(" · ");
   const reasons = g.hosts.filter((r) => status(r)[0] !== "off").flatMap((r) => checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => ({ k, where: hostDomains(r)[0] ?? targetOf(r) })));   // what turned the card « À vérifier »
   return (
-    <article className={`min-w-0 rounded-xl border bg-bg2 ${open ? "col-span-full border-link" : GROUP_EDGE[g.tone]}`}>
+    <article ref={box} className={`min-w-0 rounded-xl border bg-bg2 ${open ? "col-span-full border-link" : GROUP_EDGE[g.tone]}`}>
       <button type="button" onClick={onToggle} aria-expanded={open} title={open ? tx("Fermer") : tx("Ouvrir")} className="group flex w-full items-center gap-2.5 rounded-t-xl px-3 pt-2.5 text-left hover:bg-link/10">
         <GroupLogo name={g.name} lead={lead} />
         <span className="min-w-0 flex-1"><b className="block truncate text-sm">{g.name}</b><span className="block truncate text-xs text-muted" title={g.machines.join(", ")}>{whereOf(g)}</span></span>
@@ -272,11 +275,11 @@ function ServiceCard({ g, open, onToggle, hiddenMap, watchKeys, admin }: Readonl
       {open && (
         <div className="flex flex-col gap-3 border-t border-line/60 p-3">
           {(g.hosts.length > 0 || g.cards.length > 0) && <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />}
-          {reasons.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+          {reasons.length > 0 && <div data-watch="check" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
               <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À vérifier")}</h4>
               <ul className="divide-y divide-warn/20 text-sm">{reasons.map(({ k, where }) => <li key={`${k}:${where}`} className="py-1"><b>{CHECK[k][0]}</b> <span className="text-muted">({where})</span> : {CHECK[k][1]}</li>)}</ul>
             </div>}
-          {g.problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+          {g.problems.length > 0 && <div data-watch="problems" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
               <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
               <ul className="divide-y divide-warn/20 text-sm">{g.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
             </div>}
@@ -360,7 +363,16 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   }, []);
   const sort = useSort(f.shown, keyOf, "status");
   const shownReal = sort.sorted.filter((g) => !g.tech), shownTech = sort.sorted.filter((g) => g.tech);
-  const card = (g: ServiceGroup) => <ServiceCard key={g.key} g={g} open={opened === g.key} onToggle={() => setOpened(opened === g.key ? "" : g.key)} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />;
+  // #services/all/<key>: a link from the home page opens that service, even behind a filter or among the technical components
+  const focusKey = route.startsWith("#services/all/") ? decodeURIComponent(route.split("/")[2] ?? "") : "";
+  const focused = focusKey ? groups.find((g) => g.hosts.some((r) => keyOfRow(r) === focusKey)) : undefined;
+  useEffect(() => {
+    if (!focused) return;
+    setOpened(focused.key);
+    if (focused.tech) setTechOpen(true);
+    if (!f.shown.some((g) => g.key === focused.key)) f.reset();
+  }, [focused?.key]);   // eslint-disable-line react-hooks/exhaustive-deps -- once per link, a new reading must not reopen a card closed since
+  const card = (g: ServiceGroup) => <ServiceCard key={g.key} g={g} open={opened === g.key} focus={focused?.key === g.key} onToggle={() => setOpened(opened === g.key ? "" : g.key)} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />;
   const viewButton = (on: boolean, label: string, Icon: typeof Layers, pick: boolean) => (
     <button type="button" onClick={() => setByMachine(pick)} aria-pressed={on} title={label} aria-label={label} className={`rounded-lg border p-2 transition-colors ${on ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}><Icon size={15} aria-hidden /></button>
   );

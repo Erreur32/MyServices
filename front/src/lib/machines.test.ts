@@ -48,7 +48,7 @@ describe("seen by a tool", () => {
     expect(networkTool(seen)).toBe("MynetworK");
     expect(mState(seen)).toBe("network");
     expect(stateBadge(seen)[1]).toBe("Via MynetworK");
-    expect(stateBadge(base)[1]).toBe("en ligne, sans SSH");
+    expect(stateBadge(base)[1]).toBe("en ligne, sans accès");
   });
   it("a tool that does not answer does not count", () => {
     const down = { ...seen, links: { ...seen.links!, sources: [{ ...seen.links!.sources[0], ok: false }] } } as Machine;

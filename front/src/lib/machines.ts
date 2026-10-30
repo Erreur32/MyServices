@@ -12,7 +12,7 @@ export const MSTATE: Record<MState, [Tone, string, string]> = {
   box: ["ok", tx("Équipement réseau"), tx("Box ou passerelle : pas de SSH possible, elle est lue par son API ou par vos outils réseau ; ce n'est pas un manque")],
   manual: ["info", tx("SSH manuel"), tx("Accès déclaré sans clé (mot de passe) : non testé automatiquement")],
   refused: ["warn", tx("SSH refusé"), tx("Accès SSH configuré, mais la connexion par clé échoue")],
-  nossh: ["off", tx("en ligne, sans SSH"), tx("Répond au ping, aucun accès SSH configuré")],
+  nossh: ["off", tx("en ligne, sans accès"), tx("Répond au ping, ni agent ni SSH")],
   off: ["off", tx("éteinte (voulu)"), tx("Éteinte volontairement, aucune alerte")],
   down: ["bad", tx("injoignable"), tx("Ne répond ni au ping ni en SSH")],
   disabled: ["off", tx("non suivie"), tx("Désactivée dans Réglages → Machines : ni ping, ni SSH, ni santé, aucune alerte")],

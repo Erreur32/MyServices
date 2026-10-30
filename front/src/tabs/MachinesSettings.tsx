@@ -253,7 +253,7 @@ function Redetect({ st, onDone }: { st: State; onDone: () => void }) {
 type Live = Snapshot["data"]["machine_list"][number];
 type Statuses = NonNullable<Snapshot["data"]["connectors"]>;
 type ScanInfo = { os?: string; apps: string[]; ssh?: boolean; sshPort?: number };
-type Unfinished = { why: "ha" | "ssh"; passed: boolean };
+type Unfinished = { passed: boolean };
 
 /** Only this machine is re-read (SSH, Docker, health): the others stay cached, so the pass is short */
 function refreshMachine(ip: string) { void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined); }
@@ -289,8 +289,9 @@ function useAccessCheck(ip: string, stamp: string, setNote: (n: Note) => void) {
   return { lines, busy, setBusy, accepted, verify };
 }
 
-/** Warnings of the card: the app key is refused (Docker unreadable), or the SSH alias points at another port than sshd's */
+/** Warnings of the card: the app key is refused (Docker unreadable), or the SSH alias points at another port than sshd's. A machine read by its agent has neither */
 function rowWarnings(accepted: boolean, statuses: Statuses, live?: Live, scan?: ScanInfo) {
+  if (live?.agent) return { keyMissing: false, wrongPort: false };
   const keyMissing = !accepted && statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée (ou le port est faux)
   const wrongPort = !accepted && !!(scan?.sshPort && live?.ssh && scan.sshPort !== live.ssh.port);   // alias sur un autre port que celui où sshd répond
   return { keyMissing, wrongPort };
@@ -374,8 +375,7 @@ function UnfinishedNotice({ unfinished }: Readonly<{ unfinished: Unfinished }>) 
   return (
     <InfoNote tone="warn">
       <b className="text-warn">{tx("Non terminé")}</b>{passed} {" : "}
-      {unfinished.why === "ha" ? <>{tx("le jeton de Home Assistant manque : ")}<a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></>
-        : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
+      {tx("le jeton de Home Assistant manque : ")}<a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a>
     </InfoNote>
   );
 }
@@ -1228,12 +1228,11 @@ export function MachineModal({ ip, snap, focusTab, only }: Readonly<{ ip: string
   if (!st || !m) return null;
   const live = snap.data.machine_list.find((x) => x.ip === ip);
   const statuses = m.os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === live?.name));
-  // « Non terminé » : accès encore à régler (SSH absent alors que la machine l'offre, jeton Home Assistant manquant) ; « passé » dans les premiers pas
-  const asMachines = Object.entries(st.machines).map(([i, c]) => ({ ip: i, ssh: c.ssh ?? (typeof c.health === "string" ? c.health : null) }));
-  const why = scan && !m.disabled ? needsLink(scan, asMachines, snap.data.services_status ?? []) : null;
+  // « Non terminé » : jeton Home Assistant manquant ; « passé » dans les premiers pas. Un port SSH ouvert ne demande rien : l'agent passe d'abord
+  const noToken = !!scan && !m.disabled && needsLink(scan, [], snap.data.services_status ?? []) === "ha";
   let passed: string[] = [];
   try { passed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
-  const unfinished = why ? { why, passed: passed.includes(ip) } : undefined;
+  const unfinished = noToken ? { passed: passed.includes(ip) } : undefined;
   return <MachineRow focusTab={focusTab} only={only} unfinished={unfinished} ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onAgent={loadAgents}
     agent={agents.find((a) => a.ip === ip && a.state !== "révoqué")} scan={scan ? { os: scan.os ?? undefined, apps: scan.apps ?? [], ssh: !!scan.ssh_port, sshPort: scan.ssh_port ?? undefined } : undefined} />;
 }

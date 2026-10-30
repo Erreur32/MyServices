@@ -171,6 +171,11 @@ class Http(unittest.TestCase):
         self.assertEqual(set(listing["build"]), {"running", "started", "last_seconds", "next_run"})
         self.assertTrue(any(d["id"] == "domaines" and d["optional"] and d["available"] for d in listing["diagrams"]))
 
+    def test_key_reminder_skips_a_machine_read_by_its_agent(self):
+        data = {"machine_list": [{"ip": "10.0.0.1", "name": "a", "agent": {"via": "agent"}}, {"ip": "10.0.0.2", "name": "b", "agent": None}],
+                "connectors": [{"type": "docker", "ok": False, "ip": ip} for ip in ("10.0.0.1", "10.0.0.2")]}
+        self.assertEqual(routes_alerts.key_refused(data), [{"ip": "10.0.0.2", "name": "b"}])
+
     def test_front_is_served_at_the_root_and_old_addresses_still_work(self):
         (server.STATIC / "v2").mkdir(exist_ok=True)
         (server.STATIC / "v2" / "index.html").write_text("<div id=root>")
