@@ -3,6 +3,7 @@ import { Camera, Plug } from "lucide-react";
 import type { Snapshot } from "../api";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { StatTile } from "../components/StatTile";
+import { appIcon } from "../lib/appIcons";
 import { linePath, scaleOf } from "../lib/domotique";
 import { LOCALE, tx } from "../lib/i18n";
 import { tapoGroups, tapoState, tapoSummary, wifiBars, type TapoTone } from "../lib/tapo";
@@ -135,7 +136,7 @@ export function Tapo({ snap }: Readonly<{ snap: Snapshot }>) {
   const s = tapoSummary(snap)!, g = tapoGroups(snap), online = g.all.filter((d) => d.online).length;
   return (
     <div className="flex flex-col gap-5 py-4">
-      <PageHead icon={Plug} title="Tapo" tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink /> : undefined} />
+      <PageHead icon={Plug} logo={appIcon(["tapo"])} title="Tapo" tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink /> : undefined} />
       <section>
         <h2 className="text-2xl font-extrabold leading-tight sm:text-3xl">{g.all.length ? tx("{0} appareils Tapo, {1} en ligne.", g.all.length, online) : tx("Aucun appareil Tapo lu pour le moment.")}</h2>
         <p className="mt-1.5 text-[15px] text-muted">{tx("Prises avec leur consommation, caméras avec leur état, lus sur ton réseau avec ton compte Tapo.")}</p>
