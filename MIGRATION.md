@@ -5,9 +5,13 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
-## 0.31.4 → next version
+## 0.31.5 → next version
 
 **Nothing required yet.**
+
+## 0.31.4 → 0.31.5
+
+**Nothing required.** Pull the new image (`docker compose pull`, then `up -d`). The new Windows Admin Center connector is added from Connectors when you want it (address of the gateway, a Windows account in the local group « Windows Admin Center Gateway Users »).
 
 ## 0.31.3 → 0.31.4
 

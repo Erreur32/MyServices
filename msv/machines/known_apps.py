@@ -196,7 +196,7 @@ APPS: tuple[App, ...] = (
     App("kopia", "Kopia", "Infra / virtualisation", ports=(51515,), title=r"^kopia", images=("kopia/kopia",)),
     App("urbackup", "UrBackup", "Infra / virtualisation", ports=(55414,), title=r"urbackup", connector="urbackup"),
     App("unraid", "Unraid", "Infra / virtualisation", title=r"^unraid|unraid webgui", host=r"^unraid", connector="unraid"),
-    App("wac", "Windows Admin Center", "Infra / virtualisation", ports=(6600,), title=r"windows admin center"),   # read by no connector yet: Windows sign-in (NTLM), to build with a real instance
+    App("wac", "Windows Admin Center", "Infra / virtualisation", ports=(6600,), title=r"windows admin center", connector="windows-admin-center"),
     App("pdm", "Proxmox Datacenter Manager", "Infra / virtualisation", title=r"proxmox datacenter manager", connector="pdm"),
     App("xen-orchestra", "Xen Orchestra", "Infra / virtualisation", title=r"xen orchestra", images=("ronivay/xen-orchestra", "ezka77/xen-orchestra-ce")),
     App("libvirt", "KVM / libvirt", "Infra / virtualisation", ui="none", proc=r"^libvirtd|^virtqemud"),
