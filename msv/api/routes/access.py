@@ -182,8 +182,8 @@ def refresh_after_report(a: dict, report: dict, before, now) -> None:
     if core.enabled("health"):
         why = f"relevé de l'agent {a['name']}" + (f" : {before or 'premier'} → {now}" if first or before != now else "")
         core.run_task("health", why, ("--only", a["ip"], "--agent"))
-    # Premier relevé ou agent réinstallé dans une autre version : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
-    if (first or upgraded) and core.enabled("collect"):
+    # Premier relevé, agent réinstallé dans une autre version ou revenu d'un silence : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
+    if (first or upgraded or a["state"] == "silencieux") and core.enabled("collect"):
         core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")
 
 

@@ -43,6 +43,9 @@ try {
   $script = (Invoke-WebRequest -Uri "$Url/agent/agent.ps1" -UseBasicParsing -TimeoutSec 30).Content
 } catch { Die "Cannot download the agent from $Url : $($_.Exception.Message)" }
 if ($script -is [byte[]]) { $script = [Text.Encoding]::UTF8.GetString($script) }
+# A wrong address can answer with a web page: stop before touching a working agent (its script and its config)
+$perr = $null; [void][Management.Automation.Language.Parser]::ParseInput($script, [ref]$null, [ref]$perr)
+if ($script -notmatch 'MyServices agent for Windows' -or ($perr -and $perr.Count)) { Die "$Url did not send the agent: is it the address of MyServices?" }
 # Windows PowerShell 5.1 reads a script without BOM as ANSI: write it with a BOM
 [IO.File]::WriteAllText($AgentPath, $script, (New-Object Text.UTF8Encoding($true)))
 
