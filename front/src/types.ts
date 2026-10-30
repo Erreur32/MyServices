@@ -813,7 +813,7 @@ export interface FreeboxInfo {
   // MynetworK 0.10.69+: null = the paired app lacks the right (see missing_rights), absent = the box does not have it
   storage?: { disks: { model: string | null; state: string | null; smart_ok: boolean | null; temperature: number | null; total_bytes: number | null }[];
     partitions: { label: string | null; fstype: string | null; total_bytes: number | null; used_bytes: number | null; free_bytes: number | null; used_pct: number | null }[] } | null;
-  ftth?: { sfp_present: boolean | null; sfp_has_signal: boolean | null; link: boolean | null; sfp_pwr_rx: number | null; sfp_pwr_tx: number | null } | null;
+  ftth?: { sfp_present: boolean | null; sfp_has_signal: boolean | null; link: boolean | null; sfp_pwr_rx: number | null; sfp_pwr_tx: number | null; sfp_model?: string | null; sfp_vendor?: string | null; sfp_alim_ok?: boolean | null } | null;
   wifi?: { enabled: boolean | null; aps: { name: string | null; state: string | null; band: string | null; channel: number | null; width?: string | null }[]; stations_count: number | null;
     networks?: { ssid: string | null; enabled: boolean | null; hidden: boolean | null; state: string | null; band: string | null }[] } | null;
   vms?: { id: number | null; name: string | null; status: string | null; vcpus: number | null; memory_mb: number | null; os: string | null }[] | null;

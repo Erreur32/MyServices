@@ -40,3 +40,15 @@ export function freeboxHealth(m: Machine, fb: FreeboxInfo): HealthHost {
     ...(fb.system?.update_available ? { apt: { upgradable: 1, sample: [latest ? `firmware → ${latest}` : "firmware"], firmware: true } } : {}),
   } as HealthHost;
 }
+
+/** How good the light received on the fibre is: between -8 and -24 dBm is right, a little weaker or stronger is to watch, beyond is a problem
+ *  (a too strong signal needs an attenuator, a too weak one a cleaner or checked connector, fibre or far end). Null without a measure. */
+export type FibreLight = { tone: "ok" | "warn" | "bad"; kind: "too-strong" | "strong" | "right" | "weak" | "too-weak" };
+export function fibreLight(rx: number | null | undefined): FibreLight | null {
+  if (typeof rx !== "number") return null;
+  if (rx > -3) return { tone: "bad", kind: "too-strong" };
+  if (rx > -8) return { tone: "warn", kind: "strong" };
+  if (rx >= -24) return { tone: "ok", kind: "right" };
+  if (rx >= -27) return { tone: "warn", kind: "weak" };
+  return { tone: "bad", kind: "too-weak" };
+}

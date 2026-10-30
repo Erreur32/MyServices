@@ -1,5 +1,5 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { Archive, Monitor, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Cpu, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronUp, Container, Clock, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
+import { Archive, Cable, Monitor, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Cpu, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronUp, Container, Clock, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
 import { Copyable } from "../components/form";
@@ -12,7 +12,7 @@ import { SwitchPanel } from "./UnifiCards";
 import type { AddressSheet, Backups, LinkSource, HealthHost, Host, HostSystem, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
-import { freeboxHealth, freeboxOf } from "../lib/freebox";
+import { fibreLight, freeboxHealth, freeboxOf, type FibreLight } from "../lib/freebox";
 import { appIcon, modelIcon } from "../lib/appIcons";
 import { MachinePage } from "./MachinePage";
 import { machineFromHash } from "../lib/machineHash";
@@ -33,6 +33,8 @@ import { HeadTags } from "../components/HeadTags";
 import { StatTile } from "../components/StatTile";
 import { HistoryTile, useMachinesHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import { useNetworkHistory } from "../components/HistoryTile";
+import { BandwidthTile } from "../components/BandwidthTile";
 import { PageHead } from "../components/PageHead";
 import type { TilePoint } from "../lib/tileHistory";
 import { DetailRow, DetailSection } from "../components/DetailSection";
@@ -41,6 +43,7 @@ import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
 import { primary, quiet } from "../lib/forms";
 import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
+import { InfoNote } from "../components/InfoNote";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
@@ -1011,7 +1014,7 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unifiNet, freebox, onFilter, focus, backups, pve, sheet, hosts, extra }: Readonly<{ hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; extra?: React.ReactNode; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; npmIps?: Record<string, string>; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unifiNet, freebox, onFilter, focus, backups, pve, sheet, hosts, extra, stamp }: Readonly<{ stamp?: string; hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; extra?: React.ReactNode; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; npmIps?: Record<string, string>; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
   const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
@@ -1035,6 +1038,8 @@ function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unif
       </SystemSection>
 
       {freebox && <FreeboxAccessSection fb={freebox} from={from.ssh} />}
+      {freebox?.connection && <FreeboxLineSection fb={freebox} from={from.ssh} stamp={stamp ?? ""} />}
+      {freebox?.ftth && <FreeboxFibreSection fb={freebox} from={from.ssh} />}
       {!freebox && unifiOnly && <UnifiAccessSection d={unifi} sys={unifiSys} mac={mac} from={from.ssh} />}
       {!freebox && !unifiOnly && <AccessSection m={m} from={from.ssh} />}
 
@@ -1195,21 +1200,67 @@ export function FreeboxFirmware({ fb }: Readonly<{ fb: FreeboxInfo }>) {
   </>;
 }
 
-/** The line: state and medium, speeds and fibre power */
-function FreeboxLine({ fb }: Readonly<{ fb: FreeboxInfo }>) {
-  const c = fb.connection ?? {}, fibre = fb.ftth;
+const FIBRE_WORD: Record<FibreLight["kind"], string> = { "too-strong": tx("trop forte"), strong: tx("forte"), right: tx("correcte"), weak: tx("faible"), "too-weak": tx("très faible") };
+const TONE_TEXT: Record<MeterTone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
+
+/** The line: state and medium, then the speed in use against the line's maximum, each direction with its bar, and the devices the box sees */
+function FreeboxLineSection({ fb, from, stamp }: Readonly<{ fb: FreeboxInfo; from: Origin[]; stamp: string }>) {
+  const c = fb.connection ?? {};
+  const [hours, setHours] = usePeriod(), hist = useNetworkHistory(hours, stamp), now = Math.floor(Date.now() / 1000);
   const medium = c.media ? ` · ${c.media.toUpperCase()}` : "";
-  let speed: string | undefined;
-  if (c.bandwidth_down) speed = c.bandwidth_up ? `${bitRate(c.bandwidth_down)} / ${bitRate(c.bandwidth_up)}` : bitRate(c.bandwidth_down);
-  const now = c.rate_down == null ? undefined : `${bitRate(8 * c.rate_down)} / ${bitRate(8 * (c.rate_up ?? 0))}`;
-  return <>
-    <Row k={tx("Ligne")}>{c.state ? `${c.state}${medium}` : undefined}</Row>
-    {speed && <Row k={tx("Débit max")}>{speed}</Row>}
-    {now && <Row k={tx("Débit actuel")}>{now}</Row>}
-    {fibre?.sfp_pwr_rx != null && (
-      <Row k={tx("Fibre")}><span className={fibre.sfp_has_signal === false ? "text-bad" : ""}>{fibre.sfp_pwr_rx.toFixed(1)} dBm {tx("reçus")}{fibre.sfp_pwr_tx == null ? "" : ` · ${fibre.sfp_pwr_tx.toFixed(1)} dBm ${tx("émis")}`}</span></Row>
-    )}
-  </>;
+  const dir = (label: string, rate?: number, max?: number) => {
+    if (rate == null && !max) return null;
+    const bits = 8 * (rate ?? 0), pct = max ? Math.min(100, (100 * bits) / max) : null;
+    return (
+      <Row k={label}>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-mono">{rate == null ? "-" : bitRate(bits)}{max ? <Dim> / {bitRate(max)}</Dim> : null}</span>
+          {pct != null && <Meter pct={pct} tone="ok" title={tx("Part de la capacité de la ligne utilisée en ce moment")} />}
+        </span>
+      </Row>
+    );
+  };
+  return (
+    <Section icon={Gauge} title={tx("Ligne")} tone="link" from={from}>
+      <Row k={tx("État")}>{c.state ? <span className={c.state === "up" ? "text-ok" : "text-bad"}>{`${c.state}${medium}`}</span> : undefined}</Row>
+      {dir(tx("Descendant"), c.rate_down, c.bandwidth_down)}
+      {dir(tx("Montant"), c.rate_up, c.bandwidth_up)}
+      <Row k={tx("Historique")}>
+        <div className="flex flex-col gap-2">
+          <PeriodSwitch value={hours} onChange={setHours} />
+          <div className="flex flex-wrap gap-2.5">
+            {(["down", "up"] as const).map((d) => {
+              const points = hist?.bw?.[`fbx.${d}`] ?? null;
+              return points?.length ? <BandwidthTile key={d} label={d === "down" ? tx("Download") : tx("Upload")} sources={[{ id: "fbx", name: "Freebox", color: "rgb(var(--bad))", points }]} hours={hours} now={now} /> : null;
+            })}
+          </div>
+        </div>
+      </Row>
+    </Section>
+  );
+}
+
+/** The fibre: the SFP module of the box (present, light seen, link), the light received and sent with what it means */
+function FreeboxFibreSection({ fb, from }: Readonly<{ fb: FreeboxInfo; from: Origin[] }>) {
+  const f = fb.ftth;
+  if (!f) return null;
+  const light = fibreLight(f.sfp_pwr_rx), yesNo = (v: boolean | null, yes: string, no: string, badWhenNo = true) =>
+    v == null ? undefined : <span className={v ? "text-ok" : badWhenNo ? "text-bad" : "text-warn"}>{v ? yes : no}</span>;
+  return (
+    <Section icon={Cable} title={tx("Fibre (SFP)")} tone={light?.tone === "bad" || f.sfp_has_signal === false || f.link === false ? "bad" : "ok"} from={from}>
+      <Row k={tx("Module SFP")}>{yesNo(f.sfp_present, tx("présent"), tx("absent"))}{(f.sfp_model || f.sfp_vendor) && <> <Dim>{[f.sfp_model, f.sfp_vendor].filter(Boolean).join(" · ")}</Dim></>}</Row>
+      {f.sfp_alim_ok != null && <Row k={tx("Alimentation")}>{yesNo(f.sfp_alim_ok, tx("normale"), tx("anormale"), false)}</Row>}
+      <Row k={tx("Signal")}>{yesNo(f.sfp_has_signal, tx("lumière reçue"), tx("aucune lumière (perte de signal)"))}</Row>
+      <Row k={tx("Lien")}>{yesNo(f.link, tx("établi"), tx("coupé"))}</Row>
+      {f.sfp_pwr_rx != null && (
+        <Row k={tx("Lumière reçue")}>
+          <span className="font-mono">{f.sfp_pwr_rx.toFixed(1)} dBm</span>{light && <span className={` ${TONE_TEXT[light.tone]}`}> · {FIBRE_WORD[light.kind]}</span>}
+        </Row>
+      )}
+      {f.sfp_pwr_tx != null && <Row k={tx("Lumière émise")}><span className="font-mono">{f.sfp_pwr_tx.toFixed(1)} dBm</span></Row>}
+      <InfoNote className="mt-2">{tx("La lumière reçue est correcte entre -8 et -24 dBm environ. Trop faible : connecteur sale, fibre pincée ou problème chez l'opérateur. Trop forte : il manque un atténuateur. Sans lumière, la ligne est coupée.")}</InfoNote>
+    </Section>
+  );
 }
 
 /** The box's DHCP server and the DNS it hands out (MynetworK 0.10.72+; nothing shown without them) */
@@ -1307,7 +1358,6 @@ function FreeboxRows({ fb }: Readonly<{ fb: FreeboxInfo }>) {
   const sys = fb.system ?? {};
   return <>
     <Row k={tx("Appareil")}>{sys.model ? <FreeboxModel model={sys.model} /> : undefined}</Row>
-    <FreeboxLine fb={fb} />
     <FreeboxNetwork dhcp={fb.dhcp} />
     {fb.wifi && <FreeboxWifi wifi={fb.wifi} />}
     {fb.missing_rights && fb.missing_rights.length > 0 && (
@@ -1762,7 +1812,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine, extra?: React.ReactNode) => {
     const h = hb.get(m.ip);
-    return <Detail extra={extra} m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} npmIps={snap.data.npm_instances} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
+    return <Detail extra={extra} m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} npmIps={snap.data.npm_instances} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} stamp={snap.data.generated} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 

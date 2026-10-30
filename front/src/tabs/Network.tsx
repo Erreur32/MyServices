@@ -20,7 +20,7 @@ import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import type { Period, TilePoint } from "../lib/tileHistory";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
-import { NetworkDiagnostic } from "./NetworkDiagnostic";
+import { NetworkDiagnostic, UnifiSfp } from "./NetworkDiagnostic";
 import { NetworkScanStats } from "./NetworkScanStats";
 import { UnifiCards } from "./UnifiCards";
 import { HeadTags } from "../components/HeadTags";
@@ -162,9 +162,6 @@ function MachineLink({ r, onMachine }: { r: Row; onMachine: (ip: string) => void
     : <Dim>{tx("pas suivie")}</Dim>;
 }
 
-const SOURCE_SHORT: Record<string, string> = { mynetwork: "MynetworK", unifi: "UniFi", freebox: "Freebox", opnsense: "OPNsense", netalertx: "NetAlertX" };
-/** The short name of a source for the Sources tile: its connector, else the first word of its label (« Freebox v9 (r1) (via MynetworK) » -> « Freebox ») */
-const shortSource = (connector: string, label: string): string => SOURCE_SHORT[connector] ?? label.split(" ")[0];
 
 /** The views of the page, sub-pages of « Réseau › Vue » in the side menu (#network/<view>); UniFi, Freebox and Scan only when their source is there */
 const SUBS = ["watch", "unifi", "freebox", "scan", "list", "diagnostic"] as const;
@@ -193,8 +190,8 @@ function devFigure(devAll: Row[], unfollowed: number): Fig {
 }
 
 /** The five figures above the sub-menu */
-function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll, unfollowed, sourceNames, failing, hours, stamp, onlyFreebox }: Readonly<{
-  box?: ServiceStatus; boxFact?: { label: string; value: string }; gearAll: Row[]; gearDown: number; updates: number; wifi: number; wired: number; devAll: Row[]; unfollowed: number; sourceNames: string[]; failing: number; hours: Period; stamp: string; onlyFreebox: boolean;
+function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll, unfollowed, hours, stamp, onlyFreebox }: Readonly<{
+  box?: ServiceStatus; boxFact?: { label: string; value: string }; gearAll: Row[]; gearDown: number; updates: number; wifi: number; wired: number; devAll: Row[]; unfollowed: number; hours: Period; stamp: string; onlyFreebox: boolean;
 }>) {
   const b = boxFigure(box, boxFact), g = gearFigure(gearAll, gearDown, updates), d = devFigure(devAll, unfollowed);
   const hist = useNetworkHistory(hours, stamp), now = Math.floor(Date.now() / 1000), ratio = (p: TilePoint) => `${p[1]}/${p[2]}`;
@@ -209,7 +206,6 @@ function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll
           ...(onlyFreebox ? [] : [{ id: "unifi", name: "UniFi", color: "rgb(var(--link))", points: hist?.bw?.[`unifi.${dir}`] ?? null }])];
         return sources.some((s) => s.points?.length) && <BandwidthTile key={dir} label={dir === "down" ? tx("Download") : tx("Upload")} sources={sources} hours={hours} now={now} />;
       })}
-      <StatTile compact n={sourceNames.length} label={tx("Sources")} tone={failing ? "bad" : "ok"} sub={failing ? tx("{0} en erreur", failing) : sourceNames.join(" · ")} />
     </div>
   );
 }
@@ -306,8 +302,6 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
   const gearKinds = { gw: gearAll.filter(isGateway).length, sw: gearAll.filter((r) => /switch|^usw|^us-/i.test(`${r.gear?.type ?? ""} ${r.gear?.model ?? ""}`)).length };
   const gearWords = [gearKinds.gw ? tx("{0} passerelle(s)", gearKinds.gw) : "", gearKinds.sw ? tx("{0} switch(es)", gearKinds.sw) : "", gearAll.length - gearKinds.gw - gearKinds.sw > 0 ? tx("{0} borne(s)", gearAll.length - gearKinds.gw - gearKinds.sw) : ""].filter(Boolean);
   const sourceNames = [...new Set([...net.map((c) => c.label), ...cards.map((c) => c.label)])];
-  const shortNames = [...new Set([...net.map((c) => shortSource(c.connector, c.label)), ...cards.map((c) => shortSource(c.connector, c.label))])];
-  const failing = net.filter((c) => !c.ok).length;
   const openWatch = (w: Watch) => { if (w.href) location.hash = w.href.slice(1); else pickSub(w.sub); };
   const firstView = SUBS.find((v) => v !== "watch" && has[v])!;
   const view = usePageView(route, "network", SUBS, initial?.alert ? "list" : firstView);   // the menu's dot: the list on « Alerts »
@@ -317,9 +311,9 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
   return (
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={NetworkIcon} title={tx("Réseau")} tags={<HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />} actions={<>{snap.me.role === "admin" && <ConnectorsLink />}<PeriodSwitch value={hours} onChange={setHours} /></>} />
-      <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={shortNames} failing={failing} hours={hours} stamp={snap.data.generated} onlyFreebox={current === "freebox"} />
+      <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} hours={hours} stamp={snap.data.generated} onlyFreebox={current === "freebox"} />
 
-      {current === "unifi" && <UnifiCards />}
+      {current === "unifi" && <><UnifiCards /><UnifiSfp admin={snap.me.role === "admin"} /></>}
       {current === "freebox" && freebox && <div className="grid items-start gap-3 lg:grid-cols-2"><ServiceCard s={freebox} /></div>}
       {current === "scan" && <NetworkScanStats />}
 

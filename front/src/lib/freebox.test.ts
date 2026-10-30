@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Machine } from "../types";
-import { freeboxHealth, freeboxOf, vmShare } from "./freebox";
+import { fibreLight, freeboxHealth, freeboxOf, vmShare } from "./freebox";
 
 const m = (name: string): Machine => ({ ip: "10.0.0.254", name, ping: true, off: false, services: 0, npm: 0, down: 0 });
 const fb = { connection: { state: "up", media: "ftth" }, system: { model: "Freebox v9", firmware: "4.13.1", latest_firmware: "4.14.0", update_available: true, sensors: [{ name: "CPU", value: 60 }] } };
@@ -46,5 +46,16 @@ describe("freebox", () => {
     expect(freeboxHealth(m("Freebox"), fb)).toMatchObject({ level: "ok", temp: { celsius: 60 }, apt: { upgradable: 1, sample: ["firmware → 4.14.0"] } });
     expect(freeboxHealth(m("Freebox"), { ...fb, system: { ...fb.system, sensors: [{ name: "Disque", value: 90 }] } }).level).toBe("warn");
     expect(freeboxHealth(m("Freebox"), { ...fb, connection: { state: "down" } }).level).toBe("crit");
+  });
+});
+
+describe("fibreLight", () => {
+  it("reads the light received", () => {
+    expect(fibreLight(-15.8)).toEqual({ tone: "ok", kind: "right" });
+    expect(fibreLight(-5)).toEqual({ tone: "warn", kind: "strong" });
+    expect(fibreLight(-1)).toEqual({ tone: "bad", kind: "too-strong" });
+    expect(fibreLight(-25.5)).toEqual({ tone: "warn", kind: "weak" });
+    expect(fibreLight(-30)).toEqual({ tone: "bad", kind: "too-weak" });
+    expect(fibreLight(null)).toBeNull();
   });
 });

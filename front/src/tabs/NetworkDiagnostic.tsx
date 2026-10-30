@@ -251,6 +251,16 @@ function SfpModules({ list, findings, admin, accept }: Readonly<{ list: Sfp[]; f
   );
 }
 
+/** The SFP modules of the UniFi gear, for the UniFi view of the network: the same table as the diagnostic's, nothing when no module reports its sensors */
+export function UnifiSfp({ admin }: Readonly<{ admin: boolean }>) {
+  const [doc, setDoc] = useState<Doc | null>(null);
+  const load = useCallback(() => { read<Doc>("network/diagnostics").then(setDoc).catch(() => undefined); }, []);
+  usePoll(load, 30_000);
+  const accept = (k: string, label: string, on: boolean) => void send("POST", "network/diagnostics/accepted", { key: k, label, accepted: on }).then(load).catch(() => undefined);
+  if (!doc?.sfp?.length) return null;
+  return <SfpModules list={doc.sfp} findings={doc.findings} admin={admin} accept={accept} />;
+}
+
 /** The error counters of the ports (received and sent errors, packets dropped), once the source gives them */
 function PortErrors({ doc }: Readonly<{ doc?: { known: boolean; ports: PortError[] } }>) {
   const th = "px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim";
