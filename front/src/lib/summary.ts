@@ -91,8 +91,9 @@ function healthLine(h: HealthHost, l: "down" | "crit" | "warn", data: Data): Att
   const base = { category: "sante" as const, level: l === "warn" ? "warn" as const : "crit" as const, tab: "machines" as const, sel: HEALTH_SEL, fix: machineFix(ip) };
   if (l === "down") return { ...base, text: tx("Santé : **{0}** est injoignable", name), action: tx("Voir la machine"), href: ip ? `machines/${ip}` : undefined };
   const cause = healthCauses(h);
-  const text = cause.text ? tx("Santé : **{0}** : {1}", name, short(cause.text)) : l === "crit" ? tx("Santé : **{0}** est en état critique", name) : tx("Santé : **{0}** est à surveiller", name);
-  return { ...base, text, action: tx("Voir la santé"), href: !ip ? undefined : cause.kind ? `machines/${ip}/watch/${cause.kind}` : `machines/${ip}` };
+  const general = l === "crit" ? tx("Santé : **{0}** est en état critique", name) : tx("Santé : **{0}** est à surveiller", name);
+  const page = cause.kind ? `machines/${ip}/watch/${cause.kind}` : `machines/${ip}`;
+  return { ...base, text: cause.text ? tx("Santé : **{0}** : {1}", name, short(cause.text)) : general, action: tx("Voir la santé"), href: ip ? page : undefined };
 }
 
 /** Liste « à regarder » : rouge d'abord, puis orange, dans l'ordre des onglets. */
