@@ -394,7 +394,7 @@ class Tautulli(Base):
 
     def test_plex_and_streams(self):
         self.r("get_tautulli_info", {"tautulli_version": "v2.15.2"})
-        self.r("get_server_status", {"connected": False})
+        self.r("server_status", {"connected": False})
         self.r("get_activity", {"stream_count": "2", "stream_count_transcode": 1})
         self.r("update_check", {"update": True})
         d = self.conn("tautulli", api_key=KEY).collect()

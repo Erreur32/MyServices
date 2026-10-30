@@ -299,6 +299,12 @@ class Agents(unittest.TestCase):
         self.assertNotIn("#__COLLECT__", agent)
         self.assertEqual(self.anon.get("/myservices/agent/autre.ps1").status_code, 404)
 
+    def test_install_ps1_refuse_ce_qui_n_est_pas_l_agent(self):
+        """A wrong address answering a web page must not overwrite a working agent: checked before the script and the config are written."""
+        text = self.anon.get("/agent/install.ps1").text
+        self.assertLess(text.index("did not send the agent"), text.index("WriteAllText($AgentPath"))
+        self.assertLess(text.index("did not send the agent"), text.index("'config.json'"))
+
     def test_installateur_windows_telecharge_l_agent_a_la_racine(self):
         """install.ps1 fetches agent.ps1 at the root like install.sh does: the dev server (Vite) and a server behind a proxy may not map /myservices/."""
         text = self.anon.get("/agent/install.ps1").text

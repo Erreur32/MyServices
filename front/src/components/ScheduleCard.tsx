@@ -1,5 +1,5 @@
 // Cadre de l'accueil, sous les compteurs : la date et l'heure en direct, puis les tâches planifiées (collecte, veille, santé,
-// sauvegardes, recherche réseau) avec leur prochain passage ou leur durée en cours. Une tâche coupée n'y figure pas.
+// sauvegardes, recherche réseau) avec leur dernier et leur prochain passage, ou leur durée en cours. Une tâche coupée n'y figure pas.
 import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { LoginRequired, read } from "../api";
@@ -9,6 +9,11 @@ import { detail, liveText, shortName, type TaskInfo } from "../lib/tasks";
 import { onStream, streamConnected } from "../lib/stream";
 
 const IDLE_MS = 15_000, RUN_MS = 1_500, STREAM_IDLE_MS = 120_000;   // at rest the next runs are minutes away; while a task runs its progress is followed closely; with the event stream, a safety read only
+
+const ROW = "grid grid-cols-[0.5rem_minmax(0,1fr)_3rem_3rem_5.5rem] items-center gap-2";
+
+/** The time of a run today, the date of an older one */
+const lastRun = (ms: number, now: number) => (new Date(ms).toDateString() === new Date(now).toDateString() ? hm(ms) : new Date(ms).toLocaleDateString(LOCALE, { day: "2-digit", month: "2-digit" }));
 
 /** The collection task (next run, running), read every 30 s, with a clock for its countdown: for « not read yet » states */
 export function useCollectTask(): { task: TaskInfo | null; now: number } {
@@ -23,7 +28,8 @@ export function useCollectTask(): { task: TaskInfo | null; now: number } {
   return { task, now };
 }
 
-export function ScheduleCard() {
+/** `bare`: without the coloured left edge (the header's hover card) */
+export function ScheduleCard({ bare = false }: Readonly<{ bare?: boolean }>) {
   const [tasks, setTasks] = useState<Record<string, TaskInfo> | null>(null);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -51,7 +57,7 @@ export function ScheduleCard() {
   const active = Object.entries(tasks ?? {}).filter(([, t]) => t.enabled)
     .sort(([, a], [, b]) => Number(b.running) - Number(a.running) || (a.next ?? Infinity) - (b.next ?? Infinity));
   return (
-    <section className="rounded-xl border border-line border-l-4 border-l-muted bg-card p-3" aria-label={tx("Date et tâches planifiées")}>
+    <section className={`rounded-xl border border-line bg-card p-3 ${bare ? "" : "border-l-4 border-l-muted"}`} aria-label={tx("Date et tâches planifiées")}>
       <a href="#settings/tasks" className="flex items-center justify-between gap-2 text-txt no-underline hover:text-link" title={tx("Ouvrir Tâches et horaires")}>
         <b className="flex min-w-0 items-center gap-2 text-sm">
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2"><Clock size={14} className="text-muted" aria-hidden /></span>
@@ -61,10 +67,12 @@ export function ScheduleCard() {
       </a>
       {active.length > 0 && (
         <ul className="mt-2 flex flex-col gap-1">
+          <li aria-hidden className={`${ROW} px-2 text-[11px] text-dim`}><span /><span /><span className="text-right">{tx("Dernier")}</span><span className="col-span-2">{tx("Prochain")}</span></li>
           {active.map(([name, t]) => (
-            <li key={name} className="grid grid-cols-[0.5rem_minmax(0,1fr)_auto_5.5rem] items-center gap-2 rounded-lg bg-bg2 px-2 py-1 text-xs" title={detail(t)}>
+            <li key={name} className={`${ROW} rounded-lg bg-bg2 px-2 py-1 text-xs`} title={detail(t)}>
               <span className={`h-1.5 w-1.5 rounded-full ${t.running ? "animate-pulse bg-link" : "bg-ok"}`} />
               <b className="truncate font-semibold text-txt">{shortName(name, t)}</b>
+              <span className="text-right font-mono tabular-nums text-muted">{t.ended ? lastRun(t.ended * 1000, now) : "-"}</span>
               <When t={t} now={now} />
             </li>
           ))}

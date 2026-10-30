@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { serverText, translateConnectorMessages, translateLabels, withServerMessages } from "./serverText";
+import type { ConnectorType } from "../types";
+import { serverText, translateConnectorMessages, translateConnectorTypes, translateLabels, withServerMessages } from "./serverText";
 
 describe("server texts", () => {
+  it("translates the figures and the problems of a connector row", () => {
+    const [row] = withServerMessages([{ facts: [{ label: "introuvable", value: "introuvable" }], problems: ["introuvable"] }], "en")!;
+    expect(row).toEqual({ facts: [{ label: "not found", value: "not found" }], problems: ["not found"] });
+  });
+  it("translates a connector form but never the values of a choice", () => {
+    const type = { type: "x", label: "introuvable", kinds: [], tested: [], guide: ["introuvable"], modes: [{ id: "a", label: "introuvable", help: "", fields: [], required: [] }],
+      fields: [{ name: "n", label: "introuvable", kind: "choice", required: false, secret: false, default: null, help: "introuvable", choices: ["introuvable"] }] } as ConnectorType;
+    const [t] = translateConnectorTypes({ types: [type] }, "en").types;
+    expect([t.label, t.guide?.[0], t.modes?.[0].label, t.fields[0].label, t.fields[0].help]).toEqual(Array(5).fill("not found"));
+    expect(t.fields[0].choices).toEqual(["introuvable"]);
+    expect(translateConnectorTypes({ types: [type] }, "fr").types[0]).toBe(type);
+  });
+
   it("stay French in French", () => {
     expect(serverText("introuvable", "fr")).toBe("introuvable");
   });

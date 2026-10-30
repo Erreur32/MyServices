@@ -28,9 +28,6 @@ describe("lib/tabs", () => {
   it("visible() cache une entrée sans source", () => {
     expect(visible("dns", snap())).toBe(false);
     expect(visible("dns", snap({ dns: { ok: true } }))).toBe(true);
-    expect(visible("infra", snap({}, { version: "dev" }))).toBe(false);   // encore en chantier : masqué hors image de dev, même avec une source
-    expect(visible("infra", snap({ services_status: [{ connector: "dockhand" }] }, { version: "prod" }))).toBe(false);
-    expect(visible("infra", snap({ services_status: [{ connector: "dockhand" }] }, { version: "dev" }))).toBe(true);
     expect(visible("virtualization", snap())).toBe(false);
     expect(visible("virtualization", snap({ virtualization: [{ id: "pve" }] }))).toBe(true);
     expect(visible("security", snap())).toBe(false);
@@ -54,7 +51,7 @@ describe("lib/tabs", () => {
     const g = navGroups(snap({ security: [{ id: "f2b" }], machine_list: [{ info: { sshd: true } }] }));
     expect(activeNav("", g)).toBe("home-overview");
     expect(activeNav("#home", g)).toBe("home-overview");
-    expect(activeNav("#stats", g)).toBe("home-stats");
+    expect(activeNav("#stats", g)).toBe("home-overview");   // the old Statistics address opens the home page
     expect(activeNav("#history/availability", g)).toBe("history-availability");
     expect(activeNav("#machines/10.0.0.5/access", g)).toBe("machines-list");
     expect(activeNav("#settings/machines", g)).toBe("machines-list");   // the page of its « Add » and « Redetect » buttons

@@ -10,13 +10,14 @@ import { bytes, hm } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { sinceText } from "../lib/last24h";
 import { usePageView } from "../lib/route";
-import { SLOW_DETECTOR_MS, STORAGE_FULL, streamAlerts, streamCameras, streamCards, streamFigures, streamDetectors, streamFlows, streamHourly, streamRecent, streamStorage, type CameraRow, type FlowRow, type StreamCard, type StreamRole } from "../lib/video";
+import { cameraPlace, type CameraPlace, SLOW_DETECTOR_MS, STORAGE_FULL, streamAlerts, streamCameras, streamCards, streamFigures, streamDetectors, streamFlows, streamHourly, streamRecent, streamStorage, type CameraRow, type FlowRow, type StreamCard, type StreamRole } from "../lib/video";
 import { Badge, Dim, Empty, GradientFill, Td, Th } from "../components/ui";
 import { Dot } from "../components/marks";
 import { FoldPanel } from "../components/FoldPanel";
 import { FamilyCard, WatchPanel } from "../components/FamilyCards";
 import { HeadTags } from "../components/HeadTags";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
+import { appIcon } from "../lib/appIcons";
 import { InfoNote } from "../components/InfoNote";
 import { StatTile } from "../components/StatTile";
 import { FrigateStats } from "./FrigateStats";
@@ -38,7 +39,7 @@ export function Video({ snap, route }: Readonly<{ snap: Snapshot; route: string 
   const machines = new Set(cards.map((c) => c.machine).filter(Boolean)).size;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={VideoIcon} title={tx("Vidéo et caméras")} tags={<HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
+      <PageHead icon={VideoIcon} logo={view === "frigate" ? appIcon(["frigate"]) : null} title={view === "frigate" ? "Frigate" : tx("Vidéo et caméras")} tags={<HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
       {!cards.length && <Empty>{tx("Aucun service vidéo pour l'instant : un service de catégorie « Stream » dans Services, ou un connecteur vidéo (Frigate, Shinobi, go2rtc, MediaMTX, Owncast), fait apparaître cette page.")}</Empty>}
       {cards.length > 0 && view === "overview" && <Overview cards={cards} cams={cams} admin={admin} at={snap.data.generated} />}
       {cards.length > 0 && view === "cameras" && <Cameras cams={cams} cards={cards} />}
@@ -248,6 +249,7 @@ function camKey(c: CameraRow, k: string): string | number {
     case "up": return Number(c.up !== false);
     case "by": return c.card.title.toLowerCase();
     case "machine": return (c.card.machine ?? "").toLowerCase();
+    case "place": return cameraPlace(c);
     default: return c.name.toLowerCase();
   }
 }
@@ -259,16 +261,19 @@ function camShown(c: CameraRow, f: string): boolean {
   return c.card.key === f;
 }
 
+const PLACES = { int: tx("Intérieur"), ext: tx("Extérieur"), other: tx("Autre") };
+
 function Chip({ label, on, act }: Readonly<{ label: string; on: boolean; act: () => void }>) {
   return <button type="button" onClick={act} className={`rounded-full border px-3 py-1 text-sm ${on ? "border-link text-txt ring-2 ring-link/30" : "border-line text-muted hover:text-txt"}`}>{label}</button>;
 }
 
 function CameraTile({ c, now }: Readonly<{ c: CameraRow; now: number }>) {
   const what = camWhat(c, now);
+  const logo = appIcon([c.card.title]);
   return (
     <article className="flex min-w-0 flex-col gap-1 rounded-2xl border border-line bg-card px-4 py-3 shadow-sm">
-      <div className="flex items-center gap-2"><Dot tone={camTone(c)} /><b className="min-w-0 truncate">{c.name}</b><Badge tone="off" outline>{c.card.title}</Badge></div>
-      <span className="text-sm text-muted">{camState(c)}{what && ` · ${what}`}</span>
+      <div className="flex items-center gap-2"><Dot tone={camTone(c)} /><b className="min-w-0 flex-1 truncate">{c.name}</b>{logo ? <img src={logo} alt={c.card.title} title={c.card.title} className="h-5 w-5 shrink-0" /> : <Badge tone="off" outline>{c.card.title}</Badge>}</div>
+      <span className="text-sm text-muted">{PLACES[cameraPlace(c)]} · {camState(c)}{what && ` · ${what}`}</span>
       {c.relays.length > 0 && <Dim>{tx("relayée par {0}", c.relays.join(", "))}</Dim>}
       <Picture cam={c} />
     </article>
@@ -280,7 +285,7 @@ function CameraLine({ c, now }: Readonly<{ c: CameraRow; now: number }>) {
     <tr className={c.card.serviceHash ? "cursor-pointer hover:bg-bg2" : ""} onClick={() => { if (c.card.serviceHash) location.hash = c.card.serviceHash; }}>
       <Td className="font-semibold">{c.name}</Td>
       <Td><span className="inline-flex items-center gap-1.5 whitespace-nowrap"><Dot tone={camTone(c)} />{camState(c)}</span></Td>
-      <Td>{c.card.title}</Td><Td>{c.card.machine ?? "-"}</Td>
+      <Td>{PLACES[cameraPlace(c)]}</Td><Td>{c.card.title}</Td><Td>{c.card.machine ?? "-"}</Td>
       <Td className="text-right tabular-nums">{c.fps == null ? "-" : Math.round(c.fps)}</Td>
       <Td>{yesNo(c.detect)}</Td><Td>{yesNo(c.record)}</Td>
       <Td className="text-right tabular-nums">{c.events ?? "-"}</Td>
@@ -295,7 +300,7 @@ function CameraTable({ sort, now }: Readonly<{ sort: ReturnType<typeof useSort<C
     <div className="overflow-x-auto rounded-2xl border border-line bg-card">
       <table className="w-full border-collapse text-sm">
         <thead><tr>
-          <Th k="name" sort={sort}>{tx("Caméra")}</Th><Th k="up" sort={sort}>{tx("État")}</Th><Th k="by" sort={sort}>{tx("Enregistreur")}</Th><Th k="machine" sort={sort}>{tx("Machine")}</Th>
+          <Th k="name" sort={sort}>{tx("Caméra")}</Th><Th k="up" sort={sort}>{tx("État")}</Th><Th k="place" sort={sort}>{tx("Emplacement")}</Th><Th k="by" sort={sort}>{tx("Marque ou enregistreur")}</Th><Th k="machine" sort={sort}>{tx("Machine")}</Th>
           <Th k="fps" sort={sort} className="text-right">{tx("Images/s")}</Th><Th k="detect" sort={sort}>{tx("Détection")}</Th><Th k="record" sort={sort}>{tx("Enregistrement")}</Th>
           <Th k="events" sort={sort} className="text-right">{tx("Événements 24 h")}</Th><Th k="last" sort={sort}>{tx("Dernier")}</Th><Th k="relays" sort={sort}>{tx("Relayée par")}</Th>
         </tr></thead>
@@ -310,7 +315,9 @@ function CameraTable({ sort, now }: Readonly<{ sort: ReturnType<typeof useSort<C
 function Cameras({ cams, cards }: Readonly<{ cams: CameraRow[]; cards: StreamCard[] }>) {
   const [layout, setLayout] = useState<"tiles" | "table">("tiles");
   const [f, setF] = useState("all")   // "all", "silent" or the key of one recorder;
-  const shown = cams.filter((c) => camShown(c, f));
+  const [place, setPlace] = useState<CameraPlace | "all">("all");
+  const inFilter = cams.filter((c) => camShown(c, f));
+  const shown = inFilter.filter((c) => place === "all" || cameraPlace(c) === place);
   const sort = useSort(shown, camKey, "up");
   const recorders = cards.filter((c) => c.conn?.stream?.cameras?.length);
   const unread = cards.filter((c) => c.unread && c.role === "nvr").map((c) => c.title);
@@ -323,6 +330,12 @@ function Cameras({ cams, cards }: Readonly<{ cams: CameraRow[]; cards: StreamCar
         <span className="mx-1 h-5 w-px bg-line" aria-hidden />
         <Chip label={tx("Toutes")} on={f === "all"} act={() => setF("all")} /><Chip label={tx("Muettes")} on={f === "silent"} act={() => setF("silent")} />
         {recorders.length > 1 && recorders.map((r) => <Chip key={r.title} label={r.title} on={f === r.key} act={() => setF(r.key)} />)}
+        <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+        <Chip label={tx("Tous les lieux")} on={place === "all"} act={() => setPlace("all")} />
+        {(["int", "ext", "other"] as const).map((p) => {
+          const n = inFilter.filter((c) => cameraPlace(c) === p).length;
+          return n > 0 && <Chip key={p} label={`${PLACES[p]} ${n}`} on={place === p} act={() => setPlace(place === p ? "all" : p)} />;
+        })}
         {unread.length > 0 && <span className="ml-auto text-xs text-dim">{tx("{0} : non lus, absents de la liste", unread.join(", "))}</span>}
       </div>
       <InfoNote>{tx("L'image est celle du moment, lue à l'enregistreur : elle n'est jamais gardée. Le bouton lecture ouvre le flux en direct pour 5 minutes au plus ; son ouverture est notée au journal d'audit.")}</InfoNote>

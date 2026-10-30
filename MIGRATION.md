@@ -5,6 +5,14 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.30.1 → 0.31.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are. The Windows installer script (`install.ps1`) now checks what it downloaded before writing anything; it is fetched fresh at each install.
+- **Behaviour that changes by itself**: the Statistics menu entry is gone, `#stats` opens the home page, which now holds its counters. The Services page groups the collected rows by application; the filters and the view by machine are still there. Connector forms and messages are in English when the interface is.
+- **Optional**: the new Netatmo connector needs an application (client id, client secret, refresh token) created on the Netatmo developer site; its rotating token is kept encrypted beside `config.json` (the config folder, already a volume).
+
 ## 0.30.0 → 0.30.1
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.

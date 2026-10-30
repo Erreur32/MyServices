@@ -1,15 +1,14 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, Bot, Boxes, Camera, Film, Gauge, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Video, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, Bot, Boxes, Camera, Film, Gauge, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Video, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
-import { NETWORK_CARDS, hasNetwork } from "./network";
+import { hasNetwork } from "./network";
 import { aiCards, aiGpus, aiModels, hasAi } from "./ai";
+import { hasDomotique } from "./domotique";
 import { hasStream, streamCameras, streamCards, streamFlows } from "./video";
 
 /** Cartes de services (hors outils réseau, qui ont leur onglet) et conteneurs lus par une API : l'onglet Infra */
-export const infraCards = (s: Snapshot) => (s.data.services_status ?? []).filter((c) => !NETWORK_CARDS.includes(c.connector));
-export const infraDocker = (s: Snapshot) => (s.data.containers ?? []).filter((c) => !c.links_only);
 
 // Icônes monochromes (lucide, trait fin) : couleur du texte, lisibles en clair comme en sombre
 
@@ -31,10 +30,9 @@ const scanShown = (s: Snapshot) => (s.data.network ?? []).some((c) => c.connecto
 export const NAV: NavGroup[] = [
   { id: "overview", label: tx("En bref"), items: [   // « Vue d'ensemble » is Security's page alone
     { id: "home", hash: "", tab: "home", icon: House, label: tx("Accueil"), subs: [
-      { ...sub("home-overview", "", "home", LayoutDashboard, tx("Tableau de bord")), also: ["home"] },
+      { ...sub("home-overview", "", "home", LayoutDashboard, tx("Tableau de bord")), also: ["home", "stats"] },
       sub("history-events", "history/events", "home", ListOrdered, tx("Événements")),   // the History pages, under the dashboard (#history keeps its address)
       sub("history-availability", "history/availability", "home", Activity, tx("Disponibilité")),
-      sub("home-stats", "stats", "home", BarChart3, tx("Statistiques")),
     ] },
   ] },
   { id: "inventory", label: tx("Inventaire"), items: [
@@ -76,7 +74,9 @@ export const NAV: NavGroup[] = [
       sub("stream-recordings", "stream/recordings", "stream", Film, tx("Enregistrements"), (s) => streamCards(s).some((c) => c.role === "nvr" && !c.unread)),
       sub("stream-frigate", "stream/frigate", "stream", Gauge, tx("Frigate"), (s) => (s.data.services_status ?? []).some((c) => c.connector === "frigate" && !!c.frigate)),
     ] },
-    { id: "infra", hash: "infra", tab: "infra", icon: LayoutGrid, label: tx("Infra") },
+    { id: "domotique", hash: "domotique/netatmo", tab: "domotique", icon: House, label: tx("Domotique"), subs: [
+      sub("domotique-netatmo", "domotique/netatmo", "domotique", House, tx("Vue d'ensemble")),
+    ] },
     { id: "diagrams", hash: "diagrams", tab: "diagrams", icon: Workflow, label: tx("Schémas") },
   ] },
   { id: "protection", label: tx("Protection"), items: [
@@ -138,7 +138,7 @@ export const NAV: NavGroup[] = [
 export const TAB_IDS: TabId[] = [...new Set(NAV.flatMap((g) => g.items.map((i) => i.tab)))];
 
 /** Onglets encore en chantier : visibles seulement sur une image de dev (construite sur place, git-rev), pas publiés. */
-export const UNRELEASED: TabId[] = ["infra", "diagrams"];
+export const UNRELEASED: TabId[] = ["diagrams"];
 export const isDevBuild = (s: Snapshot) => !!s.me.git || s.me.version === "dev";
 
 /** Onglet affiché seulement si sa source est activée (et Réglages pour les admins). */
@@ -146,8 +146,8 @@ export function visible(id: TabId, s: Snapshot): boolean {
   if (UNRELEASED.includes(id) && !isDevBuild(s)) return false;
   switch (id) {
     case "ai": return hasAi(s);   // an AI service in Services, an AI connector or GpuViewR
+    case "domotique": return hasDomotique(s);
     case "stream": return hasStream(s);   // a « Stream » service in Services or a video connector
-    case "infra": return infraCards(s).length > 0 || infraDocker(s).length > 0;   // cartes des services lus par leur API (Dockhand, Home Assistant, Uptime Kuma…)
     case "backups": return !!s.backups;
     case "dns": return !!s.data.dns;
     case "virtualization": return (s.data.virtualization ?? []).length > 0; // a hypervisor (Proxmox, ESXi, vCenter) or a Proxmox Backup Server ; Dockhand is in Infra

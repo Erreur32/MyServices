@@ -11,6 +11,55 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.0 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Home page
+
+- **Your whole fleet in figures**: a more compact panel, up to four columns on a wide screen.
+
+- **New home page**: a sentence tells the state of the network, beside a short live list of the machines (those to watch first, 6 at most). Key figures follow; each one opens its page.
+- **To deal with now**: each alert shows a coloured category badge (also on a phone), what to do, and for an administrator a button to the setting that settles it. The badges filter the list.
+- **Statistics moved to the home page**: its menu entry is gone, `#stats` opens the home page, which now holds the counters, the date, clock and scheduled tasks card, and a panel listing the linked tools.
+- **First visit**: an administrator with one machine or none followed gets a welcome page with the three steps and what MyServices brings.
+- **Going further**: formerly « Missing »; notification channels switched off no longer count as set up.
+- **Header**: the card shown when hovering the data age no longer has a coloured left edge. This card, also on the home page, now gives the last run of each task beside the next one.
+
+### Agents
+
+- **Windows installer**: it now checks what it downloaded before writing anything. A wrong address answering a web page used to replace a working agent and its config, and the agent then stopped reporting without a line in its log.
+- **Agent back from a silence**: its machine's ports and services are read at once instead of waiting for the next scheduled collect.
+
+### Connectors page
+
+- **My connectors**: smaller cards, three to four per row, with plain figures ("48 devices, 41 online") instead of raw counters. A search box and filters (to check, off, category, the first two in colour) sit above them, and a click on a card opens, in one place, what the connector reads, its problems, a link to its page and its settings. Test and Delete moved there too.
+
+### Services page
+
+- **One card per real service**: the collected rows are gathered by application, each site with a domain stays its own service, and connectors with no machine (Netatmo) appear as Cloud services. Two views, by application (six themes plus Others) or by machine, with the existing filters plus "to check", access and Cloud, and a sort by state, name, machine or address.
+- A card links to the domain, else to the machine and port, and opens a table of its places (machine, address, domain, access, state). Agents, plumbing and redirects stay folded at the bottom.
+- **The unreleased Infra page is gone**: what it showed is now on the connector cards.
+
+### Languages
+
+- **English**: the connector forms (labels, help, the "Need help" guides) and what connectors report (facts, problems, test results) are now translated, about 650 sentences and 100 patterns. A test fails when a new form text or problem has no translation.
+
+### Cameras
+
+- **Cameras page**: filter by place (indoors, outdoors, other) beside the brand or recorder, with a sortable column in the table. The place comes from the connector, else from the camera's name. Each camera shows the logo of its brand or recorder, and the Frigate page its own.
+
+### Smart home
+
+- **New page, Smart home**: the state of the house in a sentence, key figures, what to deal with, every sensor room by room, then the shutters and the cameras.
+- **24-hour curves**: a click on a sensor card opens its curves, read on demand from Netatmo or from Home Assistant's history.
+- **Through Home Assistant**: without a Netatmo application, the page reads the Netatmo devices Home Assistant already knows. It also adds the other room sensors, shutters and heating of the house, never the applications connected to Home Assistant, and never the same device twice.
+
+### Connectors
+
+- **Netatmo**: new read-only connector for every product of an account (weather stations, Home Coach, thermostats, cameras, detectors, shutters). It keeps the rotating token encrypted and refreshes it under an inter-process lock. Its cameras appear on the Video page, picture only.
+- **Tautulli**: the connector always failed with HTTP 400, even with a good API key: it asked for a command that does not exist. It now reads `server_status`.
+
 ## v0.30.1 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

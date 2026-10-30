@@ -234,6 +234,23 @@ def stream_snapshot(connector: str, name: str, camera: str, request: Request):
     return Response(img, media_type=PNG if img[:4] == b"\x89PNG" else "image/jpeg", headers={"Cache-Control": "no-store"})   # not audited: the page asks one per tile
 
 
+@router.get(API + "/domotique/curves", tags=["services"], summary="Courbes 24 h d'un capteur de la maison, lues à la demande (tout utilisateur connecté)")
+def domotique_curves(connector: str, name: str, module: str):
+    import connectors
+    status = next((c for c in (read_produced("data.json") or {}).get("services_status") or [] if c.get("connector") == connector and c.get("instance") == name), None) or {}
+    known = [*(status.get("modules") or []), *(status.get("netatmo") or {}).get("modules", []), *(status.get("home") or {}).get("modules", [])]
+    m = next((x for x in known if x.get("id") == module), None)
+    if m is None:
+        return deny(404, "appareil inconnu (pas vu à la dernière collecte)")
+    inst = next((c for c in connectors.instances(core.CFG, kind="status") if c.type == connector and c.name == name and hasattr(c, "curves")), None)
+    if inst is None:
+        return deny(404, "connecteur introuvable")
+    try:
+        return {"series": inst.curves(m)}
+    except connectors.ConnectorError as e:
+        return deny(502, str(e))
+
+
 LIVE_MAX_S = 300        # a live feed stops by itself after this long: nothing keeps a camera open
 LIVE_MAX_OPEN = 4       # feeds relayed at the same time, all users together
 _live_open = 0

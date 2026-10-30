@@ -5,7 +5,7 @@ import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { logout, type Snapshot } from "../api";
-import { LANG, LOCALE, setLang, tx } from "../lib/i18n";
+import { LANG, setLang, tx } from "../lib/i18n";
 import { Flag } from "./Flag";
 import { appVersion } from "../lib/format";
 import { reopenAssistant } from "../lib/assistant";
@@ -18,9 +18,9 @@ function ago(iso: string, now: number): string {
   return min < 1 ? tx("à l'instant") : min < 60 ? tx("il y a {0} min", min) : tx("il y a {0} h", Math.round(min / 60));
 }
 
-/** « Data 33 min ago »: on hover or focus, the exact time of the reading and the card of the scheduled tasks (the one of the Statistics page).
- *  The card is mounted only while shown, so it reads the tasks only then. */
-function FreshnessTip({ at, children }: Readonly<{ at: string; children: ReactNode }>) {
+/** « Data 33 min ago »: on hover or focus, the card of the scheduled tasks, with their last and next runs.
+ * The card is mounted only while shown, so it reads the tasks only then. */
+function FreshnessTip({ children }: Readonly<{ children: ReactNode }>) {
   const [hover, setHover] = useState(false), [pinned, setPinned] = useState(false), box = useRef<HTMLSpanElement>(null);
   useEffect(() => {   // a click on the label keeps the card open (touch screens); a click elsewhere or Escape closes it
     if (!pinned) return;
@@ -34,10 +34,9 @@ function FreshnessTip({ at, children }: Readonly<{ at: string; children: ReactNo
     <span ref={box} className="relative" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <button type="button" aria-expanded={pinned} onClick={() => setPinned(!pinned)} className="cursor-pointer rounded bg-transparent p-0 text-inherit uppercase outline-none focus-visible:ring-1 focus-visible:ring-link" style={{ font: "inherit", letterSpacing: "inherit" }}>{children}</button>
       {(hover || pinned) && (
-        <div className="absolute left-0 top-full z-50 w-80 max-w-[85vw] pt-2 normal-case tracking-normal">   {/* the padding keeps the pointer inside while it moves to the card */}
+        <div className="absolute left-0 top-full z-50 w-[26rem] max-w-[85vw] pt-2 normal-case tracking-normal">   {/* the padding keeps the pointer inside while it moves to the card */}
           <div className="rounded-xl border border-line bg-bg2 p-2 shadow-2xl">
-            <div className="mb-2 px-1 text-xs font-normal text-muted">{tx("Dernier relevé des données : {0}", new Date(at).toLocaleString(LOCALE))}</div>
-            <ScheduleCard />
+            <ScheduleCard bare />
           </div>
         </div>
       )}
@@ -135,7 +134,7 @@ export function Header({ snap, now, onMenu }: Readonly<{ snap: Snapshot; now: nu
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-dim">
             <span className={`h-2 w-2 rounded-full ${stale ? "bg-warn" : "bg-ok"}`} />
-            <FreshnessTip at={snap.data.generated}>
+            <FreshnessTip>
               {tx("Données")} {ago(snap.data.generated, now)}{stale && tx(" · en retard")}
             </FreshnessTip>
           </div>

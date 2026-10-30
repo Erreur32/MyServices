@@ -213,3 +213,4 @@ b5014b49b2cb7b3163afb47a4278b118  front/public/icons/windows-server-2016.svg
 56f7d6334c8775d7a0a15a3d21657d23  front/public/icons/windows-server-2008.svg
 cfb63e00681dd50e53827daf59e1df4c  front/public/icons/windows-server-2012.svg
 ea4fef3644f06dabd2a9dfd04d016aa0  front/public/icons/windows-server-2016.svg
+068cfb1bd5685f68511dcbb56ba9d9f2  front/public/icons/netatmo.svg

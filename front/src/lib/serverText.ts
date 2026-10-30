@@ -2,6 +2,7 @@
 // the fixed sentences exactly, the families that only change a name through a pattern. A text not found (one built with a value in it) stays as it is.
 import table from "./server-text.json";
 import { LANG } from "./i18n";
+import type { ConnectorType } from "../types";
 
 const EXACT: Record<string, string> = table.exact;
 const PATTERNS: [RegExp, string][] = table.templates.map(([re, out]) => [new RegExp(re), out]);
@@ -16,9 +17,27 @@ export function serverText(fr: string, lang: string = LANG): string {
   return fr;
 }
 
-/** The `message` of each item of a list read from the server, translated (connector rows keep everything else) */
-export function withServerMessages<T extends { message?: string }>(rows: T[] | undefined, lang?: string): T[] | undefined {
-  return rows?.map((r) => (typeof r.message === "string" ? { ...r, message: serverText(r.message, lang) } : r));
+interface ServerRow { message?: string; facts?: { label: string; value: string }[]; problems?: string[] }
+
+/** The `message`, the figures and the problems of each item of a list read from the server, translated (connector rows keep everything else) */
+export function withServerMessages<T extends ServerRow>(rows: T[] | undefined, lang?: string): T[] | undefined {
+  return rows?.map((r) => ({
+    ...r,
+    ...(typeof r.message === "string" && { message: serverText(r.message, lang) }),
+    ...(r.facts && { facts: r.facts.map((f) => ({ ...f, label: serverText(f.label, lang), value: serverText(f.value, lang) })) }),
+    ...(r.problems && { problems: r.problems.map((x) => serverText(x, lang)) }),
+  }));
+}
+
+/** The forms of the connectors as the server describes them, translated: labels, help, guide and modes; the values of a choice stay as they are */
+export function translateConnectorTypes<T extends { types: ConnectorType[] }>(state: T, lang?: string): T {
+  if ((lang ?? LANG) === "fr") return state;
+  const t = (s: string) => serverText(s, lang);
+  return { ...state, types: state.types.map((c) => ({
+    ...c, label: t(c.label), guide: c.guide?.map(t),
+    fields: c.fields.map((f) => ({ ...f, label: t(f.label), help: t(f.help) })),
+    modes: c.modes?.map((m) => ({ ...m, label: t(m.label), help: t(m.help) })),
+  })) };
 }
 
 /** Every connector list of data.json (an array of rows that carry a `message`) with its messages translated; French is returned as it is */

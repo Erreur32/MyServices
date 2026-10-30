@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
 import type { Host, ServiceStatus } from "../types";
-import { hasStream, streamAlerts, streamCameras, streamCards, streamFigures, streamFlows, streamStorage } from "./video";
+import { cameraPlace, hasStream, streamAlerts, streamCameras, streamCards, streamFigures, streamFlows, streamStorage } from "./video";
 
 const host = (h: Partial<Host>): Host => ({ id: 1, type: "local", enabled: true, domains: [], backend: { up: true, ms: 1 }, ...h } as Host);
 const conn = (c: Partial<ServiceStatus>): ServiceStatus => ({ connector: "x", name: "x", label: "X", ok: true, stale: false, message: "OK", ...c });
@@ -14,6 +14,16 @@ const frigate = conn({ connector: "frigate", name: "tower", url: "http://10.0.0.
 const go2rtc = conn({ connector: "go2rtc", name: "tower", url: "http://10.0.0.20:1984", stream: {
   role: "relay", engine: "go2rtc", streams: [{ name: "Entree", ready: true, codec: "H.264", readers: 2, kinds: ["RTSP"] }, { name: "portail", ready: false, readers: 0, kinds: [] }] } });
 const owncast = conn({ connector: "owncast", name: "o", url: "http://10.0.0.20:8080", stream: { role: "live", engine: "Owncast", live: { online: true, viewers: 4 } } });
+
+describe("where a camera films", () => {
+  it("the connector knows best, else the name tells", () => {
+    expect(cameraPlace({ name: "jardin", place: "int" })).toBe("int");
+    expect(cameraPlace({ name: "ext_360" })).toBe("ext");
+    expect(cameraPlace({ name: "Netatmo int salon" })).toBe("int");
+    expect(cameraPlace({ name: "cam32" })).toBe("other");
+    expect(cameraPlace({ name: "texte" })).toBe("other");
+  });
+});
 
 describe("Video page", () => {
   it("one card per video connector, then the video rows of Services none reads", () => {

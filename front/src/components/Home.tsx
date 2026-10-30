@@ -1,29 +1,39 @@
-// Home page, three fixed blocks: « À traiter maintenant » (every alert with a button to the place that fixes it), « Ce qui a changé depuis
-// hier » (events of the last 24 h) and, for an administrator, « Il manque » (sources that would unlock a page). The inventory counters live in
-// their tabs; the header line only says how many things are followed.
-import { ChevronDown, ChevronUp, CircleCheck, Siren } from "lucide-react";
+// Home page: a sentence that tells the state of the network with the machines to watch beside it, the key figures, « À traiter maintenant » (every
+// alert with what to do and the buttons that lead there), the last day and the next tasks, then every counter. A first visit has its own welcome.
+import { ArrowRight, CheckCircle2, ChevronDown, ChevronUp, CircleCheck, Globe, HardDrive, HeartPulse, Monitor, Plug, Shield, Siren, Sparkles, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import type { Snapshot } from "../api";
 import { hm, longDay } from "../lib/format";
 import type { Selected } from "../lib/filter";
 import { tx } from "../lib/i18n";
-import type { Attention, Category, TabId } from "../lib/summary";
+import { fleet, homeStory, type Tone } from "../lib/homeStory";
+import { plural, type Attention, type Category, type TabId } from "../lib/summary";
 import { History } from "../tabs/History";
 import { AssistantBanner } from "./AssistantBanner";
 import { DiscoveryReminder } from "./DiscoveryCard";
 import { LastDay } from "./LastDay";
 import { Missing } from "./Missing";
 import { Rich } from "./Rich";
+import { ScheduleCard } from "./ScheduleCard";
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 import { useStoredFlag } from "../lib/storedFlag";
-import { StatsPage } from "./StatsPage";
+import { Counters, KeyFigures } from "./StatsPage";
 
 /** Lines shown before « Tout voir » */
 const LIMIT = 8;
-const KIND: Record<Category, string> = {
-  machines: tx("Machines"), services: tx("Services"), sante: tx("Santé"), dns: tx("DNS"), sauvegardes: tx("Sauvegardes"), connecteurs: tx("Connecteurs"),
+const KIND: Record<Category, { label: string; Icon: LucideIcon; tint: string; help: string }> = {
+  machines: { label: tx("Machines"), Icon: Monitor, tint: "bg-link/10 text-link", help: tx("Vérifie qu'elle est allumée et branchée. Si elle est souvent éteinte, indique-le dans ses réglages.") },
+  services: { label: tx("Services"), Icon: Globe, tint: "bg-loc/10 text-loc", help: tx("Vérifie que le service tourne sur sa machine. S'il est arrêté exprès, mets-le en pause dans ses réglages.") },
+  sante: { label: tx("Santé"), Icon: HeartPulse, tint: "bg-ok/10 text-ok", help: tx("Regarde le détail sur sa fiche. Si ce niveau est normal pour cette machine, ajuste ses seuils.") },
+  dns: { label: tx("DNS"), Icon: Shield, tint: "bg-npm/10 text-npm", help: tx("Un domaine ou un serveur DNS n'est plus d'accord avec le reste : le détail est sur la page DNS.") },
+  sauvegardes: { label: tx("Sauvegardes"), Icon: HardDrive, tint: "bg-apache/10 text-apache", help: tx("Vérifie que la copie a bien tourné. Si elle passe moins souvent, règle son rythme dans le jeu.") },
+  connecteurs: { label: tx("Connecteurs"), Icon: Plug, tint: "bg-muted/10 text-muted", help: tx("MyServices n'arrive plus à lire cet outil : vérifie son adresse et son accès.") },
 };
 const ACT = "inline-flex shrink-0 items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors";
+const QUIET = `${ACT} border border-line bg-bg2 text-txt no-underline hover:border-link hover:text-link`;
+const FILL = `${ACT} bg-accent text-white no-underline hover:brightness-110`;
+const DOT: Record<Tone | "off", string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", off: "border-2 border-dim" };
+const TITLE_TONE: Record<Tone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
 
 /** A line leads to the exact address it names, else to its tab filtered on what it talks about, else to the tab */
 export function openAttention(it: Attention, go: (t: TabId) => void, goFilter: (t: TabId, sel: Selected) => void): void {
@@ -39,28 +49,43 @@ export function followedLine(snap: Snapshot): string {
   return tx("{0} suivis", parts.join(", "));
 }
 
-function Line({ it, go, goFilter }: Readonly<{ it: Attention; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
-  const crit = it.level === "crit";
+function Badge({ category, n }: Readonly<{ category: Category; n?: number }>) {
+  const { label, Icon, tint } = KIND[category];
+  return <span className={`inline-flex w-fit items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-bold ${tint}`}><Icon size={14} aria-hidden />{label}{n != null && <span className="font-mono">{n}</span>}</span>;
+}
+
+function Line({ it, admin, go, goFilter }: Readonly<{ it: Attention; admin: boolean; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
+  const crit = it.level === "crit", fix = admin ? it.fix : undefined;
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl bg-bg/60 px-3 py-2.5">
-      <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${crit ? "bg-bad" : "bg-warn"}`} />
-      <span className="min-w-0 flex-1 text-sm text-muted"><Rich text={it.text} /></span>
-      <span className="hidden rounded-md border border-line px-1.5 py-0.5 text-[11px] text-dim sm:inline">{KIND[it.category]}</span>
-      <button type="button" onClick={() => openAttention(it, go, goFilter)}
-        className={`${ACT} ${crit ? "bg-accent text-white hover:brightness-110" : "border border-line bg-bg2 text-txt hover:border-link hover:text-link"}`}>{it.action}</button>
+    <li className="grid items-center gap-x-3 gap-y-1.5 rounded-xl bg-bg/60 px-3 py-2.5 sm:grid-cols-[8.5rem_minmax(0,1fr)_auto]">
+      <Badge category={it.category} />
+      <div className="min-w-0">
+        <p className="flex items-start gap-2 text-sm font-semibold text-txt">
+          <span aria-hidden className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${crit ? "bg-bad" : "bg-warn"}`} />
+          <span className="min-w-0"><Rich text={it.text} /></span>
+        </p>
+        <p className="mt-0.5 text-[13px] text-muted">{KIND[it.category].help}</p>
+      </div>
+      <div className="flex flex-wrap gap-1.5 sm:justify-end">
+        <button type="button" onClick={() => openAttention(it, go, goFilter)} className={fix ? QUIET : crit ? FILL : QUIET}>{it.action}</button>
+        {fix && <a href={`#${fix.href}`} className={FILL}>{fix.label}</a>}
+      </div>
     </li>
   );
 }
 
-export type HomeSub = "overview" | "history" | "stats";
+export type HomeSub = "overview" | "history";
 
 const FRAME = { bad: "border-l-4 border-l-bad border-bad/40", warn: "border-l-4 border-l-warn border-warn/40", ok: "border-ok/40" };
 
-/** « À traiter maintenant »: every alert with a button to the place that fixes it; folds to its title and count, the choice kept in this browser */
-function ToDeal({ items, go, goFilter }: Readonly<{ items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
+/** « À traiter maintenant »: every alert with what to do; its badges filter the list; folds to its title and count, the choice kept in this browser */
+function ToDeal({ items, admin, go, goFilter }: Readonly<{ items: Attention[]; admin: boolean; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
   const [all, setAll] = useState(false);
+  const [only, setOnly] = useState<Category | null>(null);
   const [folded, setFolded] = useStoredFlag("myservices.home.todo.folded", false);
-  const shown = all ? items : items.slice(0, LIMIT);
+  const cats = [...new Set(items.map((i) => i.category))];
+  const kept = only && cats.includes(only) ? items.filter((i) => i.category === only) : items;
+  const shown = all ? kept : kept.slice(0, LIMIT);
   const crit = items.some((i) => i.level === "crit");
   let tone: keyof typeof FRAME = "ok";
   if (items.length) tone = crit ? "bad" : "warn";
@@ -81,11 +106,20 @@ function ToDeal({ items, go, goFilter }: Readonly<{ items: Attention[]; go: (t: 
       </div>
       {items.length > 0 && !folded && (
         <div className="flex flex-col gap-1.5 px-3 pb-3">
-          <ol className="flex flex-col gap-1">{shown.map((it) => <Line key={`${it.category}/${it.text}`} it={it} go={go} goFilter={goFilter} />)}</ol>
-          {items.length > LIMIT && (
+          {cats.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 px-1 pb-1" role="group" aria-label={tx("Filtrer par catégorie")}>
+              {cats.map((c) => (
+                <button key={c} type="button" aria-pressed={only === c} onClick={() => setOnly(only === c ? null : c)} className={`rounded-md ring-1 ${only === c ? "ring-link" : "ring-transparent"}`}>
+                  <Badge category={c} n={items.filter((i) => i.category === c).length} />
+                </button>
+              ))}
+            </div>
+          )}
+          <ol className="flex flex-col gap-1">{shown.map((it) => <Line key={`${it.category}/${it.text}`} it={it} admin={admin} go={go} goFilter={goFilter} />)}</ol>
+          {kept.length > LIMIT && (
             <button type="button" onClick={() => setAll(!all)} aria-expanded={all}
               className="mx-auto mt-1 inline-flex items-center gap-1 rounded-full border border-line bg-bg2 px-3 py-1 text-xs font-semibold text-muted hover:border-link hover:text-link">
-              {all ? tx("Réduire") : tx("Tout voir ({0})", items.length)}{all ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
+              {all ? tx("Réduire") : tx("Tout voir ({0})", kept.length)}{all ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
             </button>
           )}
         </div>
@@ -94,23 +128,128 @@ function ToDeal({ items, go, goFilter }: Readonly<{ items: Attention[]; go: (t: 
   );
 }
 
+/** The machines shown live: those to watch first, with the state the pulse keeps up to date */
+function Fleet({ snap }: Readonly<{ snap: Snapshot }>) {
+  const { rows, total } = fleet(snap);
+  return (
+    <aside className="rounded-2xl border border-line bg-card/70 p-4 shadow-sm" aria-label={tx("Ton parc en direct")}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-base font-bold">{tx("Ton parc en direct")}</h2>
+        <a href="#machines" className="whitespace-nowrap text-xs font-semibold">{tx("Voir les {0} machines", total)}</a>
+      </div>
+      <ul className="mt-2 grid gap-x-5 gap-y-1 sm:grid-cols-2">
+        {rows.map(({ machine: m, tone, note }) => (
+          <li key={m.ip} className="flex min-w-0 items-center gap-2 py-0.5 text-sm">
+            <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT[tone]}`} />
+            <a href={`#machines/${m.ip}`} className="min-w-0 flex-1 truncate text-txt no-underline hover:text-link">{m.name}</a>
+            <span className="shrink-0 text-xs text-dim">{note}</span>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+
+function Hero({ snap, items, now }: Readonly<{ snap: Snapshot; items: Attention[]; now: number }>) {
+  const day = longDay(now), story = homeStory(snap, items);
+  return (
+    <section className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
+      <div>
+        <p className="text-sm text-dim">{day.charAt(0).toUpperCase() + day.slice(1)}, {hm(now)} · {followedLine(snap)}</p>
+        <h1 className={`mt-1 text-3xl font-extrabold leading-tight sm:text-4xl ${TITLE_TONE[story.tone]}`}>{story.title}</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted">{story.text}</p>
+      </div>
+      <Fleet snap={snap} />
+    </section>
+  );
+}
+
+/** « Ton installation »: the tools MyServices brings together */
+function Install({ snap }: Readonly<{ snap: Snapshot }>) {
+  const tools = [...new Set((snap.data.connectors ?? []).map((c) => c.type))], more = tools.length - 8;
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm" aria-label={tx("Ton installation")}>
+      <div className="flex items-center justify-between gap-3 border-b border-line/60 bg-bg px-5 py-3">
+        <h2 className="text-base font-bold">{tx("Ton installation")}</h2>
+        <a href="#settings/connectors" className="inline-flex items-center gap-1 text-xs font-semibold">{tx("Gérer")}<ArrowRight size={13} aria-hidden /></a>
+      </div>
+      <div className="px-5 py-4">
+        <p className="text-sm text-muted">{tx("MyServices relie {0} que tu utilises déjà. Il ne les remplace pas, il les réunit sur une seule page.", plural(tools.length, "outil"))}</p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {tools.slice(0, 8).map((t) => <span key={t} className="rounded-md border border-line bg-bg2 px-2 py-0.5 text-xs text-muted">{t}</span>)}
+          {more > 0 && <span className="px-1 py-0.5 text-xs text-dim">{tx("+ {0} autre(s)", more)}</span>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** First visit (an administrator, nothing but this machine followed): what MyServices brings and the steps to get there */
+function Welcome() {
+  const steps = [
+    { title: tx("Installer MyServices"), text: tx("C'est fait : ton compte administrateur est créé et cette machine est suivie."), done: true },
+    { title: tx("Ajouter tes machines"), text: tx("Un agent léger ou un accès SSH, au choix. L'assistant te guide et te donne la commande à copier."), href: "#settings/machines", action: tx("Ajouter une machine") },
+    { title: tx("Brancher tes outils"), text: tx("Proxmox, Docker, Nginx Proxy Manager, AdGuard : MyServices repère ceux qui tournent déjà et te propose de les relier."), href: "#settings/connectors", action: tx("Voir les connecteurs") },
+  ];
+  const gains: [LucideIcon, string, string][] = [
+    [Monitor, tx("Tes machines en direct"), tx("Qui répond, ce qui chauffe, quel disque se remplit, ce qui attend une mise à jour.")],
+    [Globe, tx("Tous tes services"), tx("Sites, conteneurs et ports réunis, avec une alerte quand l'un d'eux tombe.")],
+    [HardDrive, tx("Des sauvegardes vérifiées"), tx("La date de chaque copie est contrôlée, pour savoir qu'elle existe vraiment ailleurs.")],
+    [Shield, tx("Ton réseau sous contrôle"), tx("Appareils connectés, DNS, certificats et nouveautés apparues dans la nuit.")],
+    [HeartPulse, tx("Un historique clair"), tx("Ce qui a changé depuis hier, raconté en phrases, sans fouiller les journaux.")],
+    [Sparkles, tx("Ton assistant IA branché"), tx("Pose tes questions à ton IA : elle lit ton parc avec le serveur MCP intégré.")],
+  ];
+  return (
+    <>
+      <section className="max-w-3xl">
+        <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tx("Tout ton réseau, enfin sur une seule page.")}</h1>
+        <p className="mt-3 text-[17px] leading-relaxed text-muted">{tx("Tes machines, tes sites, tes sauvegardes et ton réseau sont éparpillés dans dix interfaces. MyServices les relie et te dit en une phrase ce qui va bien, ce qui cloche et comment le régler. Il garde tes outils et ne touche à rien sans ton accord.")}</p>
+        <a href="#assistant" className={`${FILL} mt-4 px-4 py-2 text-sm`}>{tx("Démarrer l'assistant")}</a>
+      </section>
+      <ol className="grid gap-3 md:grid-cols-3">
+        {steps.map((s, i) => (
+          <li key={s.title} className="flex flex-col items-start gap-2 rounded-2xl border border-line bg-card/70 p-4">
+            {s.done ? <CheckCircle2 size={26} className="text-ok" aria-hidden /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-link/10 text-sm font-bold text-link">{i + 1}</span>}
+            <h2 className="text-base font-bold">{s.title}</h2>
+            <p className="flex-1 text-sm text-muted">{s.text}</p>
+            {s.href && <a href={s.href} className={QUIET}>{s.action}</a>}
+          </li>
+        ))}
+      </ol>
+      <section className="overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm" aria-label={tx("Ce que tu vas obtenir")}>
+        <h2 className="border-b border-line/60 bg-bg px-5 py-3 text-base font-bold">{tx("Ce que tu vas obtenir")}</h2>
+        <div className="grid gap-x-6 gap-y-4 p-5 md:grid-cols-3">
+          {gains.map(([Icon, title, text]) => (
+            <div key={title}>
+              <h3 className="flex items-center gap-2 text-sm font-bold"><Icon size={16} className="text-link" aria-hidden />{title}</h3>
+              <p className="mt-1 text-sm text-muted">{text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
 export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Readonly<{ snap: Snapshot; items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void; now: number; sub?: HomeSub }>) {
   const admin = snap.me.role === "admin";
-  const day = longDay(now);
   if (sub === "history") return <div className="flex flex-col gap-5 py-5"><History snap={snap} /></div>;
-  if (sub === "stats") return <div className="flex flex-col gap-5 py-5"><StatsPage snap={snap} go={go} goFilter={goFilter} /></div>;
+  if (admin && snap.data.machine_list.filter((m) => !m.disabled).length <= 1)
+    return <div className="flex flex-col gap-5 py-5"><AssistantBanner snap={snap} /><Welcome /></div>;
   return (
     <div className="flex flex-col gap-5 py-5">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-xl font-bold">{day.charAt(0).toUpperCase() + day.slice(1)}, {hm(now)}</h1>
-        <span className="text-sm text-muted">{followedLine(snap)}</span>
-      </div>
       {admin && <AssistantBanner snap={snap} />}
+      <Hero snap={snap} items={items} now={now} />
+      <KeyFigures snap={snap} go={go} />
+      <ToDeal items={items} admin={admin} go={go} goFilter={goFilter} />
 
-      <ToDeal items={items} go={go} goFilter={goFilter} />
-
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <LastDay snap={snap} go={go} now={now} />
+        <ScheduleCard />
+      </div>
+      <Counters snap={snap} go={go} goFilter={goFilter} />
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        <Install snap={snap} />
         {admin && <Missing snap={snap} />}
       </div>
       {admin && <DiscoveryReminder machines={snap.data.machine_list} />}

@@ -7,7 +7,7 @@ const FILES: Record<string, string> = {
   "proxmox backup server": "proxmox", "proxmox backup": "proxmox", dockhand: "dockhand", logviewr: "logviewr", mynetwork: "mynetwork",
   frigate: "frigate", opnsense: "opnsense", "pi-hole": "pihole", pihole: "pihole", portainer: "portainer", truenas: "truenas", "synology dsm": "synology", synology: "synology",
   "unifi network": "unifi", sonarr: "sonarr", radarr: "radarr", "sonarr / radarr / prowlarr…": "sonarr", tailscale: "tailscale", "tailscale / headscale": "tailscale",
-  jellyfin: "jellyfin", netdata: "netdata", prometheus: "prometheus",
+  jellyfin: "jellyfin", netatmo: "netatmo", netdata: "netdata", prometheus: "prometheus",
   "web-check": "web-check", webcheck: "web-check", veeam: "veeam", "veeam backup & replication": "veeam",
   "vmware vcenter": "vcenter", vcenter: "vcenter", "vmware esxi": "vmware-esxi", esxi: "vmware-esxi", vmware: "vmware-esxi",
   nextcloud: "nextcloud", freebox: "freebox", healthchecks: "healthchecks", crowdsec: "crowdsec", "technitium dns": "technitium", technitium: "technitium",
