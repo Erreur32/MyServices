@@ -1829,6 +1829,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   // The page of one machine (#machines/<ip>, /access for its settings): the address is the state, so a link, a reload or « back » all work
   const [target, setTarget] = useState(() => machineFromHash(location.hash));
   useEffect(() => { const on = () => setTarget(machineFromHash(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
+  useEffect(() => { if (target?.watch) setFocus((f) => ({ kind: target.watch as WatchKind, n: (f?.n ?? 0) + 1 })); }, [target?.ip, target?.watch]);   // a link from the home page: open on that notice's frame
   const pageM = target ? snap.data.machine_list.find((x) => x.ip === target.ip) : undefined;
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine, extra?: React.ReactNode) => {

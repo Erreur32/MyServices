@@ -1,14 +1,15 @@
 // The pages of one machine (#machines/<ip> its information, #machines/<ip>/settings its settings, /access on the Access tab): what the address names, and the redirects of the old settings links.
 import type { Item } from "../tabs/Availability";
 
-export interface MachineTarget { ip: string; tab?: "settings" | "access" }
+export interface MachineTarget { ip: string; tab?: "settings" | "access"; watch?: string }   // watch: the notice whose frame the page opens on
 
 const IP = /^\d{1,3}(\.\d{1,3}){3}$/;
 
-/** `#machines/<ip>[/settings|/access]` -> the machine and the page to open; null for the list (`#machines`) or another tab */
+/** `#machines/<ip>[/settings|/access|/watch/<notice>]` -> the machine and the page to open; null for the list (`#machines`) or another tab */
 export function machineFromHash(hash: string): MachineTarget | null {
-  const [tab, ip, part] = hash.replace(/^#/, "").split("/");
+  const [tab, ip, part, notice] = hash.replace(/^#/, "").split("/");
   if (tab !== "machines" || !ip || !IP.test(ip)) return null;
+  if (part === "watch" && /^[a-z0-9_]+$/.test(notice ?? "")) return { ip, watch: notice };   // the notice ends up in a CSS selector
   return part === "access" || part === "settings" ? { ip, tab: part } : { ip };
 }
 

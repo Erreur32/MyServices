@@ -24,7 +24,7 @@ const LIMIT = 8;
 const KIND: Record<Category, { label: string; Icon: LucideIcon; tint: string; help: string }> = {
   machines: { label: tx("Machines"), Icon: Monitor, tint: "bg-link/10 text-link", help: tx("Vérifie qu'elle est allumée et branchée. Si elle est souvent éteinte, indique-le dans ses réglages.") },
   services: { label: tx("Services"), Icon: Globe, tint: "bg-loc/10 text-loc", help: tx("Vérifie que le service tourne sur sa machine. S'il est arrêté exprès, mets-le en pause dans ses réglages.") },
-  sante: { label: tx("Santé"), Icon: HeartPulse, tint: "bg-ok/10 text-ok", help: tx("Regarde le détail sur sa fiche. Si ce niveau est normal pour cette machine, ajuste ses seuils.") },
+  sante: { label: tx("Santé"), Icon: HeartPulse, tint: "bg-ok/10 text-ok", help: tx("Si c'est normal pour cette machine, ajuste ses seuils dans Régler.") },
   dns: { label: tx("DNS"), Icon: Shield, tint: "bg-npm/10 text-npm", help: tx("Un domaine ou un serveur DNS n'est plus d'accord avec le reste : le détail est sur la page DNS.") },
   sauvegardes: { label: tx("Sauvegardes"), Icon: HardDrive, tint: "bg-apache/10 text-apache", help: tx("Vérifie que la copie a bien tourné. Si elle passe moins souvent, règle son rythme dans le jeu.") },
   connecteurs: { label: tx("Connecteurs"), Icon: Plug, tint: "bg-muted/10 text-muted", help: tx("MyServices n'arrive plus à lire cet outil : vérifie son adresse et son accès.") },

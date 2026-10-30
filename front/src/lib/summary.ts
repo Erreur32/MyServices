@@ -6,6 +6,7 @@ import type { Selected } from "./filter";
 import { splitHostName } from "./format";
 import { certIssue, dnsDown, dnsSync, hostName, status } from "./status";
 import { tx } from "./i18n";
+import { healthCauses } from "./machineWatch";
 
 export type TabId = "home" | "history" | "machines" | "services" | "domotique" | "ai" | "stream" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
 
@@ -47,7 +48,7 @@ export function plural(n: number, word: string, many = `${word}s`): string {
 
 const machineOf = (h: HealthHost) => splitHostName(h.name)[0];
 
-const machineFix = (ip: string) => (ip ? { label: tx("Régler la machine"), href: `machines/${ip}/settings` } : undefined);
+const machineFix = (ip: string) => (ip ? { label: tx("Régler"), href: `machines/${ip}/settings` } : undefined);
 
 /** Message technique raccourci (erreur SSH brute…) : le détail reste dans l'onglet */
 function short(msg: string, max = 70): string {
@@ -56,11 +57,6 @@ function short(msg: string, max = 70): string {
 
 function healthLevel(h: HealthHost): Level | "na" {
   return h.reachable === false ? "down" : h.level || "ok";
-}
-
-function fullDisk(h: HealthHost): string {
-  const d = (h.disks || []).filter((x) => x.critical || x.warning).sort((a, b) => b.used_pct - a.used_pct)[0];
-  return d ? tx(" (disque {0} à {1} %)", d.mount, d.used_pct) : "";
 }
 
 /** Machines tab filtered on the Santé facet: the machines whose health is not « ok », the ones the menu's dot lists */
@@ -72,6 +68,16 @@ const HEALTH_SEL: Selected = { health: ["warn", "crit", "down"] };
 export const DOT_FILTER: Partial<Record<string, Selected>> = {
   machines: HEALTH_SEL, services: { alert: ["on"] }, network: { alert: ["on"] }, backups: { alerts: ["on"] }, dns: { alerts: ["on"] },
 };
+
+/** A machine whose health needs a look: its name, the exact trouble, and a link to the frame of its page that explains it */
+function healthLine(h: HealthHost, l: "down" | "crit" | "warn", data: Data): Attention {
+  const ip = splitHostName(h.name)[1], name = data.machine_list.find((m) => m.ip === ip)?.name || machineOf(h);
+  const base = { category: "sante" as const, level: l === "warn" ? "warn" as const : "crit" as const, tab: "machines" as const, sel: HEALTH_SEL, fix: machineFix(ip) };
+  if (l === "down") return { ...base, text: tx("Santé : **{0}** est injoignable", name), action: tx("Voir la machine"), href: ip ? `machines/${ip}` : undefined };
+  const cause = healthCauses(h);
+  const text = cause.text ? tx("Santé : **{0}** : {1}", name, short(cause.text)) : l === "crit" ? tx("Santé : **{0}** est en état critique", name) : tx("Santé : **{0}** est à surveiller", name);
+  return { ...base, text, action: tx("Voir la santé"), href: !ip ? undefined : cause.kind ? `machines/${ip}/watch/${cause.kind}` : `machines/${ip}` };
+}
 
 /** Liste « à regarder » : rouge d'abord, puis orange, dans l'ordre des onglets. */
 export function attention({ data, health, backups }: Inputs): Attention[] {
@@ -90,12 +96,13 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
   }
   for (const h of health?.hosts || []) {
     const l = healthLevel(h);
-    if (l === "down") out.push({ category: "sante", level: "crit", text: tx("Santé : **{0}** est injoignable en SSH", machineOf(h)), tab: "machines", action: tx("Voir la machine"), sel: HEALTH_SEL, fix: machineFix(splitHostName(h.name)[1]) });
-    else if (l === "crit") out.push({ category: "sante", level: "crit", text: tx("Santé : **{0}** est en état critique{1}", machineOf(h), fullDisk(h)), tab: "machines", action: tx("Voir la santé"), sel: HEALTH_SEL, fix: machineFix(splitHostName(h.name)[1]) });
-    else if (l === "warn") out.push({ category: "sante", level: "warn", text: tx("Santé : **{0}** est à surveiller{1}", machineOf(h), fullDisk(h)), tab: "machines", action: tx("Voir la santé"), sel: HEALTH_SEL, fix: machineFix(splitHostName(h.name)[1]) });
+    if (l === "down" || l === "crit" || l === "warn") out.push(healthLine(h, l, data));
   }
-  const reboot = (health?.hosts || []).filter((h) => h.reboot_required).map(machineOf);
-  if (reboot.length) out.push({ category: "sante", level: "warn", text: tx("Redémarrage demandé sur {0}", names(reboot)), tab: "machines", action: tx("Voir les machines") });
+  const reboot = (health?.hosts || []).filter((h) => h.reboot_required);
+  if (reboot.length) {
+    const ip = reboot.length === 1 ? splitHostName(reboot[0].name)[1] : "";
+    out.push({ category: "sante", level: "warn", text: tx("Redémarrage demandé sur {0}", names(reboot.map(machineOf))), tab: "machines", action: tx("Voir les machines"), href: ip ? `machines/${ip}/watch/reboot` : undefined });
+  }
   if (data.dns) {
     for (const n of dnsDown(data.dns)) out.push({ category: "dns", level: "crit", text: tx("Le serveur DNS **{0}** ne répond pas", n), tab: "dns", action: tx("Voir le DNS"), sel: { alerts: ["on"] } });
     const s = dnsSync(data.dns, Date.parse(data.generated));
