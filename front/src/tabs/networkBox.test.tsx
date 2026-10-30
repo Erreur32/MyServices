@@ -38,6 +38,7 @@ describe("NetworkBox", () => {
         { label: "Stockage", value: "91 % (NVME)", tone: "bad" }] } as ServiceStatus;
     const html = renderToStaticMarkup(<NetworkBox cards={[freebox]} stamp="2026-10-30T12:00:00" />);
     expect(html).toContain("Freebox Ultra");
+    expect(html).toContain("freebox-ultra.png");   // its photo, by model
     expect(html).toContain("Autres relevés");
     expect(html).toContain("-15.7 dBm reçus");
     expect(html).toContain("91 % (NVME)");

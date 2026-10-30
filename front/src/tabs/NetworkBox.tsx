@@ -6,7 +6,7 @@ import { useNetworkHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import { StatTile } from "../components/StatTile";
 import { Badge, Dim, GradientFill } from "../components/ui";
-import { appIcon } from "../lib/appIcons";
+import { appIcon, modelIcon } from "../lib/appIcons";
 import { boxRate, boxState, boxTiles, currentRates, hasSystem, lineName, lineShare, temperatureWord, updateWord, wifiWord } from "../lib/box";
 import { tx } from "../lib/i18n";
 import type { Period, TilePoint } from "../lib/tileHistory";
@@ -79,7 +79,7 @@ function MoreSection({ c }: Readonly<{ c: ServiceStatus }>) {
 }
 
 function BoxSheet({ c, b, curves }: Readonly<{ c: ServiceStatus; b: BoxReading; curves?: React.ReactNode }>) {
-  const state = boxState(b), tiles = boxTiles(b), icon = appIcon([c.label]);
+  const state = boxState(b), tiles = boxTiles(b), icon = modelIcon(b.model) ?? appIcon([c.label]);   // the photo of a Freebox by its model, else the logo of the connector
   return (
     <section className="flex flex-col gap-3" aria-label={b.model ?? c.label}>
       <div className="flex flex-wrap items-center gap-3">
