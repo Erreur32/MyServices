@@ -34,6 +34,7 @@ import subprocess
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -134,14 +135,17 @@ class Context:
         return value
 
     def http(self, url: str, *, method: str = "GET", body: dict | None = None, headers: dict | None = None,
-             verify_tls: bool = True, timeout: float | None = None, binary: bool = False) -> object:
+             verify_tls: bool = True, timeout: float | None = None, binary: bool = False, form: dict | None = None) -> object:
         """Réponse JSON décodée ; ConnectorError lisible (code HTTP, message de l'API) sinon. binary : the bytes as they come (a camera
-        image), at most MAX_BINARY."""
+        image), at most MAX_BINARY. form: sent URL-encoded instead of `body`."""
         h = {"Accept": "application/json", "User-Agent": "myservices", **(headers or {})}
         data = None
         if body is not None:
             data = json.dumps(body).encode()
             h["Content-Type"] = "application/json"
+        if form is not None:
+            data = urllib.parse.urlencode(form).encode()
+            h["Content-Type"] = "application/x-www-form-urlencoded"
         req = urllib.request.Request(url, data=data, headers=h, method=method)
         ctx = None if verify_tls else ssl._create_unverified_context()  # NOSONAR S5527 ; certificat auto-signé (box, NAS)
         t0 = time.monotonic()
