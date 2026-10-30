@@ -5,9 +5,16 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
-## 0.31.1 → next version
+## 0.31.2 → next version
 
 **Nothing required yet.**
+
+## 0.31.1 → 0.31.2
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged.
+- **Data**: unchanged.
 
 ## 0.31.0 → 0.31.1
 
