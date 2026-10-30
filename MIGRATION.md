@@ -5,9 +5,16 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
-## 0.31.7 → next version
+## 0.31.8 → next version
 
 **Nothing required yet.**
+
+## 0.31.7 → 0.31.8
+
+**Nothing required.** Pull the new image (`docker compose pull`, then `up -d`). No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged.
+- **Behaviour that changes by itself**: an open SSH port no longer asks for anything, and a machine read by its agent no longer gets SSH warnings.
 
 ## 0.31.6 → 0.31.7
 
