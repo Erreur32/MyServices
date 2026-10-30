@@ -12,7 +12,7 @@ from collections import Counter
 
 from connectors import reqstats
 from connectors.base import ConnectorError, Field
-from connectors.status_kit import StatusConnector, fact, num, size, duration, rows
+from connectors.status_kit import StatusConnector, fact, num, size, duration, rows, stream_host
 
 
 def _enabled(cam: dict, part: str) -> bool | None:
@@ -21,22 +21,13 @@ def _enabled(cam: dict, part: str) -> bool | None:
     return v.get("enabled") if isinstance(v, dict) else None
 
 
-def _host(url: object) -> str | None:
-    """The machine of a stream address, never its account; none for the local relay."""
-    try:
-        host = urllib.parse.urlsplit(str(url).removeprefix("ffmpeg:")).hostname
-    except ValueError:
-        return None
-    return None if host in (None, "127.0.0.1", "localhost") else host
-
-
 def _camera_host(camera: dict, relays: dict) -> str | None:
     """The address of a camera: in its input, or in the go2rtc list when the input goes through the local relay (rtsp://127.0.0.1:8554/<name>)."""
     for item in (camera.get("ffmpeg") or {}).get("inputs") or []:
         path = item.get("path") if isinstance(item, dict) else None
         sources = relays.get(str(path).rsplit("/", 1)[-1].partition("?")[0])
         for url in [path, *(sources if isinstance(sources, list) else [sources])]:
-            if host := _host(url):
+            if host := stream_host(url):
                 return host
     return None
 

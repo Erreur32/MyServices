@@ -14,7 +14,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Fixed
 
 - **Netatmo through Home Assistant**: the cameras show on the Video page and on Domotique, Netatmo, with their picture, without a Netatmo connector. A camera read by both stays once.
-- **Tapo**: a camera filmed by Frigate shows its picture on the Tapo page, matched by address (Frigate cameras now carry the host of their stream, never its account).
+- **Tapo**: a camera filmed by Frigate or Shinobi shows its picture on the Tapo page, matched by address (Frigate and Shinobi cameras now carry the host of their stream, never its account).
 - **Video**: the picture is asked by the instance name, which can differ from the name of the app.
 - **Tapo**: a device that answers the search but not the reading gives its address and the cause of the failure, and the account is only blamed when the error says so.
 

@@ -12,7 +12,7 @@ import re
 import urllib.parse
 
 from connectors.base import ConnectorError, Field
-from connectors.status_kit import StatusConnector, fact, num, rows
+from connectors.status_kit import StatusConnector, fact, num, rows, stream_host
 
 VERIFY = Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé")
 MAX_ITEMS = 64
@@ -20,7 +20,7 @@ CODEC = re.compile(r"\b(H\.?26[45]|HEVC|AV1|VP[89]|MJPEG|JPEG)\b", re.I)
 
 
 def camera(name, *, up=None, fps=None, detect=None, record=None, events=None, last=None) -> dict:
-    """One camera of the block, its name only (never its address)."""
+    """One camera of the block, without the address of its stream: that can hold an account (the Tapo page gets the IP alone, see stream_host)."""
     return {"name": str(name), "up": up, "fps": fps, "detect": detect, "record": record, "events": events, "last": last}
 
 
@@ -95,8 +95,9 @@ class Shinobi(StatusConnector):
             mode, state = str(m.get("mode") or ""), str(m.get("status") or "")
             on = mode in ("start", "record")
             up = None if not on else state.lower() in ("watching", "recording", "started")
-            cams.append(camera(m.get("name") or m.get("mid"), up=up, detect=str(details.get("detector")) == "1" if on else None,
-                               record=mode == "record"))
+            host = m.get("host")
+            cams.append({**camera(m.get("name") or m.get("mid"), up=up, detect=str(details.get("detector")) == "1" if on else None, record=mode == "record"),
+                         "ip": stream_host(details.get("auto_host")) or (stream_host(f"//{host}") if host else None)})
         head, problems = cameras_fact(cams)
         facts = [head, fact("Enregistrent", sum(1 for c in cams if c["record"]))]
         out = self.out(None, facts, problems)
