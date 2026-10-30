@@ -32,6 +32,13 @@ class Publish(unittest.TestCase):
         machines_admin.publish("10.0.0.2", {"name": "Serveur", "role": None})   # last tag removed
         self.assertEqual(json.loads(self.data.read_text(encoding="utf-8"))["machine_list"][0]["role"], "")
 
+    def test_icone_choisie_publiee_puis_retiree(self):
+        self.data.write_text(json.dumps({"machine_list": [{"ip": "10.0.0.2", "name": "srv", "icon": "linux"}]}), encoding="utf-8")
+        machines_admin.publish("10.0.0.2", {"name": "srv", "icon": "debian"})
+        self.assertEqual(json.loads(self.data.read_text(encoding="utf-8"))["machine_list"][0]["icon"], "debian")
+        machines_admin.publish("10.0.0.2", {"name": "srv"})   # back to automatic
+        self.assertIsNone(json.loads(self.data.read_text(encoding="utf-8"))["machine_list"][0]["icon"])
+
     def test_rien_avant_la_premiere_collecte(self):
         machines_admin.publish("10.0.0.2", {"name": "x", "role": "y"})
         self.assertFalse(self.data.exists())
