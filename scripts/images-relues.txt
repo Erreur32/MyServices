@@ -215,3 +215,4 @@ cfb63e00681dd50e53827daf59e1df4c  front/public/icons/windows-server-2012.svg
 ea4fef3644f06dabd2a9dfd04d016aa0  front/public/icons/windows-server-2016.svg
 068cfb1bd5685f68511dcbb56ba9d9f2  front/public/icons/netatmo.svg
 bed4c5b07790d6db1182e94a90d14640  front/public/icons/upnp-box.svg
+560a016da0d5909b33cf01a5817261a9  front/public/icons/fritzbox.svg

@@ -41,6 +41,7 @@ Puis l'ajouter à `TYPES` dans `connectors/__init__.py`.
   `ConnectorError` lisible (code HTTP, message de l'API). `verify_tls=False` seulement pour un
   certificat auto-signé, et jamais par défaut.
   `payload=` envoie un corps brut (enveloppe SOAP : `headers` donne son type), `binary=True` rend les octets tels quels.
+  `digest=(utilisateur, mot de passe)` répond une seule fois à un défi Digest (box FRITZ!) : un second refus est rendu tel quel.
 - `self.ctx.ssh(alias, cmd, stdin=)` : sortie d'une commande par un alias SSH de l'app.
 - **Isolation** (`run_isolated`) : délai maximal, erreur ou bug capturés, dernier résultat bon réutilisé
   et marqué « périmé », passages en échec comptés. Un connecteur en panne ne bloque pas les autres.

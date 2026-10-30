@@ -29,13 +29,20 @@ ENVELOPE = ('<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.or
             '<s:Body><u:{action} xmlns:u="{service}"/></s:Body></s:Envelope>')
 
 
+def soap(ctx, service_type: str, url: str, action: str, **kw) -> dict:
+    """The New* values of the answer to a Get* action; ConnectorError as ctx.http raises it. kw: what ctx.http takes besides the request (a login, TLS)."""
+    raw = ctx.http(url, method="POST", binary=True, payload=ENVELOPE.format(action=action, service=service_type).encode(), headers={
+        "Accept": "text/xml", "Content-Type": 'text/xml; charset="utf-8"', "SOAPAction": f'"{service_type}#{action}"'}, **kw)
+    return {local_name(el.tag): (el.text or "").strip() for el in parse_xml(raw).iter() if local_name(el.tag).startswith("New")}
+
+
 class Service(NamedTuple):
     kind: str
     type: str
     url: str
 
 
-def _local(tag: str) -> str:
+def local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
@@ -98,11 +105,11 @@ def control_url(base: str, path: str, host: str | None) -> str | None:
 
 def services_of(root, location: str) -> list[Service]:
     """The WAN services of a description."""
-    base = next((el.text.strip() for el in root.iter() if _local(el.tag) == "URLBase" and el.text), location)
+    base = next((el.text.strip() for el in root.iter() if local_name(el.tag) == "URLBase" and el.text), location)
     host, out = urllib.parse.urlsplit(location).hostname, []
     for el in root.iter():
-        if _local(el.tag) == "service":
-            info = {_local(c.tag): (c.text or "").strip() for c in el}
+        if local_name(el.tag) == "service":
+            info = {local_name(c.tag): (c.text or "").strip() for c in el}
             kind, url = SERVICE.fullmatch(info.get("serviceType", "")), control_url(base, info.get("controlURL", ""), host)
             if kind and url:
                 out.append(Service(kind[1], info["serviceType"], url))
@@ -113,8 +120,8 @@ def model_of(root) -> str | None:
     """Maker and model of the root device (the first ones in the document); its serial number and UDN are left where they are."""
     first = {}
     for el in root.iter():
-        if _local(el.tag) in ("manufacturer", "modelName") and el.text:
-            first.setdefault(_local(el.tag), el.text.strip())
+        if local_name(el.tag) in ("manufacturer", "modelName") and el.text:
+            first.setdefault(local_name(el.tag), el.text.strip())
     return " ".join(first[k] for k in ("manufacturer", "modelName") if k in first) or None
 
 
@@ -156,9 +163,7 @@ class UPnPBox(StatusConnector):
         if service is None:
             return {}
         try:
-            raw = self.ctx.http(service.url, method="POST", binary=True, payload=ENVELOPE.format(action=action, service=service.type).encode(), headers={
-                "Accept": "text/xml", "Content-Type": 'text/xml; charset="utf-8"', "SOAPAction": f'"{service.type}#{action}"'})
-            return {_local(el.tag): (el.text or "").strip() for el in parse_xml(raw).iter() if _local(el.tag).startswith("New")}
+            return soap(self.ctx, service.type, service.url, action)
         except RateLimited:
             raise
         except ConnectorError:
