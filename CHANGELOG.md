@@ -11,6 +11,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.30.1 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Network
+- **The Freebox machine page has its own « Line » frame** (state, download and upload against the line's capacity with their bars, and the bandwidth history with the period switch) **and a « Fibre (SFP) » frame**: module present, light seen, link, power supply, module model and vendor, light received (read as right, weak, strong…) and sent, with an explanation. The Freebox gives no module temperature.
+- **The UniFi view shows the SFP modules of the gear** (the table of the diagnostic: temperature, light received and sent, voltage, current, state).
+- **The « Sources » tile of the Network page is gone**: the sources are already the badges of the title.
+
 ## v0.30.0 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
