@@ -91,6 +91,7 @@ export interface Host {
   acl?: string;
   acl_adv?: boolean;
   public_ok?: boolean;
+  public_ignored?: boolean;   // every domain matches the « ignored » list: not asked « public? »
   ssl?: boolean;
   ssl_forced?: boolean;
   nginx_online?: boolean;

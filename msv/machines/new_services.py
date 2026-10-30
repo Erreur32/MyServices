@@ -8,9 +8,11 @@ resumed from its detail. A container name is not used as the key: the same name 
 from __future__ import annotations
 
 import contextlib
+import fnmatch
 import io
 import json
 import os
+import re
 import time
 import urllib.parse
 from pathlib import Path
@@ -143,6 +145,47 @@ def set_public(meta_path: Path, web_dir: str | Path, domain: str, public: bool) 
         if domain in (r.get("domains") or []):
             r["public_ok"] = public
     _rewrite_hosts(web_dir, apply)
+
+
+PUBLIC_IGNORE_MAX = 100
+_PATTERN = re.compile(r"^(\*\.)?[a-z0-9]([a-z0-9.-]*[a-z0-9])?$")
+
+
+def public_ignored(domains: list[str] | None, patterns: list[str] | None) -> bool:
+    """A host whose every domain matches a pattern (« *.lan.example.org » or an exact name) is never asked « public? »; one other domain keeps the question."""
+    return bool(domains and patterns) and all(any(fnmatch.fnmatchcase(d.lower(), p) for p in patterns or []) for d in domains)
+
+
+def read_public_ignore(meta_path: Path) -> list[str]:
+    try:
+        got = json.loads(meta_path.read_text(encoding="utf-8")).get("public_ignore")
+    except (OSError, ValueError):
+        return []
+    return [p for p in got if isinstance(p, str)] if isinstance(got, list) else []
+
+
+def set_public_ignore(meta_path: Path, web_dir: str | Path, patterns: list[str]) -> list[str]:
+    """The domains (or « *.domain » patterns) that are not asked « public? »: kept in services-meta.json for the next collections, and applied to the
+    published data.json at once. Returns the cleaned list; a bad pattern raises ValueError."""
+    from msv.machines import setup
+    clean = sorted({p.strip().lower() for p in patterns if p.strip()})
+    if len(clean) > PUBLIC_IGNORE_MAX or any(len(p) > 253 or not _PATTERN.match(p) for p in clean):
+        raise ValueError("domaine ou motif invalide (exemples : monsite.fr, *.lan.monsite.fr)")
+    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    if clean:
+        meta["public_ignore"] = clean
+    else:
+        meta.pop("public_ignore", None)
+    with contextlib.redirect_stdout(io.StringIO()):
+        setup.save(meta_path, meta)
+
+    def apply(r: dict) -> None:
+        if public_ignored(r.get("domains"), clean):
+            r["public_ignored"] = True
+        else:
+            r.pop("public_ignored", None)
+    _rewrite_hosts(web_dir, apply)
+    return clean
 
 
 EDITABLE = ("name", "icon", "category", "description", "tags", "app", "web", "open_url", "public", "direct_ok", "pause", "alerts")

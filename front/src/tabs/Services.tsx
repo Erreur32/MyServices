@@ -17,6 +17,7 @@ import { ServiceEdit } from "../components/ServiceEdit";
 import { IconGlyph } from "../components/IconPicker";
 import { chosenIcon } from "../lib/machineIcons";
 import { tx } from "../lib/i18n";
+import { PublicIgnore } from "../components/PublicIgnore";
 import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
 import { ManualActions, ManualService, type ManualInitial } from "../components/ManualService";
@@ -404,6 +405,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
           </section>}
         </div>}
       </FoldPanel>}
+      {(view === "all" || view === "watch") && admin && <PublicIgnore />}
     </div>
   );
 }

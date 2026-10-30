@@ -318,6 +318,29 @@ def services_public(body: ServicePublic, request: Request):
     return {"ok": True}
 
 
+class PublicIgnore(BaseModel):
+    domains: list[str] = Field(max_length=100)
+
+
+@router.get(API + "/services/public-ignore", tags=["services"], summary="Domaines jamais soumis à « public ? » (motifs comme *.lan.monsite.fr)")
+def services_public_ignore_list():
+    from msv.machines import new_services, setup
+    return {"domains": new_services.read_public_ignore(setup.META)}
+
+
+@router.put(API + "/services/public-ignore", tags=["services"], summary="Remplacer la liste des domaines jamais soumis à « public ? » (admin)")
+def services_public_ignore_set(body: PublicIgnore, request: Request):
+    from msv.machines import new_services, setup
+    if denied := admin_write(request):
+        return denied
+    try:
+        clean = new_services.set_public_ignore(setup.META, core.WEB, body.domains)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("services : domaines ignorés pour « public ? »", request.state.user["username"], ip_of(request), ", ".join(clean)[:300])
+    return {"ok": True, "domains": clean}
+
+
 @router.delete(API + "/services/pause/{target}", tags=["services"], summary="Reprendre le suivi d'un service en pause (ip:port) (admin)")
 def services_resume(target: str, request: Request):
     from msv.machines import new_services
