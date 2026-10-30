@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, Bot, Boxes, Camera, Film, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Video, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, Bot, Boxes, Camera, Film, Gauge, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Video, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -74,6 +74,7 @@ export const NAV: NavGroup[] = [
       sub("stream-cameras", "stream/cameras", "stream", Camera, tx("Caméras"), (s) => streamCameras(streamCards(s)).length > 0),
       sub("stream-flows", "stream/flows", "stream", Radio, tx("Flux"), (s) => streamFlows(streamCards(s)).length > 0),
       sub("stream-recordings", "stream/recordings", "stream", Film, tx("Enregistrements"), (s) => streamCards(s).some((c) => c.role === "nvr" && !c.unread)),
+      sub("stream-frigate", "stream/frigate", "stream", Gauge, tx("Frigate"), (s) => (s.data.services_status ?? []).some((c) => c.connector === "frigate" && !!c.frigate)),
     ] },
     { id: "infra", hash: "infra", tab: "infra", icon: LayoutGrid, label: tx("Infra") },
     { id: "diagrams", hash: "diagrams", tab: "diagrams", icon: Workflow, label: tx("Schémas") },
@@ -137,7 +138,7 @@ export const NAV: NavGroup[] = [
 export const TAB_IDS: TabId[] = [...new Set(NAV.flatMap((g) => g.items.map((i) => i.tab)))];
 
 /** Onglets encore en chantier : visibles seulement sur une image de dev (construite sur place, git-rev), pas publiés. */
-export const UNRELEASED: TabId[] = ["infra"];
+export const UNRELEASED: TabId[] = ["infra", "diagrams"];
 export const isDevBuild = (s: Snapshot) => !!s.me.git || s.me.version === "dev";
 
 /** Onglet affiché seulement si sa source est activée (et Réglages pour les admins). */

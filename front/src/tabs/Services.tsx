@@ -349,7 +349,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   return (
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={Boxes} title={tx("Services")} tags={<HeadTags counts={[tx("{0} services", every.total), tx("{0} avec domaine", every.withDomain), tx("{0} locaux", every.local), tx("{0} machines", every.machines)]} at={snap.data.generated} />}
-        actions={<><PeriodSwitch value={hours} onChange={setHours} />{admin && <a href="#services/new" className={`${primary} py-1 no-underline`} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</a>}</>} />
+        actions={<>{admin && <a href="#services/new" className={`${primary} py-1 no-underline`} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</a>}<PeriodSwitch value={hours} onChange={setHours} /></>} />
       <ServicesTiles hosts={snap.data.hosts} hidden={hiddenMap} generated={snap.data.generated} hours={hours} />
       {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}
       {(view === "all" || view === "watch") && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={snap.data.hosts.length} pinned>

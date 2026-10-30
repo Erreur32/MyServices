@@ -20,6 +20,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from msv.machines.agent_reports import DEFAULT_INTERVAL, FRESH_MULT, fresh_reports
+from msv.machines.winname import windows_name
 
 VERSION = "9"                # Windows agent (agent.ps1)
 LINUX_VERSION = "4"          # Linux agent (agent.py)
@@ -208,6 +209,8 @@ class Agents:
         None pour le précédent s'il n'y en avait pas ; le serveur relit la santé quand ils diffèrent."""
         interval = report.get("interval")
         interval = interval if isinstance(interval, int) and MIN_INTERVAL <= interval <= MAX_INTERVAL else DEFAULT_INTERVAL
+        osd = (report.get("data") or {}).get("os")
+        os_name = windows_name(str(report.get("os") or ""), osd.get("b") if isinstance(osd, dict) else None) or ""
         with self._db() as db:
             old = db.execute("SELECT report, level FROM agents WHERE id = ?", (aid,)).fetchone()
             prev = json.loads(old["report"]) if old and old["report"] and (old["level"] is None or _partial(report)) else None
@@ -220,7 +223,7 @@ class Agents:
                 before = report_level(prev) if prev else None
             db.execute("UPDATE agents SET last_seen = ?, last_ip = ?, interval = ?, version = ?, os_name = ?, report = ?, level = ? "
                        "WHERE id = ? AND revoked IS NULL",
-                       (time.time(), ip, interval, str(report.get("version") or "")[:32], str(report.get("os") or "")[:120],
+                       (time.time(), ip, interval, str(report.get("version") or "")[:32], os_name[:120],
                         json.dumps(report, ensure_ascii=False), level, aid))
         return before, level
 
@@ -336,7 +339,7 @@ def system_of(report: dict | None) -> dict | None:
         up = int((datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(str(data["boot"]).replace("Z", "+00:00"))).total_seconds())
     except (KeyError, ValueError, TypeError):
         pass
-    return {"os": str(o["n"]).strip(), "kernel": f"{o.get('v') or ''} (build {o.get('b')})".strip() if o.get("b") else o.get("v"), "uptime_s": up}
+    return {"os": windows_name(str(o["n"]).strip(), o.get("b")), "kernel": f"{o.get('v') or ''} (build {o.get('b')})".strip() if o.get("b") else o.get("v"), "uptime_s": up}
 
 
 def hardware_of(report: dict | None) -> dict | None:

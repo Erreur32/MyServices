@@ -31,7 +31,9 @@ from msv.machines import setup
 # Champs d'une machine réglables depuis la page (le reste du fichier est gardé tel quel)
 FLAGS = ("off", "gateway", "npm", "npm_only", "vm", "disabled")
 TEXT = ("name", "role", "ssh", "adguard", "adguard_sync", "health", "os", "icon")
-PAGE = TEXT + FLAGS + ("health_sources", "stopped_ok", "temp_warn_c")   # every field the Machines page (and machines_config) may set
+PAGE = TEXT + FLAGS + ("health_sources", "stopped_ok", "temp_warn_c", "disk_warn_pct", "disk_crit_pct", "mem_warn_pct", "mem_crit_pct")   # every field the Machines page (and machines_config) may set
+LIMIT_LABELS = {"disk_warn_pct": "seuil disque (à surveiller)", "disk_crit_pct": "seuil disque (critique)",
+                "mem_warn_pct": "seuil mémoire (à surveiller)", "mem_crit_pct": "seuil mémoire (critique)"}
 TEMP_WARN_MIN, TEMP_WARN_MAX = 50, 110   # °C: a processor warning threshold a machine may set for itself (default: health.TEMP_WARN_C)
 STOPPED_OK_MAX = 30  # containers that may stay stopped, per machine
 HEALTH_SOURCES = ("ssh", "agent", "beszel")  # priorité de lecture de la santé (health.py : source_order)
@@ -279,6 +281,16 @@ def _clean(m: dict) -> dict:
         if isinstance(t, bool) or not str(t).strip().isdigit() or not TEMP_WARN_MIN <= int(t) <= TEMP_WARN_MAX:
             raise MachineError(f"seuil de température : un entier entre {TEMP_WARN_MIN} et {TEMP_WARN_MAX} °C")
         out["temp_warn_c"] = int(t)
+    for key, label in LIMIT_LABELS.items():   # disk and memory limits, in % used
+        v = m.get(key)
+        if v not in (None, ""):
+            if isinstance(v, bool) or not str(v).strip().isdigit() or not 1 <= int(v) <= 100:
+                raise MachineError(f"{label} : un entier entre 1 et 100 %")
+            out[key] = int(v)
+    for kind in ("disk", "mem"):
+        w, c = out.get(f"{kind}_warn_pct"), out.get(f"{kind}_crit_pct")
+        if w and c and w >= c:
+            raise MachineError(f"{LIMIT_LABELS[kind + '_warn_pct']} : doit rester sous le seuil critique")
     if not out.get("name"):
         raise MachineError("nom requis")
     known = {a["alias"] for a in aliases()} | {"local"}

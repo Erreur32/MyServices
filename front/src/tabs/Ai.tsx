@@ -20,7 +20,7 @@ import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { InfoNote } from "../components/InfoNote";
 import { HistoryTile, useAiHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
-import type { TilePoint } from "../lib/tileHistory";
+import type { Period, TilePoint } from "../lib/tileHistory";
 
 const VIEWS = ["overview", "models", "agents", "gpu"] as const;
 const ROLE: Record<AiRole, string> = { engine: tx("moteur"), agent: tx("agent"), interface: tx("interface"), mcp: "MCP", gpu: "GPU", other: tx("autre") };
@@ -36,11 +36,13 @@ export function Ai({ snap, route }: Readonly<{ snap: Snapshot; route: string }>)
   const read = [...new Set(cards.filter((c) => !c.unread && c.conn?.ok).map((c) => c.conn!.label))];
   const unread = [...new Set(cards.filter((c) => c.unread).map((c) => c.title))];
   const machines = new Set(cards.map((c) => c.machine).filter(Boolean)).size;
+  const [hours, setHours] = usePeriod();
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={Bot} title={tx("IA et agents")} tags={<HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
+      <PageHead icon={Bot} title={tx("IA et agents")} tags={<HeadTags max={1} counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />}
+        actions={<>{admin && <ConnectorsLink />}{cards.length > 0 && view === "overview" && <PeriodSwitch value={hours} onChange={setHours} />}</>} />
       {!cards.length && <Empty>{tx("Aucun service IA pour l'instant : un service de catégorie « IA » dans Services, ou un connecteur IA, fait apparaître cette page.")}</Empty>}
-      {cards.length > 0 && view === "overview" && <Overview snap={snap} cards={cards} models={models} gpus={gpus} admin={admin} />}
+      {cards.length > 0 && view === "overview" && <Overview snap={snap} cards={cards} models={models} gpus={gpus} admin={admin} hours={hours} />}
       {cards.length > 0 && view === "models" && <Models rows={models} cards={cards} />}
       {cards.length > 0 && view === "agents" && <Agents snap={snap} cards={cards} />}
       {cards.length > 0 && view === "gpu" && <Gpus gpus={gpus} models={models} />}
@@ -48,10 +50,10 @@ export function Ai({ snap, route }: Readonly<{ snap: Snapshot; route: string }>)
   );
 }
 
-function Overview({ snap, cards, models, gpus, admin }: Readonly<{ snap: Snapshot; cards: AiCard[]; models: ModelRow[]; gpus: GpuCard[]; admin: boolean }>) {
+function Overview({ snap, cards, models, gpus, admin, hours }: Readonly<{ snap: Snapshot; cards: AiCard[]; models: ModelRow[]; gpus: GpuCard[]; admin: boolean; hours: Period }>) {
   const alerts = aiAlerts(cards, gpus), fig = aiFigures(snap, cards);
   const engines = cards.filter((c) => c.role === "engine");
-  const [hours, setHours] = usePeriod(), hist = useAiHistory(hours, snap.data.generated), now = Math.floor(Date.now() / 1000);
+  const hist = useAiHistory(hours, snap.data.generated), now = Math.floor(Date.now() / 1000);
   const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1], level = (p: TilePoint) => `${p[1]} %`;
   const hot = levelTone;
   const powerTop = Math.max(fig.powerLimit ?? 0, ...(hist?.power ?? []).map((p) => p[1]), 1);
@@ -59,7 +61,6 @@ function Overview({ snap, cards, models, gpus, admin }: Readonly<{ snap: Snapsho
   const common = { hours, now } as const;
   return (
     <>
-      <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
       {gpus.length > 0 && (
         <div className="flex flex-wrap gap-2.5 pb-1">
           <HistoryTile n={dash(fig.gpu, "%")} label={tx("Charge GPU")} tone={hot(fig.gpu, GPU_FULL)} fact={tx("{0} GPU, lus par GpuViewR", gpus.length)} scale={100} kind="curve" points={hist?.gpu ?? null} {...common} figure={(p) => p[1]} fmt={level} goodHigh />

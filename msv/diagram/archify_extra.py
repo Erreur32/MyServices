@@ -7,6 +7,7 @@ noms, adresses, états.
 from __future__ import annotations
 
 import ipaddress
+from urllib.parse import urlparse
 
 from msv.diagram.archify_map import grouped, slug
 
@@ -20,6 +21,10 @@ CATALOG: dict[str, tuple[str, str, str]] = {
                  "Chaque domaine rangé sous ce qui le sert : un NPM (avec la machine et le service visés) ou un Apache (ses vhosts, par machine).", "domains"),
     "virtualisation": ("Machines virtuelles et conteneurs",
                        "Chaque hôte Proxmox avec ses machines virtuelles et conteneurs LXC, en marche ou arrêtés. Lu par le connecteur Proxmox.", "virtualization"),
+    "dns": ("Résolution DNS interne",
+            "Vos serveurs AdGuard (réécritures, règles, copie de l'un vers l'autre) et ce que chaque machine obtient comme réponse. Lu sur AdGuard.", "dns"),
+    "supervision": ("Qui surveille quoi",
+                    "Chaque outil de supervision (Glances, Wazuh, GpuViewR, Beszel, Uptime Kuma…) et l'agent MyServices, avec les machines qu'ils surveillent.", "supervision"),
 }
 ADDRESS = lambda ip: (ipaddress.ip_address(ip) if ip else ipaddress.ip_address("255.255.255.255"))   # noqa: E731
 
@@ -71,6 +76,42 @@ def _proxied(data: dict) -> dict[str, list[dict]]:
     return out
 
 
+NOT_SUPERVISION = {"mynetwork", "unifi"}   # they discover the network (see « Équipements et appareils du réseau »), they do not watch the machines' health
+
+
+def _watchers(data: dict) -> dict[str, dict]:
+    """Qui surveille quoi : {outil: {"sub": détail, "items": [{id, label, sublabel, level?}]}}. Les outils qui voient la machine (Beszel, GpuViewR, Dozzle…),
+    l'agent MyServices, la lecture SSH, et les agents Wazuh ou l'hôte d'un Glances lus par leur connecteur."""
+    ml = data.get("machine_list") or []
+    by_ip = {m["ip"]: m for m in ml}
+    out: dict[str, dict] = {}
+
+    def add(tool: str, ip: str, sub: str, detail: str = "", level: str | None = None) -> None:
+        m = by_ip.get(ip)
+        if m is None or m.get("disabled"):
+            return
+        row = out.setdefault(tool, {"sub": sub, "items": []})
+        if all(i["id"] != slug(ip) for i in row["items"]):
+            row["items"].append({"id": slug(ip), "label": m["name"], "sublabel": f"{ip}{' · ' + detail if detail else ''}", "level": level})
+
+    for m in sorted(ml, key=lambda m: ADDRESS(m.get("ip"))):
+        for src in (m.get("links") or {}).get("sources") or []:
+            if src.get("source") not in NOT_SUPERVISION and src.get("label"):
+                add(src["label"], m["ip"], "voit la machine", "" if src.get("ok", True) else "ne répond pas", "ok" if src.get("ok", True) else "warn")
+        if m.get("agent"):
+            add("Agent MyServices", m["ip"], "agent installé sur la machine", (m["agent"] or {}).get("os") or "")
+        if m.get("ssh"):
+            add("Lecture SSH", m["ip"], "santé, Docker, services", f"{(m['ssh'] or {}).get('user') or '?'}:{(m['ssh'] or {}).get('port', 22)}")
+    for st in data.get("services_status") or []:
+        host = (urlparse(str(st.get("url") or "")).hostname or "")
+        if st.get("connector") == "wazuh":
+            for ip, w in (st.get("machines") or {}).items():
+                add("Wazuh", ip, "agents de sécurité", w.get("agent") or "", "ok" if w.get("status") == "active" else "warn")
+        elif st.get("connector") == "glances" and host:
+            add("Glances", host, "lit sa propre machine", "", "ok" if st.get("ok") else "warn")
+    return out
+
+
 def available(key: str, data: dict | None, backups_url: str = "") -> bool:
     """Le schéma a-t-il de quoi se construire ? (un connecteur réseau lu, des services vus, des domaines, un hôte Proxmox)"""
     data = data or {}
@@ -81,6 +122,10 @@ def available(key: str, data: dict | None, backups_url: str = "") -> bool:
         return bool(_services(data))
     if need == "domains":
         return bool(_proxied(data) or _vhosts(data))
+    if need == "dns":
+        return bool((data.get("dns") or {}).get("servers"))
+    if need == "supervision":
+        return bool(_watchers(data))
     if need == "virtualization":
         return any(v.get("guests") or v.get("nodes") for v in data.get("virtualization") or [])
     return True
@@ -179,4 +224,44 @@ def build_virtualisation(data: dict) -> dict:
     return grouped("Machines virtuelles et conteneurs", data.get("generated", ""), "virtualisation.html", hub, groups)
 
 
-BUILD = {"reseau": build_reseau, "services": build_services, "domaines": build_domaines, "virtualisation": build_virtualisation}
+def build_dns(data: dict) -> dict:
+    """Un groupe par serveur AdGuard (réécritures, règles, copie vers l'autre serveur, écarts) et un groupe « Réponses aux machines » : ce que chaque machine obtient."""
+    dns = data.get("dns") or {}
+    names = {m["ip"]: m["name"] for m in data.get("machine_list") or []}
+    groups = []
+    for ip, sv in sorted((dns.get("servers") or {}).items(), key=lambda kv: ADDRESS(kv[0])):
+        items = []
+        if not sv.get("readable", True):
+            items.append({"id": "unreadable", "label": "Non lisible", "sublabel": "ni la liste ni les règles", "level": "warn", "type": "external"})
+        items += [{"id": "rewrites", "label": f"{sv.get('rewrites', 0)} réécriture(s)", "sublabel": "domaine -> adresse", "type": "database"},
+                  {"id": "rules", "label": f"{sv.get('user_rules', 0)} règle(s) perso", "sublabel": "filtres écrits à la main", "type": "database"}]
+        if sv.get("silent"):
+            items.append({"id": "silent", "label": f"{sv['silent']} muet(s)", "sublabel": "ne répondent pas", "level": "warn", "type": "external"})
+        for target, done in ((dns.get("sync") or {}).get(ip, {}).get("last_done") or {}).items():
+            s = dns["sync"][ip]
+            items.append({"id": f"sync-{target}", "label": f"Copie vers {names.get(target, target)}", "sublabel": f"{done[:16].replace('T', ' ')} · {s.get('errors_24h', 0)} erreur(s) 24 h",
+                          "level": "warn" if s.get("errors_open") else "ok", "type": "backend"})
+        groups.append({"key": ip, "label": sv.get("name") or ip, "type": "security", "via": "AdGuard", "sub": f"{ip} · {sv.get('container') or 'AdGuard'}", "items": items})
+    answers = [{"id": slug(m["ip"]), "label": m["name"], "sublabel": f"{m['ip']} -> " + (", ".join(m.get("answer") or []) or "pas de réécriture"),
+                "level": "ok" if m.get("state") == "ok" else None, "type": "frontend"} for m in dns.get("machines") or []]
+    groups.append({"key": "answers", "label": "Réponses aux machines", "type": "external", "via": "résolution", "sub": f"{len(answers)} machine(s)", "items": answers})
+    gaps = [(k, label) for k, label in (("rewrites_diff", "réécriture(s) différente(s)"), ("user_rules_diff", "règle(s) différente(s)"), ("orphans", "orpheline(s)"), ("invalid", "invalide(s)"))
+            if dns.get(k)]
+    if gaps:
+        groups.append({"key": "gaps", "label": "Écarts à regarder", "type": "external", "via": "contrôle", "sub": "entre les deux serveurs", "dot": "amber",
+                       "items": [{"id": k, "label": f"{len(dns[k])} {label}", "sublabel": "voir DNS", "level": "warn"} for k, label in gaps]})
+    hub = {"label": "Résolution DNS", "sublabel": f"NPM {dns['npm_ip']}" if dns.get("npm_ip") else "AdGuard", "type": "security"}
+    return grouped("Résolution DNS interne", data.get("generated", ""), "dns.html", hub, groups)
+
+
+def build_supervision(data: dict) -> dict:
+    """Un groupe par outil de supervision, avec dessous les machines qu'il voit (en pointillé le lien d'un outil qui ne répond pas)."""
+    rows = _watchers(data)
+    groups = [{"key": tool, "label": tool, "type": "backend", "via": "surveille", "sub": f"{len(r['items'])} machine(s)", "items": r["items"]}
+              for tool, r in sorted(rows.items(), key=lambda kv: (-len(kv[1]["items"]), kv[0]))]
+    total = len({i["id"] for r in rows.values() for i in r["items"]})
+    hub = {"label": "MyServices", "sublabel": f"{len(rows)} outil(s) · {total} machine(s)", "type": "security"}
+    return grouped("Qui surveille quoi", data.get("generated", ""), "supervision.html", hub, groups)
+
+
+BUILD = {"reseau": build_reseau, "services": build_services, "domaines": build_domaines, "virtualisation": build_virtualisation, "dns": build_dns, "supervision": build_supervision}

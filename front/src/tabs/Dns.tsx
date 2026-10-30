@@ -18,6 +18,7 @@ import { StatTile } from "../components/StatTile";
 import { HistoryTile, useDnsHistory } from "../components/HistoryTile";
 import { BandwidthTile } from "../components/BandwidthTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
+import type { Period } from "../lib/tileHistory";
 import { dnsFigures, dnsWatch, serverUp, type DnsFigures } from "../lib/dnsState";
 import { HeadTags } from "../components/HeadTags";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
@@ -82,8 +83,8 @@ function errorsText(s: { errors_24h?: number; errors_open?: number; last_error?:
 const MACHINE_STATE: Record<string, [Tone, string]> = { ok: ["ok", tx("résout vers la machine")], ailleurs: ["warn", tx("résout ailleurs")], absent: ["off", tx("pas de nom DNS")] };
 
 /** The four figures: resolution, DNS servers, sync, rewrites */
-function Figures({ g, fig, st, last, stamp }: Readonly<{ g: Dns; fig: DnsFigures; st: { cls: RowTone; label: string }; last: number | null; stamp: string }>) {
-  const [hours, setHours] = usePeriod(), hist = useDnsHistory(hours, stamp), now = Math.floor(Date.now() / 1000);
+function Figures({ g, fig, st, last, stamp, hours }: Readonly<{ g: Dns; fig: DnsFigures; st: { cls: RowTone; label: string }; last: number | null; stamp: string; hours: Period }>) {
+  const hist = useDnsHistory(hours, stamp), now = Math.floor(Date.now() / 1000);
   const answered = (hist?.local ?? []).reduce((n, p) => n + p[1], 0), asked = (hist?.local ?? []).reduce((n, p) => n + p[2], 0);
   const sources = (hist?.external ?? []).map((e, i) => ({ id: e.ip, name: `${e.name} ${e.ip}`, color: i ? "rgb(var(--link))" : "rgb(var(--bad))", points: e.ms.length ? e.ms : null }));
   let resTone: "ok" | "warn" | undefined;
@@ -98,7 +99,6 @@ function Figures({ g, fig, st, last, stamp }: Readonly<{ g: Dns; fig: DnsFigures
   }
   return (
     <>
-    <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
     <div className="flex flex-wrap gap-2.5 pb-1">
       <StatTile n={fig.domains ? `${fig.domainsOk}/${fig.domains}` : "-"} label={tx("Résolution")} tone={resTone} sub={tx("domaines NPM qui résolvent comme attendu")} />
       <HistoryTile n={`${fig.serversUp}/${fig.servers}`} label={tx("Serveurs DNS")} tone={fig.serversUp === fig.servers ? "ok" : "bad"} fact={g.resolver ? tx("résolveur du conteneur, aucun outil branché") : tx("instances AdGuard qui répondent")} kind="strip" points={hist?.local ?? null} hours={hours} now={now} figure={(p) => p[2] - p[1]} fmt={(p) => tx("{0}/{1} répondent", p[1], p[2])} goodHigh />
@@ -185,6 +185,7 @@ function openingView(want: string | undefined, alerts: boolean): View {
 
 export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Selected }>) {
   const g = snap.data.dns;
+  const [hours, setHours] = usePeriod();
   const want = initial?.anchor?.[0];
   const [lit, setLit] = useState(want);
   const at = Date.parse(snap.data.generated);
@@ -215,8 +216,8 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
   </div></Anchor>;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={NetworkIcon} title={tx("DNS")} tags={<HeadTags counts={[tx("{0} domaine(s) contrôlé(s)", fig.domains), machines.length > 0 ? tx("{0} nom(s) de machine", machines.length) : ""]} sources={[tools]} at={snap.data.generated} />} actions={snap.me.role === "admin" && <ConnectorsLink />} />
-      <Figures g={g} fig={fig} st={st} last={last} stamp={String(at ?? "")} />
+      <PageHead icon={NetworkIcon} title={tx("DNS")} tags={<HeadTags counts={[tx("{0} domaine(s) contrôlé(s)", fig.domains), machines.length > 0 ? tx("{0} nom(s) de machine", machines.length) : ""]} sources={[tools]} at={snap.data.generated} />} actions={<>{snap.me.role === "admin" && <ConnectorsLink />}<PeriodSwitch value={hours} onChange={setHours} /></>} />
+      <Figures g={g} fig={fig} st={st} last={last} stamp={String(at ?? "")} hours={hours} />
       {view === "servers" && servers}
       {(view === "all" || view === "watch") && <>
         <fieldset className="flex flex-wrap items-center gap-1.5" aria-label={tx("Afficher")}>

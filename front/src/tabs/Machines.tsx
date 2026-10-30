@@ -18,7 +18,9 @@ import { MachinePage } from "./MachinePage";
 import { machineFromHash } from "../lib/machineHash";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, networkTool, osOfMachine, stateBadge, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
+import { FoldPanel } from "../components/FoldPanel";
 import { shortOs } from "../lib/osName";
+import { chosenIcon } from "../lib/machineIcons";
 import { ViewToggle, useStoredView } from "../components/ViewToggle";
 import { Dot } from "../components/marks";
 import { LEVEL } from "../lib/level";
@@ -86,9 +88,9 @@ function MachinesHead({ snap, health, watching, sel, onSel }: Readonly<{ snap: S
     <div className="flex flex-col gap-4 pb-1 pt-3">
       <PageHead icon={Monitor} title={tx("Machines")} tags={<HeadTags counts={[tx("{0} machines", ms.length), tx("{0} lues par SSH", ssh), tx("{0} avec agent", agents)]} at={snap.data.generated} />}
         actions={<>
-          <PeriodSwitch value={hours} onChange={setHours} />
           {admin && <a href="#settings/machines/redetect" className={`${quiet} no-underline`} title={tx("Relit toutes les machines et propose les écarts (rôles, système, services hors Docker)")}><RefreshCw size={14} aria-hidden />{tx("Redétecter")}</a>}
           {admin && <a href="#settings/machines/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</a>}{/* the page « Add and detect », its form or the redetection open */}
+          <PeriodSwitch value={hours} onChange={setHours} />
         </>} />
       <div className="flex flex-wrap gap-2.5 pb-1">   {/* seven tiles: they go to a second line on a narrow page instead of squeezing their curves */}
         <HistoryTile n={`${up}/${ms.length - off}`} label={tx("Joignables")} tone={down ? "warn" : "ok"} kind="strip" points={hist?.reach ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh {...pick("reach")} />
@@ -462,11 +464,17 @@ function WatchSummary({ items, onShow }: { items: WatchItem[]; onShow?: (kind: W
   );
 }
 
+/** Nom de système d'une icône choisie à la main (« windows-10 » -> « Windows 10 »), pour le logo quand aucun relevé ne donne le système */
+function chosenSystem(icon?: string | null): string | undefined {
+  const c = chosenIcon(icon);
+  return c && c.family === "system" && "file" in c ? c.label : undefined;
+}
+
 /** Système sur une ligne : logo de la distribution (ou icône de la famille) puis le nom, coupé, entier au survol */
 function OsShort({ m, kind }: { m: Machine; kind: OsKind | null }) {
-  const os = m.info?.os || m.agent?.os;
-  if (!os && !kind) return <Dim>-</Dim>;
-  return <span className="inline-flex max-w-[11rem] items-center gap-1.5" title={os || (kind ? OS_LABEL[kind] : "")}>{kind && <OsGlyph kind={kind} name={os} />}<span className="truncate">{shortOs(os) || (kind ? OS_LABEL[kind] : "")}</span></span>;
+  const os = m.info?.os || m.agent?.os || m.os_hint;
+  if (!os && !kind) return <span className="inline-flex items-center gap-1.5"><OsGlyph /><Dim>-</Dim></span>;
+  return <span className="inline-flex max-w-[13rem] items-center gap-1.5" title={os || (kind ? OS_LABEL[kind] : "")}><OsGlyph kind={kind} name={os || chosenSystem(m.icon)} /><span className="truncate">{shortOs(os) || (kind ? OS_LABEL[kind] : "")}</span></span>;
 }
 
 /** Origine d'une donnée : le connecteur ou la source qui l'a lue (rouge si en panne) */
@@ -1102,7 +1110,7 @@ function ModelLine({ icon, title, text }: Readonly<{ icon: string | null; title:
 
 /** The system line of a card: the system read (SSH, agent), else Home Assistant's, else the UniFi model and firmware */
 function SystemLine({ m, os, ha, unifi, freebox }: Readonly<{ m: Machine; os: OsKind | null; ha?: ServiceStatus; unifi?: UnifiDevice; freebox?: FreeboxInfo }>) {
-  if (m.info?.os || m.agent?.os) return <OsShort m={m} kind={os} />;
+  if (m.info?.os || m.agent?.os || m.os_hint) return <OsShort m={m} kind={os} />;
   if (haSystemName(ha)) return <span className="truncate" title={tx("Lu par Home Assistant")}>{haSystemName(ha)}</span>;
   if (freebox?.system?.model) return <ModelLine icon={modelIcon(freebox.system.model)} title={tx("Lu par MynetworK (Freebox)")} text={[freebox.system.model, freebox.system.firmware].filter(Boolean).join(" · ")} />;
   if (unifi?.version) return <ModelLine icon={modelIcon(unifi.model) ?? ""} title={tx("Lu par MynetworK (UniFi)")} text={[unifi.model, `UniFi ${unifi.version}`].filter(Boolean).join(" · ")} />;
@@ -1775,8 +1783,9 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       <MachinePage snap={snap} m={pageM} scan={scanOs[pageM.ip]} model={modelOf(pageM, snap.data.network, unifiOf(pageM))} state={st(pageM, true, true)} detail={(extra) => detailOf(pageM, extra)}
         figures={machineFigures(hb.get(pageM.ip), uptimeOf(pageM, unifiOf(pageM), freeboxOf(pageM, snap.data.network), haOf(pageM)) ?? null, watchOf(pageM).find((w) => w.tone !== "info")?.text)}
         onMachine={onMachine} focusTab={target?.tab} onBack={() => { location.hash = "machines"; }} />
-    ) : <div className="py-1">
+    ) : <div className="flex flex-col gap-4 py-1">
       <MachinesHead snap={snap} health={hb} watching={(m) => watchOf(m).some((w) => w.tone !== "info")} sel={f.sel} onSel={f.setSel} />
+      <FoldPanel id="machines-all" icon={Monitor} title={tx("Toutes les machines")} count={sort.sorted.length} pinned>
       <FilterBar bare f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
@@ -1828,6 +1837,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
           </Cards>
         </>
       )}
+      </FoldPanel>
     </div>}
     </KernelIgnore.Provider>
     </PickWatch.Provider>

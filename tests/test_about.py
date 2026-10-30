@@ -1,6 +1,7 @@
 """about.py : comparaison de versions, dernière version GitHub (réponse simulée, cache 6 h), journal des changements."""
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -38,6 +39,18 @@ class Versions(unittest.TestCase):
         self.assertEqual(about.planned("## Unreleased\n\n## v0.9.9 (d)\n## v0.9.8 (d)\n"), "0.9.10")
         self.assertIsNone(about.planned("## v0.9.3 (2026-10-11)\n"))          # rien en cours : pas de version prévue
         self.assertIsNone(about.planned("## Unreleased\n"))                     # pas de version publiée de référence
+
+    def test_prod_version_is_read_from_the_container_of_the_published_image(self):
+        svc = lambda image, v: {"service": {"kind": "docker", "image": image, "version": v}}
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "data.json"
+            f.write_text(json.dumps({"hosts": [svc("ghcr.io/erreur32/myservices:latest", "0.29.0"), svc("adguard/adguardhome:latest", "9.9.9"),
+                                               svc("ghcr.io/erreur32/myservices:latest", "0.28.1"), {"service": None}]}))
+            self.assertEqual(about.prod_version(f), "0.29.0")                    # only the project's image, the highest version
+            f.write_text(json.dumps({"hosts": [svc("nginx:latest", "1.0.0")]}))
+            os.utime(f, (1, 1))                                                  # another modification time: read again
+            self.assertIsNone(about.prod_version(f))
+            self.assertIsNone(about.prod_version(Path(d) / "absent.json"))
 
     def test_released_is_the_last_published_version_of_the_changelog(self):
         self.assertEqual(about.released("## Unreleased\n\n## v0.10.1 (2026-10-11)\n## v0.10.0 (d)\n"), "0.10.1")

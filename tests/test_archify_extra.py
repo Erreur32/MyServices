@@ -13,7 +13,8 @@ from msv.diagram import archify_extra as ax  # noqa: E402
 ID = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]*$")
 DATA = {
     "generated": "2026-10-11T10:00:00+00:00",
-    "machine_list": [{"ip": "10.0.0.2", "name": "srv", "info": {"vhosts": [{"port": 80, "names": ["a.fr", "www.a.fr"], "docroot": "/www"}, {"port": 443, "names": ["a.fr"]}], "nginx": False}},
+    "dns": {"servers": {"10.0.0.2": {"name": "srv"}}},
+    "machine_list": [{"ip": "10.0.0.2", "name": "srv", "agent": {"state": "actif"}, "info": {"vhosts": [{"port": 80, "names": ["a.fr", "www.a.fr"], "docroot": "/www"}, {"port": 443, "names": ["a.fr"]}], "nginx": False}},
                      {"ip": "10.0.0.3", "name": "web", "info": {"nginx": True}}],
     "hosts": [{"type": "proxy", "npm": "npm", "domains": ["x.lan", "y.lan"], "machine": "srv", "ip": "10.0.0.2", "port": 8080, "enabled": True, "service": {"kind": "docker", "name": "x"}},
               {"type": "proxy", "npm": "npm", "domains": ["z.lan"], "machine": "web", "ip": "10.0.0.3", "port": 81, "enabled": False, "app": {"label": "Z"}},

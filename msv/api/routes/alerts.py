@@ -204,12 +204,14 @@ def diagram_set(key: str, body: DiagramAsk, request: Request):
     return {"ok": True}
 
 
-@router.post(API + "/diagrams/rebuild", tags=["schémas"], summary="Regénérer les schémas maintenant (admin)")
+@router.post(API + "/diagrams/rebuild", tags=["schémas"], summary="Regénérer les schémas maintenant (admin ; refusé si une génération est déjà en cours)")
 def diagrams_rebuild(request: Request):
     if denied := admin_write(request):
         return denied
     if not (core.ARCHIFY and Path(core.ARCHIFY).exists()):
         return deny(409, "Archify n'est pas installé dans cette image")
+    if core.MAP_STATE["running"]:
+        return deny(409, "une génération est déjà en cours")
     threading.Thread(target=core.build_map, daemon=True, name="diagrams").start()
     store().audit("schémas regénérés", request.state.user["username"], ip_of(request), "")
     return {"ok": True}

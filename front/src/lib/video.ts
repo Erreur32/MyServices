@@ -99,3 +99,22 @@ export function streamAlerts(cards: StreamCard[]): WatchLine[] {
   }
   return [...out, ...unreadAlerts(cards, ["nvr", "relay", "live"])];
 }
+
+/** Events per hour over the last 24 h, all recorders together (oldest hour first), or null when none was read */
+export function streamHourly(cards: StreamCard[]): number[] | null {
+  const all = cards.map((c) => c.conn?.stream?.hourly).filter((h): h is number[] => Array.isArray(h) && h.length === 24);
+  return all.length ? Array.from({ length: 24 }, (_, i) => all.reduce((t, h) => t + h[i], 0)) : null;
+}
+
+export interface RecentEvent { camera: string; label: string; t: number; by: string }
+
+/** The latest events of every recorder, the most recent first */
+export function streamRecent(cards: StreamCard[], n = 5): RecentEvent[] {
+  return cards.flatMap((c) => (c.conn?.stream?.recent ?? []).flatMap((e) => (e.t == null ? [] : [{ camera: e.camera, label: e.label, t: e.t, by: c.title }])))
+    .sort((a, b) => b.t - a.t).slice(0, n);
+}
+
+/** The detectors read by Frigate (name, inference time in ms, CPU %), all recorders together */
+export function streamDetectors(cards: StreamCard[]): { name: string; ms?: number | null; cpu?: number | null; by: string }[] {
+  return cards.flatMap((c) => (c.conn?.frigate?.detectors ?? []).map((d) => ({ name: d.name, ms: d.ms, cpu: d.cpu, by: c.title })));
+}

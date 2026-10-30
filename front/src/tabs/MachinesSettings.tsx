@@ -4,7 +4,7 @@
 // Les réglages de chaque machine sont dans sa page (#machines/<ip>) ; ici, trois sous-pages du menu Machines : ajouter et détecter,
 // les appareils vus par les outils et pas suivis, les agents. La clé refusée par une machine est signalée sur la page de la clé SSH.
 import { NetworkSettings } from "./NetworkSettings";
-import { Box, Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Thermometer, Trash2 } from "lucide-react";
+import { Box, Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, Gauge, ShieldCheck, Thermometer, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -1085,6 +1085,50 @@ function TempSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
   );
 }
 
+type LimitKey = "disk_warn_pct" | "disk_crit_pct" | "mem_warn_pct" | "mem_crit_pct";
+const LIMITS: { kind: string; keys: [LimitKey, LimitKey]; defaults: [number, number] }[] = [
+  { kind: tx("Disque"), keys: ["disk_warn_pct", "disk_crit_pct"], defaults: [80, 90] },
+  { kind: tx("Mémoire"), keys: ["mem_warn_pct", "mem_crit_pct"], defaults: [90, 97] },
+];   // defaults of health.py (DISK_*_PCT, MEM_*_PCT)
+
+function LimitInput({ ctx, k, label, placeholder }: Readonly<{ ctx: FlagCtx; k: LimitKey; label: string; placeholder: number }>) {
+  const { v, ss, autoSave } = ctx;
+  const cur = typeof v[k] === "number" ? v[k] : null;
+  const [draft, setDraft] = useState(cur == null ? "" : String(cur));
+  useEffect(() => setDraft(cur == null ? "" : String(cur)), [cur]);
+  const commit = () => {
+    const n = draft.trim() === "" ? null : Number(draft);
+    if (n != null && (!Number.isInteger(n) || n < 1 || n > 100)) { setDraft(cur == null ? "" : String(cur)); return; }
+    if (n !== cur) void autoSave(k, { [k]: n ?? undefined });
+  };
+  return (
+    <label className="inline-flex items-center gap-2 text-sm text-muted">{label}
+      <input className={`${input} w-20`} type="number" min={1} max={100} step={1} placeholder={String(placeholder)} value={draft}
+        onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />
+      %<SavedMark k={k} s={ss} />
+    </label>
+  );
+}
+
+/** Disk and memory alert limits of this machine (% used): « to watch » from the first, « critical » from the second */
+function LimitsSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
+  return (
+    <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4" aria-label={tx("Seuils d'alerte")}>
+      <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Gauge size={13} className="text-link" aria-hidden />{tx("Seuils d'alerte")}</h4>
+      <InfoNote className="mb-3">{tx("Pourcentage utilisé à partir duquel la machine passe « à surveiller », puis « critique ». Un champ vide garde la valeur par défaut (affichée en gris). Le seuil critique doit rester au-dessus de l'autre.")}</InfoNote>
+      <div className="flex flex-col gap-2">
+        {LIMITS.map((l) => (
+          <div key={l.kind} className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <b className="w-20 text-sm">{l.kind}</b>
+            <LimitInput ctx={ctx} k={l.keys[0]} label={tx("À surveiller dès")} placeholder={l.defaults[0]} />
+            <LimitInput ctx={ctx} k={l.keys[1]} label={tx("Critique dès")} placeholder={l.defaults[1]} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function OptionsTab({ ctx, menu }: Readonly<{ ctx: FlagCtx; menu: OptionsState }>) {
   const groups = flagGroups(ctx.v, ctx.found);
   const count = groups.detected.length + groups.manual.length + groups.missing.length;
@@ -1092,6 +1136,7 @@ function OptionsTab({ ctx, menu }: Readonly<{ ctx: FlagCtx; menu: OptionsState }
     <>
       <QuickSettings ctx={ctx} />
       {ctx.v.os !== "windows" && <StoppedOkSetting ctx={ctx} />}
+      <LimitsSetting ctx={ctx} />
       {!ctx.v.vm && <TempSetting ctx={ctx} />}
       {groups.active.length > 0 && (
         <OptionGroup title={tx("Options actives")} hint={tx("Allumées pour cette machine ; les autres sont dans « Options de la machine »")}>

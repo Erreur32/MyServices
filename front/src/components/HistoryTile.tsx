@@ -37,7 +37,7 @@ export const useDnsHistory = (hours: Period, stamp: string) => useHistory<DnsHis
 export const useAiHistory = (hours: Period, stamp: string) => useHistory<AiHistory>("ai/history", hours, stamp);
 export const useServicesHistory = (hours: Period, stamp: string) => useHistory<ServicesHistory>("services/history", hours, stamp);
 
-const CELL = ["bg-ok/40", "bg-warn", "bg-bad"];   // all answered, one missing, two or more
+const CELL = ["bg-ok/40", "bg-warn/55", "bg-bad"];   // all answered, one missing, two or more
 /** Mouse handlers of a chart: where the pointer is along it (0 left edge, 1 right edge), and when it leaves */
 const hover = (onMove: (f: number) => void, onLeave: () => void) => ({
   onMouseMove: (e: MouseEvent<Element>) => { const r = e.currentTarget.getBoundingClientRect(); onMove((e.clientX - r.left) / r.width); },
@@ -59,13 +59,13 @@ function Strip({ points, hours, now, at, onMove, onLeave }: Readonly<{ points: T
 function Curve({ points, hours, now, good, scale, dips, onMove, onLeave }: Readonly<{ points: TilePoint[]; hours: Period; now: number; good: boolean; scale?: number; dips: boolean; onMove: (f: number) => void; onLeave: () => void }>) {
   const c = curve(points, hours, now, 120, 34, { scale });
   if (!c.last) return null;
-  const tone = good ? "rgb(var(--ok))" : "rgb(var(--warn))";
+  const tone = good ? "rgb(var(--ok))" : "rgb(var(--warn) / .7)";
   return (
     <svg aria-hidden viewBox="0 0 120 34" preserveAspectRatio="none" className="h-[34px] min-w-[70px] flex-1 cursor-crosshair overflow-visible"
       {...hover(onMove, onLeave)}>
       <path d={c.area} fill={tone} opacity="0.12" />
       <path d={c.line} fill="none" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" className="text-dim" opacity="0.7" />
-      {dips && c.dips && <path d={c.dips} fill="none" stroke="rgb(var(--warn))" strokeWidth="2.2" vectorEffect="non-scaling-stroke" />}
+      {dips && c.dips && <path d={c.dips} fill="none" stroke="rgb(var(--muted))" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
       <path d={`M${c.last[0].toFixed(1)} ${c.last[1].toFixed(1)}h0.01`} stroke={tone} strokeWidth="6" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
@@ -115,7 +115,7 @@ export function BarsTile({ label, n, tone, sub, values, perDay = false }: Readon
   };
   const bars = (
     <div aria-hidden className="flex h-6 min-w-[90px] flex-1 cursor-crosshair items-end gap-px" {...hover(setAt, () => setAt(null))}>
-      {values.map((v, i) => <i key={`${i}-${v}`} style={{ height: `${Math.max(v ? 12 : 4, (v / top) * 100)}%` }} className={`flex-1 rounded-[1.5px] ${v ? "bg-warn" : "bg-bg2"} ${i === hot ? "outline outline-1 outline-offset-1 outline-txt" : ""}`} />)}
+      {values.map((v, i) => <i key={`${i}-${v}`} style={{ height: `${Math.max(v ? 12 : 4, (v / top) * 100)}%` }} className={`flex-1 rounded-[1.5px] ${v ? "bg-warn/55" : "bg-bg2"} ${i === hot ? "outline outline-1 outline-offset-1 outline-txt" : ""}`} />)}
     </div>
   );
   return (

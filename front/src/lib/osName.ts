@@ -13,9 +13,10 @@ export function shortOs(name?: string | null): string {
   if (/windows/i.test(s)) {
     s = s.replace(/^microsoft\s+/i, "").replace(new RegExp(word("édition|edition").source, "giu"), "").replace(/\s+/g, " ").trim();
     if (/windows server/i.test(s)) return s.replace(/\s+(standard|datacenter|essentials)\b.*$/i, "").trim();
+    const rel = /\b(\d{2}H[12]|20H2|2004)\s*$/i.exec(s)?.[1];   // version de fonctionnalités (23H2) : seul morceau utile après l'édition
     for (const [rx, abbr] of EDITIONS) {
       const m = rx.exec(s);
-      if (m) return `${s.slice(0, m.index).trim()} ${abbr}`;  // tout ce qui suit l'édition est du bruit (« Professionnel N », mois de version…)
+      if (m) return `${s.slice(0, m.index).trim()} ${abbr}${rel ? ` ${rel}` : ""}`;  // tout ce qui suit l'édition est du bruit (« Professionnel N », mois de version…)
     }
     return s;
   }

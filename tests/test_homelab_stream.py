@@ -131,7 +131,8 @@ class Stream(unittest.TestCase):
         Fake.routes = {"/api/stats": (200, {"service": {"version": "0.16.2", "uptime": 60,
                                                         "storage": {"/media/frigate/recordings": {"total": 1000.0, "used": 840.0, "free": 160.0}}},
                                             "cameras": {"entree": {"camera_fps": 5.0}, "jardin": {"camera_fps": 0.0}},
-                                            "detectors": {"coral": {"inference_speed": 9.2}}}),
+                                            "detectors": {"coral": {"inference_speed": 9.2, "pid": 11}},
+                                            "cpu_usages": {"11": {"cpu": "3.5", "mem": "1.2"}}, "gpu_usages": {"intel-vaapi": {"gpu": "12 %", "mem": "5 %"}}}),
                        "/api/config": (200, {"cameras": {"entree": {"detect": {"enabled": True}, "record": {"enabled": True}}, "jardin": {"detect": {"enabled": False}}}})}
         events = [{"camera": "entree", "label": "person", "start_time": 100.0}, {"camera": "entree", "label": "car", "start_time": 200.0}]
         c = self.make(Frigate)
@@ -140,10 +141,32 @@ class Stream(unittest.TestCase):
         def get(path, headers=None, **kw):
             return events if path.startswith("/api/events") else orig(path, headers, **kw)
         c.get = get
-        b = c.collect()["stream"]
+        got = c.collect()
+        b, sysb = got["stream"], got["frigate"]
+        self.assertEqual((sysb["detectors"][0]["name"], sysb["detectors"][0]["ms"], sysb["detectors"][0]["cpu"], sysb["uptime"]), ("coral", 9.2, 3.5, 60.0))
+        self.assertEqual([x["name"] for x in sysb["cameras"]], ["entree", "jardin"])
+        self.assertEqual(sysb["storage"][0]["free"], 160.0)
+        self.assertEqual((sysb["gpus"][0]["name"], sysb["gpus"][0]["gpu"], sysb["gpus"][0]["mem"]), ("intel-vaapi", 12.0, 5.0))
         self.assertEqual([(x["name"], x["up"], x["detect"], x["record"], x["events"], x["last"]) for x in b["cameras"]],
                          [("entree", True, True, True, 2, 200.0), ("jardin", False, False, None, 0, None)])
         self.assertEqual((b["events"], b["labels"], b["detector_ms"], b["storage"]["total"]), (2, {"person": 1, "car": 1}, 9.2, 1000.0 * 1048576))
+
+    def test_frigate_overview_figures(self):
+        """Events per hour (oldest first), the objects of each camera and the five latest events, for the overview page."""
+        import time as _t
+        Fake.routes = {"/api/stats": (200, {"service": {}, "cameras": {"entree": {"camera_fps": 5.0}, "jardin": {"camera_fps": 5.0}}}),
+                       "/api/config": (200, {"cameras": {}})}
+        now = _t.time()
+        events = [{"camera": "entree", "label": "person", "start_time": now - 120}, {"camera": "entree", "label": "person", "start_time": now - 300},
+                  {"camera": "jardin", "label": "cat", "start_time": now - 7300}, {"camera": "jardin", "label": "car", "start_time": now - 90000}]
+        c = self.make(Frigate)
+        orig = c.get
+        c.get = lambda path, headers=None, **kw: events if path.startswith("/api/events") else orig(path, headers, **kw)
+        b = c.collect()["stream"]
+        self.assertEqual((b["hourly"][23], b["hourly"][21], sum(b["hourly"])), (2, 1, 3))   # the day-old car is outside the 24 h
+        self.assertEqual({x["name"]: x["labels"] for x in b["cameras"]}, {"entree": {"person": 2}, "jardin": {"cat": 1, "car": 1}})
+        self.assertEqual([(r["camera"], r["label"]) for r in b["recent"]][:2], [("entree", "person"), ("entree", "person")])
+        self.assertEqual(len(b["recent"]), 4)
 
     def test_frigate_account(self):
         stats = {"service": {"version": "0.16.2"}, "cameras": {"entree": {"camera_fps": 5.0}}}
@@ -182,7 +205,7 @@ class Stream(unittest.TestCase):
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
 class Snapshot(unittest.TestCase):
-    """GET stream/snapshot: an admin sees a camera seen at the last collection, the picture is never kept."""
+    """GET stream/snapshot and stream/live: a signed-in user sees a camera seen at the last collection, the picture is never kept."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -214,7 +237,21 @@ class Snapshot(unittest.TestCase):
         self.assertEqual(self.get("../../etc").status_code, 404)   # a camera not seen at the last collection
         self.cam.snapshot.return_value = b"<html>"
         self.assertEqual(self.get("entree").status_code, 502)
-        self.assertTrue(any(a["action"] == "image de caméra vue" for a in common.STORE.audit_log(10)))
+
+    def test_live_feed_relayed_audited_and_limited(self):
+        import io
+        body = io.BytesIO(b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + JPEG + b"\r\n")
+        body.headers = {"Content-Type": "multipart/x-mixed-replace; boundary=frame"}
+        self.cam.mjpeg.return_value = body
+        r = self.c.get(BASE + "/stream/live", params={"connector": "frigate", "name": "tower", "camera": "entree"})
+        self.assertEqual((r.status_code, r.headers["cache-control"]), (200, "no-store"))
+        self.assertTrue(r.headers["content-type"].startswith("multipart/x-mixed-replace"))
+        self.assertIn(JPEG, r.content)
+        self.assertTrue(body.closed)                                      # the source is always closed
+        actions = [a["action"] for a in common.STORE.audit_log(10)]
+        self.assertIn("flux de caméra ouvert", actions)
+        self.assertIn("flux de caméra arrêté", actions)
+        self.assertEqual(self.c.get(BASE + "/stream/live", params={"connector": "frigate", "name": "tower", "camera": "../x"}).status_code, 404)
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@ import { read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
 import { AgentInstall, type AgentKind, type InstallTarget } from "../components/AgentInstall";
-import { act, danger, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Count, Dim, Loading } from "../components/ui";
+import { act, danger, primary, quiet, type Note } from "../lib/forms";
+import { Badge, Dim, Loading } from "../components/ui";
 import { StatTile } from "../components/StatTile";
 import { HistoryTile, useAgentsHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
@@ -19,6 +19,8 @@ import { dateTime } from "../lib/format";
 import type { AgentInfo, AgentsState, MachineConf } from "../types";
 import { tx } from "../lib/i18n";
 import { InfoNote } from "../components/InfoNote";
+import { FoldPanel } from "../components/FoldPanel";
+import { PageHead } from "../components/PageHead";
 import { AccessChoice } from "../components/AccessChoice";
 
 const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]> = {
@@ -201,7 +203,11 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
   };
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end"><PeriodSwitch value={hours} onChange={setHours} /></div>
+      <PageHead icon={MonitorUp} title={tx("Agents")} tags={<span className="flex flex-wrap items-center gap-1.5 text-sm"><Badge tone="info" outline>{tx("{0} agent(s)", s.live.length)}</Badge><Badge tone="ok" outline>{tx("{0} actif(s)", s.active)}</Badge></span>}
+        actions={<>
+          <PeriodSwitch value={hours} onChange={setHours} />
+          {s.outdated.length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void updateLate()}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", s.outdated.length)}</button>}
+        </>} />
       <div className="flex flex-wrap gap-2.5 pb-1">
         <HistoryTile n={s.active} label={tx("Actifs")} tone="ok" kind="curve" points={hist?.running ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
         <HistoryTile n={avg ?? "-"} label={tx("Santé des agents")} tone={avg == null ? undefined : healthTone(avg)} fact={tx("moyenne sur 100")} scale={100} kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]} / 100`} goodHigh />
@@ -210,12 +216,8 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         <HistoryTile n={s.outdated.length} label={tx("À mettre à jour")} tone={s.outdated.length ? "warn" : undefined} kind="strip" points={hist?.late ?? null} hours={hours} now={now} figure={late} fmt={(p) => tx("{0} à mettre à jour", late(p))} goodHigh={false} />
       </div>
       {install && <AgentInstall key={`${install.ip}-auto`} target={install} onChanged={reload} onClose={() => setInstall(null)} />}
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} aria-hidden />{tx("Agents")} <Count n={s.live.length} /></h2>
-          {s.outdated.length > 0 && <button type="button" className={quiet} disabled={busy} onClick={() => void updateLate()}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", s.outdated.length)}</button>}
-        </div>
-        <InfoNote className="mt-2">{tx("Un agent s'installe depuis la page d'une machine, onglet Accès. Ses gestes sont sur sa ligne : mise à jour automatique ou immédiate, nouveau jeton, révocation.")}</InfoNote>
+      <FoldPanel id="agents-list" icon={MonitorUp} title={tx("Agents")} count={s.live.length} pinned>
+        <InfoNote>{tx("Un agent s'installe depuis la page d'une machine, onglet Accès. Ses gestes sont sur sa ligne : mise à jour automatique ou immédiate, nouveau jeton, révocation.")}</InfoNote>
         <NoteLine note={note} />
         {s.live.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun agent installé : le SSH lit déjà vos machines, ou aucun PC n'en a besoin.")}</p>}
         {s.live.length > 0 && (
@@ -229,7 +231,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
             </table>
           </div>
         )}
-      </Card>
+      </FoldPanel>
       <Group title={tx("Agents révoqués")} n={s.revoked.length}
         hint={tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}>
         {s.revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={install?.ip === a.ip && !!install.auto}

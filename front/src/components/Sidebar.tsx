@@ -77,7 +77,7 @@ function subTone(group: boolean, on: boolean): string {
 
 /** The sub-pages of an entry, a level deeper for the views of a sub-page (« Vue » › UniFi…): all shown */
 function SubLinks({ subs, active, depth, counts, onNavigate, inPanel }: Readonly<{ subs: NavItem[]; active: string; depth: number; counts: Counts; onNavigate: () => void; inPanel?: boolean }>) {
-  const pad = inPanel ? ["pl-3", "pl-8"] : ["pl-7", "pl-12"];
+  const pad = ["pl-3", "pl-8"];   // in the sidebar the list is itself shifted right of the group's bar (see NavEntry), so its frame starts off the line
   return (
     <>
       {subs.map((x) => {
@@ -134,8 +134,8 @@ function useFlyoutPanel(flies: boolean) {
 }
 
 /** The link of an entry: its icon, and its name when the menu is unfolded (folded: the name and the dot's meaning for screen readers) */
-function EntryLink({ item, open, narrow, flies, flown, badge, counts, onClick }: Readonly<{
-  item: NavItem; open: boolean; narrow: boolean; flies: boolean; flown: boolean; badge?: Level; counts: Counts; onClick: (e: MouseEvent) => void;
+function EntryLink({ item, open, soft, narrow, flies, flown, badge, counts, onClick }: Readonly<{
+  item: NavItem; open: boolean; soft: boolean; narrow: boolean; flies: boolean; flown: boolean; badge?: Level; counts: Counts; onClick: (e: MouseEvent) => void;
 }>) {
   const named = badge ? [item.label, levelText(badge)].join(", ") : item.label;
   const room = !narrow && (badge || item.subs) ? "pr-16" : "";   // room for the dot and the chevron
@@ -143,7 +143,7 @@ function EntryLink({ item, open, narrow, flies, flown, badge, counts, onClick }:
   return (
     <a href={`#${item.hash}`} onClick={onClick} aria-current={open && !item.subs ? "page" : undefined} title={narrow ? item.label : undefined}
       aria-label={narrow ? named : undefined} aria-haspopup={flies ? "menu" : undefined} aria-expanded={flies ? flown : undefined}
-      className={`${ROW} py-2 ${narrow ? "justify-center" : "px-3"} ${room} ${rowTone(open)}`}>
+      className={`${ROW} py-2 ${narrow ? "justify-center" : "px-3"} ${room} ${soft && open ? "bg-link/10 text-txt" : rowTone(open)}`}>
       <Icon size={17} strokeWidth={1.75} aria-hidden className="shrink-0" />
       {!narrow && <span className="truncate">{item.label}</span>}
       {!narrow && !item.subs && <CountChip n={counts[item.id]} />}
@@ -178,15 +178,16 @@ function NavEntry({ item, active, narrow, badge, why, counts, picked, onPick, on
     onNavigate();
   };
   return (
-    <div ref={panel.box} {...panel.bind}>
+    <div ref={panel.box} {...panel.bind} className="relative">
+      {category && expanded && <span aria-hidden className="pointer-events-none absolute bottom-1 left-0 top-1 w-[3px] rounded-full bg-link/60" />}{/* the bar that shows the whole open block, group and sub-pages */}
       <span className="relative flex">
-        <EntryLink item={item} open={open} narrow={narrow} flies={flies} flown={!!panel.fly} badge={badge} counts={counts} onClick={click} />
+        <EntryLink item={item} open={open} soft={category && expanded} narrow={narrow} flies={flies} flown={!!panel.fly} badge={badge} counts={counts} onClick={click} />
         {badge && narrow && <span aria-hidden className={`pointer-events-none absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2 ${badge === "crit" ? "bg-bad" : "bg-warn"}`} />}
         {badge && !narrow && <Badge level={badge} item={item} why={why} onBadge={onBadge} />}
         {category && <FoldButton expanded={expanded} onToggle={() => onPick(expanded ? "" : item.id)} />}
       </span>
       {category && expanded && (
-        <div className="mt-0.5 flex flex-col gap-0.5"><SubLinks subs={item.subs!} active={active} depth={0} counts={counts} onNavigate={onNavigate} /></div>
+        <div className="ml-4 mt-1 flex flex-col gap-0.5"><SubLinks subs={item.subs!} active={active} depth={0} counts={counts} onNavigate={onNavigate} /></div>
       )}
       {panel.fly && <Flyout item={item} active={active} at={panel.fly} counts={counts} onNavigate={() => { panel.hide(); onNavigate(); }} />}
     </div>

@@ -103,11 +103,11 @@ class Backups(unittest.TestCase):
             (web / "data.json").write_text(json.dumps(DATA))
             sys.argv = ["archify_cli.py", str(web), str(out)]
             archify_cli.main()
-            self.assertEqual(sorted(f.name for f in out.iterdir()), ["acces.archify.json", "carte.archify.json"])  # sans backups.json ni alertes
+            self.assertEqual(sorted(f.name for f in out.iterdir()), ["acces.archify.json", "carte.archify.json"])  # sans backups.json
             (web / "backups.json").write_text(json.dumps(BACKUPS))
-            (out / "alerts-summary.json").write_text(json.dumps({"channels": [{"type": "discord", "name": "D", "enabled": True}], "rules": 1, "reports": 0, "live": 1}))
+            (out / "alertes.archify.json").write_text("{}")   # retired diagram: removed by the next pass
             archify_cli.main()
-            self.assertEqual(sorted(f.name for f in out.iterdir()),  ["acces.archify.json", "alertes.archify.json", "alerts-summary.json", "carte.archify.json", "sauvegardes.archify.json"])
+            self.assertEqual(sorted(f.name for f in out.iterdir()),  ["acces.archify.json", "carte.archify.json", "sauvegardes.archify.json"])
 
     def test_schema_inchange_pas_regenere(self):
         import contextlib
@@ -133,13 +133,19 @@ class Backups(unittest.TestCase):
             self.assertIn("acces.archify.json", changed)
 
     def test_nouveaux_schemas_coherents(self):
-        for spec in (archify_map.build_access(DATA, None),
-                     archify_map.build_alert_chain({"channels": [{"type": "telegram", "name": "T", "enabled": False}], "rules": 2, "reports": 1, "live": 0}, "2026-10-11T10:00")):
+        for spec in (archify_map.build_access(DATA, None),):
             ids = {c["id"] for c in spec["components"]}
             self.assertEqual(len(ids), len(spec["components"]), "identifiants en double")
             self.assertTrue(all(c["from"] in ids and c["to"] in ids for c in spec["connections"]), spec["meta"]["title"])
             self.assertLessEqual(spec["layout"]["cols"], archify_map.MAX_COLS)
             self.assertTrue(all("row" in c and "col" in c for c in spec["components"]))
+
+    def test_liaisons_du_deuxieme_niveau(self):
+        """Chaque élément des lignes suivantes est relié à celui juste au-dessus : aucun élément dessiné sans trait."""
+        items = [{"id": str(i), "label": f"i{i}"} for i in range(8)]
+        spec = archify_map.grouped("t", "", "t.html", {"label": "h"}, [{"key": "a", "label": "A", "via": "x", "items": items}])
+        linked = {c["to"] for c in spec["connections"]}
+        self.assertTrue(all(c["id"] in linked for c in spec["components"] if c["id"].startswith("i")))
 
     def test_acces_chaque_machine_sous_sa_methode(self):
         ml = [{"ip": "10.0.0.2", "name": "srv", "ssh": {"user": "root", "port": 22}, "agent": {"state": "actif"}, "api": [{"label": "Beszel"}]},

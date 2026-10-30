@@ -8,7 +8,6 @@ carte.archify.json (data.json, + health/stats.json s'il existe) : Internet, chaq
 chaque machine (en ligne ou non, niveau de santé en icône et en étiquette). Liaisons : NPM -> machines qu'il
 publie (nombre de hosts), AdGuard -> NPM (réécritures DNS). Encadré : machines dont la santé n'est pas OK.
 acces.archify.json : comment chaque machine est lue (SSH avec compte et port, agent, ou aucun accès).
-alertes.archify.json (si alerts-summary.json existe, écrit par server.py) : collecte -> historique -> alertes / notifications -> canaux.
 Un schéma dont la spécification n'a pas changé n'est pas listé (donc pas regénéré).
 sauvegardes.archify.json (seulement si backups.json existe) : machines de backups-meta.json, liaisons
 origine -> machine qui garde une copie (nombre de jeux, âge de la plus récente). Encadré : points d'attention.
@@ -224,8 +223,8 @@ def grouped(title: str, generated: str, output: str, hub: dict | None, groups: l
             comps.append(with_level(c, it.get("level"), ""))
             ids.append(cid)
             n_items += 1
-            if i < w:                                    # liaison seulement vers la première ligne : les suivantes sont dans le cadre
-                conns.append({"from": gid, "to": cid, "route": "orthogonal-v"})
+            # première ligne : liée au groupe ; lignes suivantes : liées à l'élément juste au-dessus (même colonne, trait droit sans croisement)
+            conns.append({"from": gid if i < w else ids[i - w + 1], "to": cid, "route": "orthogonal-v"})
         bounds.append({"kind": "region", "label": f"{g['label']} · {len(g['items'])}"[:48], "wraps": ids, "pad": 12})
         col0 += w
     if hub:
@@ -282,32 +281,6 @@ def build_access(data: dict, health: dict | None = None) -> dict:
     groups = [{"key": k, "label": label, "type": typ, "via": via, "items": items[k], "dot": "amber" if k == "none" else "emerald"} for k, label, typ, via in ACCESS_GROUPS]
     hub = {"label": "MyServices", "sublabel": "clé SSH de l'app · agents · connecteurs", "type": "security"}
     return grouped("Accès aux machines", data.get("generated", ""), "acces.html", hub, groups)
-
-
-def build_alert_chain(info: dict, generated: str) -> dict:
-    """« Chaîne d'alertes et de notifications » : de la collecte jusqu'aux canaux (Discord, Telegram, webhook), avec les nombres du moment."""
-    ch = info.get("channels") or []
-    comps = [
-        {"id": "collect", "type": "backend", "label": "Collecte", "sublabel": "data.json · " + info.get("collect_at", ""), "row": 0, "col": 0},
-        {"id": "watch", "type": "backend", "label": "Veille et santé", "sublabel": "événements · " + info.get("watch_at", ""), "row": 0, "col": 1},
-        {"id": "history", "type": "database", "label": "Historique", "sublabel": "un an, SQLite", "row": 0, "col": 2},
-        {"id": "rules", "type": "security", "label": "Alertes", "sublabel": f"{info.get('rules', 0)} règle(s) active(s)", "row": 1, "col": 1},
-        {"id": "notifs", "type": "cloud", "label": "Notifications", "sublabel": f"{info.get('reports', 0)} rapport(s) · {info.get('live', 0)} en direct", "row": 1, "col": 3},
-    ]
-    conns = [{"from": "collect", "to": "watch"}, {"from": "watch", "to": "history"},
-             {"from": "history", "to": "rules", "label": "nouveaux", "route": "orthogonal-v"}, {"from": "history", "to": "notifs", "label": "en direct", "route": "orthogonal-v"}]
-    cols = max(4, len(ch))
-    start = (cols - len(ch)) // 2
-    for i, c in enumerate(ch):
-        cid = f"ch_{i}"
-        comps.append({"id": cid, "type": "external", "label": f"{CONNECTOR_LABEL.get(c['type'], c['type'])} · {c['name']}"[:24],
-                      "sublabel": "actif" if c.get("enabled") else "coupé", "row": 2, "col": start + i,
-                      "icon": "success" if c.get("enabled") else "waiting"})
-        conns.append({"from": "rules", "to": cid, "route": "orthogonal-v", **({} if c.get("enabled") else {"variant": "dashed"})})
-        conns.append({"from": "notifs", "to": cid, "route": "orthogonal-v", **({} if c.get("enabled") else {"variant": "dashed"})})
-    for c in comps:
-        c["size"] = [W, H]
-    return diagram("Chaîne d'alertes et de notifications", generated, "alertes.html", cols, comps, conns)
 
 
 def stable(spec: dict) -> str:
