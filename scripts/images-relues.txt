@@ -225,3 +225,7 @@ aeb55073c9021e7331373dd2103d5549  front/public/icons/sfrbox.svg
 80d50192ed535ca7cb47ae83c2c2d948  front/public/icons/connect-box.svg
 affd7ee69e447356e3d6a08cc64ac116  front/public/icons/speedport.svg
 0e00defbac4f2a1c1c693ea27e45b783  front/public/icons/technicolor-gateway.svg
+affd7ee69e447356e3d6a08cc64ac116  front/public/icons/tmobile-home-internet.svg
+0a63cbc0464cd3a22675a32ee65fd938  front/public/icons/hitron-coda.svg
+384356fd0d26321791ea1e7f05c12cb0  front/public/icons/verizon-fios.svg
+9e1d885293142bc4304b38d3ab01c811  front/public/icons/arris-surfboard.svg

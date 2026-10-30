@@ -30,7 +30,7 @@ describe("icon files", () => {
     const files = new Set(readdirSync(new URL("../../public/icons", import.meta.url)));
     const names = ["Pulse", "Arcane", "Glances", "GpuViewR", "NetAlertX", "Speedtest Tracker", "OpenSpeedTest", "Umami", "Rybbit", "Wazuh", "Webmin", "Tautulli", "Dozzle (agent)",
       "Bazarr", "Overseerr / Jellyseerr", "qBittorrent", "Transmission", "Backrest", "borgmatic (Borg)", "UrBackup", "Veeam Backup for Microsoft 365", "Veeam Agent",
-      "Unraid", "Proxmox Datacenter Manager", "KVM / libvirt", "Incus", "LXD", "VirtualBox", "Hyper-V", "Whisparr", "Box internet (UPnP IGD)", "FRITZ!Box", "SFR Box", "Livebox", "Vodafone Station", "Sagemcom F@st", "Bbox Bouygues", "Swisscom Internet-Box", "Compal Connect Box", "Telekom Speedport", "Passerelle Technicolor (Homeware)"];
+      "Unraid", "Proxmox Datacenter Manager", "KVM / libvirt", "Incus", "LXD", "VirtualBox", "Hyper-V", "Whisparr", "Box internet (UPnP IGD)", "FRITZ!Box", "SFR Box", "Livebox", "Vodafone Station", "Sagemcom F@st", "Bbox Bouygues", "Swisscom Internet-Box", "Compal Connect Box", "Telekom Speedport", "Passerelle Technicolor (Homeware)", "T-Mobile Home Internet", "Hitron CODA", "Verizon Fios Router", "Arris SURFboard"];
     for (const n of names) {
       const src = appIcon([n]);
       expect(src, n).not.toBeNull();
