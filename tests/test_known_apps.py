@@ -41,6 +41,7 @@ class Identify(unittest.TestCase):
     def test_port_distinctif_est_possible(self):
         self.assertEqual(self.key(port=8384), ("syncthing", ka.POSSIBLE))
         self.assertEqual(self.key(port=32400), ("plex", ka.POSSIBLE))
+        self.assertEqual(self.key(port=20443), ("wac", ka.POSSIBLE))
 
     def test_port_courant_ne_designe_rien(self):
         for port in (80, 443, 3000, 8080, 8090, 9000, 9090):
