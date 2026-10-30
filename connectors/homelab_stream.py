@@ -52,6 +52,20 @@ def cameras_fact(cams: list[dict]) -> tuple[dict, list[str]]:
     return fact("Caméras", f"{len(cams) - len(down)}/{len(cams)}", "bad" if down else "ok"), [f"caméra « {c} » sans image" for c in down]
 
 
+def _shinobi_camera(m: dict) -> dict:
+    """One Shinobi monitor as a camera row."""
+    try:
+        details = json.loads(m.get("details") or "{}") if isinstance(m.get("details"), str) else (m.get("details") or {})
+    except ValueError:
+        details = {}
+    mode, state = str(m.get("mode") or ""), str(m.get("status") or "")
+    on = mode in ("start", "record")
+    up = None if not on else state.lower() in ("watching", "recording", "started")
+    host = m.get("host")
+    return {**camera(m.get("name") or m.get("mid"), up=up, detect=str(details.get("detector")) == "1" if on else None, record=mode == "record"),
+            "ip": stream_host(details.get("auto_host")) or (stream_host(f"//{host}") if host else None)}
+
+
 class Shinobi(StatusConnector):
     """Shinobi CCTV: each camera (monitor) with its mode (watch only, record, stopped) and its state. The API key is part of the address
     (/<api key>/monitor/<group key>), read-only key from the Shinobi dashboard › API. Routes (GET): /<key>/monitor/<group>,
@@ -85,19 +99,7 @@ class Shinobi(StatusConnector):
         return rows(raw)
 
     def collect(self) -> dict:
-        mons = self._monitors()
-        cams = []
-        for m in mons[:MAX_ITEMS]:
-            try:
-                details = json.loads(m.get("details") or "{}") if isinstance(m.get("details"), str) else (m.get("details") or {})
-            except ValueError:
-                details = {}
-            mode, state = str(m.get("mode") or ""), str(m.get("status") or "")
-            on = mode in ("start", "record")
-            up = None if not on else state.lower() in ("watching", "recording", "started")
-            host = m.get("host")
-            cams.append({**camera(m.get("name") or m.get("mid"), up=up, detect=str(details.get("detector")) == "1" if on else None, record=mode == "record"),
-                         "ip": stream_host(details.get("auto_host")) or (stream_host(f"//{host}") if host else None)})
+        cams = [_shinobi_camera(m) for m in self._monitors()[:MAX_ITEMS]]
         head, problems = cameras_fact(cams)
         facts = [head, fact("Enregistrent", sum(1 for c in cams if c["record"]))]
         out = self.out(None, facts, problems)

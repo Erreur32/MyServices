@@ -207,11 +207,14 @@ class HomeAssistantAPI(Connector):
     )
     setup_fields = ("url", "token")
 
+    def _auth(self) -> dict:
+        return {"Authorization": "Bearer " + str(self.conf.get("token", ""))}
+
     def _get(self, path: str, timeout: float = 15):
         base = str(self.conf.get("url", "")).rstrip("/")
         if urllib.parse.urlsplit(base).scheme not in ("http", "https"):
             raise ConnectorError("adresse : http://<IP>:8123 attendu")
-        req = urllib.request.Request(base + path, headers={"Authorization": "Bearer " + str(self.conf.get("token", ""))})
+        req = urllib.request.Request(base + path, headers=self._auth())
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:  # certificat vérifié (https) : jamais désactivé
                 return json.load(r)
@@ -223,7 +226,7 @@ class HomeAssistantAPI(Connector):
         if not re.fullmatch(r"[a-z0-9_-]{1,64}", slug):
             raise ConnectorError("module inconnu")
         base = str(self.conf.get("url", "")).rstrip("/")
-        req = urllib.request.Request(f"{base}/api/hassio/addons/{slug}/icon", headers={"Authorization": "Bearer " + str(self.conf.get("token", ""))})
+        req = urllib.request.Request(f"{base}/api/hassio/addons/{slug}/icon", headers=self._auth())
         try:
             with urllib.request.urlopen(req, timeout=10) as r:  # NOSONAR S5144: the address is the connector's own, the slug checked above
                 return r.read(512 * 1024)
@@ -238,7 +241,7 @@ class HomeAssistantAPI(Connector):
         if not entity:
             raise ConnectorError("caméra inconnue")
         base = str(self.conf.get("url", "")).rstrip("/")
-        return self.ctx.http(f"{base}/api/camera_proxy/{urllib.parse.quote(entity)}", headers={"Authorization": "Bearer " + str(self.conf.get("token", ""))}, binary=True)
+        return self.ctx.http(f"{base}/api/camera_proxy/{urllib.parse.quote(entity)}", headers=self._auth(), binary=True)
 
     def version(self) -> str | None:
         v = self._get("/api/config").get("version")
