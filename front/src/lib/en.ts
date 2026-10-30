@@ -314,6 +314,7 @@ export const EN: Record<string, string> = {
   "Protection": "Protection",
   "Administration": "Administration",
   "Toutes les machines": "All machines",
+  "Dernier relevé des données : {0}": "Last data reading: {0}",
   "Vue": "View",
   "Disponibles": "Available",
   "Détectés à relier": "Found, to link",

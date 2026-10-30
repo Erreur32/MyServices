@@ -1,8 +1,9 @@
 import { ArrowUpCircle, ChevronDown, ExternalLink, Info, LifeBuoy, ListChecks, LogOut, Menu, UserRound, X } from "lucide-react";
 import { Avatar } from "./Avatar";
+import { ScheduleCard } from "./ScheduleCard";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { logout, type Snapshot } from "../api";
 import { LANG, LOCALE, setLang, tx } from "../lib/i18n";
 import { Flag } from "./Flag";
@@ -15,6 +16,33 @@ import { ScanOrb } from "./ScanOrb";
 function ago(iso: string, now: number): string {
   const min = Math.round((now - new Date(iso).getTime()) / 60000);
   return min < 1 ? tx("à l'instant") : min < 60 ? tx("il y a {0} min", min) : tx("il y a {0} h", Math.round(min / 60));
+}
+
+/** « Data 33 min ago »: on hover or focus, the exact time of the reading and the card of the scheduled tasks (the one of the Statistics page).
+ *  The card is mounted only while shown, so it reads the tasks only then. */
+function FreshnessTip({ at, children }: Readonly<{ at: string; children: ReactNode }>) {
+  const [hover, setHover] = useState(false), [pinned, setPinned] = useState(false), box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {   // a click on the label keeps the card open (touch screens); a click elsewhere or Escape closes it
+    if (!pinned) return;
+    const away = (e: Event) => { if (!box.current?.contains(e.target as Node)) setPinned(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setPinned(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [pinned]);
+  return (
+    <span ref={box} className="relative" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <button type="button" aria-expanded={pinned} onClick={() => setPinned(!pinned)} className="cursor-pointer rounded bg-transparent p-0 text-inherit uppercase outline-none focus-visible:ring-1 focus-visible:ring-link" style={{ font: "inherit", letterSpacing: "inherit" }}>{children}</button>
+      {(hover || pinned) && (
+        <div className="absolute left-0 top-full z-50 w-80 max-w-[85vw] pt-2 normal-case tracking-normal">   {/* the padding keeps the pointer inside while it moves to the card */}
+          <div className="rounded-xl border border-line bg-bg2 p-2 shadow-2xl">
+            <div className="mb-2 px-1 text-xs font-normal text-muted">{tx("Dernier relevé des données : {0}", new Date(at).toLocaleString(LOCALE))}</div>
+            <ScheduleCard />
+          </div>
+        </div>
+      )}
+    </span>
+  );
 }
 
 /** Dev image only: the release in prod, the git state it was built from (branch, commit, commits since the tag, uncommitted
@@ -107,9 +135,9 @@ export function Header({ snap, now, onMenu }: Readonly<{ snap: Snapshot; now: nu
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-dim">
             <span className={`h-2 w-2 rounded-full ${stale ? "bg-warn" : "bg-ok"}`} />
-            <span title={new Date(snap.data.generated).toLocaleString(LOCALE)}>
+            <FreshnessTip at={snap.data.generated}>
               {tx("Données")} {ago(snap.data.generated, now)}{stale && tx(" · en retard")}
-            </span>
+            </FreshnessTip>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.released && snap.me.version !== "dev" && !/^v\d+\.\d+\.\d+/.test(snap.me.version) ? tx("Image construite depuis une branche, après la version {0} : {1}", snap.me.released, snap.me.version) : snap.me.version}>{appVersion(snap.me.version, snap.me.released)}</span>}
