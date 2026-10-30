@@ -40,6 +40,7 @@ Puis l'ajouter à `TYPES` dans `connectors/__init__.py`.
 - `self.ctx.http(url, method=, body=, headers=, verify_tls=, timeout=)` : JSON décodé, ou
   `ConnectorError` lisible (code HTTP, message de l'API). `verify_tls=False` seulement pour un
   certificat auto-signé, et jamais par défaut.
+  `payload=` envoie un corps brut (enveloppe SOAP : `headers` donne son type), `binary=True` rend les octets tels quels.
 - `self.ctx.ssh(alias, cmd, stdin=)` : sortie d'une commande par un alias SSH de l'app.
 - **Isolation** (`run_isolated`) : délai maximal, erreur ou bug capturés, dernier résultat bon réutilisé
   et marqué « périmé », passages en échec comptés. Un connecteur en panne ne bloque pas les autres.
@@ -49,6 +50,7 @@ Puis l'ajouter à `TYPES` dans `connectors/__init__.py`.
 ## Règles
 
 - **Lecture seule** : uniquement des GET (ou la connexion qui donne un jeton). Jamais d'écriture.
+  Exception : un protocole qui lit par POST (SOAP de l'UPnP), avec seulement des actions de lecture listées dans le code.
 - **Secrets** : champs `secret=True` ; jamais dans un message d'erreur, un journal ou la page
   (`Connector.public()` les remplace par « configuré »).
 - **Messages en français**, qui disent quoi faire (« jeton refusé : regénérer la clé dans … »).
@@ -69,6 +71,11 @@ python3 -m unittest discover -s tests
 Ce qu'un connecteur (ou la santé, la veille, les sauvegardes) produit se plie à `models.py` : `Machine`, `Service`, `Health`,
 `Backup`, `Event`, `Alert` (pydantic). Un champ en plus est gardé ; un champ de base manquant ou mal typé est refusé par
 `models.validate()`, utilisé par les tests. Le front lit les mêmes formes (`front/src/types.ts`).
+
+## Box internet
+
+Un connecteur de box remplit `Box` (`connectors/box_kit.py`) avec ce que son protocole donne et rend `box_card(box)` : les champs restés à `None` ne s'affichent pas.
+L'adresse publique passe par `public_address()`, qui écarte `0.0.0.0` et les adresses privées, et reste hors des `facts` (le bouton Tester les affiche).
 
 ## Cache
 

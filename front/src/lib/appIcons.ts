@@ -10,7 +10,7 @@ const FILES: Record<string, string> = {
   jellyfin: "jellyfin", netatmo: "netatmo", netdata: "netdata", prometheus: "prometheus",
   "web-check": "web-check", webcheck: "web-check", veeam: "veeam", "veeam backup & replication": "veeam",
   "vmware vcenter": "vcenter", vcenter: "vcenter", "vmware esxi": "vmware-esxi", esxi: "vmware-esxi", vmware: "vmware-esxi",
-  nextcloud: "nextcloud", freebox: "freebox", healthchecks: "healthchecks", crowdsec: "crowdsec", "technitium dns": "technitium", technitium: "technitium",
+  nextcloud: "nextcloud", freebox: "freebox", "box internet (upnp igd)": "upnp-box", healthchecks: "healthchecks", crowdsec: "crowdsec", "technitium dns": "technitium", technitium: "technitium",
   "onduleur (nut)": "nut", nut: "nut", "network ups tools": "nut", "western digital": "wd", "wd my cloud": "wd", mycloud: "wd",
   pulse: "pulse", "pulse (agent)": "pulse", arcane: "arcane", "arcane (agent)": "arcane", glances: "glances", gpuviewr: "gpuviewr.png", "gpuviewr (agent)": "gpuviewr.png",   // GpuViewR's own favicon
   netalertx: "netalertx", "speedtest tracker": "speedtest-tracker", openspeedtest: "openspeedtest", umami: "umami", rybbit: "rybbit",

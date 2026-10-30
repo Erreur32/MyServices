@@ -135,11 +135,12 @@ class Context:
         return value
 
     def http(self, url: str, *, method: str = "GET", body: dict | None = None, headers: dict | None = None,
-             verify_tls: bool = True, timeout: float | None = None, binary: bool = False, form: dict | None = None) -> object:
+             verify_tls: bool = True, timeout: float | None = None, binary: bool = False, form: dict | None = None,
+             payload: bytes | None = None) -> object:
         """Réponse JSON décodée ; ConnectorError lisible (code HTTP, message de l'API) sinon. binary : the bytes as they come (a camera
-        image), at most MAX_BINARY. form: sent URL-encoded instead of `body`."""
+        image, a SOAP answer), at most MAX_BINARY. form: sent URL-encoded instead of `body`. payload: sent as it is, `headers` say its type."""
         h = {"Accept": "application/json", "User-Agent": "myservices", **(headers or {})}
-        data = None
+        data = payload
         if body is not None:
             data = json.dumps(body).encode()
             h["Content-Type"] = "application/json"

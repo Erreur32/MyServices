@@ -5,6 +5,13 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.31.0 → next version
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged.
+- **Optional**: the new connector « Internet box (UPnP IGD) » (category Network / DNS) reads any box with UPnP turned on. It needs no account. Leave its address empty to search the local network, which needs `network_mode: host` as in the provided compose file; otherwise paste the box's description address. Its reading includes the public address of the box, in `data.json`, which every account and the MCP tools can read.
+
 ## 0.30.1 → 0.31.0
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.

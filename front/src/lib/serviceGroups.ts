@@ -26,7 +26,7 @@ function placeTheme(r: Host, site: boolean): string {
   const theme = themeOf(r.category), web = theme === tx("Sites web") || theme === OTHERS();
   return web ? (site ? tx("Sites web") : OTHERS()) : theme;
 }
-const CARD_THEME: Record<string, string[]> = { netatmo: ["Domotique"], freebox: ["Réseau / DNS"], unifi: ["Réseau / DNS"] };
+const CARD_THEME: Record<string, string[]> = { netatmo: ["Domotique"], freebox: ["Réseau / DNS"], unifi: ["Réseau / DNS"], "upnp-box": ["Réseau / DNS"] };
 
 /** Every real domain of a service: its NPM domains, or the ones its Apache / nginx declares */
 export const hostDomains = (r: Host): string[] => (r.domains.length ? r.domains : r.vhost_domains ?? []);
