@@ -13,7 +13,7 @@ import { Badge, Card, Count, Dim, Th } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
-import type { ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service } from "../types";
+import type { ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias } from "../types";
 import { cardsTitle, cardView, toWatch, type CardTone, type CardView } from "../lib/connectorCards";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
@@ -108,11 +108,16 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const views = new Map(st.instances.map((i) => [key(i), cardView(i, cardOf(i))]));
   const typeOf = (i: ConnectorInstance) => st.types.find((t) => t.type === i.type)!;
   const watching = st.instances.filter((i) => toWatch(views.get(key(i))!)).length, stopped = st.instances.filter((i) => !i.enabled).length, failing = [...views.values()].some((v) => v.tone === "bad");
-  const kept = (i: ConnectorInstance) => (view === WATCH ? toWatch(views.get(key(i))!) : view === OFF ? !i.enabled : !view || typeOf(i).category === view);
-  const listed = st.instances.filter((i) => key(i) === edited || key(i) === focusKey || (kept(i) && searchHit(`${i.label} ${i.name} ${i.type}`, find)));
+  const kept = (i: ConnectorInstance) => {
+    if (view === WATCH) return toWatch(views.get(key(i))!);
+    if (view === OFF) return !i.enabled;
+    return !view || typeOf(i).category === view;
+  };
+  const listed = st.instances.filter((i) => key(i) === edited || key(i) === focusKey || (kept(i) && searchHit(`${i.label} ${i.name} ${i.type}`, find)))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name));   // alphabetical, like the picker
   const mine = (<div className="mt-3 grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,18rem),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
         {listed.length === 0 && <p className="col-span-full py-4 text-center text-sm text-muted">{tx("Aucun connecteur ne correspond.")}</p>}
-        {listed.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
+        {listed.map((i) => (
           <InstanceCard key={`${i.type}/${i.name}`} inst={i} view={views.get(key(i))!} hosts={snap.data.hosts} collect={collect} type={typeOf(i)} reload={reload}
             toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
               tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
@@ -220,7 +225,7 @@ const CATEGORY: Record<string, string> = {
 const catName = (c: string) => CATEGORY[c] ?? c;
 
 /** Picker filter: one chip per category, with its count, alphabetical */
-function CategoryChips({ types, cat, setCat, extra = [] }: { types: ConnectorType[]; cat: string; setCat: (c: string) => void; extra?: [string, string, number, CardTone][] }) {
+function CategoryChips({ types, cat, setCat, extra = [] }: Readonly<{ types: ConnectorType[]; cat: string; setCat: (c: string) => void; extra?: [string, string, number, CardTone][] }>) {
   const counts = new Map<string, number>();
   for (const t of types) if (t.category) counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
   const cats = [...counts.keys()].sort((a, b) => catName(a).localeCompare(catName(b)));
@@ -228,11 +233,11 @@ function CategoryChips({ types, cat, setCat, extra = [] }: { types: ConnectorTyp
   if (cats.length < 2 && !more.length) return null;
   const chip = (on: boolean) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${on ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`;
   return (
-    <div className={`flex flex-wrap gap-1.5 ${extra.length ? "" : "mt-3"}`} role="group" aria-label={tx("Catégorie")}>
+    <fieldset className={`flex flex-wrap gap-1.5 ${extra.length ? "" : "mt-3"}`} aria-label={tx("Catégorie")}>
       <button type="button" className={chip(!cat)} aria-pressed={!cat} onClick={() => setCat("")}>{tx("Toutes")} <b className="text-dim">{types.length}</b></button>
       {more.map(([id, label, n, tone]) => <button key={id} type="button" className={`${chip(cat === id)} ${CHIP[tone]}`} aria-pressed={cat === id} onClick={() => setCat(cat === id ? "" : id)}><span className={`h-2 w-2 rounded-full ${DOT[tone]}`} aria-hidden />{label} <b>{n}</b></button>)}
       {cats.map((c) => <button key={c} type="button" className={chip(cat === c)} aria-pressed={cat === c} onClick={() => setCat(cat === c ? "" : c)}>{catName(c)} <b className="text-dim">{counts.get(c)}</b></button>)}
-    </div>
+    </fieldset>
   );
 }
 
@@ -395,6 +400,69 @@ function ToggleNote({ note, onForce }: Readonly<{ note: Note; onForce?: () => vo
   );
 }
 
+/** The outline of a card: blue while it is open or pointed at, else the colour of its state */
+function cardRing(active: boolean, tone: CardTone): string {
+  if (active) return "border-link ring-2 ring-link";
+  if (tone === "bad") return "border-bad/60";
+  return tone === "warn" ? "border-warn/50" : "border-dim/50";
+}
+
+function openTip(locked: boolean, open: boolean): string {
+  if (locked) return tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord");
+  return open ? tx("Fermer") : tx("Ouvrir : infos, adresse, accès et options du connecteur");
+}
+
+/** The first line of a card: logo, name, version and state */
+function CardHead({ inst, category, view, open }: Readonly<{ inst: ConnectorInstance; category?: string; view: CardView; open: boolean }>) {
+  const s = inst.status, icon = appIcon([inst.label]);
+  const sub = [inst.name === inst.type ? "" : inst.name, category ? catName(category) : ""].filter(Boolean).join(" · ");
+  return (
+    <span className="flex items-center gap-2.5 px-3 pt-2.5">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-card">
+        {icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-sm">{inst.label}</b>
+        <span className="block truncate text-xs text-muted" title={sub}>{sub}{s?.version && <>{sub && " · "}<span className={s.version_tested === false ? "text-warn" : ""} title={s.version_tested === false ? tx("version non testée") : undefined}>v{s.version}</span></>}</span>
+      </span>
+      <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold ${TEXT[view.tone]}`}><span className={`h-2 w-2 rounded-full ${DOT[view.tone]}`} aria-hidden />{view.state}</span>
+      <ChevronDown size={18} className={`shrink-0 text-muted transition-transform group-hover:text-link ${open ? "rotate-180" : ""}`} aria-hidden />
+    </span>
+  );
+}
+
+/** The last line of a card: where it reads and how often; a connector turned off keeps its settings */
+function CardWhere({ inst, url }: Readonly<{ inst: ConnectorInstance; url?: string }>) {
+  if (!inst.enabled) return tx("Réglages gardés, plus rien de lu");
+  return (
+    <>
+      {url ? <a className="font-mono hover:text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a> : ""}
+      {typeof inst.config.every === "number" && inst.config.every > 0 && <span title={tx("Période de lecture propre à ce connecteur")}>{url ? " · " : ""}{tx("toutes les {0} min", inst.config.every)}</span>}
+    </>
+  );
+}
+
+/** What an opened card shows above its form: what the connector reads, and the problems beside it */
+function CardDetail({ view, page }: Readonly<{ view: CardView; page?: string }>) {
+  return (
+    <div className={`mb-3 mt-1 grid gap-x-6 gap-y-3 rounded-xl border border-line/60 p-4 ${view.problems.length ? "lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""}`}>
+      <div>
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
+          <h4 className="text-xs font-bold uppercase tracking-wide text-muted">{tx("Ce que le connecteur lit")}</h4>
+          {page && <a href={`#${page}`} className="text-xs font-semibold text-link hover:underline">{tx("Ouvrir la page")}</a>}
+        </div>
+        <dl className="grid overflow-hidden rounded-lg border border-line bg-card [grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr))]">{/* the negative margins hide the separators on the outer edge */}
+          {view.facts.map((f) => <div key={f.label} className="-mb-px -mr-px min-w-0 border-b border-r border-line px-3 py-2"><dd className={`break-words text-sm font-semibold ${f.tone ? TEXT[f.tone] : ""}`}>{f.value}</dd><dt className="text-xs text-muted">{f.label}</dt></div>)}
+        </dl>
+      </div>
+      {view.problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+        <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
+        <ul className="divide-y divide-warn/20 text-sm">{view.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
+      </div>}
+    </div>
+  );
+}
+
 function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEditing: setEdit }: Readonly<{
   view: CardView; toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }>) {
@@ -404,34 +472,19 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) box.current?.scrollIntoView({ block: "center" }); }, [focus]);
   useEffect(() => { if (edit) box.current?.scrollIntoView({ block: "nearest" }); }, [edit]);
-  const s = inst.status, icon = appIcon([inst.label]), page = PAGE[inst.type];
+  const s = inst.status;
   const detail = view.facts.length > 0 || view.problems.length > 0;
-  const sub = [inst.name === inst.type ? "" : inst.name, type.category ? catName(type.category) : ""].filter(Boolean).join(" · ");
-  const ring = edit || focus ? "border-link ring-2 ring-link" : view.tone === "bad" ? "border-bad/60" : view.tone === "warn" ? "border-warn/50" : "border-dim/50";
   return (
-    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`min-w-0 scroll-mt-24 ${edit || focus ? "col-span-full" : ""}`}><div className={`flex h-full flex-col rounded-xl border bg-bg2 ${ring} ${inst.enabled ? "" : "opacity-80"}`}>
+    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`min-w-0 scroll-mt-24 ${edit || focus ? "col-span-full" : ""}`}><div className={`flex h-full flex-col rounded-xl border bg-bg2 ${cardRing(!!(edit || focus), view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
       {/* the whole top of the card opens it: state, what it reads, its settings and its test, in one place */}
       <button type="button" className="group rounded-t-xl text-left hover:bg-link/10 disabled:cursor-default disabled:hover:bg-transparent" disabled={locked} aria-expanded={edit}
-        title={locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : edit ? tx("Fermer") : tx("Ouvrir : infos, adresse, accès et options du connecteur")} onClick={() => setEdit(!edit)}>
-        <span className="flex items-center gap-2.5 px-3 pt-2.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-card">
-            {icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}
-          </span>
-          <span className="min-w-0 flex-1">
-            <b className="block truncate text-sm">{inst.label}</b>
-            <span className="block truncate text-xs text-muted" title={sub}>{sub}{s?.version && <>{sub && " · "}<span className={s.version_tested === false ? "text-warn" : ""} title={s.version_tested === false ? tx("version non testée") : undefined}>v{s.version}</span></>}</span>
-          </span>
-          <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold ${TEXT[view.tone]}`}><span className={`h-2 w-2 rounded-full ${DOT[view.tone]}`} aria-hidden />{view.state}</span>
-          <ChevronDown size={18} className={`shrink-0 text-muted transition-transform group-hover:text-link ${edit ? "rotate-180" : ""}`} aria-hidden />
-        </span>
+        title={openTip(locked, edit)} onClick={() => setEdit(!edit)}>
+        <CardHead inst={inst} category={type.category} view={view} open={edit} />
         {edit && detail ? <span className="block h-2" /> : <span className="grid grid-cols-3 gap-2 px-3 pb-2 pt-1.5">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
       </button>
       {inst.enabled && (!s || s.pending || !s.ok || s.stale || s.warning) && <div className="px-3 pb-2 text-sm"><StatusLine s={s && { ...s, found: [] }} collect={collect} /></div>}
       <div className="mt-auto flex items-center gap-1 border-t border-line/40 py-1 pl-3 pr-2">
-        <span className="min-w-0 flex-1 truncate text-xs text-dim">
-          {!inst.enabled ? tx("Réglages gardés, plus rien de lu") : url ? <a className="font-mono hover:text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a> : ""}
-          {inst.enabled && typeof inst.config.every === "number" && inst.config.every > 0 && <span title={tx("Période de lecture propre à ce connecteur")}>{url ? " · " : ""}{tx("toutes les {0} min", inst.config.every)}</span>}
-        </span>
+        <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>
         <span className="ml-1 flex items-center" title={tx("Le connecteur est lu par le serveur à sa période (voir Modifier) ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
           <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />
         </span>
@@ -439,23 +492,7 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
       <div className="px-3 empty:hidden">
         {toggling && <output className="inline-flex items-center gap-1.5 pb-2 text-xs text-warn"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</output>}
         <ToggleNote note={toggleNote ?? null} onForce={onForce} />
-        {edit && detail && (
-          <div className={`mb-3 mt-1 grid gap-x-6 gap-y-3 rounded-xl border border-line/60 p-4 ${view.problems.length ? "lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""}`}>
-            <div>
-              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
-                <h4 className="text-xs font-bold uppercase tracking-wide text-muted">{tx("Ce que le connecteur lit")}</h4>
-                {page && <a href={`#${page}`} className="text-xs font-semibold text-link hover:underline">{tx("Ouvrir la page")}</a>}
-              </div>
-              <dl className="grid overflow-hidden rounded-lg border border-line bg-card [grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr))]">{/* the negative margins hide the separators on the outer edge */}
-                {view.facts.map((f) => <div key={f.label} className="-mb-px -mr-px min-w-0 border-b border-r border-line px-3 py-2"><dd className={`break-words text-sm font-semibold ${f.tone ? TEXT[f.tone] : ""}`}>{f.value}</dd><dt className="text-xs text-muted">{f.label}</dt></div>)}
-              </dl>
-            </div>
-            {view.problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
-              <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
-              <ul className="divide-y divide-warn/20 text-sm">{view.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
-            </div>}
-          </div>
-        )}
+        {edit && detail && <CardDetail view={view} page={PAGE[inst.type]} />}
         {edit && <ConnectorForm type={type} inst={inst} hosts={hosts} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)}
           onDelete={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => { if (ok) { setEdit(false); reload(); } })} />}
         <NoteLine note={note} />
@@ -465,7 +502,10 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
 }
 
 /** A required field stands out, and turns orange while it is empty; an optional one stays in the background */
-const fieldBox = (need: boolean, empty: boolean) => `${input} ${need ? `!bg-card ${empty ? "!border-warn" : "!border-link/70"}` : "!bg-transparent"}`;
+function fieldBox(need: boolean, empty: boolean): string {
+  if (!need) return `${input} !bg-transparent`;
+  return `${input} !bg-card ${empty ? "!border-warn" : "!border-link/70"}`;
+}
 
 function Required({ text }: Readonly<{ text: string }>) {
   return <span className="font-semibold text-txt">{text}<b className="ml-0.5 text-bad" title={tx("requis")} aria-label={tx("requis")}>*</b></span>;
@@ -484,11 +524,56 @@ function Figure({ f }: Readonly<{ f: CardView["figures"][number] }>) {
   );
 }
 
-export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = false, onSaved, onDone, onCancel, onDelete }: { onDelete?: () => void; type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; found?: Service; hosts?: Host[]; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }) {
+type ConfValue = string | number | boolean;
+type Conf = Record<string, ConfValue>;
+
+/** « · user@host » after a machine in the list of a field, when it has one */
+function aliasTail(a: SshAlias): string {
+  const host = a.ip || a.host, user = a.user ? `${a.user}@` : "";
+  return a.user || host ? ` · ${user}${host}` : "";
+}
+
+/** Choices whose values have a logo (Sonarr, Tailscale…): icon buttons, no menu */
+function iconOption(c: string) {
+  const src = appIcon([c]);
+  return { value: c, label: c.charAt(0).toUpperCase() + c.slice(1), icon: src ? <img src={src} alt="" className="h-7 w-7" /> : <Package size={24} className="text-muted" aria-hidden /> };
+}
+
+/** The input of a field, by its kind; `put` gives its new value */
+function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }: Readonly<{
+  f: ConnectorField; v?: ConfValue; box: string; need: boolean; kept: boolean; inst?: ConnectorInstance; picksMachine: boolean; aliases: SshAlias[]; put: (x: ConfValue) => void;
+}>) {
+  const text = String(v ?? "");
+  if (f.kind === "bool") return <input type="checkbox" className="h-4 w-4" checked={!!v} onChange={(e) => put(e.target.checked)} />;
+  if (f.name === "ssh" && picksMachine) return (
+    <select className={box} value={text} onChange={(e) => put(e.target.value)} required={need}>
+      <option value="">{need ? tx("Choisir la machine…") : tx("aucune : dans le conteneur")}</option>
+      {aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias}{aliasTail(a)}</option>)}
+    </select>
+  );
+  if (f.choices.some((c) => appIcon([c]))) return <IconChoice label={tx(f.label)} value={String(v ?? f.default ?? "")} onPick={put} options={f.choices.map(iconOption)} />;
+  if (f.choices.length) return (
+    <select className={box} value={text} onChange={(e) => put(e.target.value)}>
+      {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+    </select>
+  );
+  if (f.secret) return (
+    <SecretInput value={text} onChange={put} kept={kept} className={box}
+      placeholder={kept ? tx("déjà renseigné : laisser vide pour garder") : ""}
+      reveal={inst ? (password) => send<{ value: string }>("POST", `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}/reveal`, { field: f.name, password }).then((r) => r.value) : undefined} />
+  );
+  return (
+    <input className={box} type={f.kind === "number" ? "number" : "text"} autoComplete="off"
+      value={text} placeholder={String(f.default ?? "")}
+      onChange={(e) => put(e.target.value)} />
+  );
+}
+
+export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = false, onSaved, onDone, onCancel, onDelete }: Readonly<{ onDelete?: () => void; type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; found?: Service; hosts?: Host[]; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }>) {
   const [name, setName] = useState(inst?.name || prefill?.name || type.type);
-  const [conf, setConf] = useState<Record<string, string | number | boolean>>(() => {
-    const init: Record<string, string | number | boolean> = {};
-    for (const f of type.fields) if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.name === "url" ? prefill?.url : undefined) ?? (f.default as string | number | boolean | null) ?? "";
+  const [conf, setConf] = useState<Conf>(() => {
+    const init: Conf = {};
+    for (const f of type.fields) if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.name === "url" ? prefill?.url : undefined) ?? (f.default as ConfValue | null) ?? "";
     return init;
   });  // the install is known (found by the scan, or the app at the address typed): its exact command comes first in the help
   const setup = setupCommand(type.type, found ?? serviceAt(conf.url, hosts ?? [], type.type));
@@ -532,37 +617,15 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
   const submit = (e: FormEvent) => { e.preventDefault(); void save(true); };
   const needed = (f: ConnectorField) => (modeDef ? modeDef.required.includes(f.name) : f.required);
   const renderField = (f: ConnectorField) => {
-          const kept = inst && f.secret && inst.set[f.name];
-          const v = conf[f.name];
-          const need = needed(f), box = fieldBox(need, !kept && (v === undefined || v === ""));
+    const kept = inst && f.secret && inst.set[f.name];
+    const v = conf[f.name];
+    const need = needed(f), box = fieldBox(need, !kept && (v === undefined || v === ""));
     return (
-            <Field key={f.name} label={need ? <Required text={tx(f.label)} /> : tx(f.label)}>
-              {f.kind === "bool" ? (
-                <input type="checkbox" className="h-4 w-4" checked={!!v} onChange={(e) => setConf({ ...conf, [f.name]: e.target.checked })} />
-              ) : f.name === "ssh" && modeDef ? (
-                <select className={box} value={String(v ?? "")} onChange={(e) => setConf({ ...conf, ssh: e.target.value })} required={need}>
-                  <option value="">{need ? tx("Choisir la machine…") : tx("aucune : dans le conteneur")}</option>
-                  {aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias}{a.user || a.ip || a.host ? ` · ${a.user ? `${a.user}@` : ""}${a.ip || a.host}` : ""}</option>)}
-                </select>
-              ) : f.choices.length && f.choices.some((c) => appIcon([c])) ? (   // choix dont les valeurs ont un logo (Sonarr, Tailscale…) : boutons-icônes, pas de menu
-                <IconChoice label={tx(f.label)} value={String(v ?? f.default ?? "")} onPick={(c) => setConf({ ...conf, [f.name]: c })}
-                  options={f.choices.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1), icon: appIcon([c]) ? <img src={appIcon([c])!} alt="" className="h-7 w-7" /> : <Package size={24} className="text-muted" aria-hidden /> }))} />
-              ) : f.choices.length ? (
-                <select className={box} value={String(v ?? "")} onChange={(e) => setConf({ ...conf, [f.name]: e.target.value })}>
-                  {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              ) : f.secret ? (
-                <SecretInput value={String(v ?? "")} onChange={(x) => setConf({ ...conf, [f.name]: x })} kept={!!kept} className={box}
-                  placeholder={kept ? tx("déjà renseigné : laisser vide pour garder") : ""}
-                  reveal={inst ? (password) => send<{ value: string }>("POST", `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}/reveal`, { field: f.name, password }).then((r) => r.value) : undefined} />
-              ) : (
-                <input className={box} type={f.kind === "number" ? "number" : "text"} autoComplete="off"
-                  value={String(v ?? "")} placeholder={String(f.default ?? "")}
-                  onChange={(e) => setConf({ ...conf, [f.name]: e.target.value })} />
-              )}
-              {f.help && <span className="text-xs text-dim">{tx(f.help)}</span>}
-            </Field>
-          );
+      <Field key={f.name} label={need ? <Required text={tx(f.label)} /> : tx(f.label)}>
+        <FieldInput f={f} v={v} box={box} need={need} kept={!!kept} inst={inst} picksMachine={!!modeDef} aliases={aliases} put={(x) => setConf({ ...conf, [f.name]: x })} />
+        {f.help && <span className="text-xs text-dim">{tx(f.help)}</span>}
+      </Field>
+    );
   };
   return (
     // Editing happens inside the instance card (already outlined in blue, with its logo and title): no inner frame nor header there
@@ -633,7 +696,7 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
 const TIP = { ok: ["text-ok", "✓"], warn: ["text-warn", "⚠"], bad: ["text-bad", "✗"] } as const;
 
 /** Mode « script npm-api.sh » : conseils sur le chemin (vu de la machine qui l'exécutera) et installation du script sur cette machine */
-function NpmScript({ conf, setConf }: { conf: Record<string, string | number | boolean>; setConf: (c: Record<string, string | number | boolean>) => void }) {
+function NpmScript({ conf, setConf }: Readonly<{ conf: Conf; setConf: (c: Conf) => void }>) {
   const api = String(conf.api ?? ""), ssh = String(conf.ssh ?? "");
   const [tips, setTips] = useState<ScriptTip[] | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [install, setInstall] = useState(false), [done, setDone] = useState<string[]>([]);

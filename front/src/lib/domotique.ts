@@ -56,6 +56,13 @@ const span = (ns: number[], unit: string) => {
 
 const numbers = (ms: NetatmoModule[], key: string) => ms.map((m) => m.values[key]).filter((n): n is number => typeof n === "number");
 
+function co2Tone(ppm: number): HouseTone {
+  if (ppm > 1400) return "bad";
+  return ppm > 1000 ? "warn" : "ok";
+}
+
+const pointsText = (n: number) => (n === 1 ? tx("1 point") : tx("{0} points", n));
+
 export function house(snap: Snapshot) {
   const list = rows(snap), modules = list.flatMap((c) => (c.modules ?? []).map((m) => ({ ...m, source: { connector: c.connector ?? "", name: c.instance ?? "" } })));
   const of = (types: string[]) => modules.filter((m) => types.includes(m.type ?? ""));
@@ -67,7 +74,7 @@ export function house(snap: Snapshot) {
     { label: tx("Intérieur"), value: span(numbers(indoor, "temperature"), "°"), sub: tx("{0} pièce(s)", indoor.length) },
   ];
   if (outdoor.length) tiles.push({ label: tx("Extérieur"), value: span(numbers(outdoor, "temperature"), "°"), sub: outdoor[0].values.humidity != null ? tx("humidité {0} %", outdoor[0].values.humidity) : undefined });
-  if (co2) tiles.push({ label: tx("CO2 le plus haut"), value: `${num(worst)} ppm`, sub: co2.name, tone: worst > 1400 ? "bad" : worst > 1000 ? "warn" : "ok" });
+  if (co2) tiles.push({ label: tx("CO2 le plus haut"), value: `${num(worst)} ppm`, sub: co2.name, tone: co2Tone(worst) });
   const noise = numbers(sensors, "noise"), pressure = numbers(sensors, "pressure"), rain = numbers(sensors, "rain_24h");
   if (noise.length) tiles.push({ label: tx("Bruit"), value: `${num(Math.max(...noise))} dB` });
   if (pressure.length) tiles.push({ label: tx("Pression"), value: `${num(pressure[0])} hPa` });
@@ -76,7 +83,7 @@ export function house(snap: Snapshot) {
   return {
     tiles, problems, sensors, shutters, cameras, rooms: list.flatMap((c) => c.rooms ?? []), pictures: list.some((c) => c.connector === "netatmo"),
     others: modules.filter((m) => !sensors.includes(m) && !shutters.includes(m) && !cameras.includes(m)),
-    title: problems.length ? tx("{0} à regarder dans ta maison.", problems.length === 1 ? tx("1 point") : tx("{0} points", problems.length)) : tx("Tout va bien dans ta maison."),
+    title: problems.length ? tx("{0} à regarder dans ta maison.", pointsText(problems.length)) : tx("Tout va bien dans ta maison."),
     text: worst > 1000 ? tx("L'air est à aérer : {0}.", co2?.name) : tx("{0} appareils suivis.", modules.length),
   };
 }

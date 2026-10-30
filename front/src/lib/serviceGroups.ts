@@ -23,8 +23,9 @@ const OTHERS = () => tx("Autres");
 const themeOf = (category?: string) => THEMES().find(([, c]) => c.includes(category ?? ""))?.[0] ?? OTHERS();
 /** A plain site goes with the sites unless its category says more; an application is never a « website » */
 function placeTheme(r: Host, site: boolean): string {
-  const theme = themeOf(r.category), web = theme === tx("Sites web") || theme === OTHERS();
-  return web ? (site ? tx("Sites web") : OTHERS()) : theme;
+  const theme = themeOf(r.category);
+  if (theme !== tx("Sites web") && theme !== OTHERS()) return theme;
+  return site ? tx("Sites web") : OTHERS();
 }
 const CARD_THEME: Record<string, string[]> = { netatmo: ["Domotique"], freebox: ["Réseau / DNS"], unifi: ["Réseau / DNS"], "upnp-box": ["Réseau / DNS"] };
 
@@ -48,11 +49,11 @@ function placeOf(r: Host, apps: Map<string, string>): { key: string; name: strin
 }
 
 function toneOf(hosts: Host[], cards: ServiceStatus[]): GroupTone {
-  const seen = hosts.map((r) => status(r)[0]);
-  if (seen.includes("bad") || cards.some((c) => !c.ok)) return "bad";
+  const seen = new Set(hosts.map((r) => status(r)[0]));
+  if (seen.has("bad") || cards.some((c) => !c.ok)) return "bad";
   const flagged = hosts.some((r) => status(r)[0] !== "off" && checks(r).some((k) => !CLEANUP.includes(k)));
-  if (seen.includes("warn") || flagged || cards.some((c) => c.stale || c.problems?.length)) return "warn";
-  return seen.includes("ok") || cards.length ? "ok" : "off";
+  if (seen.has("warn") || flagged || cards.some((c) => c.stale || c.problems?.length)) return "warn";
+  return seen.has("ok") || cards.length ? "ok" : "off";
 }
 
 /** `hidden`: rows hidden from the alerts, which no longer colour their service */
@@ -94,7 +95,10 @@ export function groupsTitle(groups: ServiceGroup[]): string {
 /** The headings of the list and the services under each one: a service on two machines shows under both */
 export function sections(groups: ServiceGroup[], byMachine: boolean): { title: string; groups: ServiceGroup[] }[] {
   if (!byMachine) return themeOrder().map((title) => ({ title, groups: groups.filter((g) => g.theme === title) })).filter((s) => s.groups.length);
-  const place = (g: ServiceGroup) => (g.cloud ? ["Cloud"] : g.machines.length ? g.machines : [tx("Autres")]);
+  const place = (g: ServiceGroup) => {
+    if (g.cloud) return ["Cloud"];
+    return g.machines.length ? g.machines : [tx("Autres")];
+  };
   const titles = [...new Set(groups.flatMap(place))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   return titles.map((title) => ({ title, groups: groups.filter((g) => place(g).includes(title)) }));
 }
