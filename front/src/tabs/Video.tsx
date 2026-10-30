@@ -207,7 +207,7 @@ function Picture({ cam }: Readonly<{ cam: CameraRow }>) {
   }, [live]);
   const conn = cam.card.conn;
   if (!conn?.stream?.snapshot || cam.up === false) return null;
-  const q = new URLSearchParams({ connector: conn.connector, name: conn.name, camera: cam.name, t: String(at) });
+  const q = new URLSearchParams({ connector: conn.connector, name: conn.instance ?? conn.name, camera: cam.name, t: String(at) });
   const btn = "rounded-full bg-card/90 p-1.5 text-muted hover:text-txt";
   return (
     <div className="relative mt-2 overflow-hidden rounded-lg border border-line bg-bg2">

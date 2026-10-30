@@ -85,7 +85,7 @@ export function house(snap: Snapshot) {
   if (rain.length) tiles.push({ label: tx("Pluie sur 24 h"), value: `${num(rain[0], 1)} mm` });
   const problems = list.flatMap((c) => c.problems ?? []);
   return {
-    tiles, problems, sensors, shutters, blinds, cameras, rooms: list.flatMap((c) => c.rooms ?? []), pictures: list.some((c) => c.connector === "netatmo"),
+    tiles, problems, sensors, shutters, blinds, cameras, rooms: list.flatMap((c) => c.rooms ?? []), pictures: list.some((c) => c.connector === "netatmo" || c.stream?.snapshot),
     others: modules.filter((m) => !sensors.includes(m) && !covers.includes(m) && !cameras.includes(m)),
     title: problems.length ? tx("{0} à regarder dans ta maison.", pointsText(problems.length)) : tx("Tout va bien dans ta maison."),
     text: worst > 1000 ? tx("L'air est à aérer : {0}.", co2?.name) : tx("{0} appareils suivis.", modules.length),

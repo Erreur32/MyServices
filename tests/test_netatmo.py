@@ -11,7 +11,8 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from connectors.base import ConnectorError, RateLimited
-from connectors.netatmo import Netatmo, from_home_assistant, summary, weather
+from connectors.home_assistant import HomeAssistantAPI  # noqa: E402
+from connectors.netatmo import Netatmo, from_home_assistant, stream_of, summary, weather
 
 SEED, NEXT = "seed-" + "x", "next-" + "y"   # built here so the secret guard sees no literal
 
@@ -164,6 +165,34 @@ class ThroughHomeAssistant(unittest.TestCase):
         ha("climate.salon", "heat", friendly_name="Salon", current_temperature=20, temperature=21),
         {"entity_id": "sensor.other_temperature", "state": "1", "attributes": {"device_class": "temperature"}},
     ]
+
+    def test_home_assistant_gives_the_cameras_to_the_video_page(self):
+        states = [{"entity_id": "camera.netatmo_presence_ext", "state": "idle", "attributes": {"attribution": self.STATES[0]["attributes"]["attribution"], "friendly_name": "Presence", "monitoring": True}}]
+        block = stream_of(from_home_assistant(states)["modules"])["stream"]
+        self.assertEqual(block["cameras"], [{"name": "Presence", "up": True, "detect": True, "place": "ext"}])
+        self.assertTrue(block["snapshot"])
+
+    def test_the_picture_goes_through_home_assistant(self):
+        class Ctx:
+            timeout = 5
+
+            def __init__(self):
+                self.url = ""
+
+            def cached(self, key, ttl, fn):
+                return fn()
+
+            def http(self, url, headers=None, binary=False):
+                self.url = url
+                return b"jpeg"
+        ctx = Ctx()
+        ha = HomeAssistantAPI({"name": "h", "url": "http://ha:8123", "token": "x"}, ctx)
+        states = [{"entity_id": "camera.netatmo_cam", "state": "idle", "attributes": {"attribution": self.STATES[0]["attributes"]["attribution"], "friendly_name": "Salon"}}]
+        with mock.patch.object(ha, "_get", return_value=states):
+            self.assertEqual(ha.snapshot("Salon"), b"jpeg")
+            with self.assertRaises(ConnectorError):
+                ha.snapshot("Autre")
+        self.assertEqual(ctx.url, "http://ha:8123/api/camera_proxy/camera.netatmo_cam")
 
     def test_nothing_from_netatmo_gives_nothing(self):
         self.assertIsNone(from_home_assistant(self.STATES[-1:]))

@@ -32,6 +32,8 @@ describe("house page", () => {
     expect(house(ha).shutters[0].source).toEqual({ connector: "home-assistant", name: "ha" });
     expect(house(ha).problems).toEqual(["Vent ne répond plus"]);
     expect(house(ha).pictures).toBe(false);
+    const withPictures = { data: { services_status: [{ ...viaHa, stream: { role: "nvr", engine: "Netatmo", snapshot: true } }] } } as unknown as Snapshot;
+    expect(house(withPictures).pictures).toBe(true);
     const both = { data: { services_status: [viaHa, { connector: "netatmo", instance: "n", modules: [mod({ type: "NAMain" })] }] } } as unknown as Snapshot;
     expect(house(both).shutters).toEqual([]);
     expect(house(both).pictures).toBe(true);

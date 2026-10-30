@@ -31,7 +31,18 @@ const STREAM: Family<StreamRole> = {
 };
 
 export function streamCards(snap: Snapshot): StreamCard[] {
-  return sortCards(serviceCards(snap, STREAM), ROLE_ORDER);
+  const cards = serviceCards(snap, STREAM), direct = cards.some((c) => c.conn?.connector === "netatmo");
+  // Home Assistant reads the same Netatmo cameras: the connector wins, as on the Domotique page
+  return sortCards(direct ? cards.filter((c) => c.conn?.connector !== "home-assistant") : cards, ROLE_ORDER);
+}
+
+/** The recorder that films the device at this address, for a page that only knows the device */
+export function recorderAt(snap: Snapshot, ip?: string) {
+  for (const c of snap.data.services_status ?? []) {
+    const camera = ip && c.stream?.snapshot ? c.stream.cameras?.find((x) => x.ip === ip) : undefined;
+    if (camera) return { connector: c.connector ?? "", name: c.instance ?? c.name, camera: camera.name, engine: c.stream?.engine ?? "" };
+  }
+  return null;
 }
 
 export const hasStream = (snap: Snapshot): boolean =>

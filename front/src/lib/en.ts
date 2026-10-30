@@ -854,6 +854,8 @@ export const EN: Record<string, string> = {
   "Appareils trouvés": "Devices found",
   "Images des caméras": "Camera pictures",
   "pas lues dans cette version": "not read in this version",
+  "lues par {0}": "read by {0}",
+  "Image lue par {0} ({1})": "Picture read by {0} ({1})",
   "{0} appareils Tapo, {1} en ligne.": "{0} Tapo devices, {1} online.",
   "Aucun appareil Tapo lu pour le moment.": "No Tapo device read for now.",
   "Prises avec leur consommation, caméras avec leur état, lus sur ton réseau avec ton compte Tapo.": "Plugs with their consumption, cameras with their state, read on your network with your Tapo account.",

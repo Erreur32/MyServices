@@ -204,7 +204,7 @@ def services_meta_edit(body: ServiceMeta, request: Request):
 def _stream_camera_known(connector: str, name: str, camera: str) -> bool:
     """The camera (or stream) was seen at the last collection, on a connector that offers pictures."""
     data = read_produced("data.json") or {}
-    status = next((c for c in data.get("services_status") or [] if c.get("connector") == connector and c.get("name") == name), None)
+    status = next((c for c in data.get("services_status") or [] if c.get("connector") == connector and (c.get("instance") or c.get("name")) == name), None)
     block = (status or {}).get("stream") or {}
     known = {c.get("name") for c in block.get("cameras") or []} | {x.get("name") for x in block.get("streams") or []}
     return bool(block.get("snapshot")) and camera in known

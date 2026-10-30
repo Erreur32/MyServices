@@ -100,6 +100,18 @@ class Frigate(Base):
         self.assertEqual(facts["Événements 24 h"]["value"], "2")
         self.assertEqual(d["problems"], ["caméra « garage » sans image (0 image/s)"])
 
+    def test_camera_address_comes_from_the_stream_never_its_account(self):
+        from connectors.homelab_media import _camera_host
+        account = "user" + ":" + "fake"   # built here: a stream address holds an account, the guard refuses a written one
+        relays = {"terrasse": [f"ffmpeg:rtsp://{account}@192.0.2.64/stream1#video=h264"], "cour": "rtsp://192.0.2.65/s"}
+        through = {"ffmpeg": {"inputs": [{"path": "rtsp://127.0.0.1:8554/terrasse"}]}}
+        self.assertEqual(_camera_host(through, relays), "192.0.2.64")
+        self.assertEqual(_camera_host({"ffmpeg": {"inputs": [{"path": "rtsp://127.0.0.1:8554/cour"}]}}, relays), "192.0.2.65")
+        self.assertEqual(_camera_host({"ffmpeg": {"inputs": [{"path": f"rtsp://{account}@192.0.2.9/x"}]}}, {}), "192.0.2.9")
+        self.assertIsNone(_camera_host({}, relays))
+        self.assertIsNone(_camera_host({"ffmpeg": {"inputs": [{"path": "rtsp://[bad"}]}}, relays))
+        self.assertIsNone(_camera_host({"ffmpeg": {"inputs": [{"path": "rtsp://127.0.0.1:8554/inconnu"}]}}, relays))
+
     def test_pas_frigate(self):
         self.route("/api/stats", ["autre chose"])
         with self.assertRaises(ConnectorError):
