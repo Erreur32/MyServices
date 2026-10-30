@@ -5,6 +5,13 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.30.0 → 0.30.1
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
+- **Behaviour**: none beyond the screens (Freebox page, UniFi view, Network page).
+
 ## 0.29.0 → 0.30.0
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
