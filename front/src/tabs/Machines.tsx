@@ -1433,7 +1433,7 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
               <span className="inline-flex items-center gap-1"><Sshd m={m} what="pwd" />{tx("mot de passe")}</span>
             </span>
           </Row>
-        </> : <Row k={tx("SSH")}>{m.local ? tx("local") : <Dim>{tx("pas d'accès SSH configuré")}</Dim>}</Row>}
+        </> : m.local && <Row k={tx("SSH")}>{tx("local")}</Row>}
         {m.agent && <Row k={tx("Agent")}>{tx("relevé par l'agent MyServices")}</Row>}
       </Section>
   );
@@ -1443,9 +1443,9 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
 function dockerValue(m: Machine): React.ReactNode {
   const i = m.info;
   if (m.containers === null) {
-    if (m.ssh) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;   // SSH is set up but Docker cannot be read: a real problem
     if (m.agent?.docker) return tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker);
-    return <Dim>{m.agent ? tx("aucun conteneur") : tx("non lu (pas d'accès SSH)")}</Dim>;   // nothing reads Docker here: not a fault
+    if (m.ssh && !m.agent) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;   // SSH is the only way in and Docker cannot be read: a real problem
+    return <Dim>{m.agent ? tx("aucun conteneur") : tx("non lu")}</Dim>;   // nothing reads Docker here: not a fault
   }
   if (i?.docker) return tx("{0} conteneur(s) en cours", i.docker);
   if (m.agent?.docker != null) return m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>;

@@ -228,6 +228,14 @@ def current_proposals(data: dict) -> list[dict]:
     return known_apps.still_proposed(data.get("proposals") or [], saved)
 
 
+def key_refused(data: dict) -> list[dict]:
+    """Machines whose SSH key is refused and that nothing else reads: one read by its agent needs no key."""
+    machines = data.get("machine_list") or []
+    by_agent, names = {m["ip"] for m in machines if m.get("agent")}, {m["ip"]: m["name"] for m in machines}
+    return [{"ip": c["ip"], "name": names.get(c["ip"])} for c in data.get("connectors") or []
+            if c.get("type") == "docker" and not c.get("ok") and c.get("ip") and c["ip"] not in by_agent]
+
+
 @router.get(API + "/discoveries", tags=["système"], summary="Qui découvre quoi : automatique, à la main, à faire (admin)")
 def discoveries(request: Request):
     from msv.backups import backups_admin
@@ -257,14 +265,13 @@ def discoveries(request: Request):
     stale = bool(data.get("generated")) and (time.time() - datetime.fromisoformat(data["generated"]).timestamp()) > 90 * 60
     ignored = {x.get("ip") for x in core.CFG.get("netscan_ignored") or []}
     known = {m["ip"] for m in data.get("machine_list") or []}
-    names = {m["ip"]: m["name"] for m in data.get("machine_list") or []}
     try:
         waiting = [{"ip": a["ip"], "name": a["name"]} for a in agents_store().listing() if a["state"] == "en attente"]
     except Exception:  # noqa: BLE001 : base d'agents absente : rien à rappeler
         waiting = []
     items = disc.build({
         "unknown_hosts": sum(1 for h in net.get("found") or [] if h["ip"] not in known and h["ip"] not in ignored and not h.get("known")),
-        "key_refused": [{"ip": c["ip"], "name": names.get(c["ip"])} for c in data.get("connectors") or [] if c.get("type") == "docker" and not c.get("ok") and c.get("ip")],
+        "key_refused": key_refused(data),
         "agents_waiting": waiting,
         "collect_last": last, "collect_next": core.next_run("collect"), "collect_ok": not stale,
         "net_has_run": bool(net.get("ended") or net.get("started")), "net_last": net.get("ended") or net.get("started"), "net_every_h": core.CFG["netscan_every"],

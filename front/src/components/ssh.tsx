@@ -100,7 +100,7 @@ function readSummary(i: NonNullable<Machine["info"]>): ReactNode {
 /** Détail SSH : état de la connexion en tête, puis le bloc Accès (alias, clé, empreintes), le bloc Lecture (système, sshd, conteneurs) et l'état de chaque connecteur SSH. */
 export function SshDetails({ m, statuses }: { m: Machine; statuses: (Connector | ConnectorStatus)[] }) {
   const s = m.ssh, i = m.info, d = i?.sshd;
-  if (!s && !m.local) return <p className="text-dim">{tx("Pas d'accès SSH : ping et services web seulement.")}</p>;
+  if (!s && !m.local) return m.agent ? null : <p className="text-dim">{tx("Ni agent ni SSH : ping et services web seulement.")}</p>;
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
