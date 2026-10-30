@@ -83,6 +83,9 @@ body {
 .range:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--link) / 0.35); }
 
 /* Barre de scan (ScanBar) : dégradé lien -> ok, reflet qui avance ; sans progression connue, bloc qui va et vient */
+/* Figure of a state tile in warning: the yellow of the theme, softer (a little less on the light theme, where the amber is already dark) */
+.tile-warn { color: rgb(var(--warn) / .72); }
+:root.light .tile-warn, .theme-light .tile-warn { color: rgb(var(--warn) / .9); }
 .scan-fill { background: linear-gradient(90deg, rgb(var(--link)), rgb(var(--ok))); transition: width .6s ease; position: relative; overflow: visible; box-shadow: 0 0 10px rgb(var(--link) / .55), 0 0 18px rgb(var(--ok) / .35); }
 /* flowing stripes over the whole fill, and a bright head that pulses at its end */
 .scan-fill::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgb(255 255 255 / .22) 0 6px, transparent 6px 12px); background-size: 17px 100%; animation: scan-stripes .9s linear infinite; opacity: .8; }

@@ -24,7 +24,7 @@ const grow = (wide: boolean, compact: boolean): string => {
 };
 
 export function StatTile({ n, label, sub, hint, tone, small = false, children, aside, wide = false, compact = false, onClick, pressed }: TileProps) {   // hint: what the figure counts, on hover   // small: a row of figures sharing its line; children: under the fact (a small curve, a time)
-  const figure = <div className={`whitespace-nowrap font-mono font-bold ${small ? "text-base leading-tight" : "text-xl"} ${tone ? COLOR[tone] : ""}`}>{n}</div>;
+  const figure = <div className={`whitespace-nowrap font-mono font-bold ${small ? "text-base leading-tight" : "text-xl"} ${tone === "warn" ? "tile-warn" : tone ? COLOR[tone] : ""}`}>{n}</div>;   // the warning yellow is softened on a tile (see .tile-warn)
   const body = (
     <>
       <div className={`${small ? "text-[11px]" : "text-xs"} text-muted`}>{label}</div>

@@ -36,6 +36,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Pages
 - **Same head on the list pages**: icon and title, tags, then the actions at the right (link to the connectors as an icon, the period, then the main button last). The main element sits in a pinned frame on Machines, Virtualization, Agents, SSH connections and Diagrams.
 - **The « read only » badge is gone from the page heads**; the tags of the AI page show one name per row plus a « +n » badge so the head stays on one line.
+- **Softer state tiles and clearer menu**: the warning yellow of the tiles (figure, bars, dips line) is softer in every theme, and an open menu group gets a vertical bar over the whole block, its active sub-page frame starting right of that line.
 - **Blue information frames can be hidden** with their cross (kept in the browser) and shown again from Profile or Settings > Appearance. Orange warnings cannot be hidden.
 
 ## v0.29.0 (2026-10-28)
