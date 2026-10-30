@@ -2,7 +2,7 @@
 import type { Snapshot } from "../api";
 
 /** Status cards shown in the Network tab rather than in Health */
-export const NETWORK_CARDS = ["freebox", "unifi", "upnp-box", "fritzbox", "opnsense", "netalertx", "speedtest-tracker", "tailscale"];
+export const NETWORK_CARDS = ["freebox", "unifi", "upnp-box", "fritzbox", "sfrbox", "opnsense", "netalertx", "speedtest-tracker", "tailscale"];
 
 /** Something to show: a network source that answers (or answered: stale), or devices already found */
 export function hasNetwork(s: Snapshot): boolean {
