@@ -58,7 +58,7 @@ class WindowsAdminCenter(Connector):
     )
     setup_fields = ("url", "user", "password")
     guide = (
-        "Sur le serveur qui héberge Windows Admin Center : créer un compte (ou prendre un compte de service) et l'ajouter au groupe local « Windows Admin Center Gateway Users ».",
+        "Prendre un compte Windows autorisé à ouvrir Windows Admin Center : par défaut tout membre du groupe local « Utilisateurs » du serveur WAC, sinon un des groupes réglés dans WAC (Paramètres, Accès).",
         "Coller l'adresse de WAC, ce compte et son mot de passe ci-dessus. MyServices se connecte comme un navigateur le ferait avec un compte Windows.",
         "MyServices ne fait que lire la liste des connexions de WAC (serveurs, clusters, PC). Il n'ouvre aucune session sur ces machines.",
         "Si le test dit que la connexion par compte Windows n'est pas proposée, WAC est réglé en connexion par formulaire : ce n'est pas encore géré.",
@@ -130,7 +130,7 @@ class WindowsAdminCenter(Connector):
         if status == 401:
             raise ConnectorError("compte refusé (DOMAINE\\utilisateur et mot de passe ?)")
         if status == 403:
-            raise ConnectorError("droits insuffisants : ajouter le compte au groupe « Windows Admin Center Gateway Users »")
+            raise ConnectorError("droits insuffisants : ce compte n'a pas accès à la passerelle (WAC, Paramètres, Accès)")
         if status != 200:
             raise ConnectorError(f"HTTP {status}")
         try:

@@ -11,7 +11,7 @@ Keep a copy of `config/` and `data/` before any update.
 
 ## 0.31.4 → 0.31.5
 
-**Nothing required.** Pull the new image (`docker compose pull`, then `up -d`). The new Windows Admin Center connector is added from Connectors when you want it (address of the gateway, a Windows account in the local group « Windows Admin Center Gateway Users »).
+**Nothing required.** Pull the new image (`docker compose pull`, then `up -d`). The new Windows Admin Center connector is added from Connectors when you want it (address of the gateway, a Windows account allowed to open WAC: by default any member of the local « Users » group of the WAC server).
 
 ## 0.31.3 → 0.31.4
 
