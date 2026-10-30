@@ -234,6 +234,7 @@ export interface ServiceStatus {
   box?: BoxReading | null;               // Internet box connectors: what the box tells
   modules?: NetatmoModule[];             // Netatmo only: every device of the account
   rooms?: { name: string; temperature: number | null; setpoint: number | null }[];   // Netatmo only: the heated rooms
+  devices?: TapoDevice[];                // Tapo only: every device found on the network
   netatmo?: HouseRead | null;            // Home Assistant only: the Netatmo devices it reads
   home?: HouseRead | null;               // Home Assistant only: the other sensors, shutters and heating of the house
   updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
@@ -283,6 +284,14 @@ export interface NetatmoModule {
   source?: { connector: string; name: string };   // where the curves are read from, set by the page
 }
 export interface HouseRead { modules: NetatmoModule[]; rooms: { name: string; temperature: number | null; setpoint: number | null }[]; problems: string[] }
+/** One device read by the Tapo connector (connectors/tapo.py) */
+export interface TapoDevice {
+  id: string; name: string; model: string; kind: "plug" | "light" | "hub" | "camera" | "sensor" | "other"; online: boolean;
+  ip?: string; mac?: string | null; fw?: string | null; rssi?: number | null; on?: boolean | null; brightness?: number | null;
+  power_w?: number | null; today_wh?: number | null; month_wh?: number | null; peak_w?: number | null; series?: [number, number][];   // plugs with an energy meter
+  temperature?: number; humidity?: number; battery_low?: boolean; parent?: string;                                                 // hub sensors
+  error?: string;
+}
 /** A sensor's last 24 hours by measure: [seconds, value] */
 export type HouseCurves = Record<string, [number, number][]>;
 export interface StreamCamera { name: string; place?: "int" | "ext"; up: boolean | null; fps?: number | null; detect?: boolean | null; record?: boolean | null; events?: number | null; last?: number | null; labels?: Record<string, number> }

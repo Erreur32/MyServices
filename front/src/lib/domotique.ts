@@ -2,10 +2,13 @@
 import type { Snapshot } from "../api";
 import type { HouseCurves, NetatmoModule } from "../types";
 import { LOCALE, tx } from "./i18n";
+import { tapoDevices } from "./tapo";
 
 const SENSORS = ["NAMain", "NAModule1", "NAModule2", "NAModule3", "NAModule4", "NHC"];
 const SHUTTERS = ["NBR", "NBO", "NBS", "Z3V", "Z3L"], CAMERAS = ["NACamera", "NOC", "NDB", "NCS", "NSD"];
 export const LOW_BATTERY = 20;
+/** An outdoor blind or awning (a « store ») is told from a roller shutter by its name: Netatmo gives both the same kind of device */
+const BLIND = /store|ext[eé]rieur|\bext\b|brise|banne|pergola/i;
 
 /** Netatmo by its connector when there is one, else through Home Assistant (the same devices must not count twice), then the rest of the house */
 function rows(snap: Snapshot) {
@@ -66,7 +69,8 @@ const pointsText = (n: number) => (n === 1 ? tx("1 point") : tx("{0} points", n)
 export function house(snap: Snapshot) {
   const list = rows(snap), modules = list.flatMap((c) => (c.modules ?? []).map((m) => ({ ...m, source: { connector: c.connector ?? "", name: c.instance ?? "" } })));
   const of = (types: string[]) => modules.filter((m) => types.includes(m.type ?? ""));
-  const sensors = of(SENSORS), shutters = of(SHUTTERS), cameras = of(CAMERAS);
+  const sensors = of(SENSORS), covers = of(SHUTTERS), cameras = of(CAMERAS);
+  const blinds = covers.filter((m) => BLIND.test(m.name)), shutters = covers.filter((m) => !blinds.includes(m));
   const outdoor = sensors.filter((m) => m.type === "NAModule1"), indoor = sensors.filter((m) => m.type !== "NAModule1" && m.values.temperature != null);
   const co2 = indoor.filter((m) => typeof m.values.co2 === "number").sort((a, b) => Number(b.values.co2) - Number(a.values.co2))[0];
   const worst = co2 ? Number(co2.values.co2) : 0;
@@ -81,8 +85,8 @@ export function house(snap: Snapshot) {
   if (rain.length) tiles.push({ label: tx("Pluie sur 24 h"), value: `${num(rain[0], 1)} mm` });
   const problems = list.flatMap((c) => c.problems ?? []);
   return {
-    tiles, problems, sensors, shutters, cameras, rooms: list.flatMap((c) => c.rooms ?? []), pictures: list.some((c) => c.connector === "netatmo"),
-    others: modules.filter((m) => !sensors.includes(m) && !shutters.includes(m) && !cameras.includes(m)),
+    tiles, problems, sensors, shutters, blinds, cameras, rooms: list.flatMap((c) => c.rooms ?? []), pictures: list.some((c) => c.connector === "netatmo"),
+    others: modules.filter((m) => !sensors.includes(m) && !covers.includes(m) && !cameras.includes(m)),
     title: problems.length ? tx("{0} à regarder dans ta maison.", pointsText(problems.length)) : tx("Tout va bien dans ta maison."),
     text: worst > 1000 ? tx("L'air est à aérer : {0}.", co2?.name) : tx("{0} appareils suivis.", modules.length),
   };
@@ -94,4 +98,44 @@ export function shutterState(m: NetatmoModule): string {
   if (typeof p !== "number") return tx("position inconnue");
   if (p >= 100) return tx("ouvert");
   return p <= 0 ? tx("fermé") : tx("ouvert à {0} %", p);
+}
+
+export type Point = [number, number];
+export interface Scale { t0: number; t1: number; lo: number; hi: number }
+
+/** One scale for several series (the same time span and the same values range, widened to a multiple of `round`), null below two points */
+export function scaleOf(all: Point[][], round = 0): Scale | null {
+  const pts = all.flat();
+  if (pts.length < 2) return null;
+  const ts = pts.map((p) => p[0]), vs = pts.map((p) => p[1]);
+  let lo = Math.min(...vs), hi = Math.max(...vs);
+  if (round) { lo = Math.floor(lo / round) * round; hi = Math.ceil(hi / round) * round; }
+  return { t0: Math.min(...ts), t1: Math.max(...ts), lo, hi: hi === lo ? lo + 1 : hi };
+}
+
+/** A line in a box of w × h, `pad` kept free above and below */
+export function linePath(p: Point[], s: Scale, w: number, h: number, pad = 0): string {
+  const x = (t: number) => ((t - s.t0) / (s.t1 - s.t0 || 1)) * w, y = (v: number) => h - pad - ((v - s.lo) / (s.hi - s.lo)) * (h - pad * 2);
+  return p.map(([t, v], i) => `${i ? "L" : "M"}${x(t).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+}
+
+/** Where a CO2 reading falls on the bar (400 to 1500 ppm: green to 800, orange to 1000... red above) and a battery level's colour */
+export const co2Pin = (ppm: number): number => Math.min(100, Math.max(0, ((ppm - 400) / 1100) * 100));
+export const batteryTone = (pct: number): "low" | "mid" | "hi" => (pct < 30 ? "low" : pct < 60 ? "mid" : "hi");
+
+/** How many covers (shutters or blinds) are open at least a little */
+export const openCount = (ms: NetatmoModule[]): number => ms.filter((m) => typeof m.values.current_position === "number" && m.values.current_position > 0).length;
+
+export interface DeviceRow { key: string; name: string; brand: "Netatmo" | "Tapo"; kind: string; room: string; tone: HouseTone; state: string; battery: number | null }
+
+const TAPO_KINDS = (): Record<string, string> => ({ plug: tx("Prise"), light: tx("Ampoule"), hub: tx("Hub"), camera: tx("Caméra"), sensor: tx("Capteur"), other: tx("Autre") });
+
+/** Every device of the house on one list, by brand: what it is, where, whether it answers, its battery */
+export function deviceRows(snap: Snapshot): DeviceRow[] {
+  const h = house(snap), kinds: [NetatmoModule[], string][] = [[h.sensors, tx("Capteur")], [h.shutters, tx("Volet roulant")], [h.blinds, tx("Store extérieur")], [h.cameras, tx("Caméra")], [h.others, tx("Autre")]];
+  const netatmo = kinds.flatMap(([list, kind]) => list.map((m): DeviceRow => ({ key: `n:${m.id ?? m.name}`, name: m.name, brand: "Netatmo", kind, room: m.room ?? "", tone: moduleState(m).tone, state: moduleState(m).label, battery: m.battery })));
+  const names = TAPO_KINDS();
+  const tapo = tapoDevices(snap).map((d): DeviceRow => ({ key: `t:${d.id}`, name: d.name, brand: "Tapo", kind: names[d.kind] ?? d.kind, room: "", tone: d.online ? (d.battery_low ? "warn" : "ok") : "bad",
+    state: d.online ? (d.battery_low ? tx("Pile faible") : tx("En ligne")) : tx("Hors ligne"), battery: null }));
+  return [...netatmo, ...tapo];
 }
