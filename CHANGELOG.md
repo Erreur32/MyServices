@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.3 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - **Security**: findings can be ignored. Each row has a « Stop reporting » button, and each area (sites, ports, SSH, certificates, Fail2ban, access) can be switched off as a whole. Ignored points are listed in a folded « Ignored points » panel with a « Put back » button, and no longer count in the menu dot or the tiles. Stored in `services-meta.json` (`security_ignore`), admin only, audited (`GET/PUT /api/v1/security/ignore`).
