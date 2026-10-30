@@ -230,6 +230,7 @@ export interface ServiceStatus {
   entities?: number;
   facts?: { label: string; value: string; tone?: "ok" | "warn" | "bad" }[];  // connecteurs « état d'un service » : chiffres clés
   problems?: string[];                                                       // et ce qui est à regarder
+  box?: BoxReading | null;               // Internet box connectors: what the box tells
   modules?: NetatmoModule[];             // Netatmo only: every device of the account
   rooms?: { name: string; temperature: number | null; setpoint: number | null }[];   // Netatmo only: the heated rooms
   netatmo?: HouseRead | null;            // Home Assistant only: the Netatmo devices it reads
@@ -266,6 +267,14 @@ export interface FrigateSystem {
 /** One model of an AI connector: only what the server said (size and vram in bytes) */
 export interface AiModel { name: string; size?: number; quant?: string; family?: string; params?: string; context?: number; loaded?: boolean; vram?: number; cloud?: boolean }
 /** One camera of a recorder (Frigate, Shinobi): its name only, never its address */
+/** What an Internet box tells (connectors/box_kit.py): each connector fills what its protocol gives, the rest stays null and is not shown */
+export interface BoxReading {
+  model: string | null; line: "fibre" | "dsl" | "cable" | "mobile" | "satellite" | null; connected: boolean | null;
+  down_bps: number | null; up_bps: number | null; line_down_bps: number | null; line_up_bps: number | null;
+  public_ip: string | null; uptime_s: number | null; firmware: string | null; update_available: boolean | null; latest_firmware: string | null;
+  devices: number | null; wifi: boolean | null; temperature: number | null;
+}
+
 /** One Netatmo device (connectors/netatmo.py) */
 export interface NetatmoModule {
   id?: string | null; name: string; type?: string | null; group?: string; room?: string | null; reachable: boolean;

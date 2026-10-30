@@ -3686,4 +3686,12 @@ export const EN: Record<string, string> = {
   "Par application": "By application",
   "Trier : {0}": "Sort: {0}",
   "Inverser l'ordre": "Reverse the order",
+  "Box internet": "Internet box",
+  "Connectée depuis": "Connected since",
+  "Débits": "Rates",
+  "Débit de la ligne": "Line rate",
+  "IP publique": "Public IP",
+  "fibre": "fibre",
+  "câble": "cable",
+  "satellite": "satellite",
 };

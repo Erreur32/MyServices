@@ -15,7 +15,7 @@ interface VirtHistory { hours: Period; hosts: TilePoint[]; guests: TilePoint[]; 
 interface DnsHistory { hours: Period; local: TilePoint[]; external: { name: string; ip: string; ms: TilePoint[]; up: TilePoint[] }[] }
 interface AiHistory { hours: Period; gpu: TilePoint[]; vram: TilePoint[]; temp: TilePoint[]; power: TilePoint[]; engines: TilePoint[]; models: TilePoint[]; agents: TilePoint[]; ram: TilePoint[] }
 interface ServicesHistory { hours: Period; up: TilePoint[]; warn: TilePoint[]; health: TilePoint[] }
-interface NetworkHistory { hours: Period; gear: TilePoint[]; clients: TilePoint[]; devices: TilePoint[]; bw?: Record<"fbx.down" | "fbx.up" | "unifi.down" | "unifi.up", TilePoint[]> }
+interface NetworkHistory { hours: Period; gear: TilePoint[]; clients: TilePoint[]; devices: TilePoint[]; bw?: Record<"fbx.down" | "fbx.up" | "unifi.down" | "unifi.up" | "box.down" | "box.up", TilePoint[]> }
 
 /** The history of the tiles of a page for a period; read again at each collection (`stamp`). null while it loads or when it cannot be read. */
 function useHistory<T extends { hours: Period }>(path: string, hours: Period, stamp: string): T | null {

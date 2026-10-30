@@ -16,6 +16,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Connector « Internet box (UPnP IGD) »**, read-only, no account: finds a box by SSDP or from its description address, then reads the line, its state, the current and maximum rates, the public address and the uptime. SSDP answers only count from a gateway on the private address that answered, control addresses must stay on the host of the description, and the XML goes through `defusedxml`.
 - **Common « box » shape** (`connectors/box_kit.py`) for the Internet box connectors to come: each fills what its protocol gives, a field left empty is not shown.
 - `Context.http` can post a raw body (`payload`).
+- **Network › Internet box** page, shown when a box connector answers: line, rates with 24 h curves, system; whatever the box does not tell has no line. The public address is shown in clear.
 
 ## v0.31.0 (2026-10-30)
 

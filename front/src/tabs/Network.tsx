@@ -20,13 +20,14 @@ import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import type { Period, TilePoint } from "../lib/tileHistory";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
+import { NetworkBox } from "./NetworkBox";
 import { NetworkDiagnostic, UnifiSfp } from "./NetworkDiagnostic";
 import { NetworkScanStats } from "./NetworkScanStats";
 import { UnifiCards } from "./UnifiCards";
 import { HeadTags } from "../components/HeadTags";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
 
-const INTERNET = ["freebox", "opnsense", "speedtest-tracker"];
+const INTERNET = ["freebox", "upnp-box", "opnsense", "speedtest-tracker"];
 type Kind = "gear" | "wifi" | "wired" | "device";
 const KIND: Record<Kind, string> = { gear: tx("Équipement réseau"), wifi: tx("Client wifi"), wired: tx("Client filaire"), device: tx("Appareil trouvé") };
 
@@ -163,8 +164,8 @@ function MachineLink({ r, onMachine }: { r: Row; onMachine: (ip: string) => void
 }
 
 
-/** The views of the page, sub-pages of « Réseau › Vue » in the side menu (#network/<view>); UniFi, Freebox and Scan only when their source is there */
-const SUBS = ["watch", "unifi", "freebox", "scan", "list", "diagnostic"] as const;
+/** The views of the page, sub-pages of « Réseau › Vue » in the side menu (#network/<view>); UniFi, Freebox, Box and Scan only when their source is there */
+const SUBS = ["watch", "unifi", "freebox", "box", "scan", "list", "diagnostic"] as const;
 type Sub = (typeof SUBS)[number];
 
 type Tone3 = "ok" | "warn" | "bad" | undefined;
@@ -277,7 +278,8 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
   const internet = [...cards.filter((c) => c.connector === "freebox"), ...(unifi ? [unifi] : []), ...cards.filter((c) => INTERNET.includes(c.connector) && c.connector !== "freebox")];
   const others = cards.filter((c) => !INTERNET.includes(c.connector) && c.connector !== "unifi");
   const freebox = cards.find((c) => c.connector === "freebox");
-  const has: Record<Sub, boolean> = { watch: true, unifi: !!unifi, freebox: !!freebox, scan: net.some((c) => c.connector === "mynetwork"), list: true, diagnostic: true };
+  const boxes = cards.filter((c) => c.box);
+  const has: Record<Sub, boolean> = { watch: true, unifi: !!unifi, freebox: !!freebox, box: boxes.length > 0, scan: net.some((c) => c.connector === "mynetwork"), list: true, diagnostic: true };
   const all = (k: Kind) => rows.filter((r) => r.kind === k);
   const gearAll = all("gear"), gearDown = gearAll.filter((r) => !r.up).length, updates = gearAll.filter((r) => r.gear?.updatable).length;
   const devAll = all("device"), unfollowed = devAll.filter((r) => r.up && !r.machine).length;
@@ -315,6 +317,7 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
 
       {current === "unifi" && <><UnifiCards /><UnifiSfp admin={snap.me.role === "admin"} /></>}
       {current === "freebox" && freebox && <div className="grid items-start gap-3 lg:grid-cols-2"><ServiceCard s={freebox} /></div>}
+      {current === "box" && <NetworkBox cards={boxes} stamp={snap.data.generated} />}
       {current === "scan" && <NetworkScanStats />}
 
       {current === "diagnostic" && <NetworkDiagnostic admin={snap.me.role === "admin"} />}

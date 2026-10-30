@@ -2,7 +2,7 @@
 
 Freebox: the live rate MynetworK reads (connection.rate_down / rate_up, bytes per second), taken from the reading the connector readers already
 keep in <state_dir>/connectors.json: no call of its own. UniFi: the traffic of the WAN port of the gateway in the UniFi cards (unifi_cards.py,
-a reading shared for 30 s with the pages). Stored in tile_history's table as [time, rate in kbit/s, capacity of the link in kbit/s]; 7 days kept.
+a reading shared for 30 s with the pages). Internet box connectors: the rates of their reading, kept in the same shared file. Stored in tile_history's table as [time, rate in kbit/s, capacity of the link in kbit/s]; 7 days kept.
 """
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from pathlib import Path
 from msv.collect import tile_history as th
 
 GAP_S = 50   # s, two points of a series at least this far apart (read every minute)
-FBX_DOWN, FBX_UP, UNIFI_DOWN, UNIFI_UP = "bw.fbx.down", "bw.fbx.up", "bw.unifi.down", "bw.unifi.up"
-KEYS = (FBX_DOWN, FBX_UP, UNIFI_DOWN, UNIFI_UP)
+FBX_DOWN, FBX_UP, UNIFI_DOWN, UNIFI_UP, BOX_DOWN, BOX_UP = "bw.fbx.down", "bw.fbx.up", "bw.unifi.down", "bw.unifi.up", "bw.box.down", "bw.box.up"
+KEYS = (FBX_DOWN, FBX_UP, UNIFI_DOWN, UNIFI_UP, BOX_DOWN, BOX_UP)
 GATEWAYS = ("udm", "ugw", "uxg")
 
 
@@ -40,6 +40,21 @@ def freebox_points(state: dict) -> dict[str, tuple[int, int, int]]:
         out = {key: (at, kbit, round((conn.get(cap) or 0) / 1000))
                for key, rate, cap in ((FBX_DOWN, "rate_down", "bandwidth_down"), (FBX_UP, "rate_up", "bandwidth_up"))
                if (kbit := _kbit(conn.get(rate))) is not None}
+        if out:
+            return out
+    return {}
+
+
+def box_points(state: dict) -> dict[str, tuple[int, int, int]]:
+    """{key: (time, kbit/s, line kbit/s)} of the first Internet box of the shared state that read a rate.
+    shortcut: one box only, a second one needs a key per instance."""
+    for entry in state.values():
+        last = entry.get("last") if isinstance(entry, dict) else None
+        box = last.get("box") if isinstance(last, dict) else None
+        if not isinstance(box, dict) or not isinstance(entry.get("at"), (int, float)):
+            continue
+        out = {key: (int(entry["at"]), round(box[rate] / 1000), round((box.get(cap) or 0) / 1000))
+               for key, rate, cap in ((BOX_DOWN, "down_bps", "line_down_bps"), (BOX_UP, "up_bps", "line_up_bps")) if isinstance(box.get(rate), (int, float))}
         if out:
             return out
     return {}
@@ -75,5 +90,6 @@ def sample(db_path: str | Path, state_file: Path, unifi_devices: list, now: floa
         state = json.loads(state_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         state = {}
-    points = {**freebox_points(state if isinstance(state, dict) else {}), **unifi_points(unifi_devices, now)}
+    state = state if isinstance(state, dict) else {}
+    points = {**freebox_points(state), **box_points(state), **unifi_points(unifi_devices, now)}
     return sum(th.store(db_path, key, pt, now, gap=GAP_S) for key, pt in points.items())

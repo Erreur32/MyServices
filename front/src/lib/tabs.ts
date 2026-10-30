@@ -23,6 +23,7 @@ const group = (id: string, tab: TabId, icon: LucideIcon, label: string, subs: Na
 const views = (id: string, tab: TabId, subs: NavItem[]): NavItem => group(id, tab, Eye, tx("Vue"), subs);
 const unifiShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "unifi") || (s.data.network ?? []).some((c) => !!c.unifi);
 const freeboxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "freebox");
+const boxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => !!c.box);
 const scanShown = (s: Snapshot) => (s.data.network ?? []).some((c) => c.connector === "mynetwork");
 
 /** The side menu, in five groups; an entry whose source is missing is left out, and so is a group left empty. The pages of
@@ -51,6 +52,7 @@ export const NAV: NavGroup[] = [
       views("network-view", "network", [
         sub("network-unifi", "network/unifi", "network", LayoutDashboard, tx("UniFi"), unifiShown),
         sub("network-freebox", "network/freebox", "network", House, tx("Freebox"), freeboxShown),
+        sub("network-box", "network/box", "network", Router, tx("Box internet"), boxShown),
         sub("network-scan", "network/scan", "network", Radar, tx("Scan"), scanShown),
         sub("network-list", "network/list", "network", List, tx("Équipements et appareils")),
         sub("network-diagnostic", "network/diagnostic", "network", Stethoscope, tx("Diagnostic")),
