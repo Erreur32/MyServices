@@ -1536,6 +1536,7 @@ def main():
         "services_status": services_status,
         "network": network,
         "security": security,
+        "security_ignore": meta.get("security_ignore") or [],   # findings the admin no longer wants on the Security page
         "containers": containers,
         "virtualization": virtualization,
         "dns": dns,

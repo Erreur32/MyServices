@@ -341,6 +341,29 @@ def services_public_ignore_set(body: PublicIgnore, request: Request):
     return {"ok": True, "domains": clean}
 
 
+class SecurityIgnore(BaseModel):
+    keys: list[str] = Field(max_length=300)
+
+
+@router.get(API + "/security/ignore", tags=["security"], summary="Points de la page Sécurité qu'on ne signale plus")
+def security_ignore_list():
+    from msv.machines import security_ignore, setup
+    return {"keys": security_ignore.read(setup.META)}
+
+
+@router.put(API + "/security/ignore", tags=["security"], summary="Remplacer la liste des points de sécurité ignorés (admin)")
+def security_ignore_set(body: SecurityIgnore, request: Request):
+    from msv.machines import security_ignore, setup
+    if denied := admin_write(request):
+        return denied
+    try:
+        clean = security_ignore.set_keys(setup.META, core.WEB, body.keys)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("sécurité : points ignorés", request.state.user["username"], ip_of(request), f"{len(clean)} point(s)")
+    return {"ok": True, "keys": clean}
+
+
 @router.delete(API + "/services/pause/{target}", tags=["services"], summary="Reprendre le suivi d'un service en pause (ip:port) (admin)")
 def services_resume(target: str, request: Request):
     from msv.machines import new_services

@@ -52,11 +52,14 @@ function threatFindings(snap: Snapshot): Finding[] {
   })));
 }
 
+/** One public site's finding (its gaps in the detail) */
+export const siteFinding = (r: Host, issues: string[]): Finding => ({
+  sev: "warn", area: "sites", title: r.domains[0] ?? tx("site sans nom"), detail: issues.join(" · "), sub: [r.machine, r.public_ok ? tx("public voulu") : ""].filter(Boolean).join(" · "),
+  fix: tx("Dans Nginx Proxy Manager : forcer HTTPS, activer HSTS et « Block exploits », ou protéger par une liste d'accès."),
+});
+
 function siteFindings(snap: Snapshot): Finding[] {
-  return exposedSites(snap.data.hosts).map((r) => ({ r, issues: siteIssues(r) })).filter((x) => x.issues.length).map(({ r, issues }): Finding => ({
-    sev: "warn", area: "sites", title: r.domains[0] ?? tx("site sans nom"), detail: issues.join(" · "), sub: [r.machine, r.public_ok ? tx("public voulu") : ""].filter(Boolean).join(" · "),
-    fix: tx("Dans Nginx Proxy Manager : forcer HTTPS, activer HSTS et « Block exploits », ou protéger par une liste d'accès."),
-  }));
+  return exposedSites(snap.data.hosts).map((r) => ({ r, issues: siteIssues(r) })).filter((x) => x.issues.length).map(({ r, issues }) => siteFinding(r, issues));
 }
 
 function certFindings(snap: Snapshot): Finding[] {
@@ -79,10 +82,20 @@ function sshFindings(snap: Snapshot): Finding[] {
   });
 }
 
+/** One device's finding: its sensitive ports */
+export const portFinding = (d: { hostname?: string | null; vendor?: string | null; ip: string }, hit: number[]): Finding => ({
+  sev: "warn", area: "ports", title: d.hostname || d.vendor || d.ip, detail: hit.map((p) => `${p} ${SENSITIVE[p]}`).join(" · "),
+  fix: tx("Fermer le port s'il ne sert pas, ou le limiter à un réseau de confiance."),
+});
+
 function portFindings(snap: Snapshot): Finding[] {
-  return (snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => ({ d, hit: d.ports.filter((p) => SENSITIVE[p]) })).filter((x) => x.hit.length)
-    .map(({ d, hit }): Finding => ({ sev: "warn", area: "ports", title: d.hostname || d.vendor || d.ip, detail: hit.map((p) => `${p} ${SENSITIVE[p]}`).join(" · "), fix: tx("Fermer le port s'il ne sert pas, ou le limiter à un réseau de confiance.") }));
+  return (snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => ({ d, hit: d.ports.filter((p) => SENSITIVE[p]) })).filter((x) => x.hit.length).map(({ d, hit }) => portFinding(d, hit));
 }
+
+/** What an ignored finding is known by: area, title and detail (it comes back when its detail changes); « area:* » switches the whole check off */
+export const findingKey = (f: Pick<Finding, "area" | "title" | "detail">): string => `${f.area}|${f.title}|${f.detail}`;
+export const areaKey = (area: Area): string => `${area}:*`;
+const isIgnored = (list: string[] | undefined, f: Finding): boolean => !!list?.length && (list.includes(findingKey(f)) || list.includes(areaKey(f.area)));
 
 /** The areas, worst kind first: the order of the lists */
 export const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "access", "ports"];
@@ -90,5 +103,6 @@ export const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "access", "po
 /** Everything that needs a look, red first, then by area */
 export function securityFindings(snap: Snapshot, access: Finding[] = []): Finding[] {
   return [...threatFindings(snap), ...certFindings(snap), ...siteFindings(snap), ...sshFindings(snap), ...access, ...portFindings(snap)]
+    .filter((f) => !isIgnored(snap.data.security_ignore, f))
     .sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad") || AREAS.indexOf(a.area) - AREAS.indexOf(b.area));
 }

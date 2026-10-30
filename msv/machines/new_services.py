@@ -285,19 +285,23 @@ def edit_meta(meta_path: Path, web_dir: str | Path, r: dict, fields: dict) -> st
     return target
 
 
-def _rewrite_hosts(web_dir: str | Path, apply) -> None:
-    """Applies `apply` to every host of the published data.json, written whole then renamed (no data.json yet: nothing to do)."""
+def rewrite_data(web_dir: str | Path, apply) -> None:
+    """Applies `apply` to the published data.json, written whole then renamed (no data.json yet: nothing to do)."""
     p = Path(web_dir) / "data.json"
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    for r in data.get("hosts") or []:
-        apply(r)
+    apply(data)
     tmp = p.with_name(p.name + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     os.chmod(tmp, p.stat().st_mode & 0o777)
     tmp.replace(p)
+
+
+def _rewrite_hosts(web_dir: str | Path, apply) -> None:
+    """Applies `apply` to every host of the published data.json."""
+    rewrite_data(web_dir, lambda data: [apply(r) for r in data.get("hosts") or []])
 
 
 def ignore(key: str, data: dict, meta_path: Path, web_dir: str | Path, state_dir: str | Path) -> str:

@@ -368,6 +368,7 @@ export interface Data {
   services_status?: ServiceStatus[];
   network?: NetworkConnector[];
   security?: SecurityConnector[];
+  security_ignore?: string[];   // findings of the Security page the admin no longer wants (keys: lib/securityFindings)
   containers?: ContainersConnector[];
   virtualization?: VirtualizationConnector[];
   sheets?: Record<string, AddressSheet>;   // address -> sheet, from the fast reads (live.json), not from data.json
