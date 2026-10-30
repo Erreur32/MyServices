@@ -41,6 +41,13 @@ class Check(unittest.TestCase):
         self.assertEqual(avatars.check(b'<?xml version="1.0"?>\n<!-- x -->\n' + doctype + b'\n' + OK_SVG), "image/svg+xml")
         self.assertEqual(avatars.check(inkscape), "image/svg+xml")
 
+    def test_many_unterminated_doctypes_are_refused_fast(self):
+        import time
+        t = time.monotonic()
+        with self.assertRaises(avatars.AvatarError):
+            avatars.check(b"<!doctype " * 50000)
+        self.assertLess(time.monotonic() - t, 2)   # linear: the old regex took minutes on such a file
+
     def test_dangerous_svg_refused(self):
         for bad in (b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
                     b'<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>',

@@ -20,7 +20,6 @@ _SVG_TAGS = {"svg", "g", "defs", "title", "desc", "symbol", "use", "path", "rect
              "feDropShadow", "metadata", "style", "switch", "marker", "namedview", "feComponentTransfer", "feFuncR", "feFuncG", "feFuncB", "feFuncA",
              "feTurbulence", "feMorphology", "feTile", "feConvolveMatrix", "feDiffuseLighting", "feSpecularLighting", "feDistantLight", "fePointLight",
              "feSpotLight", "feDisplacementMap"}
-_PLAIN_DOCTYPE = re.compile(rb"<!DOCTYPE[^\[>]*>", re.I)   # the one editors write (Illustrator, Inkscape); none with an internal subset, which stays refused
 _OUTSIDE_CSS = re.compile(r"@import|url\s*\(\s*['\"]?(?!#)|expression\s*\(", re.I)
 _OUTSIDE_VALUE = re.compile(r"javascript:|url\s*\(\s*['\"]?(?!#)", re.I)
 _SAFE_DATA = re.compile(r"^data:image/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=\s]+$")
@@ -60,11 +59,21 @@ def check(raw: bytes) -> str:
     raise AvatarError("format non reconnu : PNG, JPEG, WebP, GIF ou SVG")
 
 
+def _strip_plain_doctype(raw: bytes) -> bytes:
+    """The plain DOCTYPE editors write (Illustrator, Inkscape) is dropped; one with an internal subset (« [ ») stays and is refused.
+    A linear search: a regex here is slow on a file made of many « <!doctype »."""
+    start = raw.lower().find(b"<!doctype")
+    end = raw.find(b">", start) if start >= 0 else -1
+    if end < 0 or b"[" in raw[start:end]:
+        return raw
+    return raw[:start] + raw[end + 1:]
+
+
 def _check_svg(raw: bytes) -> None:
     from defusedxml import DefusedXmlException
     from defusedxml.ElementTree import ParseError, fromstring
     try:
-        root = fromstring(_PLAIN_DOCTYPE.sub(b"", raw, count=1), forbid_dtd=True, forbid_entities=True, forbid_external=True)   # no DTD, entity or outside file
+        root = fromstring(_strip_plain_doctype(raw), forbid_dtd=True, forbid_entities=True, forbid_external=True)   # no DTD, entity or outside file
     except DefusedXmlException:
         raise AvatarError("SVG refusé : DOCTYPE ou entité") from None
     except ParseError:
