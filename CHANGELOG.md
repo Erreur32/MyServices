@@ -16,8 +16,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Security**: findings can be ignored. Each row has a « Stop reporting » button, and each area (sites, ports, SSH, certificates, Fail2ban, access) can be switched off as a whole. Ignored points are listed in a folded « Ignored points » panel with a « Put back » button, and no longer count in the menu dot or the tiles. Stored in `services-meta.json` (`security_ignore`), admin only, audited (`GET/PUT /api/v1/security/ignore`).
 - **Backups > By machine**: the « Sets produced » column is now a button (icon, worst state, number of sets) that opens the sets of that machine; the machine name links to its page.
 
+### Fixed
+
+- **Access advice**: a machine listed by a VMware connector (a VM seen by vCenter, for instance a Windows PC) was taken for an ESXi host and told « No agent possible ». ESXi is now recognised from the machine itself only (its SSH reading, icon, scan), not from the connectors that list it.
+
 ### Changed
 
+- **Access advice**: an agent is now allowed on a VMware ESXi host, as the last option after the connector and SSH. The page says VMware does not plan for it and it may disappear after a reboot. Closed NAS systems keep their rule.
 - **Security > Exposed sites**: new design, one row per site with a progress bar and one badge per check (HTTPS forced, HSTS, Block exploits, Headers, Certificate).
 - **Security > Network ports**: a note says the scanner only sees the local network, and a device can be ignored.
 

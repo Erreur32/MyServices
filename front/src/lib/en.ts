@@ -100,7 +100,7 @@ export const EN: Record<string, string> = {
   "Box, passerelle ou équipement fermé : on n'y installe rien. MyServices la lit par un outil déjà en place (un connecteur).": "Box, gateway or closed device: nothing is installed on it. MyServices reads it through a tool already in place (a connector).",
   "PC Windows : un petit agent envoie sa santé à MyServices, sans rien ouvrir sur le PC.": "Windows PC: a small agent sends its health to MyServices, with nothing to open on the PC.",
   "Home Assistant OS : on le lit par son API (un jeton), ni par SSH ni par un agent.": "Home Assistant OS: it is read through its API (a token), neither over SSH nor by an agent.",
-  "VMware ESXi : on n'y installe rien. MyServices le lit par SSH ou par un connecteur, jamais par un agent.": "VMware ESXi: nothing gets installed on it. MyServices reads it over SSH or through a connector, never with an agent.",
+  "VMware ESXi : MyServices le lit par SSH ou par un connecteur, c'est le plus sûr. Un agent est possible mais VMware ne le prévoit pas : il peut disparaître après un redémarrage.": "VMware ESXi: MyServices reads it over SSH or through a connector, which is the safest. An agent is possible but VMware does not plan for it: it may disappear after a reboot.",
   "NAS fermé (Synology, QNAP, TrueNAS, Unraid…) : on n'y installe pas d'agent. MyServices le lit par son connecteur ou par SSH.": "Closed NAS (Synology, QNAP, TrueNAS, Unraid…): no agent gets installed on it. MyServices reads it through its connector or over SSH.",
   "Pas d'agent possible sur cette machine.": "No agent possible on this machine.",
   "Appareil fermé (téléphone, objet connecté) : seul le ping est possible.": "Closed device (phone, connected object): only ping is possible.",

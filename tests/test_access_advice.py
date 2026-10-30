@@ -67,13 +67,17 @@ class Advice(unittest.TestCase):
         a = self.check(adv.facts_of(m), "agent", "agent_linux_ssh", True, "linux", ["ssh", "connector"])
         self.assertEqual(a["alternatives"], ["ssh", "connector"])
 
-    def test_esxi_is_read_by_ssh_or_its_connector_never_by_an_agent(self):
+    def test_esxi_is_read_by_ssh_or_its_connector_an_agent_stays_possible(self):
         m = machine(info={"os": "VMware ESXi 8.0.3"}, ssh={"alias": "esxi"})
-        a = self.check(adv.facts_of(m), "ssh", "esxi", False, None, ["ssh"])
-        self.assertEqual(a["alternatives"], [])
+        a = self.check(adv.facts_of(m), "ssh", "esxi", True, "linux", ["ssh"])
+        self.assertEqual(a["alternatives"], ["agent"])
         m = machine(icon="esxi", ssh={"alias": "esxi"}, api=[{"label": "ESXi", "ok": True}])
-        self.assertEqual(self.check(adv.facts_of(m), "connector", "esxi", False)["alternatives"], ["ssh"])
-        self.check(adv.facts_of(machine(icon="vmware")), "ping", "esxi", False)
+        self.assertEqual(self.check(adv.facts_of(m), "connector", "esxi", True, "linux")["alternatives"], ["ssh", "agent"])
+        self.check(adv.facts_of(machine(icon="vmware")), "ping", "esxi", True, "linux")
+
+    def test_a_guest_listed_by_a_vmware_connector_is_not_an_esxi_host(self):
+        m = machine(ttl=128, api=[{"label": "VMware vCenter", "ok": True}])
+        self.check(adv.facts_of(m, {"os": "windows"}), "agent", "windows", True, "windows")
 
     def test_closed_nas_never_gets_an_agent(self):
         m = machine(ssh={"alias": "nas"}, api=[{"label": "Synology", "ok": True}])
