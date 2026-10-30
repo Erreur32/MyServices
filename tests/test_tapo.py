@@ -39,7 +39,7 @@ class Hub:
 
 
 def found(model, handler, **info):
-    return NS(device_info=Res(model=model, **info), handler=handler, address=("192.0.2.9", 80), model=model)
+    return NS(device_info=Res(model=model, **info), handler=handler, address="192.0.2.9", model=model)
 
 
 class Maybe:
@@ -91,6 +91,13 @@ class Collect(unittest.TestCase):
         self.assertEqual(kinds, {"Hub": "hub", "Chambre": "sensor", "Salon": "camera"})
         self.assertEqual(next(f for f in d["facts"] if f["label"] == "Caméras en ligne")["value"], "1/1")
         self.assertIn("Chambre : pile faible", d["problems"])
+
+    def test_a_device_the_library_cannot_drive_has_no_handler_and_is_still_listed(self):
+        other = NS(device_info=Res(model="T999", nickname="Inconnu", device_id="o1"), address="192.0.2.30", model="T999")   # the real "Other" variant has no handler
+        c, p = conn([other])
+        with p:
+            d = c.collect()
+        self.assertEqual([r["name"] for r in d["devices"]], ["Inconnu"])
 
     def test_a_device_that_answers_the_discovery_but_not_the_reading_is_listed_with_the_reason(self):
         class Broken(Plug):

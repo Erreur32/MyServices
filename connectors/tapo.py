@@ -28,6 +28,8 @@ def _dict(obj) -> dict:
     """A library result as a plain dict (each has to_dict), tolerant of a missing field."""
     if isinstance(obj, dict):
         return obj
+    if obj is None:
+        return {}
     to = getattr(obj, "to_dict", None)
     return to() if callable(to) else {k: v for k, v in vars(obj).items() if not k.startswith("_")}
 
@@ -89,7 +91,7 @@ class Tapo(Connector):
                 except Exception as e:   # noqa: BLE001 -- one device refusing must not hide the others
                     errors.append(str(e))
                     continue
-                key = _dict(d.device_info).get("device_id") or getattr(d, "address", (id(d),))[0]
+                key = _dict(getattr(d, "device_info", None)).get("device_id") or getattr(d, "address", None) or id(d)
                 if key not in seen:
                     seen.add(key)
                     found.append(d)
@@ -122,13 +124,13 @@ class Tapo(Connector):
         return out
 
     async def _read(self, lib, d) -> list[dict]:
-        info = _dict(d.device_info)
-        ip = str(info.get("ip") or (getattr(d, "address", None) or ("",))[0])
+        info = _dict(getattr(d, "device_info", None))
+        ip = str(info.get("ip") or getattr(d, "address", None) or "")
         model = str(info.get("model") or getattr(d, "model", "") or "")
         name = info.get("nickname") or info.get("device_name") or model
         row = {"id": str(info.get("device_id") or info.get("mac") or ip), "name": name, "model": model, "kind": kind_of(model), "ip": ip, "mac": info.get("mac"),
                "fw": info.get("fw_ver"), "rssi": info.get("rssi"), "online": True, "on": info.get("device_on"), "brightness": info.get("brightness")}
-        h, rows = d.handler, []
+        h, rows = getattr(d, "handler", None), []   # a device of a kind the lib does not drive ("Other") has no handler
         try:
             if hasattr(h, "get_energy_usage"):
                 await self._plug(lib, h, row)
