@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.1 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - **Connector « Internet box (UPnP IGD) »**, read-only, no account: finds a box by SSDP or from its description address, then reads the line, its state, the current and maximum rates, the public address and the uptime. SSDP answers only count from a gateway on the private address that answered, control addresses must stay on the host of the description, and the XML goes through `defusedxml`.
@@ -25,6 +29,22 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **The Freebox moves to Network › Internet box.** Its card now carries the common « box » reading, filled from what MynetworK already reads (line type, state, rates, capacity, firmware and update, devices, Wi-Fi, hottest sensor): not a call more to the Freebox. The page shows what only the Freebox tells (fibre light, storage, fans, internal disk, virtual machines) in an « Other readings » section, and keeps the Freebox curves in the figures above. The separate « Freebox » sub-page is gone and `#network/freebox` opens the box page. The public address and the connection uptime are not in MynetworK's summary, so they stay empty.
 - `Context.http` can answer a Digest challenge once (`digest=(user, password)`): a second refusal is reported as it is, because an Internet box locks an address that keeps trying a wrong password.
 - **Network › Internet box** page, shown when a box connector answers: line, rates with 24 h curves, system; whatever the box does not tell has no line. The public address is shown in clear.
+
+### Changed
+
+- **Warning notes start folded** on every page (one click opens them; a warning that carries an action, like « Turn it on anyway », stays open). The home « To deal with now » frame and the revoked agents also start folded.
+- **Machines, card view**: the cards are grouped by hypervisor node (the node first, then its VMs), the others under « Other machines ». Type (VM, host, machine), State and Alerts filters now sit beside the search box.
+- **Connector cards**: the header and the footer have their own background, to tell them from the body.
+- **Virtualization**: swap, the system disk and I/O wait of a node are gauges, like CPU and memory.
+- **Machines › Agents**: a « + Agent » button opens a page that lists the known machines without an agent, those where an agent is the advised way first, with one click to create it.
+
+### Added (settings)
+
+- **Ignored domains** (Services › All services, bottom panel, `public_ignore` in `services-meta.json`): domains or `*.domain` patterns that are never asked « public? ». A host whose every name matches is left out of that check and of the open-site alert; its probes, certificate and DNS checks go on.
+
+### Fixed
+
+- `GET /machines/advice` answered HTTP 500 since 0.29.0 (two modules imported by their old, pre-`msv/` names), which broke the access advice of the setup assistant. A test now fails on any such import.
 
 ## v0.31.0 (2026-10-30)
 
