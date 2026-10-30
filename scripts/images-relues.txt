@@ -217,3 +217,7 @@ ea4fef3644f06dabd2a9dfd04d016aa0  front/public/icons/windows-server-2016.svg
 bed4c5b07790d6db1182e94a90d14640  front/public/icons/upnp-box.svg
 560a016da0d5909b33cf01a5817261a9  front/public/icons/fritzbox.svg
 aeb55073c9021e7331373dd2103d5549  front/public/icons/sfrbox.svg
+1c0e3d879f53436e5bfe8ee63fcbb009  front/public/icons/livebox.svg
+80d50192ed535ca7cb47ae83c2c2d948  front/public/icons/vodafone-station.svg
+41428f90781ec078b7fb9d21c998b111  front/public/icons/sagemcom-fast.svg
+845dd9becd2949c40d2036feed4849a1  front/public/icons/bbox.svg
