@@ -17,6 +17,7 @@ import { ServiceEdit } from "../components/ServiceEdit";
 import { IconGlyph } from "../components/IconPicker";
 import { chosenIcon } from "../lib/machineIcons";
 import { tx } from "../lib/i18n";
+import { PublicIgnore } from "../components/PublicIgnore";
 import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
 import { ManualActions, ManualService, type ManualInitial } from "../components/ManualService";
@@ -191,19 +192,75 @@ function PlaceRow({ r, ports, hidden, watched, admin }: Readonly<{ r: Host; port
   );
 }
 
+/** The row that speaks for a service: an enabled one that opens, best on the service's first domain, else on any domain, else the first row */
+function leadOf(g: ServiceGroup): Host | undefined {
+  const usable = g.hosts.filter((r) => r.enabled && openUrl(r));
+  return usable.find((r) => hostDomains(r).includes(g.domains[0])) ?? usable.find((r) => hostDomains(r).length) ?? usable[0] ?? g.hosts[0];
+}
+
+/** The line under a service's name when it has no domain: its address, or where a connector reads it */
+function addressOf(g: ServiceGroup, lead?: Host): string {
+  if (lead?.ip) {
+    const port = lead.port ? `:${lead.port}` : "";
+    return `${lead.machine || lead.ip}${port}`;
+  }
+  return g.cloud ? tx("Hébergé en ligne") : g.cards[0]?.url ?? "";
+}
+
+function whereOf(g: ServiceGroup): string {
+  if (g.cloud) return "Cloud";
+  if (!g.machines.length) return tx("Lu par un connecteur");
+  if (g.machines.length > 3) return `${g.machines.slice(0, 3).join(", ")} ${tx("et {0} autres", g.machines.length - 3)}`;
+  return g.machines.join(", ");
+}
+
+function moreDomains(n: number): string {
+  if (n > 2) return tx("+{0} domaines", n - 1);
+  return n === 2 ? tx("+1 domaine") : "";
+}
+
+/** A service with no row of its own takes the logo of its name; the place is kept when it has none */
+function GroupLogo({ name, lead }: Readonly<{ name: string; lead?: Host }>) {
+  if (lead) return <ServiceLogo r={lead} />;
+  const src = appIcon([name]);
+  return src ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-bg2"><img src={src} alt="" className="h-7 w-7" /></span> : <span className="block h-10 w-10 shrink-0" aria-hidden />;
+}
+
+/** The places of an opened card: a row per place, or the connector cards of a service that runs on no machine */
+function PlacesTable({ g, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-line bg-card">
+      <table className="w-full text-sm">
+        <thead><tr className="text-left text-xs text-muted">{[tx("Machine"), tx("Adresse"), tx("Domaine"), tx("Accès"), tx("État"), ""].map((h) => <th key={h} className="px-3 py-1.5 font-semibold">{h}</th>)}</tr></thead>
+        <tbody>
+          {mergePorts(g.hosts).map(({ lead: r, ports }) => <PlaceRow key={keyOfRow(r)} r={r} ports={ports} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(keyOfRow(r))} admin={admin} />)}
+          {!g.hosts.length && g.cards.map((c) => (   // read by a connector only: the same columns, nothing runs on a machine
+            <tr key={c.name} className="border-t border-line">
+              <td className="px-3 py-1.5 font-semibold">{g.cloud ? "Cloud" : tx("Lu par un connecteur")}</td>
+              <td className="px-3 py-1.5 font-mono text-xs text-muted">{c.url || tx("Hébergé en ligne")}</td>
+              <td className="px-3 py-1.5 text-dim">{tx("aucun")}</td>
+              <td className="px-3 py-1.5">{g.cloud ? tx("Internet") : tx("Local")}</td>
+              <td className="px-3 py-1.5"><Badge tone={ST_TONE[g.tone]}>{groupState(g)}</Badge></td>
+              <td />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** One service: the top opens it, the link under its name opens the service itself */
 function ServiceCard({ g, open, onToggle, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; open: boolean; onToggle: () => void; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
-  const lead = g.hosts.find((r) => r.enabled && openUrl(r) && hostDomains(r).includes(g.domains[0])) ?? g.hosts.find((r) => r.enabled && openUrl(r) && hostDomains(r).length) ?? g.hosts.find((r) => r.enabled && openUrl(r)) ?? g.hosts[0];
+  const lead = leadOf(g);
   const url = lead ? openUrl(lead) : g.cards[0]?.url;
-  const text = g.domains[0] ?? (lead?.ip ? `${lead.machine || lead.ip}${lead.port ? `:${lead.port}` : ""}` : g.cloud ? tx("Hébergé en ligne") : g.cards[0]?.url ?? "");
-  const logo = lead ? <ServiceLogo r={lead} /> : appIcon([g.name]) ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-bg2"><img src={appIcon([g.name])!} alt="" className="h-7 w-7" /></span> : <span className="block h-10 w-10 shrink-0" aria-hidden />;
-  const where = g.cloud ? "Cloud" : !g.machines.length ? tx("Lu par un connecteur") : g.machines.length > 3 ? `${g.machines.slice(0, 3).join(", ")} ${tx("et {0} autres", g.machines.length - 3)}` : g.machines.join(", ");
-  const more = [g.domains.length > 2 ? tx("+{0} domaines", g.domains.length - 1) : g.domains.length === 2 ? tx("+1 domaine") : "", g.hosts.some((r) => exposure(r) === "public" || exposure(r) === "ouvert") ? tx("Public") : ""].filter(Boolean).join(" · ");
+  const text = g.domains[0] ?? addressOf(g, lead);
+  const more = [moreDomains(g.domains.length), g.hosts.some((r) => exposure(r) === "public" || exposure(r) === "ouvert") ? tx("Public") : ""].filter(Boolean).join(" · ");
   return (
     <article className={`min-w-0 rounded-xl border bg-bg2 ${open ? "col-span-full border-link" : GROUP_EDGE[g.tone]}`}>
       <button type="button" onClick={onToggle} aria-expanded={open} title={open ? tx("Fermer") : tx("Ouvrir")} className="group flex w-full items-center gap-2.5 rounded-t-xl px-3 pt-2.5 text-left hover:bg-link/10">
-        {logo}
-        <span className="min-w-0 flex-1"><b className="block truncate text-sm">{g.name}</b><span className="block truncate text-xs text-muted" title={g.machines.join(", ")}>{where}</span></span>
+        <GroupLogo name={g.name} lead={lead} />
+        <span className="min-w-0 flex-1"><b className="block truncate text-sm">{g.name}</b><span className="block truncate text-xs text-muted" title={g.machines.join(", ")}>{whereOf(g)}</span></span>
         <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold ${GROUP_TEXT[g.tone]}`}><span className={`h-2 w-2 rounded-full ${GROUP_DOT[g.tone]}`} aria-hidden />{groupState(g)}</span>
         <ChevronDown size={18} className={`shrink-0 text-muted transition-transform group-hover:text-link ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
@@ -213,26 +270,7 @@ function ServiceCard({ g, open, onToggle, hiddenMap, watchKeys, admin }: Readonl
       </div>
       {open && (
         <div className="flex flex-col gap-3 border-t border-line/60 p-3">
-          {(g.hosts.length > 0 || g.cards.length > 0) && (
-            <div className="overflow-x-auto rounded-lg border border-line bg-card">
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-muted">{[tx("Machine"), tx("Adresse"), tx("Domaine"), tx("Accès"), tx("État"), ""].map((h) => <th key={h} className="px-3 py-1.5 font-semibold">{h}</th>)}</tr></thead>
-                <tbody>
-                  {mergePorts(g.hosts).map(({ lead: r, ports }) => <PlaceRow key={keyOfRow(r)} r={r} ports={ports} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(keyOfRow(r))} admin={admin} />)}
-                  {!g.hosts.length && g.cards.map((c) => (   // read by a connector only: the same columns, nothing runs on a machine
-                    <tr key={c.name} className="border-t border-line">
-                      <td className="px-3 py-1.5 font-semibold">{g.cloud ? "Cloud" : tx("Lu par un connecteur")}</td>
-                      <td className="px-3 py-1.5 font-mono text-xs text-muted">{c.url || tx("Hébergé en ligne")}</td>
-                      <td className="px-3 py-1.5 text-dim">{tx("aucun")}</td>
-                      <td className="px-3 py-1.5">{g.cloud ? tx("Internet") : tx("Local")}</td>
-                      <td className="px-3 py-1.5"><Badge tone={ST_TONE[g.tone]}>{groupState(g)}</Badge></td>
-                      <td />
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {(g.hosts.length > 0 || g.cards.length > 0) && <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />}
           {g.problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
               <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
               <ul className="divide-y divide-warn/20 text-sm">{g.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
@@ -250,6 +288,16 @@ function ServiceCard({ g, open, onToggle, hiddenMap, watchKeys, admin }: Readonl
 
 /** In alert, as the menu's dot counts it: down, in warning or with a point to check, unless hidden from the alerts */
 const alertMark = () => <Dot tone="bad" />;
+const todoMark = () => <Dot tone="warn" />;
+const cloudMark = () => <Dot tone="info" />;
+const statusMark = (v: string) => <Dot tone={v as Tone} />;
+const checkMark = (v: string) => <Dot tone={CLEANUP.includes(v as Check) ? "off" : "warn"} />;
+const appMark = (v: string) => { const i = appIcon([v]); return i ? <Logo src={i} /> : null; };
+/** The « Domain » facet: a service hosted online has neither value */
+function domainFacet(g: ServiceGroup): string {
+  if (g.cloud) return "";
+  return g.domains.length ? "with" : "without";
+}
 /** A service in alert, as the menu's dot and the home page count them: down or with a warning, not hidden from the alerts. A service that is
  *  OK with a remark (certificate, web check…) is under « À vérifier », not here. */
 export const alerting = (r: Host, hidden: HiddenMap): boolean => { const c = status(r)[0]; return (c === "bad" || c === "warn") && !isHidden(r, hidden); };
@@ -275,19 +323,19 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const groups = useMemo(() => groupServices(snap.data.hosts, snap.data.services_status ?? [], (r) => isHidden(r, hiddenMap)), [snap.data.hosts, snap.data.services_status, hiddenMap]);
   const facets = useMemo((): Facet<ServiceGroup>[] => [
-    { key: "todo", label: tx("À vérifier"), get: (g) => (toCheck(g) ? "on" : ""), name: () => tx("à vérifier"), mark: () => <Dot tone="warn" /> },
+    { key: "todo", label: tx("À vérifier"), get: (g) => (toCheck(g) ? "on" : ""), name: () => tx("à vérifier"), mark: todoMark },
     { key: "expo", label: tx("Accès"), get: (g) => [...new Set(g.hosts.flatMap((r) => exposure(r) ?? []))], name: (v) => EXPO[v]?.[1].replace(/^\S+\s/, "") ?? v, order: ["public", "ouvert", "prive"] },
-    { key: "domain", label: tx("Domaine"), get: (g) => (g.cloud ? "" : g.domains.length ? "with" : "without"), name: (v) => (v === "with" ? tx("avec domaine") : tx("sans domaine")), order: ["with", "without"],
+    { key: "domain", label: tx("Domaine"), get: domainFacet, name: (v) => (v === "with" ? tx("avec domaine") : tx("sans domaine")), order: ["with", "without"],
       mark: domainMark },
-    { key: "cloud", label: "Cloud", get: (g) => (g.cloud ? "on" : ""), name: () => "Cloud", mark: () => <Dot tone="info" /> },
+    { key: "cloud", label: "Cloud", get: (g) => (g.cloud ? "on" : ""), name: () => "Cloud", mark: cloudMark },
     { key: "alert", label: tx("Alertes"), get: (g) => (g.hosts.some((r) => alerting(r, hiddenMap)) ? "on" : ""), name: () => tx("en alerte"), mark: alertMark },   // ticked by the menu's dot (DOT_FILTER) and the old « To watch » address
     { key: "src", label: tx("Source"), get: (g) => [...new Set(g.hosts.map((r) => (r.type === "local" ? "local" : "npm")))], name: (v) => (v === "npm" ? "NPM" : tx("Services")), order: ["npm", "local"],
       mark: (v) => (v === "npm" ? <Logo src={`${import.meta.env.BASE_URL}icons/nginx-proxy-manager.svg`} /> : <Dot tone="info" />) },
-    { key: "status", label: tx("État"), get: (g) => [...new Set(g.hosts.map((r) => status(r)[0]))], name: (v) => ST_NAME[v] || v, order: ["bad", "warn", "ok", "off"], mark: (v) => <Dot tone={v as Tone} /> },
-    { key: "check", label: tx("Points"), get: (g) => [...new Set(g.hosts.flatMap(checks))], name: (v) => CHECK[v as Check]?.[0] || v, mark: (v) => <Dot tone={CLEANUP.includes(v as Check) ? "off" : "warn"} /> },
+    { key: "status", label: tx("État"), get: (g) => [...new Set(g.hosts.map((r) => status(r)[0]))], name: (v) => ST_NAME[v] || v, order: ["bad", "warn", "ok", "off"], mark: statusMark },
+    { key: "check", label: tx("Points"), get: (g) => [...new Set(g.hosts.flatMap(checks))], name: (v) => CHECK[v as Check]?.[0] || v, mark: checkMark },
     { key: "machine", label: tx("Machine"), get: (g) => g.hosts.map(hostIp), name: (v) => machines.get(v) || v },
     { key: "cat", label: tx("Catégorie"), get: (g) => g.hosts.map((r) => r.category || "") },
-    { key: "app", label: tx("Appli"), get: (g) => g.hosts.map((r) => r.app?.label || ""), mark: (v) => { const i = appIcon([v]); return i ? <Logo src={i} /> : null; } },
+    { key: "app", label: tx("Appli"), get: (g) => g.hosts.map((r) => r.app?.label || ""), mark: appMark },
     { key: "kind", label: tx("Type"), get: (g) => g.hosts.map((r) => r.service?.kind || ""), name: (v) => KIND_NAME[v] || v,
       mark: (v) => (KIND_LOGO.has(v) ? <Logo src={`${import.meta.env.BASE_URL}icons/${v}.svg`} /> : null) },
   ], [machines, hiddenMap]);
@@ -357,6 +405,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
           </section>}
         </div>}
       </FoldPanel>}
+      {(view === "all" || view === "watch") && admin && <PublicIgnore />}
     </div>
   );
 }

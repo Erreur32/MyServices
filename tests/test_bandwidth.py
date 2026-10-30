@@ -22,6 +22,12 @@ class Bandwidth(unittest.TestCase):
         self.assertEqual(got[bw.FBX_UP], (NOW - 30, 400, 4_000_000))
         self.assertEqual(bw.freebox_points({"mynetwork/x": {"at": NOW, "last": {"devices": []}}}), {})
 
+    def test_internet_box_in_kbit_per_second(self):
+        box = {"upnp-box/b": {"at": NOW, "last": {"box": {"down_bps": 18_400_000, "up_bps": 0, "line_down_bps": 40_000_000}}}}
+        self.assertEqual(bw.box_points(box), {bw.BOX_DOWN: (NOW, 18_400, 40_000), bw.BOX_UP: (NOW, 0, 0)})
+        self.assertEqual(bw.box_points({"upnp-box/b": {"at": NOW, "last": {"box": {"down_bps": None, "up_bps": None}}}}), {})
+        self.assertEqual(bw.box_points(STATE), {})
+
     def test_unifi_wan_port_of_the_gateway(self):
         got = bw.unifi_points([{"type": "usw"}, GATEWAY], NOW)
         self.assertEqual(got, {bw.UNIFI_DOWN: (NOW, 1000, 10_000_000), bw.UNIFI_UP: (NOW, 200, 10_000_000)})

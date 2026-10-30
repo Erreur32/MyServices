@@ -11,6 +11,41 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.1 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- **Connector « Internet box (UPnP IGD) »**, read-only, no account: finds a box by SSDP or from its description address, then reads the line, its state, the current and maximum rates, the public address and the uptime. SSDP answers only count from a gateway on the private address that answered, control addresses must stay on the host of the description, and the XML goes through `defusedxml`.
+- **Common « box » shape** (`connectors/box_kit.py`) for the Internet box connectors to come: each fills what its protocol gives, a field left empty is not shown.
+- `Context.http` can post a raw body (`payload`).
+- **Connectors « T-Mobile Home Internet », « Hitron CODA », « Verizon Fios Router » and « Arris SURFboard »**, read-only, written from public client libraries and checked against frozen answers only: none was tried on a real box. T-Mobile reads the model, firmware, 4G/5G signal and uptime (devices and Wi-Fi with an account; Nokia gateways are not handled); Hitron CODA (Rogers, Vidéotron, Cogeco, Eastlink, Cox) reads the firmware, DOCSIS state, public address, uptime, devices and cable signal levels; Verizon Fios reads the public address, uptime and devices of the G3100 and CR1000A, and the devices of the G1100; Arris SURFboard reads the model, firmware, uptime and the cable channels (power, SNR, errors) from the status page, with HNAP login on recent models. A refused login stops at the first call and is not tried again until the settings change. AT&T gateways are not covered: no reliable protocol was found.
+- **Connectors « Swisscom Internet-Box », « Compal Connect Box », « Telekom Speedport » and « Technicolor gateway (Homeware) »**, read-only, written from public client libraries and checked against frozen answers only: none was tried on a real box. Internet-Box shares the Livebox protocol; Connect Box (Vodafone Germany, Ziggo, UPC) reads the cable state, rates, public address, devices and temperature; Speedport reads the model, firmware, line rates and Wi-Fi without a password, and the public address and devices with it; Technicolor gateway logs in with SRP-6 and reads the model, firmware, DSL rates, devices and public address. A refused login stops at the first call and is not tried again until the settings change.
+- **Connectors « Livebox », « Vodafone Station », « Sagemcom F@st » and « Bbox »**, read-only, written from the public client libraries (aiosysbus, aiovodafone, python-sagemcom-api, bboxpy) and checked against frozen answers only: none of them was tried on a real box. Livebox reads the model, firmware, line type, state, public address and Wi-Fi; Vodafone Station (Technicolor and Sercomm interfaces, not Homeware or Ultra Hub) reads the model, firmware, uptime and devices; Sagemcom F@st (Bell, Proximus, Telia, KPN…) reads the model, firmware and devices; Bbox reads the model, firmware, line type, state, rates, public address, devices and Wi-Fi, with the login the box asks for since firmware 23.7.8. A refused login stops at the first call: none of them tries a wrong password again. Their passwords are kept in the secrets store.
+- **Connector « SFR Box »**, read-only, no account: reads the model, firmware, line type (fibre or DSL), its state, the line rates on DSL, the public address, the uptime and the temperature from the box's local API (`/api/1.0`), the calls that answer without a login. The Wi-Fi reading needs a login and carries the Wi-Fi key, so it is never called. Not tested on a real box yet: it is written from the `sfrbox-api` library and checked against frozen answers.
+- **Connector « FRITZ!Box »**, read-only, by TR-064 (port 49000, or 49443 with TLS): reads the model, firmware and update available, the line type, its state, the current and maximum rates, the public address, the uptime and the Wi-Fi. It needs a FRITZ!Box user and « Allow access for applications ». The temperature and the number of connected devices are not read. Not tested on a real box yet: it is written from AVM's TR-064 documentation and the `fritzconnection` library, and checked against frozen answers.
+- **Menu**: in the Protection group, Security now comes before Backups.
+- **The Freebox moves to Network › Internet box.** Its card now carries the common « box » reading, filled from what MynetworK already reads (line type, state, rates, capacity, firmware and update, devices, Wi-Fi, hottest sensor): not a call more to the Freebox. The page shows what only the Freebox tells (fibre light, storage, fans, internal disk, virtual machines) in an « Other readings » section, and keeps the Freebox curves in the figures above. The separate « Freebox » sub-page is gone and `#network/freebox` opens the box page. The public address and the connection uptime are not in MynetworK's summary, so they stay empty.
+- `Context.http` can answer a Digest challenge once (`digest=(user, password)`): a second refusal is reported as it is, because an Internet box locks an address that keeps trying a wrong password.
+- **Network › Internet box** page, shown when a box connector answers: line, rates with 24 h curves, system; whatever the box does not tell has no line. The public address is shown in clear.
+
+### Changed
+
+- **Warning notes start folded** on every page (one click opens them; a warning that carries an action, like « Turn it on anyway », stays open). The home « To deal with now » frame and the revoked agents also start folded.
+- **Machines, card view**: the cards are grouped by hypervisor node (the node first, then its VMs), the others under « Other machines ». Type (VM, host, machine), State and Alerts filters now sit beside the search box.
+- **Connector cards**: the header and the footer have their own background, to tell them from the body.
+- **Virtualization**: swap, the system disk and I/O wait of a node are gauges, like CPU and memory.
+- **Machines › Agents**: a « + Agent » button opens a page that lists the known machines without an agent, those where an agent is the advised way first, with one click to create it.
+
+### Added (settings)
+
+- **Ignored domains** (Services › All services, bottom panel, `public_ignore` in `services-meta.json`): domains or `*.domain` patterns that are never asked « public? ». A host whose every name matches is left out of that check and of the open-site alert; its probes, certificate and DNS checks go on.
+
+### Fixed
+
+- `GET /machines/advice` answered HTTP 500 since 0.29.0 (two modules imported by their old, pre-`msv/` names), which broke the access advice of the setup assistant. A test now fails on any such import.
+
 ## v0.31.0 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

@@ -27,8 +27,10 @@ de passages en échec ; un connecteur en panne ne bloque pas les autres.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import re
+import secrets
 import ssl
 import subprocess
 import threading
@@ -44,6 +46,34 @@ from msv.remote.sshmux import SSH_MUX
 
 KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts", "status", "network", "security", "containers", "virtualization")
 MAX_BINARY = 3 * 1024 * 1024   # a camera image read for an admin, never kept
+DIGEST_HASHES = {"md5": hashlib.md5, "sha-256": hashlib.sha256}
+
+
+def digest_header(challenge: str, user: str, password: str, method: str, uri: str, cnonce: str | None = None) -> str | None:
+    """The Authorization header that answers a `WWW-Authenticate: Digest` challenge (RFC 7616, qop=auth, MD5 or SHA-256), None for any other kind of
+    challenge (Basic, a hash or a qop not handled): the caller then reports the refusal as it came."""
+    if not challenge.lower().startswith("digest "):
+        return None
+    p = {m[0].lower(): m[1] or m[2] for m in re.findall(r'(\w+)=(?:"([^"]*)"|([^\s,]+))', challenge[7:])}
+    algorithm = p.get("algorithm", "MD5")
+    hasher = DIGEST_HASHES.get(algorithm.lower())
+    if not hasher or "auth" not in [q.strip() for q in p.get("qop", "").split(",")] or not p.get("nonce"):
+        return None
+
+    def h(text: str) -> str:
+        return hasher(text.encode(), usedforsecurity=False).hexdigest()   # NOSONAR S4790: the digest scheme of the box imposes this hash; nothing is stored
+
+    nc, cnonce, realm = "00000001", cnonce or secrets.token_hex(8), p.get("realm", "")
+    response = h(f"{h(f'{user}:{realm}:{password}')}:{p['nonce']}:{nc}:{cnonce}:auth:{h(f'{method}:{uri}')}")
+    parts = [f'username="{_quote(user)}"', f'realm="{_quote(realm)}"', f'nonce="{p["nonce"]}"', f'uri="{uri}"', f"algorithm={algorithm}", "qop=auth", f"nc={nc}",
+             f'cnonce="{cnonce}"', f'response="{response}"']
+    if p.get("opaque"):
+        parts.append(f'opaque="{p["opaque"]}"')
+    return "Digest " + ", ".join(parts)
+
+
+def _quote(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 class ConnectorError(Exception):
@@ -135,11 +165,14 @@ class Context:
         return value
 
     def http(self, url: str, *, method: str = "GET", body: dict | None = None, headers: dict | None = None,
-             verify_tls: bool = True, timeout: float | None = None, binary: bool = False, form: dict | None = None) -> object:
+             verify_tls: bool = True, timeout: float | None = None, binary: bool = False, form: dict | None = None,
+             payload: bytes | None = None, digest: tuple[str, str] | None = None) -> object:
         """Réponse JSON décodée ; ConnectorError lisible (code HTTP, message de l'API) sinon. binary : the bytes as they come (a camera
-        image), at most MAX_BINARY. form: sent URL-encoded instead of `body`."""
+        image, a SOAP answer), at most MAX_BINARY. form: sent URL-encoded instead of `body`. payload: sent as it is, `headers` say its type.
+        digest: (user, password) answered to a Digest challenge of the service, once: a second refusal is the service's word (an Internet box locks an address
+        that tries a wrong password again and again), counted as one call."""
         h = {"Accept": "application/json", "User-Agent": "myservices", **(headers or {})}
-        data = None
+        data = payload
         if body is not None:
             data = json.dumps(body).encode()
             h["Content-Type"] = "application/json"
@@ -149,15 +182,21 @@ class Context:
         req = urllib.request.Request(url, data=data, headers=h, method=method)
         ctx = None if verify_tls else ssl._create_unverified_context()  # NOSONAR S5527 ; certificat auto-signé (box, NAS)
         t0 = time.monotonic()
-        try:
-            with urllib.request.urlopen(req, timeout=timeout or self.timeout, context=ctx) as r:
-                raw = r.read(MAX_BINARY + 1) if binary else r.read()
-        except urllib.error.HTTPError as e:
-            raise self._http_failed(url, t0, e) from None
-        except (OSError, ValueError) as e:
-            msg = f"injoignable ({getattr(e, 'reason', e)})"
-            reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, None, msg)
-            raise ConnectorError(msg) from None
+        for attempt in (1, 2):
+            try:
+                with urllib.request.urlopen(req, timeout=timeout or self.timeout, context=ctx) as r:
+                    raw = r.read(MAX_BINARY + 1) if binary else r.read()
+                break
+            except urllib.error.HTTPError as e:
+                if attempt == 1 and digest and e.code == 401 and (auth := _digest_answer(e, digest, method, url)):
+                    e.close()
+                    req.add_header("Authorization", auth)
+                    continue
+                raise self._http_failed(url, t0, e) from None
+            except (OSError, ValueError) as e:
+                msg = f"injoignable ({getattr(e, 'reason', e)})"
+                reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, None, msg)
+                raise ConnectorError(msg) from None
         reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, 200)
         if binary:
             if len(raw) > MAX_BINARY:
@@ -198,6 +237,11 @@ def _retry_after(e: urllib.error.HTTPError) -> float | None:
         return float(e.headers.get("Retry-After", "").strip())
     except (ValueError, AttributeError):
         return None
+
+
+def _digest_answer(e: urllib.error.HTTPError, digest: tuple[str, str], method: str, url: str) -> str | None:
+    parts = urllib.parse.urlsplit(url)
+    return digest_header(e.headers.get("WWW-Authenticate", ""), digest[0], digest[1], method, parts.path + (f"?{parts.query}" if parts.query else "") or "/")
 
 
 def _api_message(e: urllib.error.HTTPError) -> str:

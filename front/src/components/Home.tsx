@@ -67,7 +67,7 @@ function Line({ it, admin, go, goFilter }: Readonly<{ it: Attention; admin: bool
         <p className="mt-0.5 text-[13px] text-muted">{KIND[it.category].help}</p>
       </div>
       <div className="flex flex-wrap gap-1.5 sm:justify-end">
-        <button type="button" onClick={() => openAttention(it, go, goFilter)} className={fix ? QUIET : crit ? FILL : QUIET}>{it.action}</button>
+        <button type="button" onClick={() => openAttention(it, go, goFilter)} className={!fix && crit ? FILL : QUIET}>{it.action}</button>
         {fix && <a href={`#${fix.href}`} className={FILL}>{fix.label}</a>}
       </div>
     </li>
@@ -78,11 +78,42 @@ export type HomeSub = "overview" | "history";
 
 const FRAME = { bad: "border-l-4 border-l-bad border-bad/40", warn: "border-l-4 border-l-warn border-warn/40", ok: "border-ok/40" };
 
-/** « À traiter maintenant »: every alert with what to do; its badges filter the list; folds to its title and count, the choice kept in this browser */
+/** The badges above the list, one per category with its count: a click keeps that category alone */
+function CategoryFilter({ cats, items, only, setOnly }: Readonly<{ cats: Category[]; items: Attention[]; only: Category | null; setOnly: (c: Category | null) => void }>) {
+  return (
+    <fieldset className="flex flex-wrap gap-1.5 px-1 pb-1" aria-label={tx("Filtrer par catégorie")}>
+      {cats.map((c) => (
+        <button key={c} type="button" aria-pressed={only === c} onClick={() => setOnly(only === c ? null : c)} className={`rounded-md ring-1 ${only === c ? "ring-link" : "ring-transparent"}`}>
+          <Badge category={c} n={items.filter((i) => i.category === c).length} />
+        </button>
+      ))}
+    </fieldset>
+  );
+}
+
+/** The title line of « À traiter maintenant »: its count and, with something to do, a click folds the list */
+function ToDealHead({ count, crit, folded, toggle }: Readonly<{ count: number; crit: boolean; folded: boolean; toggle: () => void }>) {
+  return (
+    <div className={`flex items-center gap-3 px-5 py-3.5 ${count ? FOLD_HEADER : ""}`} {...(count ? foldHeaderProps(toggle) : {})}>
+      {count > 0
+        ? <span className={`grid h-7 min-w-7 shrink-0 place-items-center rounded-full px-2 text-sm font-bold leading-none text-bg ${crit ? "bg-bad" : "bg-warn"}`}>{count}</span>
+        : <CircleCheck size={22} className="shrink-0 text-ok" aria-hidden />}
+      <h2 className={`text-lg font-bold ${count ? "" : "text-ok"}`}>{count ? tx("À traiter maintenant") : tx("Rien à traiter")}</h2>
+      {count > 0 && <Siren size={18} className="ml-auto shrink-0 text-dim" aria-hidden />}
+      {count > 0 && (
+        <button type="button" className="text-dim hover:text-txt" aria-expanded={!folded} onClick={toggle} title={folded ? tx("Déplier") : tx("Replier")}>
+          {folded ? <ChevronDown size={18} aria-hidden /> : <ChevronUp size={18} aria-hidden />}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** « À traiter maintenant »: every alert with what to do; its badges filter the list; folds to its title and count (folded until opened), the choice kept in this browser */
 function ToDeal({ items, admin, go, goFilter }: Readonly<{ items: Attention[]; admin: boolean; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
   const [all, setAll] = useState(false);
   const [only, setOnly] = useState<Category | null>(null);
-  const [folded, setFolded] = useStoredFlag("myservices.home.todo.folded", false);
+  const [folded, setFolded] = useStoredFlag("myservices.home.todo.folded", true);
   const cats = [...new Set(items.map((i) => i.category))];
   const kept = only && cats.includes(only) ? items.filter((i) => i.category === only) : items;
   const shown = all ? kept : kept.slice(0, LIMIT);
@@ -92,29 +123,10 @@ function ToDeal({ items, admin, go, goFilter }: Readonly<{ items: Attention[]; a
   const frame = FRAME[tone];
   return (
     <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${frame}`} aria-label={tx("À traiter maintenant")}>
-      <div className={`flex items-center gap-3 px-5 py-3.5 ${items.length ? FOLD_HEADER : ""}`} {...(items.length ? foldHeaderProps(() => setFolded(!folded)) : {})}>
-        {items.length > 0
-          ? <span className={`grid h-7 min-w-7 shrink-0 place-items-center rounded-full px-2 text-sm font-bold leading-none text-bg ${crit ? "bg-bad" : "bg-warn"}`}>{items.length}</span>
-          : <CircleCheck size={22} className="shrink-0 text-ok" aria-hidden />}
-        <h2 className={`text-lg font-bold ${items.length ? "" : "text-ok"}`}>{items.length ? tx("À traiter maintenant") : tx("Rien à traiter")}</h2>
-        {items.length > 0 && <Siren size={18} className="ml-auto shrink-0 text-dim" aria-hidden />}
-        {items.length > 0 && (
-          <button type="button" className="text-dim hover:text-txt" aria-expanded={!folded} onClick={() => setFolded(!folded)} title={folded ? tx("Déplier") : tx("Replier")}>
-            {folded ? <ChevronDown size={18} aria-hidden /> : <ChevronUp size={18} aria-hidden />}
-          </button>
-        )}
-      </div>
+      <ToDealHead count={items.length} crit={crit} folded={folded} toggle={() => setFolded(!folded)} />
       {items.length > 0 && !folded && (
         <div className="flex flex-col gap-1.5 px-3 pb-3">
-          {cats.length > 1 && (
-            <div className="flex flex-wrap gap-1.5 px-1 pb-1" role="group" aria-label={tx("Filtrer par catégorie")}>
-              {cats.map((c) => (
-                <button key={c} type="button" aria-pressed={only === c} onClick={() => setOnly(only === c ? null : c)} className={`rounded-md ring-1 ${only === c ? "ring-link" : "ring-transparent"}`}>
-                  <Badge category={c} n={items.filter((i) => i.category === c).length} />
-                </button>
-              ))}
-            </div>
-          )}
+          {cats.length > 1 && <CategoryFilter cats={cats} items={items} only={only} setOnly={setOnly} />}
           <ol className="flex flex-col gap-1">{shown.map((it) => <Line key={`${it.category}/${it.text}`} it={it} admin={admin} go={go} goFilter={goFilter} />)}</ol>
           {kept.length > LIMIT && (
             <button type="button" onClick={() => setAll(!all)} aria-expanded={all}

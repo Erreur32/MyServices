@@ -76,8 +76,9 @@ class Token(Base):
     def test_refusal_says_what_to_do(self):
         ctx = FakeCtx()
         ctx.http = mock.Mock(side_effect=ConnectorError("HTTP 400 invalid_grant"))
+        conn = self.conn(ctx)
         with self.assertRaisesRegex(ConnectorError, "nouveau Refresh token"):
-            self.conn(ctx).access_token()
+            conn.access_token()
 
 
 class Reading(Base):
@@ -115,8 +116,9 @@ class Reading(Base):
         self.conn(ctx).snapshot("Porte")
         self.assertEqual(ctx.calls[-1][0], "https://cam.test/x/live/snapshot_720.jpg")
         self.assertTrue(ctx.calls[-1][1]["binary"])
+        conn = self.conn(ctx)
         with self.assertRaises(ConnectorError):
-            self.conn(ctx).snapshot("Autre")
+            conn.snapshot("Autre")
 
     def test_a_product_without_rights_does_not_stop_the_others(self):
         d = self.conn(FakeCtx({"getstationsdata": self.STATION, "gethomecoachsdata": ConnectorError("HTTP 403"), "homesdata": ConnectorError("HTTP 403")})).collect()
@@ -124,12 +126,14 @@ class Reading(Base):
 
     def test_nothing_readable_is_an_error(self):
         err = ConnectorError("HTTP 403")
+        conn = self.conn(FakeCtx({"getstationsdata": err, "gethomecoachsdata": err, "homesdata": err}))
         with self.assertRaises(ConnectorError):
-            self.conn(FakeCtx({"getstationsdata": err, "gethomecoachsdata": err, "homesdata": err})).collect()
+            conn.collect()
 
     def test_rate_limit_stops_the_pass(self):
+        conn = self.conn(FakeCtx({"getstationsdata": RateLimited("HTTP 429")}))
         with self.assertRaises(RateLimited):
-            self.conn(FakeCtx({"getstationsdata": RateLimited("HTTP 429")})).collect()
+            conn.collect()
 
     def test_summary_counts_only_what_exists(self):
         facts, problems = summary(weather([{"name": "Coach", "type": "NHC", "reachable": True}]), [])

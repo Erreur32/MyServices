@@ -220,6 +220,24 @@ class Reseau(unittest.TestCase):
         self.assertEqual((facts["Stockage"], facts["Fibre"], facts["Wi-Fi"], facts["Machines virtuelles"]),
                          ("55 % (NVME 32)", "-15.7 dBm reçus", "2 borne(s), 3 appareil(s)", "1 en marche sur 2"))
 
+    def test_freebox_in_the_internet_box_shape(self):
+        fb = {"connection": {"state": "up", "media": "ftth", "rate_down": 1_250_000, "rate_up": 125_000, "bandwidth_down": 8e9, "bandwidth_up": 7e8},
+              "system": {"model": "Freebox Ultra", "firmware": "4.9.4", "uptime": 90000, "sensors": [{"name": "CPU", "value": 78}, {"name": "SSD", "value": 41}]},
+              "wifi": {"enabled": True, "aps": []}, "hosts": 2, "hosts_active": 1,
+              "firmware_update": {"server": {"installed": "4.9.4", "latest": "4.9.16", "update_available": True}}}
+        box = freebox_status({"name": "lan", "ok": True, "freebox": fb})["box"]
+        self.assertEqual(box, {"model": "Freebox Ultra", "line": "fibre", "connected": True, "down_bps": 10_000_000, "up_bps": 1_000_000, "line_down_bps": 8_000_000_000,
+                               "line_up_bps": 700_000_000, "public_ip": None, "uptime_s": None, "firmware": "4.9.4", "update_available": True, "latest_firmware": "4.9.16",
+                               "devices": 1, "wifi": True, "temperature": 78})
+
+    def test_freebox_box_leaves_what_it_does_not_know_empty(self):
+        down = freebox_status({"name": "lan", "ok": True, "freebox": {"connection": {"state": "down", "media": "ethernet", "rate_down": 0, "rate_up": 0, "bandwidth_down": 0}}})["box"]
+        self.assertEqual((down["connected"], down["line"], down["down_bps"], down["up_bps"], down["line_down_bps"]), (False, None, 0, 0, None))   # a rate of 0 is a rate, a capacity of 0 is not
+        bare = freebox_status({"name": "lan", "ok": True, "freebox": {"connection": None, "system": None}})["box"]
+        self.assertTrue(all(v is None for v in bare.values()), bare)
+        none_waiting = freebox_status({"name": "lan", "ok": True, "freebox": {"system": {"update_available": False, "latest_firmware": "4.9.16"}}})["box"]
+        self.assertEqual((none_waiting["update_available"], none_waiting["latest_firmware"]), (False, None))
+
     def test_mynetwork_freebox_non_appairee(self):
         Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
                        "/api/lan/devices": (200, {"success": False, "msg": "Freebox non appairée"}),

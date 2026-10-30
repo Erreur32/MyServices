@@ -1314,6 +1314,7 @@ def main():
                         service={"kind": "manuel", "name": x["name"]}))
 
     # Surcharges manuelles : par domaine, puis ip:port, puis nom de conteneur
+    public_ignore = meta.get("public_ignore") or []
     def meta_for(r):
         s = r.get("service") or {}
         keys = r["domains"] + [f'{r.get("ip")}:{r.get("port")}', s.get("name", "")]
@@ -1407,6 +1408,8 @@ def main():
             r["web"] = m["web"]
         r["direct_ok"] = bool(m.get("direct_ok"))  # UI hors NPM voulue : exclue du compteur
         r["public_ok"] = bool(m.get("public"))  # site public voulu : pas d'ACL attendue
+        if new_services.public_ignored(r["domains"], public_ignore):  # domaines jamais soumis à « public ? » (réglage Services)
+            r["public_ignored"] = True
         new_services.apply_hand(r, m)
 
     webcheck_rows(rows)

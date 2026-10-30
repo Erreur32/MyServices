@@ -22,7 +22,7 @@ const sub = (id: string, hash: string, tab: TabId, icon: LucideIcon, label: stri
 const group = (id: string, tab: TabId, icon: LucideIcon, label: string, subs: NavItem[]): NavItem => ({ id, hash: subs[0].hash, tab, icon, label, subs });
 const views = (id: string, tab: TabId, subs: NavItem[]): NavItem => group(id, tab, Eye, tx("Vue"), subs);
 const unifiShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "unifi") || (s.data.network ?? []).some((c) => !!c.unifi);
-const freeboxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "freebox");
+const boxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => !!c.box);
 const scanShown = (s: Snapshot) => (s.data.network ?? []).some((c) => c.connector === "mynetwork");
 
 /** The side menu, in five groups; an entry whose source is missing is left out, and so is a group left empty. The pages of
@@ -50,7 +50,7 @@ export const NAV: NavGroup[] = [
     { id: "network", hash: "network", tab: "network", icon: Router, label: tx("Réseau"), subs: [
       views("network-view", "network", [
         sub("network-unifi", "network/unifi", "network", LayoutDashboard, tx("UniFi"), unifiShown),
-        sub("network-freebox", "network/freebox", "network", House, tx("Freebox"), freeboxShown),
+        { ...sub("network-box", "network/box", "network", Router, tx("Box internet"), boxShown), also: ["network/freebox"] },   // the Freebox is read here now
         sub("network-scan", "network/scan", "network", Radar, tx("Scan"), scanShown),
         sub("network-list", "network/list", "network", List, tx("Équipements et appareils")),
         sub("network-diagnostic", "network/diagnostic", "network", Stethoscope, tx("Diagnostic")),
@@ -80,6 +80,15 @@ export const NAV: NavGroup[] = [
     { id: "diagrams", hash: "diagrams", tab: "diagrams", icon: Workflow, label: tx("Schémas") },
   ] },
   { id: "protection", label: tx("Protection"), items: [
+    { id: "security", hash: "security", tab: "security", icon: Shield, label: tx("Sécurité"), subs: [
+      sub("security-overview", "security/overview", "security", Eye, tx("Vue d'ensemble")),   // the findings of every page below, always shown
+      sub("security-sites", "security/sites", "security", Globe, tx("Sites exposés")),
+      sub("security-access", "security/access", "security", KeyRound, tx("Accès SSH")),
+      sub("security-ports", "security/network", "security", Radar, tx("Ports du réseau")),
+      sub("security-certs", "security/certs", "security", FileBadge, tx("Certificats")),
+      sub("fail2ban", "security/fail2ban", "security", Ban, tx("Fail2ban"), (s) => (s.data.security ?? []).length > 0),   // a Fail2ban read (LogviewR)
+      sub("security-wazuh", "security/wazuh", "security", ShieldCheck, "Wazuh", (s) => (s.data.services_status ?? []).some((c) => c.connector === "wazuh")),   // a Wazuh connector
+    ] },
     { id: "backups", hash: "backups", tab: "backups", icon: HardDrive, label: tx("Sauvegardes"), subs: [
       views("backups-view", "backups", [
         sub("backups-machines", "backups/machines", "backups", Monitor, tx("Par machine")),
@@ -89,15 +98,6 @@ export const NAV: NavGroup[] = [
       sub("backups-unlinked", "settings/backups/unlinked", "settings", Link2, tx("À relier")),
       sub("backups-copies", "settings/backups/copies", "settings", Copy, tx("Copies ailleurs")),
       sub("backups-paths", "settings/backups/paths", "settings", FolderSearch, tx("Emplacements cherchés")),
-    ] },
-    { id: "security", hash: "security", tab: "security", icon: Shield, label: tx("Sécurité"), subs: [
-      sub("security-overview", "security/overview", "security", Eye, tx("Vue d'ensemble")),   // the findings of every page below, always shown
-      sub("security-sites", "security/sites", "security", Globe, tx("Sites exposés")),
-      sub("security-access", "security/access", "security", KeyRound, tx("Accès SSH")),
-      sub("security-ports", "security/network", "security", Radar, tx("Ports du réseau")),
-      sub("security-certs", "security/certs", "security", FileBadge, tx("Certificats")),
-      sub("fail2ban", "security/fail2ban", "security", Ban, tx("Fail2ban"), (s) => (s.data.security ?? []).length > 0),   // a Fail2ban read (LogviewR)
-      sub("security-wazuh", "security/wazuh", "security", ShieldCheck, "Wazuh", (s) => (s.data.services_status ?? []).some((c) => c.connector === "wazuh")),   // a Wazuh connector
     ] },
   ] },
   { id: "collect", label: tx("Collecte"), items: [   // what feeds the app: the sources it reads, what it finds by itself, when it runs

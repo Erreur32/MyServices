@@ -1,8 +1,9 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { Archive, Cable, Monitor, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Cpu, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronUp, Container, Clock, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
+import { Archive, Cable, Monitor, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Cpu, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronUp, Container, Clock, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, Server, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
 import { Copyable } from "../components/form";
+import { groupByHost } from "../lib/machineGroups";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime, dur, durShort, ipNum, isDate, splitHostName } from "../lib/format";
 import { LOAD_HIGH, loadOf, machineFigures, shortProbe } from "../lib/machineFigures";
@@ -44,7 +45,7 @@ import { primary, quiet } from "../lib/forms";
 import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { InfoNote } from "../components/InfoNote";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
+import { Badge, Cards, Count, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
@@ -1769,6 +1770,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       name: (v) => ({ bad: tx("problème à regarder"), warn: tx("à surveiller"), info: tx("information") } as Record<string, string>)[v] || v, order: ["bad", "warn", "info"], mark: (v) => <Dot tone={v === "bad" ? "bad" : v === "warn" ? "warn" : "info"} /> },
     { key: "load", label: tx("Charge"), get: (m) => { const l = loadOf(hb.get(m.ip)); return [...(l.cpu !== null && l.cpu >= LOAD_HIGH ? ["cpu"] : []), ...(l.mem !== null && l.mem >= LOAD_HIGH ? ["mem"] : [])]; },
       name: (v) => (v === "cpu" ? tx("processeur ≥ {0} %", LOAD_HIGH) : tx("mémoire ≥ {0} %", LOAD_HIGH)), order: ["cpu", "mem"] },
+    { key: "kind", label: tx("Type"), get: (m) => (m.links?.guest ? "vm" : m.links?.hypervisor ? "host" : "machine"),
+      name: (v) => ({ vm: "VM", host: tx("hôte"), machine: tx("machine") } as Record<string, string>)[v] || v, order: ["vm", "host", "machine"] },
     { key: "os", label: tx("Système"), get: (m) => osOf(m) ?? "", name: (v) => OS_LABEL[v as OsKind], order: OS_ORDER, mark: (v) => <OsGlyph kind={v as OsKind} size={13} /> },
     { key: "access", label: tx("Accès"), get: (m) => (m.ssh ? "ssh" : m.agent ? "agent" : "none"), name: (v) => ({ ssh: "SSH", agent: tx("Agent"), none: tx("aucun") } as Record<string, string>)[v], order: ["ssh", "agent", "none"],
       mark: (v) => <Dot tone={v === "none" ? "off" : "ok"} /> },
@@ -1815,6 +1818,15 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
     return <Detail extra={extra} m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} npmIps={snap.data.npm_instances} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} stamp={snap.data.generated} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
+  const cardGroups = useMemo(() => groupByHost(sort.sorted), [sort.sorted]);   // the cards: a hypervisor node and its VMs together
+  const cards = (list: Machine[]) => (
+    <Cards always dense>
+      {list.map((m) => (
+        <MachineCard key={m.ip} m={m} h={hb.get(m.ip)} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} unifi={unifiOf(m)} off={isOff(m)}
+          state={st(m, false)} shown={false} onToggle={() => openPage(m.ip)} onMachine={onMachine} detail={null} />
+      ))}
+    </Cards>
+  );
 
   // Inventaire de MynetworK (connecteur « network ») : MAC et fabricant sous l'IP, et les appareils vus mais pas suivis
   const seen = useMemo(() => new Map((snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => [d.ip, d])), [snap.data.network]);
@@ -1837,6 +1849,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       <MachinesHead snap={snap} health={hb} watching={(m) => watchOf(m).some((w) => w.tone !== "info")} sel={f.sel} onSel={f.setSel} />
       <FoldPanel id="machines-all" icon={Monitor} title={tx("Toutes les machines")} count={sort.sorted.length} pinned>
       <FilterBar bare f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
+        primary={["state", "alert", "kind"]} oneLine
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
         ]}
@@ -1875,16 +1888,12 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
               );
             })}
           </Table>}
-          <Cards always={view === "cards"} dense>
-            {sort.sorted.map((m) => {
-              const h = hb.get(m.ip);
-              return (
-                <MachineCard key={m.ip} m={m} h={h} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} unifi={unifiOf(m)} off={isOff(m)}
-                  state={st(m, false)} shown={false} onToggle={() => openPage(m.ip)} onMachine={onMachine}
-                  detail={null} />
-              );
-            })}
-          </Cards>
+          {view === "cards" ? cardGroups.map((g) => (
+            <section key={g.key} className="mb-4 last:mb-0">
+              {cardGroups.length > 1 && <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-muted">{g.key ? <Server size={14} className="text-dim" aria-hidden /> : null}{g.key ? `${tx("Nœud")} ${g.title}` : tx("Autres machines")}<Count n={g.list.length} /></h3>}
+              {cards(g.list)}
+            </section>
+          )) : cards(sort.sorted)}
         </>
       )}
       </FoldPanel>

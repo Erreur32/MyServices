@@ -49,7 +49,7 @@
 > - **Feedback is welcome**: [questions and ideas](https://github.com/Erreur32/MyServices/discussions), bug reports and connector requests
 >   (see below). Pull requests are not handled yet.
 >
-> Every version is tagged and published as a Docker image. Numbers stay **below 2.0.0** until the project is declared stable (`0.31.0`, `0.31.1`…).
+> Every version is tagged and published as a Docker image. Numbers stay **below 2.0.0** until the project is declared stable (`0.31.1`, `0.31.2`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in English).
 
 ## At a glance
@@ -84,7 +84,7 @@ Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
-Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.31.0` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.31.1` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
 ---
@@ -109,7 +109,7 @@ One menu on the left holds every page, in four groups; the views of a page are i
 |---|---|
 | **Overview** | **Home** (dashboard: what needs your attention, then counters that open the page already filtered; then the history: events of the last 24 h to one year as dots, bars, curve or heat map, and availability; statistics) |
 | **Inventory** | **Machines** (every machine, each with its own page and settings; devices seen by your tools but not followed; agents; SSH connections and the app's SSH key), **Services** (NPM hosts and local services, each with its page, read and edited in place; new services; declare a service), **Network** (UniFi, Freebox, scan, devices, diagnostic), **DNS** (AdGuard Home: servers, details), **Virtualization**, **AI and agents** (overview, models, agents and MCP, GPU; shown once an AI service or connector exists), **Video and cameras** (overview, cameras, streams, recordings; shown once a Stream service or a video connector exists), **Diagrams** |
-| **Protection** | **Backups** (by machine, sets, add backups, to link, copies elsewhere, paths searched), **Security** (overview, exposed sites, SSH access, network ports, certificates, Fail2ban, Wazuh) |
+| **Protection** | **Security** (overview, exposed sites, SSH access, network ports, certificates, Fail2ban, Wazuh), **Backups** (by machine, sets, add backups, to link, copies elsewhere, paths searched) |
 | **Collection** | **Connectors** (mine, available, found to link, already read over SSH or by an agent), **Discovery** (automatic mode, what to do, other suggestions), **Tasks and schedules** |
 | **Administration** | **Notifications** (channels, alert rules, my notifications, examples, last sent), **Accounts and access** (accounts and sessions, API and MCP tokens), **Application** (updates, e-mail, export and import, requests, audit log, logs, information) |
 
@@ -200,7 +200,7 @@ A connector lets MyServices read a tool through its API, **read-only**: give it 
 | **Apps** | **Home Assistant**, Netatmo, Nextcloud, Jellyfin, Tautulli, Overseerr / Jellyseerr, Sonarr / Radarr / Prowlarr…, Bazarr, qBittorrent, Transmission |
 | **DNS** | **AdGuard Home**, Pi-hole, Technitium DNS |
 | **Monitoring** | **Beszel**, **Uptime Kuma**, **Dozzle**, **Glances**, **LogviewR**, Prometheus, Healthchecks, Netdata, Pulse, Speedtest Tracker, Webmin, Umami, Rybbit |
-| **Network** | **MynetworK** (UniFi and Freebox through it), UniFi Network (direct), Tailscale / Headscale, OPNsense, NetAlertX |
+| **Network** | **MynetworK** (UniFi and Freebox through it), UniFi Network (direct), Tailscale / Headscale, OPNsense, NetAlertX, Internet box (UPnP IGD), FRITZ!Box, SFR Box, Livebox, Vodafone Station, Sagemcom F@st, Bbox, Swisscom Internet-Box, Compal Connect Box, Telekom Speedport, Technicolor Homeware, T-Mobile Home Internet, Hitron CODA, Verizon Fios, Arris SURFboard |
 | **Security** | **Wazuh**, CrowdSec |
 | **Virtualization and containers** | **Dockhand**, Proxmox VE, Proxmox Datacenter Manager, VMware vCenter, Portainer, Arcane, Unraid |
 | **Storage and backups** | Proxmox Backup Server, Veeam Backup & Replication, Veeam for Microsoft 365, Backrest, borgmatic, UrBackup, TrueNAS, Synology DSM, remote folder (FTP, FTPS, Samba) |

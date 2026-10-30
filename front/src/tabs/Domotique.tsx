@@ -78,6 +78,8 @@ function List({ title, aside, rows }: Readonly<{ title: string; aside?: React.Re
   );
 }
 
+const BAR = "mt-1 block h-2 w-full appearance-none overflow-hidden rounded-full bg-[#ff8d15]/15 [&::-webkit-progress-bar]:bg-transparent [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[#ff8d15] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[#ff8d15]";
+
 /** Each shutter with how far it is open: a full bar is an open shutter */
 function Shutters({ list }: Readonly<{ list: NetatmoModule[] }>) {
   return (
@@ -90,9 +92,7 @@ function Shutters({ list }: Readonly<{ list: NetatmoModule[] }>) {
             <li key={m.id ?? m.name} className="text-sm">
               <div className="flex justify-between gap-3"><span className="min-w-0 truncate">{m.name}</span><span className="shrink-0 text-muted">{place(m, shutterState(m))}</span></div>
               {typeof pos === "number" && (
-                <div role="progressbar" aria-label={m.name} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pos} className="mt-1 h-2 overflow-hidden rounded-full bg-[#ff8d15]/15">
-                  <div className="h-full rounded-full bg-[#ff8d15]" style={{ width: `${Math.min(100, Math.max(0, pos))}%` }} />
-                </div>
+                <progress aria-label={m.name} max={100} value={pos} className={BAR} />
               )}
             </li>
           );

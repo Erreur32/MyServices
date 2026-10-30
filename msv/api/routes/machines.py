@@ -49,7 +49,8 @@ def _ssh_uses(machines: dict) -> dict[str, list[str]]:
 
 @router.get(API + "/machines/advice", tags=["machines"], summary="Méthode de lecture recommandée pour chaque machine suivie : SSH, agent, connecteur ou ping (admin)")
 def machines_advice(request: Request):
-    import access_advice, netscan
+    from msv.collect import netscan
+    from msv.machines import access_advice
 
     def advise(m):
         try:

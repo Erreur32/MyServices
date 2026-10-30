@@ -29,6 +29,7 @@ CURVES = {"NAMain": INDOOR_MAIN, "NHC": INDOOR_MAIN, "NAModule1": ("Temperature"
           "NAModule3": ("Rain",), "NAModule2": ("WindStrength", "GustStrength")}
 CURVE_TTL = 600    # the devices send a reading every 10 minutes; a page reopened spends no quota
 HA_MARK = "Data provided by Netatmo"
+HA_GROUP = "Home Assistant"
 HA_KINDS = {"temperature": "temperature", "humidity": "humidity", "carbon_dioxide": "co2", "sound_pressure": "noise", "atmospheric_pressure": "pressure", "battery": "battery"}
 HA_NAMED = {"wind_speed": "wind", "gust_strength": "gust", "precipitation": "rain", "precipitation_today": "rain_24h"}   # shortcut: English entity ids only, a Home Assistant set up in another language shows no wind or rain
 
@@ -113,7 +114,7 @@ def ha_sensors(states: list, stems: dict, kind=_ha_type) -> list[dict]:
     for stem, kinds in found.items():
         values = {k: v for k, st in kinds.items() if k != "battery" and (v := num(st.get("state"))) is not None}
         battery = kinds.get("battery")
-        out.append({"id": stem, "name": stems[stem]["name"], "type": kind(kinds), "group": "Home Assistant", "reachable": stems[stem]["up"], "low": False,
+        out.append({"id": stem, "name": stems[stem]["name"], "type": kind(kinds), "group": HA_GROUP, "reachable": stems[stem]["up"], "low": False,
                     "battery": num(battery.get("state")) if battery else None, "values": values,
                     "entities": {k: st["entity_id"] for k, st in kinds.items() if k != "battery"}})
     return out
@@ -128,9 +129,9 @@ def from_home_assistant(states: list) -> dict | None:
     stems = {st["entity_id"].split(".", 1)[1].rsplit("_", 1)[0]: {"name": name(st).rsplit(" ", 1)[0], "up": st.get("state") == "on"}
              for st in of("binary_sensor") if (st.get("attributes") or {}).get("device_class") == "connectivity"}
     modules = ha_sensors(mine, stems)
-    modules += [{"id": st["entity_id"], "name": name(st), "type": "NBR", "group": "Home Assistant", "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
+    modules += [{"id": st["entity_id"], "name": name(st), "type": "NBR", "group": HA_GROUP, "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
                  "values": {"current_position": st["attributes"]["current_position"]} if "current_position" in st["attributes"] else {}} for st in of("cover")]
-    modules += [{"id": st["entity_id"], "name": name(st), "type": "NACamera", "group": "Home Assistant", "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
+    modules += [{"id": st["entity_id"], "name": name(st), "type": "NACamera", "group": HA_GROUP, "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
                  "values": {"monitoring": "on" if st["attributes"].get("monitoring") else "off"}} for st in of("camera")]
     rooms = [{"name": name(st), "temperature": st["attributes"].get("current_temperature"), "setpoint": st["attributes"].get("temperature")} for st in of("climate")]
     return {"modules": modules, "rooms": rooms, "problems": summary(modules, rooms)[1]} if modules else None

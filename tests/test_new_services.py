@@ -117,6 +117,24 @@ class NewServices(unittest.TestCase):
         with self.assertRaises(LookupError):
             new_services.ignore("local:10.0.0.9:22", self.data, self.meta, self.d, self.d)
 
+    def test_public_ignore_matches_patterns_and_needs_every_domain(self):
+        self.assertTrue(new_services.public_ignored(["a.lan.example.org", "B.x.lan.example.org"], ["*.lan.example.org"]))
+        self.assertFalse(new_services.public_ignored(["a.lan.example.org", "blog.example.org"], ["*.lan.example.org"]))   # one public name keeps the question
+        self.assertFalse(new_services.public_ignored(["lan.example.org"], ["*.lan.example.org"]))
+        self.assertFalse(new_services.public_ignored([], ["*.lan"]))
+
+    def test_public_ignore_saved_cleaned_and_applied_at_once(self):
+        self.data["hosts"][2]["domains"] = ["a.lan"]
+        (self.d / "data.json").write_text(json.dumps(self.data))
+        self.assertEqual(new_services.set_public_ignore(self.meta, self.d, [" *.LAN ", "*.lan", ""]), ["*.lan"])
+        self.assertEqual(new_services.read_public_ignore(self.meta), ["*.lan"])
+        self.assertTrue(json.loads((self.d / "data.json").read_text())["hosts"][2]["public_ignored"])
+        self.assertEqual(json.loads(self.meta.read_text())["services"]["10.0.0.2:8080"]["description"], "kept")   # the rest of the file stays
+        new_services.set_public_ignore(self.meta, self.d, [])
+        self.assertNotIn("public_ignored", json.loads((self.d / "data.json").read_text())["hosts"][2])
+        with self.assertRaises(ValueError):
+            new_services.set_public_ignore(self.meta, self.d, ["bad domain!"])
+
 
 if __name__ == "__main__":
     unittest.main()

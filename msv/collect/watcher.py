@@ -126,7 +126,7 @@ def snapshot(r: dict) -> dict:
         "status": status(r),
         "enabled": bool(r.get("enabled")),
         "no_acl": r["type"] == "proxy" and r.get("enabled") and not r.get("acl") and not r.get("acl_adv")
-                  and not r.get("public_ok"),  # site public voulu
+                  and not r.get("public_ok") and not r.get("public_ignored"),  # site public voulu, ou domaine ignoré (réglage Services)
         "ssl_weak": r["type"] == "proxy" and r.get("enabled") and bool(r.get("ssl")) and not r.get("ssl_forced"),
         "ui_hors": r["type"] == "local" and r.get("web") == "ui" and not r.get("direct_ok"),
         "unhealthy": "(unhealthy)" in state,

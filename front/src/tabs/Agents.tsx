@@ -7,6 +7,7 @@ import { read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
 import { AgentInstall, type AgentKind, type InstallTarget } from "../components/AgentInstall";
+import { NewAgentPage } from "./NewAgent";
 import { act, danger, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Dim, Loading } from "../components/ui";
 import { StatTile } from "../components/StatTile";
@@ -51,18 +52,6 @@ const VersionMark = ({ outdated }: Readonly<{ outdated: boolean }>) => outdated
   ? <ArrowUpCircle size={13} className="text-warn" aria-hidden />
   : <Check size={13} className="text-ok" aria-hidden />;
 
-
-/** Groupe de cartes : titre, compte, texte d'aide et grille ; absent quand il est vide */
-function Group({ title, n, hint, children }: Readonly<{ title: string; n: number; hint?: string; children: React.ReactNode }>) {
-  if (n === 0) return null;
-  return (
-    <section aria-label={title}>
-      <h3 className="mb-2 flex items-center gap-2 px-1 text-sm font-bold">{title} <Dim>· {n}</Dim></h3>
-      {hint && <InfoNote className="mb-2">{hint}</InfoNote>}
-      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>
-    </section>
-  );
-}
 
 /** Le jeton arrive d'un poste qui porte un autre nom que le premier vu (machine renommée, ou jeton copié ailleurs) : ses relevés sont refusés tant que l'admin n'a pas confirmé. */
 function HostConfirm({ a, reload, setNote }: Readonly<{ a: AgentInfo; reload: () => void; setNote: (n: Note) => void }>) {
@@ -193,6 +182,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
   useEffect(reload, [reload]);
   const [hours, setHours] = usePeriod(), s = agentSummary(st?.agents ?? []);
   const hist = useAgentsHistory(hours, `${s.active}.${s.outdated.length}`), now = Math.floor(Date.now() / 1000), ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, late = (p: TilePoint) => p[2] - p[1];
+  if (open === "new") return <NewAgentPage machines={machines} />;
   if (!st) return <Loading />;
   const scores = s.live.map((a) => agentHealth(a)?.score ?? 0), avg = scores.length ? Math.round(scores.reduce((t, n) => t + n, 0) / scores.length) : null;
   const updateLate = async () => {
@@ -205,6 +195,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
     <div className="flex flex-col gap-4">
       <PageHead icon={MonitorUp} title={tx("Agents")} tags={<span className="flex flex-wrap items-center gap-1.5 text-sm"><Badge tone="info" outline>{tx("{0} agent(s)", s.live.length)}</Badge><Badge tone="ok" outline>{tx("{0} actif(s)", s.active)}</Badge></span>}
         actions={<>
+          <a href="#settings/machines/agents/new" className={`${primary} py-1 no-underline`}><Plus size={14} aria-hidden />{tx("Agent")}</a>
           <PeriodSwitch value={hours} onChange={setHours} />
           {s.outdated.length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void updateLate()}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", s.outdated.length)}</button>}
         </>} />
@@ -232,11 +223,13 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
           </div>
         )}
       </FoldPanel>
-      <Group title={tx("Agents révoqués")} n={s.revoked.length}
-        hint={tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}>
-        {s.revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={install?.ip === a.ip && !!install.auto}
-          onNew={() => setInstall({ ip: a.ip, name: machines[a.ip]?.name ?? a.name, kind: a.kind ?? "windows", auto: true })} reload={reload} />)}
-      </Group>
+      {s.revoked.length > 0 && <FoldPanel id="agents-revoked" icon={KeyRound} title={tx("Agents révoqués")} count={s.revoked.length} startFolded>
+        <InfoNote className="mb-2">{tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}</InfoNote>
+        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {s.revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={install?.ip === a.ip && !!install.auto}
+            onNew={() => setInstall({ ip: a.ip, name: machines[a.ip]?.name ?? a.name, kind: a.kind ?? "windows", auto: true })} reload={reload} />)}
+        </ul>
+      </FoldPanel>}
     </div>
   );
 }

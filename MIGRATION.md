@@ -5,6 +5,20 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.31.1 → next version
+
+**Nothing required yet.**
+
+## 0.31.0 → 0.31.1
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: unchanged.
+- **Optional**: the new connector « Internet box (UPnP IGD) » (category Network / DNS) reads any box with UPnP turned on. It needs no account. Leave its address empty to search the local network, which needs `network_mode: host` as in the provided compose file; otherwise paste the box's description address. Its reading includes the public address of the box, in `data.json`, which every account and the MCP tools can read. The Network menu loses its « Freebox » entry: the Freebox is read in « Internet box » (same figures, from MynetworK, no new call), and the old address `#network/freebox` still works. The new « FRITZ!Box » connector (same category) needs a FRITZ!Box user with the « FRITZ!Box settings » right and « Allow access for applications » turned on in the box; its password is kept in the secrets store like the other connectors' secrets, and its reading includes the public address too. The « SFR Box » connector (same category) needs no account, only the box's address; its reading includes the public address too. The connectors « Livebox », « Vodafone Station », « Sagemcom F@st » and « Bbox » (same category) need the account of the box's web interface; their passwords are kept in the secrets store, and their readings include the public address when the box gives it. The same goes for the connectors « T-Mobile Home Internet » (account optional), « Hitron CODA », « Verizon Fios Router » and « Arris SURFboard » (password optional when its status page opens without one). The same goes for the connectors « Swisscom Internet-Box », « Compal Connect Box », « Telekom Speedport » (password optional) and « Technicolor gateway (Homeware) ».
+- **Behaviour that changes by itself**: warning notes, the home « To deal with now » frame and the revoked agents start folded on every page (a choice already made in a browser is kept). In card view, Machines groups VMs under their hypervisor node.
+- **Optional**: Services › All services has an « Ignored domains » panel. Its list is stored as `public_ignore` in `services-meta.json`; nothing to add by hand.
+- **Fix**: `GET /api/v1/machines/advice` answered HTTP 500 since 0.29.0; the setup assistant step 4 works again.
+
 ## 0.30.1 → 0.31.0
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.

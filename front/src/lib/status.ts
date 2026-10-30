@@ -76,7 +76,9 @@ export function certIssue(r: Host): string {
 
 function exposure(r: Host): "prive" | "public" | "ouvert" | null {
   if (r.type !== "proxy" || !r.enabled || r.paused) return null;
-  return r.acl || r.acl_adv ? "prive" : r.public_ok ? "public" : "ouvert";
+  if (r.acl || r.acl_adv) return "prive";
+  if (r.public_ok) return "public";
+  return r.public_ignored ? null : "ouvert";   // an ignored domain (Services, « Domaines ignorés ») is never asked « public ? »
 }
 
 export type Check = "down" | "cert" | "kuma" | "dns" | "tls" | "closed" | "dnsname" | "dnsdiff" | "dnslan" | "dnsblock"

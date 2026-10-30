@@ -48,7 +48,7 @@ function Stat({ icon, label, children, tone }: Readonly<{ icon?: React.ReactNode
   return <span className={`inline-flex items-baseline gap-1.5 whitespace-nowrap ${tone ?? ""}`}>{icon}<span className="text-xs text-dim">{label}</span><b className="tabular-nums">{children}</b></span>;
 }
 
-/** Strip under a node: load, I/O wait, swap, system disk, kernel, CPU model, temperature, fans and what its guests take; only what the host gave */
+/** Strip under a node: load, kernel, CPU model, temperature, fans and what its guests take; only what the host gave */
 function NodeStats({ n, list }: Readonly<{ n: NonNullable<VirtualizationConnector["nodes"]>[number]; list: Guest[] }>) {
   const live = list.filter((g) => !g.template), run = live.filter((g) => g.status === "running");
   const vcpu = run.reduce((t, g) => t + (g.cpus ?? 0), 0), ram = run.reduce((t, g) => t + (g.maxmem ?? 0), 0);
@@ -56,9 +56,6 @@ function NodeStats({ n, list }: Readonly<{ n: NonNullable<VirtualizationConnecto
   const hot = n.temp_c != null && n.temp_c >= 85 ? "text-bad" : n.temp_c != null && n.temp_c >= 75 ? "text-warn" : "";
   const items = [
     n.load && <Stat key="load" label={tx("Charge")}>{n.load.map((x) => x.toFixed(2)).join(" · ")}</Stat>,
-    n.iowait_pct != null && <Stat key="io" label={tx("Attente disque")} tone={n.iowait_pct >= 20 ? "text-warn" : ""}>{n.iowait_pct} %</Stat>,
-    !!n.swap_total && <Stat key="swap" label="Swap">{bytes(n.swap_used)} / {bytes(n.swap_total)}</Stat>,
-    !!n.root_total && <Stat key="root" icon={<HardDrive size={12} className="text-dim" aria-hidden />} label={tx("Disque système")}>{bytes(n.root_used)} / {bytes(n.root_total)}</Stat>,
     n.kernel && <Stat key="kernel" label={tx("Noyau")}>{n.kernel}</Stat>,
     cpu && <Stat key="cpu" icon={<Cpu size={12} className="text-dim" aria-hidden />} label={tx("Processeur")}>{cpu}</Stat>,
     n.temp_c != null && <Stat key="temp" icon={<Thermometer size={12} className="text-dim" aria-hidden />} label={tx("Température")} tone={hot}>{n.temp_c} °C</Stat>,
@@ -161,8 +158,11 @@ function Host({ c, snap, onMachine, hideStopped }: { c: VirtualizationConnector;
                 </div>
               )}
               {n && <NodeStats n={n} list={list} />}
-              {storageOf(n?.name).length > 0 && (
-                <div className="grid gap-x-6 gap-y-2 border-t border-line/60 px-3 py-2.5 sm:grid-cols-2 lg:grid-cols-4 [&:first-child]:border-t-0">
+              {(n || storageOf(undefined).length > 0) && (
+                <div className="grid gap-x-6 gap-y-2 border-t border-line/60 px-3 py-2.5 sm:grid-cols-2 lg:grid-cols-4 [&:first-child]:border-t-0 [&:empty]:hidden">
+                  {n && <Gauge big label={tx("Attente disque")} pct={n.iowait_pct} />}
+                  {n?.root_total ? <Gauge big label={tx("Disque système")} pct={100 * (n.root_used ?? 0) / n.root_total} used={n.root_used} total={n.root_total} icon={<HardDrive size={12} className="shrink-0 text-dim" aria-hidden />} /> : null}
+                  {n?.swap_total ? <Gauge big label="Swap" pct={100 * (n.swap_used ?? 0) / n.swap_total} used={n.swap_used} total={n.swap_total} /> : null}
                   {storageOf(n?.name).map((st) => <Gauge big key={`${st.node}/${st.name}`} label={st.name} pct={st.used_pct} used={st.used} total={st.total} icon={<HardDrive size={12} className="shrink-0 text-dim" aria-hidden />} />)}
                 </div>
               )}
