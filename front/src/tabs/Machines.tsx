@@ -1819,8 +1819,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
   const cardGroups = useMemo(() => groupByHost(sort.sorted), [sort.sorted]);   // the cards: a hypervisor node and its VMs together
-  const cards = (list: Machine[]) => (
-    <Cards always dense>
+  const cards = (list: Machine[], always: boolean) => (   // « Cartes » view: on every width; table view: only the phone fallback (the table is hidden below md)
+    <Cards always={always} dense>
       {list.map((m) => (
         <MachineCard key={m.ip} m={m} h={hb.get(m.ip)} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} unifi={unifiOf(m)} off={isOff(m)}
           state={st(m, false)} shown={false} onToggle={() => openPage(m.ip)} onMachine={onMachine} detail={null} />
@@ -1891,9 +1891,9 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
           {view === "cards" ? cardGroups.map((g) => (
             <section key={g.key} className="mb-4 last:mb-0">
               {cardGroups.length > 1 && <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-muted">{g.key ? <Server size={14} className="text-dim" aria-hidden /> : null}{g.key ? `${tx("Nœud")} ${g.title}` : tx("Autres machines")}<Count n={g.list.length} /></h3>}
-              {cards(g.list)}
+              {cards(g.list, true)}
             </section>
-          )) : cards(sort.sorted)}
+          )) : cards(sort.sorted, false)}
         </>
       )}
       </FoldPanel>

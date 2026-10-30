@@ -26,6 +26,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Fixed
 
+- **Machines**: in the « Table » view the cards were shown under the table as well, both views mixed. The cards now only show in the « Cards » view, and as the phone fallback of the table.
 - **Icon import**: an SVG could not be imported. The page now sends a `.svg` whose file type the browser left empty as an SVG, and the server accepts what editors write: a leading comment, a plain `DOCTYPE`, a metadata block (RDF), `sodipodi:namedview` and more filter elements. Scripts, entities, outside links and a DOCTYPE with an internal subset stay refused.
 
 ## v0.31.3 (2026-10-30)
