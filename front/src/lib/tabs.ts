@@ -75,7 +75,7 @@ export const NAV: NavGroup[] = [
       sub("stream-frigate", "stream/frigate", "stream", Gauge, tx("Frigate"), (s) => (s.data.services_status ?? []).some((c) => c.connector === "frigate" && !!c.frigate)),
     ] },
     { id: "domotique", hash: "domotique/netatmo", tab: "domotique", icon: House, label: tx("Domotique"), subs: [
-      sub("domotique-netatmo", "domotique/netatmo", "domotique", House, "Netatmo"),
+      sub("domotique-netatmo", "domotique/netatmo", "domotique", House, tx("Vue d'ensemble")),
     ] },
     { id: "diagrams", hash: "diagrams", tab: "diagrams", icon: Workflow, label: tx("Schémas") },
   ] },

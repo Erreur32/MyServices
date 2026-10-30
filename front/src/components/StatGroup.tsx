@@ -23,22 +23,22 @@ export function Group({ title, sub, accent, tab, nav, cells, mark, href }: Reado
   mark: ReactNode; title: string; sub: string; accent: string; tab: TabId; nav: Open; cells: Cell[]; href?: string;   // href: a sub-page to open instead of the tab
 }>) {
   return (
-    <div className={`w-full rounded-xl border border-line border-l-4 ${accent} bg-card p-3`}>
+    <div className={`w-full rounded-xl border border-line border-l-4 ${accent} bg-card px-2.5 py-1.5`}>
       <button type="button" onClick={() => { if (href) location.hash = href; else nav.go(tab); }} className="flex w-full items-center justify-between gap-2 text-left hover:text-link" title={tx("Ouvrir l'onglet")}>
         <b className="flex min-w-0 items-center gap-2 text-sm">{mark}<span className="truncate">{title.replace(/^\p{Extended_Pictographic}\s*/u, "")}</span></b><span className="shrink-0 text-xs text-dim">{sub}</span>
       </button>
-      <div className="mt-2 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
+      <div className="mt-1 grid gap-1" style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
         {cells.map(([tone, n, label, filter]) => {
           const body = (
             <>
-              <div className={`font-mono text-base font-bold ${TONE[tone]}`}>{n}</div>
-              <div className="truncate text-[10.5px] text-muted" title={label}>{label}</div>
+              <div className={`font-mono text-sm font-bold leading-tight ${TONE[tone]}`}>{n}</div>
+              <div className="truncate text-[10px] leading-tight text-muted" title={label}>{label}</div>
             </>
           );
           return n && filter
             ? <button key={label} type="button" onClick={() => nav.goFilter(tab, filter)} title={tx("Afficher : {0}", label)}
-                className="rounded-lg bg-bg2 px-1.5 py-1 text-center transition-colors hover:bg-link/15 hover:ring-1 hover:ring-link">{body}</button>
-            : <div key={label} className={`rounded-lg bg-bg2 px-1.5 py-1 text-center ${n ? "" : "opacity-40"}`}>{body}</div>;
+                className="rounded-lg bg-bg2 px-1 py-0.5 text-center transition-colors hover:bg-link/15 hover:ring-1 hover:ring-link">{body}</button>
+            : <div key={label} className={`rounded-lg bg-bg2 px-1 py-0.5 text-center ${n ? "" : "opacity-40"}`}>{body}</div>;
         })}
       </div>
     </div>

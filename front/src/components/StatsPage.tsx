@@ -1,4 +1,4 @@
-// Home page figures: a line of key figures, then the counters of each subject in a grid (two columns, three on a very large screen);
+// Home page figures: a line of key figures, then the counters of each subject in a compact grid (two to four columns with the width);
 // a click on a group title opens its page, a click on a counter opens it filtered.
 import { Boxes, HardDrive, HeartPulse, Layers, Monitor, PackageCheck, Plug, ShieldCheck } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -122,11 +122,11 @@ export function KeyFigures({ snap, go }: Readonly<{ snap: Snapshot; go: (t: TabI
 export function Counters({ snap, go, goFilter }: Readonly<{ snap: Snapshot; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm" aria-label={tx("Tout ton parc en chiffres")}>
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line/60 bg-bg px-5 py-3">
-        <h2 className="text-base font-bold">{tx("Tout ton parc en chiffres")}</h2>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line/60 bg-bg px-4 py-2">
+        <h2 className="text-sm font-bold">{tx("Tout ton parc en chiffres")}</h2>
         <span className="text-xs text-dim">{tx("Clique sur un chiffre pour ouvrir la liste filtrée")}</span>
       </div>
-      <div className="grid items-start gap-3 p-3 md:grid-cols-2 2xl:grid-cols-3">{Object.values(statGroups(snap, { go, goFilter })).flat()}</div>
+      <div className="grid items-start gap-2 p-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{Object.values(statGroups(snap, { go, goFilter })).flat()}</div>
     </section>
   );
 }

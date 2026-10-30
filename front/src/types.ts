@@ -232,6 +232,8 @@ export interface ServiceStatus {
   problems?: string[];                                                       // et ce qui est à regarder
   modules?: NetatmoModule[];             // Netatmo only: every device of the account
   rooms?: { name: string; temperature: number | null; setpoint: number | null }[];   // Netatmo only: the heated rooms
+  netatmo?: HouseRead | null;            // Home Assistant only: the Netatmo devices it reads
+  home?: HouseRead | null;               // Home Assistant only: the other sensors, shutters and heating of the house
   updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
   instance?: string;                     // connector instance name (« name » can be the app's own, Home Assistant's place)
   machines?: Record<string, WazuhMachine>;   // Wazuh only: what it knows of each machine, by the IP of its agent
@@ -268,7 +270,11 @@ export interface AiModel { name: string; size?: number; quant?: string; family?:
 export interface NetatmoModule {
   id?: string | null; name: string; type?: string | null; group?: string; room?: string | null; reachable: boolean;
   battery: number | null; low: boolean; last_seen?: number | null; values: Record<string, number | string>;
+  source?: { connector: string; name: string };   // where the curves are read from, set by the page
 }
+export interface HouseRead { modules: NetatmoModule[]; rooms: { name: string; temperature: number | null; setpoint: number | null }[]; problems: string[] }
+/** A sensor's last 24 hours by measure: [seconds, value] */
+export type HouseCurves = Record<string, [number, number][]>;
 export interface StreamCamera { name: string; place?: "int" | "ext"; up: boolean | null; fps?: number | null; detect?: boolean | null; record?: boolean | null; events?: number | null; last?: number | null; labels?: Record<string, number> }
 /** One stream of a relay (go2rtc, MediaMTX) */
 export interface StreamFlow { name: string; ready: boolean | null; codec?: string | null; readers: number; kinds: string[] }

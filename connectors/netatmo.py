@@ -10,6 +10,7 @@ import fcntl
 import hashlib
 import json
 import time
+import urllib.parse
 from pathlib import Path
 
 from connectors.base import Connector, ConnectorError, Field, RateLimited, Result
@@ -23,6 +24,13 @@ OUTDOOR = ("NOC", "NDB")   # the Presence and the doorbell; the other cameras st
 WEATHER = {"Temperature": "temperature", "Humidity": "humidity", "CO2": "co2", "Noise": "noise", "Pressure": "pressure", "Rain": "rain",
            "sum_rain_24": "rain_24h", "WindStrength": "wind", "GustStrength": "gust", "WindAngle": "wind_angle", "health_idx": "air_quality"}
 CAMERA, SHUTTER, HEATING = ("NACamera", "NOC", "NDB", "NCS", "NSD"), ("NBR", "NBO", "NBS", "Z3V", "Z3L"), ("NATherm1", "NRV", "OTM", "BNS")
+INDOOR_MAIN = ("Temperature", "Humidity", "CO2", "Noise", "Pressure")
+CURVES = {"NAMain": INDOOR_MAIN, "NHC": INDOOR_MAIN, "NAModule1": ("Temperature", "Humidity"), "NAModule4": ("Temperature", "Humidity", "CO2"),
+          "NAModule3": ("Rain",), "NAModule2": ("WindStrength", "GustStrength")}
+CURVE_TTL = 600    # the devices send a reading every 10 minutes; a page reopened spends no quota
+HA_MARK = "Data provided by Netatmo"
+HA_KINDS = {"temperature": "temperature", "humidity": "humidity", "carbon_dioxide": "co2", "sound_pressure": "noise", "atmospheric_pressure": "pressure", "battery": "battery"}
+HA_NAMED = {"wind_speed": "wind", "gust_strength": "gust", "precipitation": "rain", "precipitation_today": "rain_24h"}   # shortcut: English entity ids only, a Home Assistant set up in another language shows no wind or rain
 
 
 def _values(d: dict | None) -> dict:
@@ -34,9 +42,9 @@ def weather(devices: list) -> list[dict]:
     out = []
     for dev in devices:
         group = dev.get("station_name") or dev.get("home_name") or dev.get("name") or "Netatmo"
-        out.append({"id": dev.get("_id"), "name": dev.get("module_name") or dev.get("name") or group, "type": dev.get("type"), "group": group,
+        out.append({"id": dev.get("_id"), "device": dev.get("_id"), "name": dev.get("module_name") or dev.get("name") or group, "type": dev.get("type"), "group": group,
                     "reachable": dev.get("reachable") is not False, "battery": None, "low": False, "values": _values(dev.get("dashboard_data"))})
-        out += [{"id": m.get("_id"), "name": m.get("module_name") or m.get("_id"), "type": m.get("type"), "group": group, "reachable": m.get("reachable") is not False,
+        out += [{"id": m.get("_id"), "device": dev.get("_id"), "name": m.get("module_name") or m.get("_id"), "type": m.get("type"), "group": group, "reachable": m.get("reachable") is not False,
                  "battery": num(m.get("battery_percent")), "low": False, "values": _values(m.get("dashboard_data"))} for m in dev.get("modules") or []]
     return out
 
@@ -77,6 +85,55 @@ def summary(modules: list[dict], rooms: list[dict]) -> tuple[list[dict], list[st
             facts.append(fact(label, n))
     problems = [f"{m['name']} ne répond plus" for m in gone] + [f"{m['name']} : pile faible" + (f" ({m['battery']:.0f} %)" if m["battery"] is not None else "") for m in low]
     return facts[:MAX_FACTS], problems[:MAX_PROBLEMS]
+
+
+def _ha_type(kinds: dict) -> str:
+    """The Netatmo type of a device, told by what it measures: a sensor without CO2 stays outdoors, the page sorts them on that."""
+    if "rain" in kinds:
+        return "NAModule3"
+    if "wind" in kinds:
+        return "NAModule2"
+    if "co2" in kinds:
+        return "NAMain" if "noise" in kinds else "NAModule4"
+    return "NAModule1"
+
+
+def ha_sensors(states: list, stems: dict, kind=_ha_type) -> list[dict]:
+    """A sensor belongs to the device with the longest matching entity id: « station_ext_humidity » to station_ext, not to station."""
+    found: dict[str, dict] = {stem: {} for stem in stems}
+    for st in states:
+        kind_id, _, oid = str(st.get("entity_id", "")).partition(".")
+        stem = max((x for x in stems if oid.startswith(x + "_")), key=len, default=None)
+        if kind_id == "sensor" and stem:
+            rest = oid[len(stem) + 1:]
+            key = HA_NAMED.get(rest) or HA_KINDS.get((st.get("attributes") or {}).get("device_class"))
+            if key and (key != "temperature" or "temp" in rest):   # a dew point or a heat index is a temperature too; shortcut: English entity ids
+                found[stem][key] = st
+    out = []
+    for stem, kinds in found.items():
+        values = {k: v for k, st in kinds.items() if k != "battery" and (v := num(st.get("state"))) is not None}
+        battery = kinds.get("battery")
+        out.append({"id": stem, "name": stems[stem]["name"], "type": kind(kinds), "group": "Home Assistant", "reachable": stems[stem]["up"], "low": False,
+                    "battery": num(battery.get("state")) if battery else None, "values": values,
+                    "entities": {k: st["entity_id"] for k, st in kinds.items() if k != "battery"}})
+    return out
+
+
+def from_home_assistant(states: list) -> dict | None:
+    """The Netatmo devices a Home Assistant already reads, in the shape of this connector, for those without a Netatmo application.
+    None when it reads none. A device is known by its connectivity sensor, the one entity it always has whatever the language."""
+    mine = [st for st in states if (st.get("attributes") or {}).get("attribution") == HA_MARK]
+    of = lambda domain: [st for st in mine if str(st.get("entity_id", "")).startswith(domain + ".")]   # noqa: E731
+    name = lambda st: (st.get("attributes") or {}).get("friendly_name") or st["entity_id"]   # noqa: E731
+    stems = {st["entity_id"].split(".", 1)[1].rsplit("_", 1)[0]: {"name": name(st).rsplit(" ", 1)[0], "up": st.get("state") == "on"}
+             for st in of("binary_sensor") if (st.get("attributes") or {}).get("device_class") == "connectivity"}
+    modules = ha_sensors(mine, stems)
+    modules += [{"id": st["entity_id"], "name": name(st), "type": "NBR", "group": "Home Assistant", "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
+                 "values": {"current_position": st["attributes"]["current_position"]} if "current_position" in st["attributes"] else {}} for st in of("cover")]
+    modules += [{"id": st["entity_id"], "name": name(st), "type": "NACamera", "group": "Home Assistant", "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
+                 "values": {"monitoring": "on" if st["attributes"].get("monitoring") else "off"}} for st in of("camera")]
+    rooms = [{"name": name(st), "temperature": st["attributes"].get("current_temperature"), "setpoint": st["attributes"].get("temperature")} for st in of("climate")]
+    return {"modules": modules, "rooms": rooms, "problems": summary(modules, rooms)[1]} if modules else None
 
 
 class Netatmo(Connector):
@@ -161,6 +218,22 @@ class Netatmo(Connector):
         except ConnectorError as e:
             skipped.append(f"{path.split('?')[0]} : {e}")
             return {}
+
+    def curves(self, m: dict) -> dict:
+        """The last 24 hours of a sensor, {measure: [[seconds, value], ...]}, read when a card is opened."""
+        wanted, now = CURVES.get(m.get("type")), int(time.time())
+        if not wanted or not m.get("device"):
+            return {}
+        q = {"device_id": m["device"], "scale": "30min", "type": ",".join(wanted), "date_begin": now - 86400, "optimize": "false"}
+        if m["id"] != m["device"]:
+            q["module_id"] = m["id"]
+        body = self.ctx.cached(f"{self.name}-curves-{m['id']}", CURVE_TTL, lambda: self._get(f"getmeasure?{urllib.parse.urlencode(q)}"))
+        out: dict[str, list] = {WEATHER[raw]: [] for raw in wanted}
+        for ts, row in sorted(body.items(), key=lambda kv: int(kv[0])):
+            for raw, v in zip(wanted, row):
+                if v is not None:
+                    out[WEATHER[raw]].append([int(ts), v])
+        return out
 
     def collect(self) -> dict:
         skipped: list[str] = []

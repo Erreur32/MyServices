@@ -217,5 +217,38 @@ class Addons(unittest.TestCase):
             {"name": "Mosquitto broker", "slug": "core_mosquitto", "version": "7.1.1"},
             {"name": "Zigbee2MQTT", "slug": "45df7312_zigbee2mqtt", "version": "2.1", "latest": "2.2"}])
 
+class HomeDevices(unittest.TestCase):
+    def test_room_sensors_shutters_and_heating_only(self):
+        def s(eid, state, **a):
+            return {"entity_id": eid, "state": state, "attributes": a}
+        out = connectors.home_assistant.home_devices([
+            s("sensor.mi_humidity", "41", device_class="humidity", friendly_name="Mi Couloir Humidity"), s("sensor.mi_temperature", "20", device_class="temperature"),
+            s("sensor.mi_dew_point", "7", device_class="temperature"), s("sensor.mi_battery", "80", device_class="battery"),
+            s("sensor.air_relative_humidity", "43", device_class="humidity", friendly_name="Air 32 Relative Humidity"),
+            s("sensor.cpu_core_temperature", "60", device_class="temperature"), s("sensor.plant_ext_air_humidity", "76", device_class="humidity"),
+            s("sensor.city_humidity", "70", device_class="humidity", attribution="Data provided by Météo-France"),
+            s("cover.store", "open", friendly_name="Store", current_position=10), s("cover.all", "open", entity_id=["cover.store"]),
+            s("climate.clim", "off", friendly_name="Clim", current_temperature=21, temperature=22), s("climate.old", "unavailable"),
+        ])
+        by = {m["id"]: m for m in out["modules"]}
+        self.assertEqual(sorted(by), ["air", "cover.store", "mi"])
+        self.assertEqual((by["mi"]["name"], by["mi"]["values"], by["mi"]["battery"]), ("Mi Couloir", {"humidity": 41, "temperature": 20}, 80))
+        self.assertEqual(by["air"]["name"], "Air 32")
+        self.assertEqual(out["rooms"], [{"name": "Clim", "temperature": 21, "setpoint": 22}])
+        self.assertIsNone(connectors.home_assistant.home_devices([s("sensor.cpu_temperature", "60", device_class="temperature")]))
+
+
+class Curves(unittest.TestCase):
+    def test_history_by_measure(self):
+        c = connectors.home_assistant.HomeAssistantAPI({"name": "ha", "url": "http://10.0.0.1:8123", "token": TOKEN}, mock.Mock(cached=lambda key, ttl, fn: fn()))
+        rows = [[{"entity_id": "sensor.t", "state": "20.5", "last_changed": "2026-10-30T00:00:00+00:00"}, {"state": "unavailable", "last_changed": "2026-10-30T00:05:00+00:00"},
+                 {"state": "21", "last_changed": "2026-10-30T00:10:00+00:00"}]]
+        with mock.patch.object(c, "_get", return_value=rows) as get:
+            out = c.curves({"id": "m", "entities": {"temperature": "sensor.t"}})
+        self.assertIn("filter_entity_id=sensor.t", get.call_args.args[0])
+        self.assertEqual([v for _, v in out["temperature"]], [20.5, 21])
+        self.assertEqual(c.curves({"id": "m"}), {})
+
+
 if __name__ == "__main__":
     unittest.main()

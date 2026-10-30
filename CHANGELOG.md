@@ -13,6 +13,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Home page
 
+- **Your whole fleet in figures**: a more compact panel, up to four columns on a wide screen.
+
 - **New home page**: a sentence tells the state of the network, beside a short live list of the machines (those to watch first, 6 at most). Key figures follow; each one opens its page.
 - **To deal with now**: each alert shows a coloured category badge (also on a phone), what to do, and for an administrator a button to the setting that settles it. The badges filter the list.
 - **Statistics moved to the home page**: its menu entry is gone, `#stats` opens the home page, which now holds the counters, the date, clock and scheduled tasks card, and a panel listing the linked tools.
@@ -43,9 +45,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 - **Cameras page**: filter by place (indoors, outdoors, other) beside the brand or recorder, with a sortable column in the table. The place comes from the connector, else from the camera's name. Each camera shows the logo of its brand or recorder, and the Frigate page its own.
 
-### Home automation
+### Smart home
 
-- **New page, Home automation › Netatmo**: the state of the house in a sentence, key figures, what to deal with, every sensor room by room, then the shutters and the cameras.
+- **New page, Smart home**: the state of the house in a sentence, key figures, what to deal with, every sensor room by room, then the shutters and the cameras.
+- **24-hour curves**: a click on a sensor card opens its curves, read on demand from Netatmo or from Home Assistant's history.
+- **Through Home Assistant**: without a Netatmo application, the page reads the Netatmo devices Home Assistant already knows. It also adds the other room sensors, shutters and heating of the house, never the applications connected to Home Assistant, and never the same device twice.
 
 ### Connectors
 

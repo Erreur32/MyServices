@@ -11,7 +11,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from connectors.base import ConnectorError, RateLimited
-from connectors.netatmo import Netatmo, summary, weather
+from connectors.netatmo import Netatmo, from_home_assistant, summary, weather
 
 SEED, NEXT = "seed-" + "x", "next-" + "y"   # built here so the secret guard sees no literal
 
@@ -19,6 +19,9 @@ SEED, NEXT = "seed-" + "x", "next-" + "y"   # built here so the secret guard see
 class FakeCtx:
     def __init__(self, routes=None):
         self.routes, self.calls, self.rotations = routes or {}, [], 0
+
+    def cached(self, key, ttl, fn):
+        return fn()
 
     def http(self, url, **kw):
         self.calls.append((url, kw))
@@ -132,6 +135,65 @@ class Reading(Base):
         facts, problems = summary(weather([{"name": "Coach", "type": "NHC", "reachable": True}]), [])
         self.assertEqual([f["label"] for f in facts], ["Appareils", "Hors ligne"])
         self.assertEqual(problems, [])
+
+
+MARK = {"attribution": "Data provided by Netatmo"}
+
+
+def ha(eid, state, **attrs):
+    return {"entity_id": eid, "state": state, "attributes": {**MARK, **attrs}}
+
+
+class ThroughHomeAssistant(unittest.TestCase):
+    STATES = [
+        ha("binary_sensor.station_connectivity", "on", device_class="connectivity", friendly_name="Station Connectivity"),
+        ha("binary_sensor.station_ext_connectivity", "off", device_class="connectivity", friendly_name="Station ext Connectivity"),
+        ha("binary_sensor.station_vent_connectivity", "on", device_class="connectivity", friendly_name="Station vent Connectivity"),
+        ha("sensor.station_temperature", "22.4", device_class="temperature", friendly_name="Renamed by hand"),
+        ha("sensor.station_carbon_dioxide", "512", device_class="carbon_dioxide"),
+        ha("sensor.station_noise", "42", device_class="sound_pressure"),
+        ha("sensor.station_ext_temperature", "9.9", device_class="temperature"),
+        ha("sensor.station_ext_battery", "12", device_class="battery"),
+        ha("sensor.station_vent_wind_speed", "unavailable", device_class="wind_speed"),
+        ha("cover.volet", "open", friendly_name="Volet", current_position=48),
+        ha("camera.salon", "streaming", friendly_name="Salon", monitoring=True),
+        ha("climate.salon", "heat", friendly_name="Salon", current_temperature=20, temperature=21),
+        {"entity_id": "sensor.other_temperature", "state": "1", "attributes": {"device_class": "temperature"}},
+    ]
+
+    def test_nothing_from_netatmo_gives_nothing(self):
+        self.assertIsNone(from_home_assistant(self.STATES[-1:]))
+
+    def test_devices_in_the_shape_of_the_connector(self):
+        d = from_home_assistant(self.STATES)
+        by = {m["id"]: m for m in d["modules"]}
+        self.assertEqual(sorted(by), ["camera.salon", "cover.volet", "station", "station_ext", "station_vent"])
+        self.assertEqual((by["station"]["name"], by["station"]["type"]), ("Station", "NAMain"))
+        self.assertEqual(by["station"]["values"], {"temperature": 22.4, "co2": 512, "noise": 42})
+        self.assertEqual(by["station"]["entities"]["co2"], "sensor.station_carbon_dioxide")
+        self.assertEqual((by["station_ext"]["type"], by["station_ext"]["battery"], by["station_ext"]["reachable"]), ("NAModule1", 12, False))
+        self.assertEqual((by["station_vent"]["type"], by["station_vent"]["values"]), ("NAModule2", {}))
+        self.assertEqual(by["cover.volet"]["values"], {"current_position": 48})
+        self.assertEqual(by["camera.salon"]["values"], {"monitoring": "on"})
+        self.assertEqual(d["rooms"], [{"name": "Salon", "temperature": 20, "setpoint": 21}])
+        self.assertIn("Station ext ne répond plus", d["problems"])
+
+
+class Curves(Base):
+    def test_a_module_is_read_with_its_station(self):
+        ctx = FakeCtx({"getmeasure": {"1000": [20.5, None], "500": [20, 48]}})
+        out = self.conn(ctx).curves({"id": "m", "device": "d", "type": "NAModule1"})
+        self.assertEqual(out, {"temperature": [[500, 20], [1000, 20.5]], "humidity": [[500, 48]]})
+        url = next(u for u, _ in ctx.calls if "getmeasure" in u)
+        self.assertIn("device_id=d", url)
+        self.assertIn("module_id=m", url)
+
+    def test_a_station_has_no_module_id_and_an_unknown_type_no_curve(self):
+        ctx = FakeCtx({"getmeasure": {}})
+        c = self.conn(ctx)
+        c.curves({"id": "d", "device": "d", "type": "NAMain"})
+        self.assertNotIn("module_id", next(u for u, _ in ctx.calls if "getmeasure" in u))
+        self.assertEqual(c.curves({"id": "x", "device": "d", "type": "NBR"}), {})
 
 
 if __name__ == "__main__":

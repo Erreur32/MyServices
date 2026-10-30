@@ -17,12 +17,15 @@ import errno
 import json
 import re
 import ssl
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 
 from connectors.base import Connector, ConnectorError, Field, Result
 from connectors.ha_mcp import HaMcp
+from connectors.netatmo import CURVE_TTL, from_home_assistant, ha_sensors, summary
 
 GUIDE = (
     "Créer un compte dédié : Paramètres → Personnes → onglet Utilisateurs → Ajouter un utilisateur (nom « myservices », "
@@ -167,6 +170,23 @@ def host_sensors(states: list) -> dict | None:
     return {k: v for k, v in out.items() if v is not None}
 
 
+def home_devices(states: list) -> dict | None:
+    """The sensors of the house beyond Netatmo, never the applications Home Assistant is connected to: the other pages show those. Humidity marks a
+    room sensor (servers and phones only give temperatures), shutters and heating come whole. An attribution means a weather or cloud source."""
+    own = [st for st in states if not (st.get("attributes") or {}).get("attribution") and "plant" not in st.get("entity_id", "")]
+    name = lambda st: (st.get("attributes") or {}).get("friendly_name") or st["entity_id"]   # noqa: E731
+    stems = {st["entity_id"].split(".", 1)[1].rsplit("_", 1)[0].removesuffix("_relative"): {
+        "name": name(st).rsplit(" ", 1)[0].removesuffix(" Relative"), "up": st.get("state") != "unavailable"}
+        for st in own if st.get("entity_id", "").startswith("sensor.") and st["attributes"].get("device_class") == "humidity"}
+    modules = ha_sensors(own, stems, kind=lambda kinds: "NHC")
+    modules += [{"id": st["entity_id"], "name": name(st), "type": "NBR", "group": "Home Assistant", "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
+                 "values": {"current_position": st["attributes"]["current_position"]} if "current_position" in st["attributes"] else {}}
+                for st in own if st.get("entity_id", "").startswith("cover.") and "entity_id" not in st["attributes"]]   # a group repeats its members
+    rooms = [{"name": name(st), "temperature": st["attributes"].get("current_temperature"), "setpoint": st["attributes"].get("temperature")}
+             for st in own if st.get("entity_id", "").startswith("climate.") and st.get("state") != "unavailable"]
+    return {"modules": modules, "rooms": rooms, "problems": summary(modules, rooms)[1]} if modules or rooms else None
+
+
 class HomeAssistantAPI(Connector):
     type = "home-assistant"
     label = "Home Assistant"
@@ -235,9 +255,29 @@ class HomeAssistantAPI(Connector):
                "system": {"core": cfg.get("version"), **system(states)}}
         if host := host_sensors(states):
             out["host"] = host
+        if house := from_home_assistant(states):
+            out["netatmo"] = house
+        if home := home_devices(states):
+            out["home"] = home
         if str(self.conf.get("mcp_url") or "").strip():   # mode avancé : un échec de ha-mcp ne gâche pas la lecture par l'API REST
             out["mcp"] = HaMcp(self.conf["mcp_url"], self.ctx.timeout).collect(
                 cached=lambda key, ttl, fn: self.ctx.cached(f"{self.name}-{key}", ttl, fn))
+        return out
+
+    def curves(self, m: dict) -> dict:
+        """The last 24 hours of a Netatmo sensor from Home Assistant's own history, {measure: [[seconds, value], ...]}."""
+        entities = m.get("entities") or {}
+        if not entities:
+            return {}
+        since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 86400))
+        path = f"/api/history/period/{since}?" + urllib.parse.urlencode({"filter_entity_id": ",".join(entities.values())}) + "&minimal_response&no_attributes"
+        rows = self.ctx.cached(f"{self.name}-curves-{m['id']}", CURVE_TTL, lambda: self._get(path))
+        key = {eid: k for k, eid in entities.items()}
+        out: dict[str, list] = {}
+        for row in rows if isinstance(rows, list) else []:
+            points = [[int(datetime.fromisoformat(p["last_changed"]).timestamp()), v] for p in row if (v := _num(p.get("state"))) is not None]
+            if row and row[0].get("entity_id") in key:
+                out[key[row[0]["entity_id"]]] = points
         return out
 
     def test(self) -> Result:

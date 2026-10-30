@@ -229,6 +229,14 @@ class Snapshot(unittest.TestCase):
     def get(self, camera):
         return self.c.get(BASE + "/stream/snapshot", params={"connector": "frigate", "name": "tower", "camera": camera})
 
+    def test_curves_of_a_known_device_only(self):
+        (server.WEB / "data.json").write_text(json.dumps({"services_status": [{"connector": "home-assistant", "instance": "ha", "netatmo": {"modules": [{"id": "m"}]}}]}))
+        self.cam.type, self.cam.name = "home-assistant", "ha"
+        self.cam.curves.return_value = {"temperature": [[1, 20]]}
+        ask = lambda module: self.c.get(BASE + "/domotique/curves", params={"connector": "home-assistant", "name": "ha", "module": module})   # noqa: E731
+        self.assertEqual(ask("m").json(), {"series": {"temperature": [[1, 20]]}})
+        self.assertEqual(ask("ailleurs").status_code, 404)
+
     def test_known_camera_only_and_never_kept(self):
         self.cam.snapshot.return_value = JPEG
         r = self.get("entree")
