@@ -1,12 +1,14 @@
 // « Domotique › Tapo »: plugs with their power and energy, cameras with their state, the other devices, then the table of everything the account shows.
 import { Camera, Plug } from "lucide-react";
-import type { Snapshot } from "../api";
+import { useState } from "react";
+import { ROOT, type Snapshot } from "../api";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { StatTile } from "../components/StatTile";
 import { appIcon } from "../lib/appIcons";
 import { linePath, scaleOf } from "../lib/domotique";
 import { LOCALE, tx } from "../lib/i18n";
 import { tapoGroups, tapoState, tapoSummary, wifiBars, type TapoTone } from "../lib/tapo";
+import { recorderAt } from "../lib/video";
 import type { TapoDevice } from "../types";
 
 // Tapo's turquoise
@@ -95,11 +97,14 @@ function PlugCard({ d }: Readonly<{ d: TapoDevice }>) {
   );
 }
 
-/** A camera tells whether it answers; its picture is not read in this version */
-function CameraCard({ d }: Readonly<{ d: TapoDevice }>) {
+/** A camera tells whether it answers; its picture comes from the recorder that films the same address */
+function CameraCard({ d, snap }: Readonly<{ d: TapoDevice; snap: Snapshot }>) {
+  const [failed, setFailed] = useState(false), rec = recorderAt(snap, d.ip);
+  const q = rec && new URLSearchParams({ connector: rec.connector, name: rec.name, camera: rec.camera });
   return (
     <article className={CARD}>
       <div className="flex items-start justify-between gap-2"><Title d={d} /><State d={d} /></div>
+      {q && rec && d.online && !failed && <img src={`${ROOT}api/v1/stream/snapshot?${q}`} alt={tx("Image de la caméra {0}", d.name)} title={tx("Image lue par {0} ({1})", rec.engine, rec.camera)} loading="lazy" className="aspect-video w-full rounded-lg object-cover" onError={() => setFailed(true)} />}
       <div className="flex items-center gap-2.5 text-xs text-muted"><Camera size={18} className="shrink-0 text-[#4acbd6]" aria-hidden />{d.fw ? tx("Firmware {0}", d.fw) : tx("Firmware inconnu")}</div>
     </article>
   );
@@ -116,14 +121,14 @@ function OtherCard({ d }: Readonly<{ d: TapoDevice }>) {
   );
 }
 
-function Banner({ snap, devices }: Readonly<{ snap: Snapshot; devices: number }>) {
+function Banner({ snap, devices, engine }: Readonly<{ snap: Snapshot; devices: number; engine?: string }>) {
   const st = tapoState(snap), text = ({ ok: tx("Compte Tapo connecté"), warn: tx("Dernière lecture ancienne") } as Record<string, string>)[st.tone] ?? st.message;
   return (
     <div className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card px-4 py-3 ${BORDER[st.tone] ?? "border-line"}`}>
       <div className="flex flex-wrap gap-x-8 gap-y-1">
         <div><span className="block text-[11px] text-muted">{tx("Connecteur")}</span><b className={`text-[13px] ${TEXT[st.tone]}`}>{text}</b></div>
         <div><span className="block text-[11px] text-muted">{tx("Appareils trouvés")}</span><b className="text-[13px]">{devices}</b></div>
-        <div><span className="block text-[11px] text-muted">{tx("Images des caméras")}</span><b className="text-[13px]">{tx("pas lues dans cette version")}</b></div>
+        <div><span className="block text-[11px] text-muted">{tx("Images des caméras")}</span><b className="text-[13px]">{engine ? tx("lues par {0}", engine) : tx("pas lues dans cette version")}</b></div>
       </div>
       <span className="rounded-full border border-[#4acbd6]/35 bg-[#4acbd6]/10 px-2.5 py-0.5 text-[11.5px] font-bold text-[#0b8f9b] dark:text-[#4acbd6]">{tx("lecture seule")}</span>
     </div>
@@ -134,6 +139,7 @@ const TH = "bg-bg2 px-3 py-2 text-left text-[11px] font-semibold text-muted";
 
 export function Tapo({ snap }: Readonly<{ snap: Snapshot }>) {
   const s = tapoSummary(snap)!, g = tapoGroups(snap), online = g.all.filter((d) => d.online).length;
+  const engine = g.cameras.map((d) => recorderAt(snap, d.ip)?.engine).find(Boolean);
   return (
     <div className="flex flex-col gap-5 py-4">
       <PageHead icon={Plug} logo={appIcon(["tapo"])} title="Tapo" tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink /> : undefined} />
@@ -141,7 +147,7 @@ export function Tapo({ snap }: Readonly<{ snap: Snapshot }>) {
         <h2 className="text-2xl font-extrabold leading-tight sm:text-3xl">{g.all.length ? tx("{0} appareils Tapo, {1} en ligne.", g.all.length, online) : tx("Aucun appareil Tapo lu pour le moment.")}</h2>
         <p className="mt-1.5 text-[15px] text-muted">{tx("Prises avec leur consommation, caméras avec leur état, lus sur ton réseau avec ton compte Tapo.")}</p>
       </section>
-      <Banner snap={snap} devices={g.all.length} />
+      <Banner snap={snap} devices={g.all.length} engine={engine} />
       {s.problems.length > 0 && (
         <section className={PANEL} aria-label={tx("À traiter")}>
           <div className={HEAD}><h2 className="text-sm font-bold">{tx("À traiter")}</h2></div>
@@ -165,7 +171,7 @@ export function Tapo({ snap }: Readonly<{ snap: Snapshot }>) {
       {g.cameras.length > 0 && (
         <section aria-label={tx("Caméras")}>
           <h2 className="mb-2.5 text-base font-bold">{tx("Caméras")}</h2>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{g.cameras.map((d) => <CameraCard key={d.id} d={d} />)}</div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{g.cameras.map((d) => <CameraCard key={d.id} d={d} snap={snap} />)}</div>
         </section>
       )}
       {g.others.length > 0 && (

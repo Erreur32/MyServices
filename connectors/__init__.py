@@ -55,14 +55,16 @@ from connectors.nextcloud import Nextcloud
 from connectors.upnp_box import UPnPBox
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
-from connectors.windows_admin_center import WindowsAdminCenter
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, RemoteFolder, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, OpenAICompatible, OpenWebUI, Shinobi, Go2rtc, MediaMTX, Owncast, Netatmo, UPnPBox, FritzBox, SFRBox, Livebox, VodafoneStation, SagemcomFast, BouyguesBbox, SwisscomBox, ConnectBox, Speedport, TechnicolorGateway, TMobileHome, HitronCoda, VerizonFios, ArrisSurfboard, Tapo, WindowsAdminCenter, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, RemoteFolder, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, OpenAICompatible, OpenWebUI, Shinobi, Go2rtc, MediaMTX, Owncast, Netatmo, UPnPBox, FritzBox, SFRBox, Livebox, VodafoneStation, SagemcomFast, BouyguesBbox, SwisscomBox, ConnectBox, Speedport, TechnicolorGateway, TMobileHome, HitronCoda, VerizonFios, ArrisSurfboard, Tapo, Discord, Telegram)}
+
+
+RETIRED = {"windows-admin-center"}   # removed types: what an older config.json still holds is skipped, an unknown type would stop every connector
 
 
 def declared(cfg: dict, meta: dict | None = None) -> list[dict]:
     """Réglages de toutes les instances, anciennes clés comprises, chacune avec son « type »."""
-    out = [dict(c) for c in cfg.get("connectors") or []]
+    out = [dict(c) for c in cfg.get("connectors") or [] if c.get("type") not in RETIRED]
     for ip, m in (meta or {}).get("machines", {}).items():
         if m.get("ssh"):  # machine lue par SSH : ses conteneurs
             out.append({"type": "docker", "name": ip, "ssh": m["ssh"], "ip": ip, "label": m.get("name", ip)})

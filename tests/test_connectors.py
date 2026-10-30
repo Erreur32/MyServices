@@ -178,6 +178,11 @@ class Registry(unittest.TestCase):
                 connectors.instances(cfg)
             self.assertIn(msg, str(e.exception))
 
+    def test_retired_type_stops_nothing(self):
+        cfg = {"connectors": [{"type": "windows-admin-center", "name": "w"}, {"type": "npm", "name": "a", "api": "/a"}]}
+        self.assertEqual([c.name for c in connectors.instances(cfg)], ["a"])
+        self.assertEqual([c["name"] for c in connectors.declared(cfg)], ["a"])
+
     def test_alerts_from_legacy_keys(self):
         cfg = {"discord_webhook": "https://d/1", "health_webhook": "https://d/2",
                "telegram_token": "t", "telegram_chat_id": "42"}

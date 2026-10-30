@@ -16,6 +16,14 @@ const go2rtc = conn({ connector: "go2rtc", name: "tower", url: "http://10.0.0.20
 const owncast = conn({ connector: "owncast", name: "o", url: "http://10.0.0.20:8080", stream: { role: "live", engine: "Owncast", live: { online: true, viewers: 4 } } });
 
 describe("where a camera films", () => {
+  it("keeps the Netatmo cameras once when the connector and Home Assistant both read them", () => {
+    const stream = { role: "nvr" as const, engine: "Netatmo", cameras: [{ name: "Salon", up: true }], snapshot: true };
+    const ha = conn({ connector: "home-assistant", name: "Home", stream }), direct = conn({ connector: "netatmo", name: "netatmo", stream });
+    const of = (list: ServiceStatus[]) => streamCameras(streamCards(snap([], list))).map((c) => c.card.conn?.connector);
+    expect(of([ha])).toEqual(["home-assistant"]);
+    expect(of([ha, direct])).toEqual(["netatmo"]);
+  });
+
   it("the connector knows best, else the name tells", () => {
     expect(cameraPlace({ name: "jardin", place: "int" })).toBe("int");
     expect(cameraPlace({ name: "ext_360" })).toBe("ext");

@@ -1,7 +1,8 @@
 """Home Assistant par son API REST (adresse + jeton d'accès longue durée), en lecture seule.
 
 Rien d'autre que des GET : /api/config (version, nom du lieu, état), /api/states (entités : nombre, mises à jour
-disponibles = entités update.* à l'état « on »). Aucun appel de service, aucun SSH.
+disponibles = entités update.* à l'état « on »), /api/camera_proxy/<entité> (image d'une caméra Netatmo, à la demande).
+Aucun appel de service, aucun SSH.
 
 Un jeton Home Assistant a les droits de son compte, il n'est pas « lecture seule » : le guide recommande un compte
 dédié non administrateur. Les sauvegardes lues dans les mêmes données sont l'affaire du module backups.py
@@ -25,7 +26,9 @@ from datetime import datetime
 
 from connectors.base import Connector, ConnectorError, Field, Result
 from connectors.ha_mcp import HaMcp
-from connectors.netatmo import CURVE_TTL, from_home_assistant, ha_sensors, summary
+from connectors.netatmo import CAMERA, CURVE_TTL, from_home_assistant, ha_sensors, stream_of, summary
+
+CAMERAS_TTL = 600   # seconds the names of the cameras are kept
 
 GUIDE = (
     "Créer un compte dédié : Paramètres → Personnes → onglet Utilisateurs → Ajouter un utilisateur (nom « myservices », "
@@ -227,6 +230,16 @@ class HomeAssistantAPI(Connector):
         except OSError as e:
             raise ConnectorError(explain(e)) from None
 
+    def snapshot(self, cam: str) -> bytes:
+        """The picture of the moment of a Netatmo camera, through Home Assistant: the names are kept a while, /api/states is long."""
+        def entities() -> dict:
+            return {m["name"]: m["id"] for m in (from_home_assistant(self._get("/api/states")) or {}).get("modules", []) if m["type"] in CAMERA}
+        entity = self.ctx.cached(f"{self.name}-cameras", CAMERAS_TTL, entities).get(cam)
+        if not entity:
+            raise ConnectorError("caméra inconnue")
+        base = str(self.conf.get("url", "")).rstrip("/")
+        return self.ctx.http(f"{base}/api/camera_proxy/{urllib.parse.quote(entity)}", headers={"Authorization": "Bearer " + str(self.conf.get("token", ""))}, binary=True)
+
     def version(self) -> str | None:
         v = self._get("/api/config").get("version")
         return str(v) if v else None
@@ -257,6 +270,7 @@ class HomeAssistantAPI(Connector):
             out["host"] = host
         if house := from_home_assistant(states):
             out["netatmo"] = house
+            out.update(stream_of(house["modules"]))
         if home := home_devices(states):
             out["home"] = home
         if str(self.conf.get("mcp_url") or "").strip():   # mode avancé : un échec de ha-mcp ne gâche pas la lecture par l'API REST

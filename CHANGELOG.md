@@ -11,6 +11,21 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.7 (2026-10-30)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- **Netatmo through Home Assistant**: the cameras show on the Video page and on Domotique, Netatmo, with their picture, without a Netatmo connector. A camera read by both stays once.
+- **Tapo**: a camera filmed by Frigate or Shinobi shows its picture on the Tapo page, matched by address (Frigate and Shinobi cameras now carry the host of their stream, never its account).
+- **Video**: the picture is asked by the instance name, which can differ from the name of the app.
+- **Tapo**: a device that answers the search but not the reading gives its address and the cause of the failure, and the account is only blamed when the error says so.
+
+### Removed
+
+- **Windows Admin Center connector**: it only gave a list of names, the Windows agent already gives the Hyper-V VMs and the system, and it lived for two versions (0.31.5 and 0.31.6). A leftover in `config.json` is ignored without an error. Windows Admin Center is still recognised in Services, now on port 20443 too.
+
 ## v0.31.6 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

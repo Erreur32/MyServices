@@ -5,9 +5,15 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
-## 0.31.6 → next version
+## 0.31.7 → next version
 
 **Nothing required yet.**
+
+## 0.31.6 → 0.31.7
+
+**Nothing required**, unless you added a Windows Admin Center connector. Pull the new image (`docker compose pull`, then `up -d`). That connector is removed. Before you update, delete it in Settings, Connectors. If you update first, it is ignored and nothing breaks, but it no longer shows on the page: its entry and its encrypted password stay in `config.json` until you delete that entry by hand. Windows Admin Center is still recognised in Services, now on port 20443 too, and the Windows agent gives the Hyper-V VMs and the system of the machine.
+
+- **Data**: the Frigate and Shinobi cameras now carry `ip`, the host of their stream (never its account or path), in `data.json`, which every account and the MCP tools can read.
 
 ## 0.31.5 → 0.31.6
 

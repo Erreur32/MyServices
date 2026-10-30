@@ -1045,26 +1045,9 @@
   "Tapo": "Tapo",
   "raison inconnue": "unknown reason",
   "Windows Admin Center": "Windows Admin Center",
-  "page de connexion de Windows Admin Center non reconnue (pas de jeton csrf)": "Windows Admin Center login page not recognised (no csrf token)",
-  "clé de connexion illisible (adresse de Windows Admin Center ?)": "unreadable sign-in key (Windows Admin Center address?)",
-  "Les versions récentes de WAC (page de connexion, port 20443) et les anciennes (connexion Windows) sont gérées toutes les deux : rien à choisir.": "Recent WAC versions (login page, port 20443) and older ones (Windows sign-in) are both handled: nothing to choose.",
-  "https://<serveur>:<port> (20443 sur les versions récentes, sinon 443 ou 6600)": "https://<server>:<port> (20443 on recent versions, otherwise 443 or 6600)",
-  "Adresse de Windows Admin Center": "Windows Admin Center address",
-  "Compte Windows": "Windows account",
-  "DOMAINE\\utilisateur, utilisateur@domaine, ou un compte local du serveur WAC": "DOMAIN\\user, user@domain, or a local account of the WAC server",
-  "Prendre un compte Windows autorisé à ouvrir Windows Admin Center : par défaut tout membre du groupe local « Utilisateurs » du serveur WAC, sinon un des groupes réglés dans WAC (Paramètres, Accès).": "Take a Windows account allowed to open Windows Admin Center: by default any member of the local « Users » group of the WAC server, otherwise one of the groups set in WAC (Settings, Access).",
-  "Coller l'adresse de WAC, ce compte et son mot de passe ci-dessus. MyServices se connecte comme un navigateur le ferait avec un compte Windows.": "Paste the WAC address, this account and its password above. MyServices signs in the way a browser would with a Windows account.",
-  "MyServices ne fait que lire la liste des connexions de WAC (serveurs, clusters, PC). Il n'ouvre aucune session sur ces machines.": "MyServices only reads the list of WAC connections (servers, clusters, PCs). It opens no session on those machines.",
   "Connexions": "Connections",
   "Serveurs": "Servers",
-  "Clusters": "Clusters",
   "PC": "PCs",
-  "adresse de Windows Admin Center invalide (https://serveur:port)": "invalid Windows Admin Center address (https://server:port)",
-  "droits insuffisants : ce compte n'a pas accès à la passerelle (WAC, Paramètres, Accès)": "not enough rights: this account has no access to the gateway (WAC, Settings, Access)",
-  "la connexion par compte Windows n'est pas proposée par cette passerelle (connexion par formulaire ?)": "the Windows account sign-in is not offered by this gateway (form sign-in?)",
-  "la passerelle n'a pas répondu à la connexion Windows (NTLM)": "the gateway did not answer the Windows (NTLM) sign-in",
-  "réponse de connexion Windows illisible (adresse de WAC ?)": "unreadable Windows sign-in answer (WAC address?)",
-  "réponse qui n'est pas du JSON (adresse de Windows Admin Center ?)": "answer that is not JSON (Windows Admin Center address?)",
   "Compte Tapo (e-mail)": "Tapo account (email)",
   "Celui de l'application Tapo": "The one of the Tapo app",
   "Mot de passe Tapo": "Tapo password",
@@ -1487,12 +1470,12 @@
    "$1: low battery"
   ],
   [
-   "^la passerelle refuse la clé de connexion \\(HTTP (\\d+)\\)$",
-   "the gateway refuses the sign-in key (HTTP $1)"
-  ],
-  [
    "^(\\d+) appareil\\(s\\) trouvé\\(s\\) mais refusé\\(s\\) \\((.+)\\) : compte Tapo à vérifier ; une caméra demande son compte caméra, réglé dans l'appli Tapo$",
    "$1 device(s) found but refused ($2): check the Tapo account; a camera needs its camera account, set in the Tapo app"
+  ],
+  [
+   "^(\\d+) appareil\\(s\\) trouvé\\(s\\) mais illisible\\(s\\) \\((.+)\\) : ils répondent à la recherche, pas à la lecture$",
+   "$1 device(s) found but unreadable ($2): they answer the search, not the reading"
   ],
   [
    "^(\\d+) appareil\\(s\\) trouvé\\(s\\) mais refusé\\(s\\) : compte Tapo à vérifier$",

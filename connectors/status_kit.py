@@ -146,3 +146,12 @@ def post_form(url: str, fields: dict, verify_tls: bool = True, timeout: float = 
         raise ConnectorError(f"HTTP {e.code}") from None
     except (OSError, ValueError) as e:
         raise ConnectorError(f"injoignable ({getattr(e, 'reason', e.__class__.__name__)})") from None
+
+
+def stream_host(url: object) -> str | None:
+    """The machine of a stream address, never its account; none for a local relay."""
+    try:
+        host = urllib.parse.urlsplit(str(url).removeprefix("ffmpeg:")).hostname
+    except ValueError:
+        return None
+    return None if host in (None, "127.0.0.1", "localhost") else host

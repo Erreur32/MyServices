@@ -120,6 +120,13 @@ def ha_sensors(states: list, stems: dict, kind=_ha_type) -> list[dict]:
     return out
 
 
+def stream_of(modules: list[dict]) -> dict:
+    """The « stream » block of the Video page, for the connector and for Home Assistant."""
+    cams = [{"name": m["name"], "up": m["reachable"], "detect": m["values"].get("monitoring") == "on", "place": "ext" if m["type"] in OUTDOOR else "int"}
+            for m in modules if m["type"] in CAMERA]
+    return {"stream": {"role": "nvr", "engine": "Netatmo", "cameras": cams, "snapshot": True}} if cams else {}
+
+
 def from_home_assistant(states: list) -> dict | None:
     """The Netatmo devices a Home Assistant already reads, in the shape of this connector, for those without a Netatmo application.
     None when it reads none. A device is known by its connectivity sensor, the one entity it always has whatever the language."""
@@ -131,7 +138,7 @@ def from_home_assistant(states: list) -> dict | None:
     modules = ha_sensors(mine, stems)
     modules += [{"id": st["entity_id"], "name": name(st), "type": "NBR", "group": HA_GROUP, "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
                  "values": {"current_position": st["attributes"]["current_position"]} if "current_position" in st["attributes"] else {}} for st in of("cover")]
-    modules += [{"id": st["entity_id"], "name": name(st), "type": "NACamera", "group": HA_GROUP, "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
+    modules += [{"id": st["entity_id"], "name": name(st), "type": "NOC" if "presence" in st["entity_id"] else "NACamera", "group": HA_GROUP, "reachable": st.get("state") != "unavailable", "battery": None, "low": False,
                  "values": {"monitoring": "on" if st["attributes"].get("monitoring") else "off"}} for st in of("camera")]
     rooms = [{"name": name(st), "temperature": st["attributes"].get("current_temperature"), "setpoint": st["attributes"].get("temperature")} for st in of("climate")]
     return {"modules": modules, "rooms": rooms, "problems": summary(modules, rooms)[1]} if modules else None
@@ -249,9 +256,7 @@ class Netatmo(Connector):
         if len(skipped) >= 3 and not modules:
             raise ConnectorError(f"aucun produit lisible ({skipped[0]})")
         facts, problems = summary(modules, rooms)
-        cams = [{"name": m["name"], "up": m["reachable"], "detect": m["values"].get("monitoring") == "on", "place": "ext" if m["type"] in OUTDOOR else "int"} for m in modules if m["type"] in CAMERA]
-        return {"version": None, "facts": facts, "problems": problems, "modules": modules, "rooms": rooms,
-                **({"stream": {"role": "nvr", "engine": "Netatmo", "cameras": cams, "snapshot": True}} if cams else {})}
+        return {"version": None, "facts": facts, "problems": problems, "modules": modules, "rooms": rooms, **stream_of(modules)}
 
     def snapshot(self, cam: str) -> bytes:
         """The picture of the moment, through the camera's own address: homestatus gives it fresh, it changes when the camera reconnects."""

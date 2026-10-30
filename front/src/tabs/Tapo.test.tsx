@@ -18,6 +18,16 @@ describe("Tapo page", () => {
     for (const text of ["Prise bureau", "86", "1,84 kWh", "142 W", "C310", "Hors ligne", "192.0.2.21", "Compte Tapo connecté", "1 appareils Tapo".replace("1", "3")]) expect(html).toContain(text);
   });
 
+  it("shows the picture of the recorder that films the same address", () => {
+    const filmed = { ...snap, data: { services_status: [
+      { connector: "tapo", name: "t", ok: true, stale: false, message: "OK", problems: [], devices: [{ id: "c2", name: "Cour", model: "C310", kind: "camera", online: true, ip: "192.0.2.61" }] },
+      { connector: "frigate", name: "Frigate", instance: "tower", stream: { role: "nvr", engine: "Frigate", snapshot: true, cameras: [{ name: "cam32", ip: "192.0.2.61", up: true }] } },
+    ] } } as unknown as Snapshot;
+    const html = renderToStaticMarkup(<Tapo snap={filmed} />);
+    expect(html).toContain("connector=frigate&amp;name=tower&amp;camera=cam32");
+    expect(html).toContain("lues par Frigate");
+  });
+
   it("says why when the account is refused", () => {
     const refused = { data: { services_status: [{ connector: "tapo", ok: false, stale: false, message: "Tapo refuse ce compte", devices: [] }] }, me: { role: "user" } } as unknown as Snapshot;
     expect(renderToStaticMarkup(<Tapo snap={refused} />)).toContain("Tapo refuse ce compte");

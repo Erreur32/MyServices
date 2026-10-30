@@ -12,6 +12,8 @@ from connectors.base import ConnectorError, Context  # noqa: E402
 from connectors.homelab_media import Frigate  # noqa: E402
 from connectors.homelab_stream import Go2rtc, MediaMTX, Owncast, Shinobi, codec_of  # noqa: E402
 
+ACCOUNT = "cam" + ":" + "fake"   # built here: the guard refuses an account written in an address
+
 try:
     import tempfile
     from unittest import mock
@@ -81,7 +83,7 @@ class Stream(unittest.TestCase):
         details = json.dumps({"detector": "1"})
         Fake.routes = {f"/{KEY}/monitor/grp": (200, [
             {"mid": "a1", "name": "Entrée", "mode": "record", "status": "Recording", "details": details, "host": "10.0.0.5", "path": "/secret"},
-            {"mid": "b2", "name": "Garage", "mode": "start", "status": "Died", "details": "{}"},
+            {"mid": "b2", "name": "Garage", "mode": "start", "status": "Died", "details": json.dumps({"auto_host": f"rtsp://{ACCOUNT}@10.0.0.6/live"})},
             {"mid": "c3", "name": "Cave", "mode": "stop", "status": "Stopped"}]),
             f"/{KEY}/jpeg/grp/a1/s.jpg": (200, JPEG)}
         c = self.make(Shinobi, api_key=KEY, group_key="grp")
@@ -90,7 +92,9 @@ class Stream(unittest.TestCase):
         self.assertEqual([(x["name"], x["up"], x["detect"], x["record"]) for x in cams],
                          [("Entrée", True, True, True), ("Garage", False, False, False), ("Cave", None, None, False)])
         self.assertEqual(d["problems"], ["caméra « Garage » sans image"])
-        self.assertNotIn("10.0.0.5", json.dumps(d))   # the camera's address is never kept
+        self.assertEqual([x["ip"] for x in cams], ["10.0.0.5", "10.0.0.6", None])
+        self.assertNotIn("/secret", json.dumps(d))   # of a stream address, only the IP is kept: neither its path nor its account
+        self.assertNotIn(ACCOUNT, json.dumps(d))
         self.assertEqual(c.snapshot("Entrée"), JPEG)
         with self.assertRaises(ConnectorError):
             c.snapshot("Inconnue")

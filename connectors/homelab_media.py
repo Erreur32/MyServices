@@ -12,13 +12,24 @@ from collections import Counter
 
 from connectors import reqstats
 from connectors.base import ConnectorError, Field
-from connectors.status_kit import StatusConnector, fact, num, size, duration, rows
+from connectors.status_kit import StatusConnector, fact, num, size, duration, rows, stream_host
 
 
 def _enabled(cam: dict, part: str) -> bool | None:
     """Whether a part of a Frigate camera's config (detect, record) is on; None when the config does not say."""
     v = cam.get(part)
     return v.get("enabled") if isinstance(v, dict) else None
+
+
+def _camera_host(camera: dict, relays: dict) -> str | None:
+    """The address of a camera: in its input, or in the go2rtc list when the input goes through the local relay (rtsp://127.0.0.1:8554/<name>)."""
+    for item in (camera.get("ffmpeg") or {}).get("inputs") or []:
+        path = item.get("path") if isinstance(item, dict) else None
+        sources = relays.get(str(path).rsplit("/", 1)[-1].partition("?")[0])
+        for url in [path, *(sources if isinstance(sources, list) else [sources])]:
+            if host := stream_host(url):
+                return host
+    return None
 
 
 class Frigate(StatusConnector):
@@ -146,6 +157,7 @@ class Frigate(StatusConnector):
         """The « stream » block (see homelab_stream): each camera with what its config says it does, its events of the last 24 h."""
         conf = self.get_opt("/api/config") or {}
         cc = conf.get("cameras") if isinstance(conf, dict) and isinstance(conf.get("cameras"), dict) else {}
+        relays = ((conf.get("go2rtc") or {}).get("streams") or {}) if isinstance(conf, dict) else {}
         per = Counter(str(e.get("camera")) for e in ev)
         by_cam: dict[str, Counter] = {}
         for e in ev:
@@ -168,7 +180,7 @@ class Frigate(StatusConnector):
         for name, v in list(cams.items())[:64]:
             c = cc.get(name) if isinstance(cc.get(name), dict) else {}
             fps = num(v.get("camera_fps"))
-            out.append({"name": name, "up": fps is None or fps > 0, "fps": fps, "detect": _enabled(c, "detect"), "record": _enabled(c, "record"),
+            out.append({"name": name, "ip": _camera_host(c, relays), "up": fps is None or fps > 0, "fps": fps, "detect": _enabled(c, "detect"), "record": _enabled(c, "record"),
                         "events": per.get(name, 0) if events is not None else None, "last": last.get(name),
                         "labels": dict(by_cam.get(name, Counter()).most_common(4))})
         labels = dict(Counter(str(e.get("label")) for e in ev if e.get("label")).most_common(6))

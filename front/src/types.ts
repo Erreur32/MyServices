@@ -294,7 +294,7 @@ export interface TapoDevice {
 }
 /** A sensor's last 24 hours by measure: [seconds, value] */
 export type HouseCurves = Record<string, [number, number][]>;
-export interface StreamCamera { name: string; place?: "int" | "ext"; up: boolean | null; fps?: number | null; detect?: boolean | null; record?: boolean | null; events?: number | null; last?: number | null; labels?: Record<string, number> }
+export interface StreamCamera { name: string; ip?: string | null; place?: "int" | "ext"; up: boolean | null; fps?: number | null; detect?: boolean | null; record?: boolean | null; events?: number | null; last?: number | null; labels?: Record<string, number> }
 /** One stream of a relay (go2rtc, MediaMTX) */
 export interface StreamFlow { name: string; ready: boolean | null; codec?: string | null; readers: number; kinds: string[] }
 /** The « stream » block of a video connector, the same shape for all (connectors/homelab_stream.py) */
