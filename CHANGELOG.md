@@ -11,12 +11,20 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.33.1 (2026-10-31)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
+- **Running services of a machine**: the Software and services table lists the systemd services that run there, over SSH and with Linux agent 5. A service added by hand is marked « custom », the services of packages without a port wait under the System filter, and programs listening on a port get their row under Programs. Older agents keep working, without this list.
 - **Agent install**: a box adds the three exact read-only sudo rules to the Linux command, instead of typing `MSV_SUDO=1` by hand. It is off by default.
 - **Agent install over the internet**: both installers refuse plain http beyond the local network or a VPN, as the agent token would travel unencrypted. `MSV_ALLOW_HTTP=1` accepts it on purpose. Agents already installed keep working.
 - **Agent on a machine outside your network**: the install frame shows the address field and warns when the machine cannot reach this address, or when its token would cross the internet unencrypted. A VPN address (Tailscale, WireGuard) or https is the way to go.
 
 ### Fixed
+- **Availability**: after a change of clock, a day could take two cells and push the oldest day out of the bar. Days now follow the calendar.
+- **Reread button**: its answer moves to the tooltip and the colour of its icon, so the buttons around it no longer shift.
+- **View filters**: every filter and view choice uses one pill style. Buttons in a page header that filter its results keep their rectangle.
 - **Backups map**: it could stay frozen when a machine both sends and keeps copies. Links inside a row now go under it instead of through the machines.
 - **Maps**: a map that failed is tried again at the next pass, even when its data did not change. Until then, the Diagrams page says it is out of date instead of showing it as up to date.
 - **UniFi cards**: a card now zooms like a picture when it is resized: ports and access point image follow it and the card always reaches the edges of its frame, while the texts keep their size. Ports are bigger from the start on switches and gateways, and no longer fold onto more lines. The default order is gateways, switches, then access points, with a default size for each kind of device; a card resized by hand keeps its own. A card never goes beyond 700 px high, and the status of an access point is green when it is connected.
@@ -24,7 +32,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Kernel errors**: a CIFS share closing a file left open by an interrupted request (`Close unmatched open`) is no longer a warning; a share that stops answering still is.
 - **Back button of a page**: easier to see, with an outline in the colour of the theme.
 - **Home page**: « Your whole fleet in figures » takes six smaller cards per line on a wide screen.
-- **Open ports**: the domains of a port sit beside the name of its service in aligned columns, and the ports of the machine's own programs are hidden behind a button.
+- **Open ports**: the domains of a port sit beside the name of its service in aligned columns. The card no longer stops at six ports, it shows its count in a badge and filters by All, Applications (the default) and System.
 - **Software and services card**: it now takes the top of the second and third columns of the machine page, the open ports moving to the first, with one table of what runs on the machine: a row per software with its type, container, domains, ports and path, sorted by any column and filtered by web servers, containers or no service.
 - **Network map**: it could fail when a device left a switch, a link label landing on the title of the next group. These labels repeated what the group already says, so they are gone.
 - **Settings > Requests**: the port pulse no longer counts the ports an agent answers for, as they cost no connection.

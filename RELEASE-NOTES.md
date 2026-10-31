@@ -1,24 +1,29 @@
-# Release notes: MyServices 0.33.0
+# Release notes: MyServices 0.33.1
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.33.0** (31 October 2026) adds four router connectors, shown with the Internet boxes. **None of them was tested on a real router**: they follow the documentation or client libraries of each maker, so they may need a fix on your model. Please tell us how they behave.
+**0.33.1** (31 October 2026) shows what really runs on a machine: its systemd services join the Software and services table, and every open port is listed. It also fixes the daily availability bars after a change of clock.
 
 ## For everyone
 
 **What's new?**
-- **OpenWrt**: model, firmware, state and address of the Internet connection, through ubus. The guide explains how to create a read-only account.
-- **MikroTik RouterOS**: the same, through the REST API. It needs RouterOS 7.1 or later.
-- **Asus router** (AsusWRT and Merlin): the router accepts one login at a time, so MyServices reads it every 15 minutes by default. Newer models with another login are not covered.
-- **TP-Link Archer**: only the encrypted LuCI firmwares. Each reading closes your open web session on the router, so it also reads every 15 minutes by default. Other generations are refused with a message.
+- **Running services**: the Software and services table of a machine lists its systemd services. Those you added by hand are marked « custom », those of the system stay under the System filter, and programs listening on a port get their row.
+- **Open ports**: the card no longer stops at six ports. It opens on your applications, shows its count in a badge, and the All and System filters are one click away.
+- **Filters**: every filter and view choice now looks the same, as a pill.
+- **UniFi cards**: a resized card zooms its ports and pictures, keeps its texts and always reaches the edges of its frame.
+- **Copy buttons**: each copy confirms, or says when it failed.
 
-All four only read, and each card says it was not tested on a real router. A refused password is not tried again until you change the settings, so MyServices does not keep knocking at your router.
+**Fixed**
+- **Availability**: after a change of clock, a day could take two cells and push the oldest day out of the bar.
+- **Reread button**: its answer is in the tooltip, so the buttons around it no longer shift.
+- **Kernel errors**: a CIFS share closing a file left open by an interrupted request is no longer a warning.
 
-**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change, see [MIGRATION.md](MIGRATION.md).
+**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change for Docker. Update your Linux agents to see their running services, and read [MIGRATION.md](MIGRATION.md) about installing an agent over plain http.
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.33.0` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
-- **Connectors**: `openwrt`, `mikrotik`, `asus-router` and `tplink-router`, all optional, in the Network category. Only a hash of a refused password is kept, in memory.
-- **Migration**: nothing required from 0.32.1, see [MIGRATION.md](MIGRATION.md).
+- **Image**: `ghcr.io/erreur32/myservices:0.33.1` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **Agents**: Linux agent 5 adds one command, sent again from its cache for an hour. Version 4 keeps its whole inventory. Over SSH the list goes through the same connection.
+- **Installers**: `install.sh` and `install.ps1` refuse plain http beyond the local network, unless `MSV_ALLOW_HTTP=1` is set.
+- **Migration**: see [MIGRATION.md](MIGRATION.md).
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).
