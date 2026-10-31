@@ -12,7 +12,7 @@ import { SourceBadges } from "../components/SourceBadges";
 import { AccessChoice } from "../components/AccessChoice";
 import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
-import { STEPS, advance, isFinished, type AssistantStep, loadProgress, normalizeProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
+import { STEPS, advance, isFinished, type AssistantStep, loadProgress, normalizeProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress, reopened } from "../lib/assistant";
 import { savedFor } from "../lib/savedFor";
 import { STATUS_RANK, describeAdvice, isActive, summary } from "../lib/access";
 import { primary, quiet } from "../lib/forms";
@@ -36,12 +36,12 @@ const SETUP_ICON = { ssh: KeyRound, agent: Download, connector: Plug } as const;
 const CONFIDENCE_TONE = { sure: "ok", probable: "info", possible: "off" } as const;
 
 export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
-  const [p, setP] = useState<AssistantProgress>(loadProgress);
+  const [p, setP] = useState<AssistantProgress>(() => reopened(loadProgress()));
   const store = (next: AssistantProgress) => { saveProgress(next); setP(next); void send("PUT", "assistant", next).catch(() => undefined); };   // navigateur + serveur
   const update = (next: AssistantProgress) => { store(next); scrollTo({ top: 0 }); };
   useEffect(() => {   // la progression du serveur fait foi (reprise depuis un autre navigateur) ; sinon on lui confie celle de ce navigateur
     read<{ state: AssistantProgress | null }>("assistant").then((r) => {
-      if (r.state) { const state = normalizeProgress(r.state); saveProgress(state); setP(state); return; }
+      if (r.state) { const state = reopened(normalizeProgress(r.state)); saveProgress(state); setP(state); return; }
       const local = loadProgress();
       if (local.done.length || local.skipped.length || local.current !== "welcome") confide(local);
     }).catch(() => undefined);

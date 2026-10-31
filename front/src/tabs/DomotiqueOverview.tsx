@@ -33,7 +33,7 @@ export function DomotiqueOverview({ snap }: Readonly<{ snap: Snapshot }>) {
   const h = house(snap), tapo = tapoSummary(snap), rows = deviceRows(snap);
   return (
     <div className="flex flex-col gap-5 py-4">
-      <PageHead icon={Home} title={tx("Domotique")} tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink /> : undefined} />
+      <PageHead icon={Home} title={tx("Domotique")} tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink category="Domotique" /> : undefined} />
       <section>
         <h2 className="text-2xl font-extrabold leading-tight sm:text-3xl">{h.title}</h2>
         <p className="mt-1.5 text-[15px] text-muted">{h.text}</p>

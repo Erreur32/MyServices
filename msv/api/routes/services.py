@@ -620,6 +620,21 @@ class NpmScriptInstall(BaseModel):
     password: str = Field(max_length=200)  # écrit dans npm-api.conf de la machine (600), jamais gardé par MyServices
 
 
+@router.post(API + "/connectors/settings/{type_}/{name}/read", tags=["connecteurs"], summary="Lire ce connecteur maintenant, puis publier par une collecte (admin)")
+def connector_read(type_: str, name: str, request: Request):
+    from msv.collect import readers
+    if denied := admin_write(request):
+        return denied
+    try:
+        status = readers.read_one(core.CFG, Path(core.CFG["state_dir"]) / core.CONNECTORS_FILE, type_, name)
+    except readers.TooSoon as e:
+        return deny(429, f"déjà lu à l'instant, réessayer dans {e.args[0]} s")
+    store().audit("connecteur relu", request.state.user["username"], ip_of(request), f"{type_} {name}")
+    if core.enabled("collect"):
+        core.run_chain(["collect"], f"connecteur {type_} « {name} » relu")
+    return {"ok": status is None or status.ok, "message": status.message if status else ""}
+
+
 @router.post(API + "/connectors/settings/npm/script/check", tags=["connecteurs"], summary="Vérifier le chemin de npm-api.sh sur une machine, sans rien lancer (admin)")
 def npm_script_check(body: NpmScriptCheck, request: Request):
     return connector_call(request, "", "", lambda s: s.npm_script_check(body.api, body.ssh))

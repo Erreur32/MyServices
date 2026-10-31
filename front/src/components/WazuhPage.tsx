@@ -1,5 +1,6 @@
 // Security › Wazuh: what Wazuh says of the home network at a glance. Figures on top (agents, alerts and serious ones over 24 h, critical
 // vulnerabilities, compliance), the alerts per hour, the serious rules, then one row per machine (state, compliance, vulnerabilities as a bar).
+import { pointConnectors } from "../lib/connectorPrefill";
 import { ShieldCheck } from "lucide-react";
 import type { Snapshot } from "../api";
 import { hm } from "../lib/format";
@@ -113,7 +114,7 @@ export function WazuhPage({ snap, admin }: Readonly<{ snap: Snapshot; admin: boo
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><ShieldCheck size={18} aria-hidden />Wazuh</h1>
         {w && <HeadTags sources={[`${w.instance ?? w.name}${w.version ? ` ${w.version}` : ""}`]} others={w.stale ? [tx("relevé périmé")] : []} at={snap.data.generated} />}
-        {admin && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
+        {admin && <a href="#settings/connectors" onClick={() => pointConnectors(["wazuh"])} className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
       </div>
       {!w ? <Empty>{tx("Aucun Wazuh n'est relié : ajoutez le connecteur Wazuh dans Réglages, Connecteurs.")}</Empty> : <>
         <div className="flex flex-wrap gap-2">

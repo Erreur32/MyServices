@@ -142,7 +142,7 @@ export function Tapo({ snap }: Readonly<{ snap: Snapshot }>) {
   const engine = g.cameras.map((d) => recorderAt(snap, d.ip)?.engine).find(Boolean);
   return (
     <div className="flex flex-col gap-5 py-4">
-      <PageHead icon={Plug} logo={appIcon(["tapo"])} title="Tapo" tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink /> : undefined} />
+      <PageHead icon={Plug} logo={appIcon(["tapo"])} title="Tapo" tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink types={["tapo"]} /> : undefined} />
       <section>
         <h2 className="text-2xl font-extrabold leading-tight sm:text-3xl">{g.all.length ? tx("{0} appareils Tapo, {1} en ligne.", g.all.length, online) : tx("Aucun appareil Tapo lu pour le moment.")}</h2>
         <p className="mt-1.5 text-[15px] text-muted">{tx("Prises avec leur consommation, caméras avec leur état, lus sur ton réseau avec ton compte Tapo.")}</p>

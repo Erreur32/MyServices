@@ -416,6 +416,16 @@ def machines_check(ip: str, request: Request):
     return machine_call(request, "", "", lambda m: m.check(ip))
 
 
+@router.post(API + "/machines/settings/{ip}/recheck", tags=["machines"], summary="Relire la santé d'une seule machine, sans passage de collecte (admin)")
+def machines_recheck(ip: str, request: Request):
+    def go(m):
+        nonlocal ip
+        ip = m.resolve(ip)
+        started = core.enabled("health") and core.run_task("health", f"relecture de {ip} (page de la machine)", ("--only", ip))
+        return {"ok": True, "started": started, "busy": not started}
+    return machine_call(request, "santé relue", ip, go)
+
+
 @router.post(API + "/machines/settings/{ip}/refresh", tags=["machines"], summary="Relire une seule machine : collecte (SSH, Docker) et santé (admin)")
 def machines_refresh(ip: str, request: Request):
     """Après un changement d'accès ou de réglage : seule cette machine est relue par SSH (les autres restent en cache), puis la

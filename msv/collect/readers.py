@@ -22,6 +22,11 @@ SKIP_TYPES = {"npm", "docker", "process"}   # read by the collection itself
 TIMEOUT = 60   # s, one reading
 WORKERS = 8   # readings at the same time: one slow service does not hold the others
 SLACK = 90   # s, a reading older than its period by less than this is still « recent » for the tasks (the reader is about to renew it)
+READ_GAP = 30   # s, between two « read now » of one connector: some services lock an account after too many calls in a row
+
+
+class TooSoon(Exception):
+    """A « read now » right after the last reading; args[0]: the seconds left."""
 
 
 def instances(cfg: dict) -> list[cbase.Connector]:
@@ -56,13 +61,34 @@ def tick(cfg: dict, state_path: Path, now: float | None = None, default: float =
     # again at the next tick, i.e. read every 10 s
     keys = [f"{c.type}/{c.name}" for c in todo]
     for key in keys:
-        state[key] = {**(state.get(key) or {"ok": False, "failures": 0, "since": None, "message": "lecture non lancée"}), "tried": now}
+        _note_attempt(state, key, now)
     try:
         with ThreadPoolExecutor(min(WORKERS, len(todo))) as ex:
             jobs = [(c, ex.submit(cbase.run_isolated, c, state, timeout)) for c in todo]
         return [(c, job.result()[1]) for c, job in jobs]
     finally:
         cbase.merge_state(state_path, state, keys)
+
+
+def _note_attempt(state: dict, key: str, now: float) -> None:
+    state[key] = {**(state.get(key) or {"ok": False, "failures": 0, "since": None, "message": "lecture non lancée"}), "tried": now}
+
+
+def read_one(cfg: dict, state_path: Path, type_: str, name: str, now: float | None = None, timeout: float = TIMEOUT) -> cbase.Status | None:
+    """« Read now » of one connector, whatever its period. None: the readers do not handle it (NPM, SSH), the collection reads it."""
+    conn = next((c for c in instances(cfg) if (c.type, c.name) == (type_, name)), None)
+    if conn is None:
+        return None
+    now = time.time() if now is None else now
+    key, state = f"{type_}/{name}", cbase.load_state(state_path)
+    tried = (state.get(key) or {}).get("tried")
+    if isinstance(tried, (int, float)) and now - tried < READ_GAP:
+        raise TooSoon(int(READ_GAP - (now - tried)) + 1)
+    _note_attempt(state, key, now)
+    cbase.merge_state(state_path, state, [key])   # the reader's next tick leaves it alone
+    _, status = cbase.run_isolated(conn, state, timeout)
+    cbase.merge_state(state_path, state, [key])
+    return status
 
 
 def on(cfg: dict) -> bool:

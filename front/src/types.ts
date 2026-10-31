@@ -225,7 +225,15 @@ export interface CloudflareZone {
   name: string; status: string; paused: boolean; plan?: string | null;
   settings: Record<string, string | boolean | null>;
   dns: { total: number; proxied: number; records: CloudflareRecord[] } | null;
-  traffic: { requests: number; cached: number; bytes: number; threats: number; page_views: number; visitors: number; days: { date: string; requests: number }[] } | null;
+  traffic: { requests: number; cached: number; bytes: number; threats: number; page_views: number; visitors: number; days: { date: string; requests: number }[]; periods?: Record<CloudflarePeriodKey, CloudflarePeriod> } | null;
+}
+
+export type CloudflarePeriodKey = "24h" | "7d" | "30d";
+export interface CloudflareTotals { requests: number; cached: number; bytes: number; cached_bytes: number; threats: number; errors: number; visitors: number }
+export interface CloudflareLine { name: string; requests: number; threats?: number; bytes?: number }
+export interface CloudflarePeriod extends CloudflareTotals {
+  previous: CloudflareTotals; points: { at: string; requests: number; errors: number }[]; status: { code: number; requests: number }[];
+  countries: CloudflareLine[]; content: CloudflareLine[]; tls: CloudflareLine[]; http: CloudflareLine[]; browsers: CloudflareLine[]; hosts: { name: string; code: number; requests: number }[];
 }
 
 export interface ServiceStatus {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { CloudflareZone, Host } from "../types";
-import { advice, bestZone, cloudflareChecks, dnsOnly, niceMax, requestsByDay } from "./cloudflare";
+import type { CloudflarePeriod, CloudflareZone, Host } from "../types";
+import { advice, answerLines, bestZone, cloudflareChecks, countryName, dnsOnly, niceMax, trafficOf, trendOf } from "./cloudflare";
 
 const zone = (name: string, settings: Partial<CloudflareZone["settings"]> = {}, records: [string, boolean][] = [[`www.${name}`, true]]): CloudflareZone => ({
   name, status: "active", paused: false, plan: "Free Website",
@@ -77,12 +77,37 @@ describe("cloudflareChecks", () => {
 });
 
 describe("chart helpers", () => {
-  it("adds the days of all the domains", () => {
-    const t = (days: { date: string; requests: number }[]) => ({ requests: 0, cached: 0, bytes: 0, threats: 0, page_views: 0, visitors: 0, days });
-    const zones = [{ ...zone("a.example"), traffic: t([{ date: "2026-10-02", requests: 1 }, { date: "2026-10-01", requests: 2 }]) }, { ...zone("b.example"), traffic: t([{ date: "2026-10-01", requests: 3 }]) }];
-    expect(requestsByDay(zones)).toEqual([{ date: "2026-10-01", requests: 5 }, { date: "2026-10-02", requests: 1 }]);
-  });
   it("rounds the top of the scale up", () => {
     expect([niceMax(0), niceMax(3), niceMax(21100), niceMax(100)]).toEqual([1, 5, 50000, 100]);
+  });
+});
+
+describe("traffic periods", () => {
+  const totals = { requests: 100, cached: 10, bytes: 5, cached_bytes: 1, threats: 2, errors: 30, visitors: 4 };
+  const period = (o: Partial<CloudflarePeriod> = {}): CloudflarePeriod => ({ ...totals, previous: { ...totals, requests: 50 }, points: [{ at: "2026-10-30", requests: 7, errors: 2 }],
+    status: [{ code: 200, requests: 70 }, { code: 525, requests: 30 }], countries: [{ name: "FR", requests: 9, threats: 1 }], content: [], tls: [], http: [], browsers: [], hosts: [{ name: "a.example", code: 525, requests: 30 }], ...o });
+  const withPeriod = (name: string, p: CloudflarePeriod) => ({ ...zone(name), traffic: { requests: 0, cached: 0, bytes: 0, threats: 0, page_views: 0, visitors: 0, days: [], periods: { "24h": p, "7d": p, "30d": p } } });
+
+  it("adds the domains up, line by line", () => {
+    const got = trafficOf([withPeriod("a.example", period()), withPeriod("b.example", period({ countries: [{ name: "FR", requests: 1, threats: 2 }, { name: "NL", requests: 20, threats: 0 }], hosts: [{ name: "b.example", code: 520, requests: 40 }] }))], "24h");
+    expect(got).toMatchObject({ requests: 200, errors: 60, previous: { requests: 100 }, points: [{ at: "2026-10-30", requests: 14, errors: 4 }], status: [{ code: 200, requests: 140 }, { code: 525, requests: 60 }] });
+    expect(got?.countries).toEqual([{ name: "NL", requests: 20, threats: 0 }, { name: "FR", requests: 10, threats: 3, bytes: 0 }]);
+    expect(got?.hosts.map((h) => h.name)).toEqual(["b.example", "a.example"]);
+  });
+  it("has nothing to show before the first read of the periods", () => expect(trafficOf([zone("a.example")], "7d")).toBeNull());
+  it("compares with the period before only when it has something", () => {
+    expect([trendOf(150, 100), trendOf(50, 100), trendOf(5, 0)]).toEqual([50, -50, null]);
+  });
+  it("keeps good answers together and names each server error, with what to check on a certificate", () => {
+    const got = answerLines(period({ status: [{ code: 200, requests: 60 }, { code: 204, requests: 5 }, { code: 520, requests: 10 }, { code: 525, requests: 20 }, { code: 599, requests: 1 }] }));
+    expect(got.map((l) => l.requests)).toEqual([65, 20, 10, 1]);
+    expect(got[1]).toMatchObject({ tone: "bad", why: expect.any(String) });
+    expect(got[1].name).toMatch(/^525 /);
+    expect(got[2].why).toBeUndefined();
+    expect(got[3].name).toMatch(/^599 /);
+  });
+  it("names a country and leaves a code it does not know", () => {
+    expect(countryName("FR")).not.toBe("FR");
+    expect(countryName("T1")).toBe("T1");
   });
 });

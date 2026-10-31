@@ -4,13 +4,13 @@
 """
 import sys
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import connectors  # noqa: E402
 from connectors.base import ConnectorError, RateLimited  # noqa: E402
-from connectors.cloudflare import API, TRAFFIC, Cloudflare  # noqa: E402
+from connectors.cloudflare import API, ERROR_NAMES, STAMP, TRAFFIC, Cloudflare  # noqa: E402
 
 TOKEN = "cf-" + "t" * 12   # built at run time: the safety check refuses tokens written as such
 TRAFFIC_OK = {"data": {"viewer": {"zones": [{
@@ -27,8 +27,8 @@ SSL = {"z1": "strict", "z2": "flexible"}
 class Fake:
     """Answers like Cloudflare; `refuse` holds the bits of URL answered 403."""
 
-    def __init__(self, zones=None, refuse=(), traffic=None, total=None, proxied=3):
-        self.calls, self.refuse, self.proxied = [], refuse, proxied
+    def __init__(self, zones=None, refuse=(), traffic=None, total=None, proxied=3, names=None):
+        self.calls, self.refuse, self.proxied, self.names = [], refuse, proxied, names or {"data": None, "errors": [{"message": "no access"}]}
         self.zones, self.traffic = zones if zones is not None else [zone("z1", "exemple.fr"), zone("z2", "example.org")], traffic or TRAFFIC_OK
         self.total = total
 
@@ -40,7 +40,7 @@ class Fake:
         if path.startswith("/zones?"):
             return {"success": True, "result": self.zones, "result_info": {"total_count": self.total or len(self.zones)}}
         if path == "/graphql":
-            return self.traffic
+            return self.names if body["query"] == ERROR_NAMES else self.traffic
         if "/dns_records" in path:
             records = [{"name": f"r{i}.exemple.fr", "type": "A", "proxied": i < self.proxied, "content": "192.0.2.1"} for i in range(9)]
             return {"result": [*records, {"name": "exemple.fr", "type": "MX", "proxied": False, "content": "mail.exemple.fr"}], "result_info": {"total_count": 10}}
@@ -84,7 +84,7 @@ class CloudflareRead(unittest.TestCase):
         conn(ctx).collect()
         self.assertEqual({m for m, *_ in ctx.calls}, {"GET", "POST"})
         self.assertEqual({u for m, u, *_ in ctx.calls if m == "POST"}, {API + "/graphql"})   # the POST is the analytics query, nothing else
-        self.assertNotIn("mutation", TRAFFIC)
+        self.assertNotIn("mutation", TRAFFIC + ERROR_NAMES)
         self.assertTrue(all(h["Authorization"] == f"Bearer {TOKEN}" and TOKEN not in u for _, u, h, _ in ctx.calls))   # token in a header, never in the address
 
     def test_the_content_of_a_dns_record_is_never_kept(self):
@@ -93,13 +93,44 @@ class CloudflareRead(unittest.TestCase):
         self.assertNotIn("192.0.2.1", str(d))
 
     def test_every_day_of_the_week_is_there_even_a_quiet_one(self):
-        today = datetime.now(timezone.utc).date()
-        days = [{"dimensions": {"date": today.isoformat()}, "sum": {"requests": 12}}]
+        yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
+        days = [{"dimensions": {"date": yesterday.isoformat()}, "sum": {"requests": 12}}]
         d = conn(Fake(traffic={"data": {"viewer": {"zones": [{"week": [], "days": days}]}}})).collect()
         got = d["cloudflare"]["zones"][0]["traffic"]["days"]
         self.assertEqual(len(got), 7)
-        self.assertEqual(got[-1], {"date": today.isoformat(), "requests": 12})
+        self.assertEqual(got[-1], {"date": yesterday.isoformat(), "requests": 12})   # today is still running: it is never compared with a whole day
         self.assertEqual({x["requests"] for x in got[:-1]}, {0})
+
+    def test_three_periods_each_with_the_one_before_it(self):
+        codes = [{"edgeResponseStatus": 200, "requests": 70}, {"edgeResponseStatus": 525, "requests": 20}, {"edgeResponseStatus": 520, "requests": 10}]
+        full = {"sum": {"requests": 100, "cachedRequests": 5, "bytes": 2048, "cachedBytes": 10, "threats": 3, "responseStatusMap": codes,
+                        "countryMap": [{"clientCountryName": "NL", "requests": 9, "threats": 2}, {"clientCountryName": "FR", "requests": 90, "threats": 0}],
+                        "browserMap": [{"uaBrowserFamily": "Chrome", "pageViews": 4}]}, "uniq": {"uniques": 8}}
+        hour = datetime.now(timezone.utc).replace(minute=0) - timedelta(hours=1)
+        hours = [{"dimensions": {"datetime": hour.strftime(STAMP)}, "sum": {"requests": 7, "responseStatusMap": codes[1:2]}}]
+        answer = {"day": [full], "day_before": [{"sum": {"requests": 50}, "uniq": {"uniques": 4}}], "hours": hours}
+        names = {"data": {"viewer": {"zones": [{"day": [{"count": 20, "dimensions": {"clientRequestHTTPHost": "www.exemple.fr", "edgeResponseStatus": 525}}]}]}}}
+        got = conn(Fake(traffic={"data": {"viewer": {"zones": [answer]}}}, names=names)).collect()["cloudflare"]["zones"][0]["traffic"]["periods"]
+        self.assertEqual(set(got), {"24h", "7d", "30d"})
+        day = got["24h"]
+        self.assertEqual((day["requests"], day["errors"], day["cached_bytes"], day["visitors"]), (100, 30, 10, 8))
+        self.assertEqual((day["previous"]["requests"], day["previous"]["visitors"]), (50, 4))
+        self.assertEqual([c["name"] for c in day["countries"]], ["FR", "NL"])
+        self.assertEqual(day["browsers"], [{"name": "Chrome", "requests": 4}])
+        self.assertEqual(len(day["points"]), 24)
+        self.assertEqual(day["points"][-1], {"at": hour.strftime(STAMP), "requests": 7, "errors": 20})
+        self.assertEqual(day["hosts"], [{"name": "www.exemple.fr", "code": 525, "requests": 20}])
+        self.assertEqual(len(got["30d"]["points"]), 30)
+
+    def test_error_names_refused_leave_the_traffic_read(self):
+        got = conn(Fake()).collect()["cloudflare"]["zones"][0]["traffic"]
+        self.assertEqual(got["requests"], 2000)
+        self.assertEqual(got["periods"]["7d"]["hosts"], [])
+
+    def test_a_long_host_written_by_a_client_is_cut(self):
+        names = {"data": {"viewer": {"zones": [{"week": [{"count": 1, "dimensions": {"clientRequestHTTPHost": "x" * 5000, "edgeResponseStatus": 520}}]}]}}}
+        got = conn(Fake(names=names)).collect()["cloudflare"]["zones"][0]["traffic"]["periods"]["7d"]["hosts"]
+        self.assertEqual(len(got[0]["name"]), 120)
 
     def test_a_missing_right_is_named_and_the_rest_still_reads(self):
         for refused, said in (("/settings/", "droit Zone Settings Read"), ("/dns_records", "droit DNS Read"), ("/graphql", "droit Analytics Read ou plan")):

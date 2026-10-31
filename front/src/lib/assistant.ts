@@ -1,6 +1,5 @@
 // Assistant de démarrage : les étapes et ce que l'utilisateur en a fait (faite, passée), gardé par le navigateur.
 // Hors du composant : le rechargement à chaud de Vite ne marche que sur un fichier qui n'exporte que des composants.
-import { send } from "../api";
 import { REOPEN_EVENT, forgetChoices } from "./firstSteps";
 import { tx } from "./i18n";
 import type { Machine } from "../types";
@@ -53,12 +52,14 @@ export function thisMachine(machines: Machine[], hostname: string, chosen = ""):
 
 const BANNER_OFF = "myservices-assistant-banner-off", LANDED = "myservices-assistant-landed";
 
-/** Menu du compte, Réglages -> Découverte : l'assistant repart du début, même s'il était fini ou fermé (choix « passés » de la recherche réseau effacés aussi) */
+/** Où rouvrir l'assistant : fini, au début pour refaire le tour de ce qui est validé ; en cours, sur l'étape en attente */
+export const reopened = (p: AssistantProgress): AssistantProgress => (isFinished(p) ? { ...p, current: "welcome" } : p);
+
+/** Menu du compte, Réglages -> Découverte : l'assistant se rouvre même s'il était fini ou fermé (choix « passés » de la recherche réseau effacés) ;
+ *  ce qui est validé reste, « Recommencer » dans l'assistant efface tout. La progression du serveur est relue à l'ouverture. */
 export function reopenAssistant(): void {
-  resetProgress();
   try { localStorage.removeItem(BANNER_OFF); } catch { /* navigation privée : tant pis */ }
   forgetChoices();
-  void send("PUT", "assistant", EMPTY).catch(() => undefined);
   location.hash = "assistant";
   dispatchEvent(new Event(REOPEN_EVENT));
 }

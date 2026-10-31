@@ -280,6 +280,10 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
 }
 
 /** En-tête de colonne triable */
+export function Chip({ label, on, act }: Readonly<{ label: string; on: boolean; act: () => void }>) {
+  return <button type="button" onClick={act} aria-pressed={on} className={`rounded-full border px-3 py-1 text-sm ${on ? "border-link text-txt ring-2 ring-link/30" : "border-line text-muted hover:text-txt"}`}>{label}</button>;
+}
+
 type ColumnSort = { key: string; asc: boolean; by: (k: string) => void };
 
 function SortLabel({ k, sort, children }: Readonly<{ k: string; sort: ColumnSort; children?: ReactNode }>) {

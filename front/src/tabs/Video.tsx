@@ -11,7 +11,7 @@ import { tx } from "../lib/i18n";
 import { sinceText } from "../lib/last24h";
 import { usePageView } from "../lib/route";
 import { cameraPlace, type CameraPlace, SLOW_DETECTOR_MS, STORAGE_FULL, streamAlerts, streamCameras, streamCards, streamFigures, streamDetectors, streamFlows, streamHourly, streamRecent, streamStorage, type CameraRow, type FlowRow, type StreamCard, type StreamRole } from "../lib/video";
-import { Badge, Dim, Empty, GradientFill, Td, Th } from "../components/ui";
+import { Badge, Chip, Dim, Empty, GradientFill, Td, Th } from "../components/ui";
 import { Dot } from "../components/marks";
 import { FoldPanel } from "../components/FoldPanel";
 import { FamilyCard, WatchPanel } from "../components/FamilyCards";
@@ -39,7 +39,7 @@ export function Video({ snap, route }: Readonly<{ snap: Snapshot; route: string 
   const machines = new Set(cards.map((c) => c.machine).filter(Boolean)).size;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={VideoIcon} logo={view === "frigate" ? appIcon(["frigate"]) : null} title={view === "frigate" ? "Frigate" : tx("Vidéo et caméras")} tags={<HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
+      <PageHead icon={VideoIcon} logo={view === "frigate" ? appIcon(["frigate"]) : null} title={view === "frigate" ? "Frigate" : tx("Vidéo et caméras")} tags={<HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />} actions={admin && <ConnectorsLink {...(view === "frigate" ? { types: ["frigate"] } : { category: "Stream" })} />} />
       {!cards.length && <Empty>{tx("Aucun service vidéo pour l'instant : un service de catégorie « Stream » dans Services, ou un connecteur vidéo (Frigate, Shinobi, go2rtc, MediaMTX, Owncast), fait apparaître cette page.")}</Empty>}
       {cards.length > 0 && view === "overview" && <Overview cards={cards} cams={cams} admin={admin} at={snap.data.generated} />}
       {cards.length > 0 && view === "cameras" && <Cameras cams={cams} cards={cards} />}
@@ -305,10 +305,6 @@ function camShown(c: CameraRow, f: string): boolean {
 }
 
 const PLACES = { int: tx("Intérieur"), ext: tx("Extérieur"), other: tx("Autre") };
-
-function Chip({ label, on, act }: Readonly<{ label: string; on: boolean; act: () => void }>) {
-  return <button type="button" onClick={act} className={`rounded-full border px-3 py-1 text-sm ${on ? "border-link text-txt ring-2 ring-link/30" : "border-line text-muted hover:text-txt"}`}>{label}</button>;
-}
 
 function CameraTile({ c, now }: Readonly<{ c: CameraRow; now: number }>) {
   const what = camWhat(c, now);

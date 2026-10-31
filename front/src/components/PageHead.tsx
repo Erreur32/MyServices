@@ -1,6 +1,7 @@
 // The head of a list page, the same on every page: the title with its icon, the tags (counts, sources, read time) on the same line,
 // and at the far right the actions of the page (period of the history, link to the settings, buttons; the main button last).
 // The line wraps by itself when the width is short.
+import { pointConnectors } from "../lib/connectorPrefill";
 import { Plug, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { tx } from "../lib/i18n";
@@ -15,7 +16,7 @@ export function PageHead({ icon: Icon, logo, title, tags, actions }: Readonly<{ 
   );
 }
 
-/** The icon link to the connectors, on a page that reads its data through them (admins only) */
-export function ConnectorsLink() {
-  return <a href="#settings/connectors" className="inline-flex items-center rounded-lg border border-line p-1.5 text-link hover:bg-link/10" title={tx("Connecteurs")} aria-label={tx("Connecteurs")}><Plug size={14} aria-hidden /></a>;
+/** The icon link to the connectors of this page (admins only): a single one opens for editing, several are listed */
+export function ConnectorsLink({ types, category }: Readonly<{ types?: string[]; category?: string }>) {
+  return <a href="#settings/connectors" onClick={() => pointConnectors(types, category)} className="inline-flex items-center rounded-lg border border-line p-1.5 text-link hover:bg-link/10" title={tx("Ouvrir le connecteur")} aria-label={tx("Ouvrir le connecteur")}><Plug size={14} aria-hidden /></a>;
 }

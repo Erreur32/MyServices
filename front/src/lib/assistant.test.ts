@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Machine } from "../types";
-import { STEPS, advance, bannerClosed, closeBanner, isFinished, markLanded, normalizeProgress, shouldLand, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
+import { STEPS, reopened, advance, bannerClosed, closeBanner, isFinished, markLanded, normalizeProgress, shouldLand, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
 
 // Un localStorage minimal : les tests tournent sans navigateur
 const mem = new Map<string, string>();
@@ -19,6 +19,15 @@ describe("assistant : progression", () => {
 
   it("commence à la bienvenue, rien de fait", () => {
     expect(loadProgress()).toEqual({ current: "welcome", done: [], skipped: [], host: "", accepted: [] });
+  });
+
+  it("rouvert une fois fini, repart du début et garde ce qui est validé", () => {
+    const done = STEPS.map((x) => x.id);
+    expect(reopened({ current: "tools", done, skipped: [], host: "", accepted: [] })).toMatchObject({ current: "welcome", done });
+  });
+
+  it("rouvert en cours, reste sur l'étape en attente", () => {
+    expect(reopened({ current: "network", done: ["welcome", "machine"], skipped: [], host: "", accepted: [] }).current).toBe("network");
   });
 
   it("avance en marquant l'étape faite ou passée", () => {

@@ -187,7 +187,7 @@ function UserMenu({ snap }: Readonly<{ snap: Snapshot }>) {
           <DropItem icon={<LifeBuoy size={15} />} onClick={() => go("help")}>{tx("Aide")}</DropItem>
           <DropItem icon={<Info size={15} />} onClick={() => go("about")}>{tx("À propos")}</DropItem>
           <DropItem icon={<ExternalLink size={15} />} href={GITHUB}>{tx("Projet sur GitHub")}</DropItem>
-          {admin && <><DropSep /><DropItem icon={<ListChecks size={15} />} title={tx("Rouvre l'assistant depuis le début")} onClick={() => { setOpen(false); reopenAssistant(); }}>{tx("Revoir l'assistant de démarrage")}</DropItem></>}
+          {admin && <><DropSep /><DropItem icon={<ListChecks size={15} />} title={tx("Rouvre l'assistant : au début s'il est fini, sinon sur l'étape en attente")} onClick={() => { setOpen(false); reopenAssistant(); }}>{tx("Revoir l'assistant de démarrage")}</DropItem></>}
           <DropSep />
           <DropItem icon={<LogOut size={15} />} danger onClick={() => void logout()}>{tx("Se déconnecter")}</DropItem>
         </div>

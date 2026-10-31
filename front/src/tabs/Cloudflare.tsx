@@ -4,15 +4,16 @@ import { Plug } from "lucide-react";
 import type { Snapshot } from "../api";
 import { InfoNote } from "../components/InfoNote";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
+import { readConnector, RereadButton } from "../components/Reread";
 import { StatTile } from "../components/StatTile";
-import { Badge, Empty, TableCard } from "../components/ui";
+import { Badge, Chip, Empty, TableCard } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
-import { advice, bestZone, CHECK_ORDER, cloudflareChecks, cloudflareZones, dnsOnly, isTrouble, niceMax, requestsByDay, settingText, SETTINGS, type Check } from "../lib/cloudflare";
+import { advice, answerLines, bestZone, CHECK_ORDER, cloudflareChecks, cloudflareZones, countryName, dnsOnly, isTrouble, LINES, niceMax, settingText, SETTINGS, trafficOf, trendOf, type AnswerLine, type Check } from "../lib/cloudflare";
 import { useSort } from "../lib/filter";
 import { bytes } from "../lib/format";
 import { LOCALE, tx } from "../lib/i18n";
 import { usePageView } from "../lib/route";
-import type { CloudflareZone } from "../types";
+import type { CloudflareLine, CloudflarePeriod, CloudflarePeriodKey, CloudflareZone } from "../types";
 
 const VIEWS = ["overview", "compare", "traffic", "checks"] as const;
 const FRAME = "overflow-hidden rounded-2xl border border-line bg-card shadow-sm";
@@ -24,9 +25,14 @@ function share(part: number, whole: number): string {
   return `${(p > 0 && p < 1 ? p.toFixed(1) : Math.round(p).toString()).replace(".", LOCALE === "fr-FR" ? "," : ".")} %`;
 }
 
-const Head = ({ title, snap }: Readonly<{ title: string; snap: Snapshot }>) => (
-  <PageHead icon={Plug} logo={appIcon(["Cloudflare"])} title={title} tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink /> : undefined} />
-);
+function Head({ title, snap }: Readonly<{ title: string; snap: Snapshot }>) {
+  const read = (snap.data.services_status ?? []).filter((c) => c.connector === "cloudflare");
+  const actions = snap.me.role === "admin" ? <>
+    {read.map((c) => <RereadButton key={c.name} label={read.length > 1 ? `${tx("Relire")} ${c.name}` : tx("Relire")} tip={tx("Lire Cloudflare maintenant, sans attendre sa lecture de chaque heure")} run={readConnector("cloudflare", c.name)} />)}
+    <ConnectorsLink types={["cloudflare"]} />
+  </> : undefined;
+  return <PageHead icon={Plug} logo={appIcon(["Cloudflare"])} title={title} tags={null} actions={actions} />;
+}
 
 function Overview({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZone[] }>) {
   const list = advice(zones), toFix = list.filter((a) => a.tone === "warn").length, requests = sum(zones, (t) => t.requests);
@@ -113,52 +119,151 @@ function Compare({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZo
   );
 }
 
-function DayBars({ days }: Readonly<{ days: { date: string; requests: number }[] }>) {
-  const W = 1000, H = 130, BOTTOM = 22, TOP = 8, LEFT = 52, top = niceMax(Math.max(...days.map((d) => d.requests), 1));
-  const y = (v: number) => H - BOTTOM - (v / top) * (H - BOTTOM - TOP), bar = (W - LEFT) / days.length;
+const PERIODS: { key: CloudflarePeriodKey; label: string; of: string }[] = [
+  { key: "24h", label: tx("24 h"), of: tx("Requêtes par heure") }, { key: "7d", label: tx("7 j"), of: tx("Requêtes par jour") }, { key: "30d", label: tx("30 j"), of: tx("Requêtes par jour") },
+];
+const WORRYING_ERRORS = 0.05;
+const pointLabel = (at: string) => (at.length > 10 ? `${new Date(at).getHours().toString().padStart(2, "0")}h` : `${at.slice(8)}/${at.slice(5, 7)}`);
+
+function TrafficBars({ points, title }: Readonly<{ points: CloudflarePeriod["points"]; title: string }>) {
+  const W = 1000, H = 130, BOTTOM = 22, TOP = 8, LEFT = 52, top = niceMax(Math.max(...points.map((p) => p.requests), 1));
+  const y = (v: number) => H - BOTTOM - (v / top) * (H - BOTTOM - TOP), bar = (W - LEFT) / points.length, every = points.length > 7 ? Math.ceil(points.length / 8) : 1;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[40rem]" role="img" aria-label={tx("Requêtes par jour")}>
-      {[0, 0.5, 1].map((k) => <g key={k} className="text-dim"><line x1={LEFT} x2={W} y1={y(top * k)} y2={y(top * k)} stroke="currentColor" strokeOpacity={0.25} /><text x={LEFT - 6} y={y(top * k) + 4} textAnchor="end" fontSize={12} fill="currentColor">{fmt(top * k)}</text></g>)}
-      {days.map((d, i) => (
-        <g key={d.date}>
-          <rect x={LEFT + i * bar + bar * 0.18} y={y(d.requests)} width={bar * 0.64} height={H - BOTTOM - y(d.requests)} className="fill-link"><title>{`${d.date} : ${fmt(d.requests)}`}</title></rect>
-          <text x={LEFT + i * bar + bar / 2} y={H - 7} textAnchor="middle" fontSize={12} className="fill-muted">{d.date.slice(8)}/{d.date.slice(5, 7)}</text>
-        </g>
-      ))}
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[40rem]" role="img" aria-label={title}>
+      {[0, 0.5, 1].map((k) => <g key={k} className="text-dim"><line x1={LEFT} x2={W} y1={y(top * k)} y2={y(top * k)} stroke="currentColor" strokeOpacity={0.25} /><text x={LEFT - 6} y={y(top * k) + 4} textAnchor="end" fontSize={12} className="fill-muted">{fmt(top * k)}</text></g>)}
+      {points.map((p, i) => {
+        const x = LEFT + i * bar + bar * 0.16, width = bar * 0.68, good = p.requests - p.errors;
+        return (
+          <g key={p.at}>
+            <title>{`${pointLabel(p.at)} : ${fmt(p.requests)}, ${tx("{0} erreurs serveur", fmt(p.errors))}`}</title>
+            <rect x={x} y={y(good)} width={width} height={H - BOTTOM - y(good)} className="fill-link" />
+            <rect x={x} y={y(p.requests)} width={width} height={y(good) - y(p.requests)} className="fill-bad" />
+            {i % every === 0 && <text x={LEFT + i * bar + bar / 2} y={H - 6} textAnchor="middle" fontSize={12} className="fill-muted">{pointLabel(p.at)}</text>}
+          </g>
+        );
+      })}
     </svg>
   );
 }
 
-function Spark({ days }: Readonly<{ days: { requests: number }[] }>) {
-  const W = 110, H = 26, top = Math.max(...days.map((d) => d.requests), 1);
-  const points = days.map((d, i) => `${((i * W) / Math.max(days.length - 1, 1)).toFixed(1)},${(H - 2 - (d.requests / top) * (H - 5)).toFixed(1)}`).join(" ");
-  return <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={tx("Requêtes par jour")}><polygon points={`0,${H} ${points} ${W},${H}`} className="fill-link/10" /><polyline points={points} fill="none" strokeWidth={1.5} className="stroke-link" /></svg>;
+function trendColor(change: number, rising: "good" | "bad"): string {
+  if (change === 0) return "";
+  return (change > 0) === (rising === "good") ? "text-ok" : "text-bad";
+}
+
+function Trend({ now, before, rising }: Readonly<{ now: number; before: number; rising: "good" | "bad" }>) {
+  const change = trendOf(now, before);
+  if (change === null) return <div className="text-xs text-dim">{tx("rien à comparer")}</div>;
+  return <div className="text-xs text-dim"><span className={trendColor(change, rising)}>{change >= 0 ? "↗" : "↘"} {Math.abs(change)} %</span> {tx("avant")}</div>;
+}
+
+const BAR_TONE = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad" };
+type BarLine = AnswerLine & { shown?: string };
+
+function Bars({ title, sub, lines }: Readonly<{ title: string; sub?: string; lines: BarLine[] }>) {
+  const top = Math.max(...lines.map((l) => l.requests), 1);
+  return (
+    <section className={FRAME}>
+      <div className={STRIP}><h3 className="font-bold">{title}</h3>{sub && <span className="text-xs text-muted">{sub}</span>}</div>
+      <div className="flex flex-col gap-2 px-4 py-3">
+        {lines.length === 0 && <Empty>{tx("Rien de lu.")}</Empty>}
+        {lines.map((l) => (
+          <div key={l.name} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 text-sm">
+            <span className="break-words">{l.name}</span><span className="font-mono tabular-nums">{l.shown ?? fmt(l.requests)}</span>
+            {l.why && <span className="col-span-2 text-xs text-muted">{l.why}</span>}
+            <div className="col-span-2 mt-0.5 h-1.5 overflow-hidden rounded bg-bg2"><div className={`h-full ${l.tone ? BAR_TONE[l.tone] : "bg-link"}`} style={{ width: `${(100 * l.requests) / top}%` }} /></div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TrafficDetails({ p }: Readonly<{ p: CloudflarePeriod }>) {
+  const ofAll = (l: CloudflareLine) => share(l.requests, p.requests);
+  const reach = (list: CloudflareLine[], name: (l: CloudflareLine) => string = (l) => l.name) => list.slice(0, LINES).map((l) => ({ name: name(l), requests: l.requests, shown: ofAll(l) }));
+  const protocols = [...p.tls.map((l): BarLine => ({ name: l.name === "none" ? tx("Sans chiffrement") : l.name.replace("TLSv", "TLS "), requests: l.requests, shown: ofAll(l), tone: l.name === "none" ? "warn" : undefined })), ...reach(p.http)];
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <Bars title={tx("Réponses")} sub={tx("Ce que reçoivent les visiteurs")} lines={answerLines(p)} />
+      <Bars title={tx("Noms en erreur")} sub={tx("Le plus touché d'abord")} lines={p.hosts.slice(0, LINES).map((h) => ({ name: h.name, requests: h.requests, shown: `${fmt(h.requests)} · ${h.code}`, tone: "bad" }))} />
+      <Bars title={tx("Pays")} sub={tx("Requêtes, et menaces")} lines={p.countries.slice(0, LINES).map((c) => ({ name: countryName(c.name), requests: c.requests, shown: c.threats ? `${fmt(c.requests)} · ${tx("{0} menaces", fmt(c.threats))}` : undefined, tone: (c.threats ?? 0) * 10 > c.requests ? "warn" : undefined }))} />
+      <Bars title={tx("Types de contenu")} lines={p.content.slice(0, LINES).map((c) => ({ name: c.name, requests: c.requests, shown: `${ofAll(c)} · ${bytes(c.bytes ?? 0)}` }))} />
+      <Bars title={tx("Chiffrement et protocole")} lines={protocols} />
+      <Bars title={tx("Visiteurs par navigateur")} sub={tx("Pages vues")} lines={p.browsers.slice(0, LINES).map((b) => ({ name: b.name === "Unknown" ? tx("Robots et inconnus") : b.name.replace(/([a-z])([A-Z])/g, "$1 $2"), requests: b.requests }))} />
+    </div>
+  );
+}
+
+function TrafficFigures({ p }: Readonly<{ p: CloudflarePeriod }>) {
+  const was = p.previous;
+  return (
+    <div className="flex flex-wrap gap-2.5">
+      <StatTile n={fmt(p.visitors)} label={tx("visiteurs uniques")}><Trend now={p.visitors} before={was.visitors} rising="good" /></StatTile>
+      <StatTile n={fmt(p.requests)} label={tx("requêtes")}><Trend now={p.requests} before={was.requests} rising="good" /></StatTile>
+      <StatTile n={share(p.cached, p.requests)} label={tx("servi par le cache")}><Trend now={p.requests ? p.cached / p.requests : 0} before={was.requests ? was.cached / was.requests : 0} rising="good" /></StatTile>
+      <StatTile n={bytes(p.bytes)} label={tx("données traitées")}><Trend now={p.bytes} before={was.bytes} rising="good" /></StatTile>
+      <StatTile n={bytes(p.cached_bytes)} label={tx("données en cache")}><Trend now={p.cached_bytes} before={was.cached_bytes} rising="good" /></StatTile>
+      <StatTile n={fmt(p.errors)} label={tx("erreurs serveur")} tone={p.errors ? "bad" : "ok"}><Trend now={p.errors} before={was.errors} rising="bad" /></StatTile>
+      <StatTile n={fmt(p.threats)} label={tx("classées comme menaces")} hint={tx("Cloudflare les classe comme menaces, sans dire ici lesquelles ont été bloquées.")}><Trend now={p.threats} before={was.threats} rising="bad" /></StatTile>
+    </div>
+  );
+}
+
+type DomainRow = { name: string; dnsOnly: boolean; p: CloudflarePeriod };
+const DOMAIN_SORT: Record<string, (r: DomainRow) => string | number> = {
+  name: (r) => r.name, requests: (r) => r.p.requests, visitors: (r) => r.p.visitors, bytes: (r) => r.p.bytes,
+  cache: (r) => (r.p.requests ? r.p.cached / r.p.requests : 0), errors: (r) => (r.p.requests ? r.p.errors / r.p.requests : 0), threats: (r) => r.p.threats,
+};
+const domainKey = (r: DomainRow, key: string) => DOMAIN_SORT[key](r);
+const figure = (v: string, k: string) => <span key={k} className="block text-right font-mono tabular-nums">{v}</span>;
+
+function DomainTable({ zones, period }: Readonly<{ zones: CloudflareZone[]; period: CloudflarePeriodKey }>) {
+  const rows = zones.flatMap((z): DomainRow[] => { const p = z.traffic?.periods?.[period]; return p ? [{ name: z.name, dnsOnly: dnsOnly(z), p }] : []; });
+  const sort = useSort(rows, domainKey, "name");
+  const right = "text-right";
+  return (
+    <TableCard zebra title={tx("Par domaine")} tone="info" count={rows.length} sort={sort} empty={<Empty>{tx("Statistiques non lues : droit Analytics Read du jeton à vérifier.")}</Empty>}
+      cols={[{ label: tx("Domaine"), k: "name" }, { label: tx("Requêtes"), className: right, k: "requests" }, { label: tx("Visiteurs"), className: right, k: "visitors" }, { label: tx("Données"), className: right, k: "bytes" }, { label: tx("Cache"), className: right, k: "cache" }, { label: tx("Erreurs"), className: right, k: "errors" }, { label: tx("Menaces"), className: right, k: "threats" }]}
+      rows={sort.sorted.map(({ name, dnsOnly: only, p }) => [
+        <span key="n" className="inline-flex flex-wrap items-center gap-1.5 font-semibold">{name}{only && <Badge outline tone="off">{tx("DNS seul")}</Badge>}</span>,
+        figure(fmt(p.requests), "r"), figure(fmt(p.visitors), "v"), figure(bytes(p.bytes), "b"), figure(share(p.cached, p.requests), "c"), figure(share(p.errors, p.requests), "e"), figure(fmt(p.threats), "m"),
+      ])} />
+  );
 }
 
 function Traffic({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZone[] }>) {
-  const read = zones.filter((z) => z.traffic), requests = sum(zones, (t) => t.requests), days = requestsByDay(zones);
-  const sorted = [...read].sort((a, b) => (b.traffic?.requests ?? 0) - (a.traffic?.requests ?? 0));
-  return (
+  const [period, setPeriod] = useState<CloudflarePeriodKey>("24h");
+  const [domain, setDomain] = useState("");
+  const picked = domain ? zones.filter((z) => z.name === domain) : zones, p = trafficOf(picked, period), chosen = PERIODS.find((x) => x.key === period)!;
+  const head = (
     <>
       <Head title={tx("Trafic")} snap={snap} />
-      <div className="flex flex-wrap gap-2.5">
-        <StatTile n={fmt(requests)} label={tx("requêtes (7 j)")} />
-        <StatTile n={fmt(sum(zones, (t) => t.visitors))} label={tx("visiteurs (7 j)")} />
-        <StatTile n={bytes(sum(zones, (t) => t.bytes))} label={tx("bande passante (7 j)")} />
-        <StatTile n={share(sum(zones, (t) => t.cached), requests)} label={tx("servi par le cache")} />
-        <StatTile n={fmt(sum(zones, (t) => t.threats))} label={tx("classées comme menaces (7 j)")} hint={tx("Cloudflare les classe comme menaces, sans dire ici lesquelles ont été bloquées.")} />
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip label={tx("Tous")} on={!domain} act={() => setDomain("")} />
+        {zones.map((z) => <Chip key={z.name} label={z.name} on={domain === z.name} act={() => setDomain(z.name)} />)}
+        <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+        {PERIODS.map((x) => <Chip key={x.key} label={x.label} on={period === x.key} act={() => setPeriod(x.key)} />)}
       </div>
-      {days.length > 0 && <section className={FRAME}><div className={STRIP}><h3 className="font-bold">{tx("Requêtes par jour")}</h3><span className="text-xs text-muted">{tx("Tous les domaines")}</span></div><div className="overflow-x-auto p-3"><DayBars days={days} /></div></section>}
-      <TableCard zebra title={tx("Par domaine")} tone="info" count={sorted.length} empty={<Empty>{tx("Statistiques non lues : droit Analytics Read du jeton à vérifier.")}</Empty>}
-        cols={[{ label: tx("Domaine") }, { label: tx("7 jours") }, { label: tx("Requêtes"), className: "text-right" }, { label: tx("Visiteurs"), className: "text-right" }, { label: tx("Bande passante"), className: "text-right" }, { label: tx("En cache"), className: "text-right" }, { label: tx("Menaces"), className: "text-right" }]}
-        rows={sorted.map((z) => {
-          const t = z.traffic!, num = (v: string, k: string) => <span key={k} className="block text-right font-mono tabular-nums">{v}</span>;
-          return [
-            <span key="n" className="inline-flex flex-wrap items-center gap-1.5 font-semibold">{z.name}{dnsOnly(z) && <Badge outline tone="off">{tx("DNS seul")}</Badge>}</span>,
-            <Spark key="s" days={t.days} />, num(fmt(t.requests), "r"), num(fmt(t.visitors), "v"), num(bytes(t.bytes), "b"), num(share(t.cached, t.requests), "c"), num(fmt(t.threats), "m"),
-          ];
-        })} />
-      <InfoNote tone="warn" open>{tx("Les visiteurs sont comptés sur la semaine pour chaque domaine. Leur total est une somme : une même personne venue sur deux domaines compte deux fois.")}</InfoNote>
+    </>
+  );
+  if (!p) return <>{head}<Empty>{tx("Statistiques à venir : elles arrivent à la prochaine lecture de Cloudflare.")}</Empty></>;
+  return (
+    <>
+      {head}
+      {p.requests > 0 && p.errors / p.requests >= WORRYING_ERRORS && <InfoNote tone="warn" open>{tx("{0} des requêtes finissent en erreur serveur : le site ne répond pas correctement à Cloudflare. « Noms en erreur » dit où regarder.", share(p.errors, p.requests))}</InfoNote>}
+      <TrafficFigures p={p} />
+      <section className={FRAME}>
+        <div className={STRIP}>
+          <h3 className="font-bold">{chosen.of}</h3><span className="text-xs text-muted">{domain || tx("Tous les domaines")}</span>
+          <span className="ml-auto flex gap-3 text-xs text-muted"><span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-link" />{tx("Réussies")}</span><span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-bad" />{tx("Erreurs serveur")}</span></span>
+        </div>
+        <div className="overflow-x-auto p-3"><TrafficBars points={p.points} title={chosen.of} /></div>
+      </section>
+      <TrafficDetails p={p} />
+      <DomainTable zones={picked} period={period} />
+      {!domain && <InfoNote tone="warn" open>{tx("Les visiteurs sont comptés pour chaque domaine. Leur total est une somme : une même personne venue sur deux domaines compte deux fois.")}</InfoNote>}
+      <InfoNote>{tx("Workers, temps CPU et minutes de construction ne sont pas repris : le jeton ne les lit pas.")}</InfoNote>
     </>
   );
 }

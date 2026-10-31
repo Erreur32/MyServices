@@ -21,6 +21,26 @@ export function takeFocus(): string {
   try { const v = sessionStorage.getItem(FOCUS_KEY) || ""; sessionStorage.removeItem(FOCUS_KEY); return v; } catch { return ""; }
 }
 
+const POINT_KEY = "myservices-connectors-pointed";
+
+/** What a page's connector button points at: its connector types, or its category */
+export interface Pointed { types: string[]; category: string }
+
+export function pointConnectors(types: string[] = [], category = ""): void {
+  try { sessionStorage.setItem(POINT_KEY, JSON.stringify({ types, category })); } catch { /* navigation privée : tant pis */ }
+}
+
+/** Read once, like the two others */
+export function takePointed(): Pointed {
+  try { const v = sessionStorage.getItem(POINT_KEY); sessionStorage.removeItem(POINT_KEY); return v ? (JSON.parse(v) as Pointed) : { types: [], category: "" }; } catch { return { types: [], category: "" }; }
+}
+
+/** The instances a button points at: one is opened for editing, several are listed */
+export function pointedHits<I extends { type: string }>(instances: I[], categories: { type: string; category?: string }[], p: Pointed): I[] {
+  const of = (type: string) => categories.find((t) => t.type === type)?.category;
+  return instances.filter((i) => p.types.includes(i.type) || (!!p.category && of(i.type) === p.category));
+}
+
 export function takePrefill(): Prefill | null {
   const raw = sessionStorage.getItem(KEY);
   sessionStorage.removeItem(KEY);

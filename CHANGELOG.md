@@ -13,13 +13,17 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
-- **Cloudflare**: a read-only connector and its own page: what to improve and why, domains side by side, traffic per day, and each proxied name checked against NPM, Apache or nginx.
+- **Cloudflare**: a read-only connector and its own page: what to improve and why, domains side by side, and each proxied name checked against NPM, Apache or nginx, in a sortable table. The traffic page reads 24 hours, 7 and 30 days for one domain or all, with the trend against the period before, server errors, the names in error, countries, content types, encryption and browsers.
+- **Read now**: a button reads one connector, tests one service or reads the health of one machine, without waiting for its period or a whole pass.
 
 ### Changed
 
 - **Agents**: a new agent reports every 5 minutes instead of 15. An agent already installed keeps its rhythm until its install command is run again.
 - **Video and cameras**: the overview and the Frigate page are laid out on three columns, the detectors, GPUs and storage as compact cards.
 - **Fields**: every field has a background of its own in each theme, and the text typed in it, its example and what the browser fills in stay readable.
+- **Connectors**: the connector button of a page opens its connector for editing, or lists the connectors of the page when there are several.
+- **Assistant**: reopened once finished, it starts over at the first step and keeps what was validated; unfinished, it stays on the waiting step.
+- **Header**: the step of a running collection is shown in full.
 - **Services**: the pencil opens the settings of a service inside its card, without leaving the list, and the row buttons are easier to see.
 - **Machines › SSH connections**: a badge tells which machines must keep SSH and why (what the agent does not read, no agent possible on the system, an agent that no longer reports), with counters; the note says how to remove SSH where it is optional.
 - **Machine alert limits**: the fields show the values in force, so their arrows no longer start from 0; emptied, a field goes back to the default.

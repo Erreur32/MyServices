@@ -324,13 +324,13 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
   if (sub === "wazuh") return <WazuhPage snap={snap} admin={admin} />;   // its own entry of the side menu, shown when a Wazuh is read
   if (sub === "fail2ban") return (   // its own entry of the side menu, under Security: Fail2ban only
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={Ban} title={tx("Fail2ban")} tags={<HeadTags sources={[tools[0]]} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
+      <PageHead icon={Ban} title={tx("Fail2ban")} tags={<HeadTags sources={[tools[0]]} at={snap.data.generated} />} actions={admin && <ConnectorsLink types={["logviewr"]} />} />
       {sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>}
     </div>
   );
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={ShieldCheck} title={tx("Sécurité")} tags={<HeadTags counts={[bySsh]} sources={tools} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
+      <PageHead icon={ShieldCheck} title={tx("Sécurité")} tags={<HeadTags counts={[bySsh]} sources={tools} at={snap.data.generated} />} actions={admin && <ConnectorsLink types={["wazuh", "crowdsec", "logviewr"]} />} />
       <Figures snap={snap} findings={findings} admin={admin} />
       {sub === "overview" && <Watch rows={rows} open={pick} ignore={admin ? ignore : undefined} />}
       {sub === "overview" && admin && ignored.length > 0 && <Ignored keys={ignored} restore={restore} />}

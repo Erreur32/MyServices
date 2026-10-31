@@ -1,7 +1,7 @@
 // The Cloudflare pages: domains read by the connector, what to improve on them, and the check of each name against the reverse proxy that really serves it.
 import type { Snapshot } from "../api";
-import type { CloudflareRecord, CloudflareZone, Host } from "../types";
-import { tx } from "./i18n";
+import type { CloudflareLine, CloudflarePeriod, CloudflarePeriodKey, CloudflareRecord, CloudflareTotals, CloudflareZone, Host } from "../types";
+import { LOCALE, tx } from "./i18n";
 
 export const SETTINGS: { key: string; label: string }[] = [
   { key: "ssl", label: "SSL" }, { key: "always_use_https", label: tx("HTTPS forcé") }, { key: "min_tls_version", label: tx("TLS minimal") },
@@ -144,11 +144,63 @@ export function cloudflareCounts(s: Snapshot): Record<string, number> {
            "cloudflare-checks": cloudflareChecks(zones, s.data.hosts).filter(isTrouble).length };
 }
 
-/** Requests of each day over all the domains, in date order */
-export function requestsByDay(zones: CloudflareZone[]): { date: string; requests: number }[] {
-  const days = new Map<string, number>();
-  for (const z of zones) for (const d of z.traffic?.days ?? []) days.set(d.date, (days.get(d.date) ?? 0) + d.requests);
-  return [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, requests]) => ({ date, requests }));
+const TOTALS: (keyof CloudflareTotals)[] = ["requests", "cached", "bytes", "cached_bytes", "threats", "errors", "visitors"];
+export const LINES = 6;   // lines of each breakdown of the traffic page
+const addTotals = (list: CloudflareTotals[]) => Object.fromEntries(TOTALS.map((k) => [k, list.reduce((a, t) => a + t[k], 0)])) as unknown as CloudflareTotals;
+
+function addLines(lists: CloudflareLine[][]): CloudflareLine[] {
+  const all = new Map<string, CloudflareLine>();
+  for (const line of lists.flat()) {
+    const seen = all.get(line.name);
+    all.set(line.name, seen ? { ...seen, requests: seen.requests + line.requests, threats: (seen.threats ?? 0) + (line.threats ?? 0), bytes: (seen.bytes ?? 0) + (line.bytes ?? 0) } : line);
+  }
+  return [...all.values()].sort((a, b) => b.requests - a.requests);
+}
+
+/** A period over the domains given, or null before the first read of the 24 hours and 30 days */
+export function trafficOf(zones: CloudflareZone[], key: CloudflarePeriodKey): CloudflarePeriod | null {
+  const read = zones.flatMap((z) => z.traffic?.periods?.[key] ?? []);
+  if (!read.length) return null;
+  const points = new Map<string, { at: string; requests: number; errors: number }>();
+  for (const p of read.flatMap((r) => r.points)) {
+    const seen = points.get(p.at) ?? { at: p.at, requests: 0, errors: 0 };
+    points.set(p.at, { at: p.at, requests: seen.requests + p.requests, errors: seen.errors + p.errors });
+  }
+  const status = new Map<number, number>();
+  for (const s of read.flatMap((r) => r.status)) status.set(s.code, (status.get(s.code) ?? 0) + s.requests);
+  const lines = (pick: (p: CloudflarePeriod) => CloudflareLine[]) => addLines(read.map(pick));
+  return { ...addTotals(read), previous: addTotals(read.map((r) => r.previous)), points: [...points.values()].sort((a, b) => a.at.localeCompare(b.at)),
+           status: [...status].map(([code, requests]) => ({ code, requests })), countries: lines((p) => p.countries), content: lines((p) => p.content), tls: lines((p) => p.tls), http: lines((p) => p.http),
+           browsers: lines((p) => p.browsers), hosts: read.flatMap((r) => r.hosts).sort((a, b) => b.requests - a.requests) };
+}
+
+/** Percent of change against the period before, null when there is nothing to compare with */
+export const trendOf = (now: number, before: number) => (before ? Math.round((100 * (now - before)) / before) : null);
+
+const SERVER_ERRORS: Record<number, string> = {
+  500: tx("erreur du serveur"), 502: tx("passerelle en erreur"), 503: tx("service indisponible"), 504: tx("passerelle trop lente"), 520: tx("réponse vide ou inattendue du serveur"),
+  521: tx("serveur éteint ou qui refuse Cloudflare"), 522: tx("serveur injoignable"), 523: tx("serveur inaccessible"), 524: tx("serveur trop lent à répondre"),
+  525: tx("connexion SSL refusée par le serveur"), 526: tx("certificat du serveur non valide"),
+};
+const CERTIFICATE = new Set([525, 526]);
+export type AnswerLine = { name: string; requests: number; tone?: "ok" | "warn" | "bad"; why?: string };
+
+/** What visitors receive: the good answers by family, each server error by its own code since each has its own cause */
+export function answerLines(p: CloudflarePeriod): AnswerLine[] {
+  const family = (n: number) => p.status.filter((s) => Math.floor(s.code / 100) === n).reduce((a, s) => a + s.requests, 0);
+  const groups: AnswerLine[] = [{ name: tx("Réussies (2xx)"), requests: family(2), tone: "ok" }, { name: tx("Redirigées (3xx)"), requests: family(3) }, { name: tx("Refusées ou introuvables (4xx)"), requests: family(4), tone: "warn" }];
+  const errors = p.status.filter((s) => s.code >= 500 && s.code < 600).sort((a, b) => b.requests - a.requests).slice(0, LINES)
+    .map((s): AnswerLine => ({ name: `${s.code} ${SERVER_ERRORS[s.code] ?? tx("erreur du serveur")}`, requests: s.requests, tone: "bad", why: CERTIFICATE.has(s.code) ? tx("Vérifie le certificat du serveur ou du proxy.") : undefined }));
+  return [...groups.filter((g) => g.requests), ...errors];
+}
+
+/** A country from its two letter code; Cloudflare also sends T1 for Tor and XX for unknown, kept as they are */
+export function countryName(code: string): string {
+  try {
+    return new Intl.DisplayNames([LOCALE], { type: "region" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
 }
 
 /** The top of a chart: the first round figure (1, 2, 5 × 10^n) at or above the highest bar */

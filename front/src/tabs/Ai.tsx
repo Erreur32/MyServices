@@ -40,7 +40,7 @@ export function Ai({ snap, route }: Readonly<{ snap: Snapshot; route: string }>)
   return (
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={Bot} title={tx("IA et agents")} tags={<HeadTags max={1} counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />}
-        actions={<>{admin && <ConnectorsLink />}{cards.length > 0 && view === "overview" && <PeriodSwitch value={hours} onChange={setHours} />}</>} />
+        actions={<>{admin && <ConnectorsLink category="IA" />}{cards.length > 0 && view === "overview" && <PeriodSwitch value={hours} onChange={setHours} />}</>} />
       {!cards.length && <Empty>{tx("Aucun service IA pour l'instant : un service de catégorie « IA » dans Services, ou un connecteur IA, fait apparaître cette page.")}</Empty>}
       {cards.length > 0 && view === "overview" && <Overview snap={snap} cards={cards} models={models} gpus={gpus} admin={admin} hours={hours} />}
       {cards.length > 0 && view === "models" && <Models rows={models} cards={cards} />}

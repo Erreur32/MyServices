@@ -13,7 +13,11 @@ import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, openUrl, status,
 import type { Host } from "../types";
 import { Badge, Empty, FilterBar, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
+import { RereadButton, testService } from "../components/Reread";
 import { ServiceEdit } from "../components/ServiceEdit";
+import { NoteLine } from "../components/form";
+import { pointConnectors } from "../lib/connectorPrefill";
+import type { Note } from "../lib/forms";
 import { IconGlyph } from "../components/IconPicker";
 import { chosenIcon } from "../lib/machineIcons";
 import { tx } from "../lib/i18n";
@@ -174,7 +178,7 @@ const GROUP_EDGE: Record<GroupTone, string> = { ok: "border-dim/50", warn: "bord
 const groupState = (g: ServiceGroup) => ({ ok: tx("En ligne"), warn: tx("À vérifier"), bad: tx("En panne"), off: tx("Désactivé") })[g.tone];
 
 /** One row of an opened card: where the service runs; a click opens its page */
-function PlaceRow({ r, ports, hidden, watched, admin, editing, onEdit }: Readonly<{ r: Host; ports: Host[]; hidden: boolean; watched: boolean; admin: boolean; editing: boolean; onEdit: () => void }>) {
+function PlaceRow({ r, ports, hidden, watched, admin, editing, onEdit, onNote }: Readonly<{ r: Host; ports: Host[]; hidden: boolean; watched: boolean; admin: boolean; editing: boolean; onEdit: () => void; onNote: (n: Note) => void }>) {
   const [cls, label, why] = status(r), domains = hostDomains(r), flags = checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => `⚑ ${CHECK[k][0]}`);
   return (
     <tr onClick={() => openService(r)} className={`cursor-pointer border-t border-line even:bg-bg/30 hover:!bg-link/10 ${r.enabled ? "" : "opacity-60"}`}>
@@ -189,6 +193,7 @@ function PlaceRow({ r, ports, hidden, watched, admin, editing, onEdit }: Readonl
             onClick={(e) => { e.stopPropagation(); void send("PUT", "services/public", { domain: r.domains[0], public: true }).catch(() => undefined); }}><Globe size={16} aria-hidden /></button>
         )}
         <HideToggle r={r} hidden={hidden} watched={watched} />
+        {r.ip && r.port && <RereadButton compact label={tx("Tester {0}", hostName(r))} tip={tx("Tester ce service maintenant : connexion et page web, rien n'est enregistré")} run={testService(r.ip, r.port, r.scheme, hostName(r))} onNote={onNote} className={ROW_BUTTON} />}
         <button type="button" className={ROW_BUTTON} title={tx("Modifier")} aria-label={tx("Modifier")} aria-pressed={editing} onClick={(e) => { e.stopPropagation(); onEdit(); }}><Pencil size={16} aria-hidden /></button>
       </span>}</td>
     </tr>
@@ -230,13 +235,13 @@ function GroupLogo({ name, lead }: Readonly<{ name: string; lead?: Host }>) {
 }
 
 /** The places of an opened card: a row per place, or the connector cards of a service that runs on no machine */
-function PlacesTable({ g, hiddenMap, watchKeys, admin, editKey, onEdit }: Readonly<{ g: ServiceGroup; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean; editKey: string | null; onEdit: (key: string) => void }>) {
+function PlacesTable({ g, hiddenMap, watchKeys, admin, editKey, onEdit, onNote }: Readonly<{ g: ServiceGroup; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean; editKey: string | null; onEdit: (key: string) => void; onNote: (n: Note) => void }>) {
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-card">
       <table className="w-full text-sm">
         <thead><tr className="text-left text-xs text-muted">{[tx("Machine"), tx("Adresse"), tx("Domaine"), tx("Accès"), tx("État"), ""].map((h) => <th key={h} className="px-3 py-1.5 font-semibold">{h}</th>)}</tr></thead>
         <tbody>
-          {mergePorts(g.hosts).map(({ lead: r, ports }) => <PlaceRow key={keyOfRow(r)} r={r} ports={ports} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(keyOfRow(r))} admin={admin} editing={editKey === keyOfRow(r)} onEdit={() => onEdit(keyOfRow(r))} />)}
+          {mergePorts(g.hosts).map(({ lead: r, ports }) => <PlaceRow key={keyOfRow(r)} r={r} ports={ports} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(keyOfRow(r))} admin={admin} editing={editKey === keyOfRow(r)} onEdit={() => onEdit(keyOfRow(r))} onNote={onNote} />)}
           {!g.hosts.length && g.cards.map((c) => (   // read by a connector only: the same columns, nothing runs on a machine
             <tr key={c.name} className="border-t border-line">
               <td className="px-3 py-1.5 font-semibold">{g.cloud ? "Cloud" : tx("Lu par un connecteur")}</td>
@@ -255,11 +260,12 @@ function PlacesTable({ g, hiddenMap, watchKeys, admin, editKey, onEdit }: Readon
 
 /** An opened card: where the service runs, what to check, and the settings of a row in place when its pencil is clicked */
 function CardDetail({ g, lead, reasons, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; lead?: Host; reasons: { k: Check; where: string }[]; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
-  const [editKey, setEditKey] = useState<string | null>(null);
+  const [editKey, setEditKey] = useState<string | null>(null), [note, setNote] = useState<Note>(null);
   const edited = g.hosts.find((r) => keyOfRow(r) === editKey);
   return (
     <div className="flex flex-col gap-3 border-t border-line/60 p-3">
-      {(g.hosts.length > 0 || g.cards.length > 0) && <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} editKey={editKey} onEdit={(k) => setEditKey(k === editKey ? null : k)} />}
+      {(g.hosts.length > 0 || g.cards.length > 0) && <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} editKey={editKey} onEdit={(k) => setEditKey(k === editKey ? null : k)} onNote={setNote} />}
+      <NoteLine note={note} />
       {edited && <ServiceEdit key={editKey} r={edited} logo={<ServiceLogo r={edited} auto />} onClose={() => setEditKey(null)} />}
       {reasons.length > 0 && <div data-watch="check" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
           <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À vérifier")}</h4>
@@ -272,7 +278,7 @@ function CardDetail({ g, lead, reasons, hiddenMap, watchKeys, admin }: Readonly<
       <div className="flex flex-wrap gap-4 text-sm font-semibold">
         {lead && <a href={`#${servicePage("item", lead)}`} className="text-link hover:underline">{tx("Fiche du service")}</a>}
         {g.cards.some((c) => c.connector === "netatmo") && <a href="#domotique/netatmo" className="text-link hover:underline">{tx("Ouvrir la page")}</a>}
-        {g.cards.length > 0 && <a href="#settings/connectors" className="text-link hover:underline">{tx("Connecteur {0}", g.cards[0].label)}</a>}
+        {g.cards.length > 0 && <a href="#settings/connectors" onClick={() => pointConnectors([g.cards[0].connector])} className="text-link hover:underline">{tx("Connecteur {0}", g.cards[0].label)}</a>}
       </div>
     </div>
   );
@@ -449,6 +455,7 @@ function ServicePage({ r, snap, admin, editing }: Readonly<{ r: Host; snap: Snap
         <h1 className="flex items-center gap-2 text-xl font-bold"><ServiceLogo r={r} />{editing && `${tx("Modifier")} `}{hostName(r)} <Badge tone="off">{via(r)}</Badge></h1>
         {!editing && <span className="ml-auto flex gap-2">
           {u && <a href={u} target="_blank" rel="noopener" className={`${quiet} py-1 no-underline`}><ExternalLink size={14} aria-hidden />{tx("Ouvrir")}</a>}
+          {admin && r.ip && r.port && <RereadButton label={tx("Tester")} tip={tx("Tester ce service maintenant : connexion et page web, rien n'est enregistré")} run={testService(r.ip, r.port, r.scheme, hostName(r))} />}
           {admin && <a href={`#${servicePage("edit", r)}`} className={`${quiet} py-1 no-underline`}><Pencil size={14} aria-hidden />{tx("Modifier")}</a>}
         </span>}
       </div>
