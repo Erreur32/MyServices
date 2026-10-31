@@ -17,6 +17,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 
+- **Services**: one card per service. A container keeps all its ports, addresses and NPM hosts on one card, and a program found on several machines or ports (AnyDesk, Veeam services) is one card that lists them. Interpreters such as `node` or `java` stay one per address, and what Windows itself listens with (`System`, `svchost`) moves to the technical pieces.
 - **My connectors**: every card has the same height, with a dark title and a lighter body. A trouble takes one line at the foot of its card, so a long message no longer stretches its neighbours. The open card says what it means, what still holds and what to check first, with the technical message folded.
 - **Machines**: the cards fit four per line from 1280 px and five from 1536 px, the name keeps its room and the source badges move to the foot. Clicking a card or its title opens the machine page, and the link at the bottom opens its services, filtered on it.
 - **Machines**: the machine page is rebuilt on three columns, always the same subjects at the same place: the state of the machine, what runs on it, access and protection. Two columns on a smaller screen, one on a phone, cards with the same margins and long lists folded at their foot: the page is less than half as tall.

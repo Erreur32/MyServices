@@ -24,7 +24,7 @@ import { ManualActions, ManualService, type ManualInitial } from "../components/
 import { StatTile } from "../components/StatTile";
 import { primary, quiet } from "../lib/forms";
 import { figures, mergePorts, toWatch } from "../lib/servicesState";
-import { groupServices, groupsTitle, hostDomains, sections, toCheck, type GroupTone, type ServiceGroup } from "../lib/serviceGroups";
+import { groupPorts, groupServices, groupsTitle, hostDomains, sections, toCheck, type GroupTone, type ServiceGroup } from "../lib/serviceGroups";
 import { HeadTags } from "../components/HeadTags";
 import { PageHead } from "../components/PageHead";
 import { HistoryTile, useServicesHistory } from "../components/HistoryTile";
@@ -258,6 +258,7 @@ function ServiceCard({ g, open, focus, onToggle, hiddenMap, watchKeys, admin }: 
   const lead = leadOf(g);
   const url = lead ? openUrl(lead) : g.cards[0]?.url;
   const text = g.domains[0] ?? addressOf(g, lead);
+  const ports = groupPorts(g);
   const more = [moreDomains(g.domains.length), g.hosts.some((r) => exposure(r) === "public" || exposure(r) === "ouvert") ? tx("Public") : ""].filter(Boolean).join(" · ");
   const reasons = g.hosts.filter((r) => status(r)[0] !== "off").flatMap((r) => checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => ({ k, where: hostDomains(r)[0] ?? targetOf(r) })));   // what turned the card « À vérifier »
   return (
@@ -268,10 +269,11 @@ function ServiceCard({ g, open, focus, onToggle, hiddenMap, watchKeys, admin }: 
         <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold ${GROUP_TEXT[g.tone]}`}><span className={`h-2 w-2 rounded-full ${GROUP_DOT[g.tone]}`} aria-hidden />{groupState(g)}</span>
         <ChevronDown size={18} className={`shrink-0 text-muted transition-transform group-hover:text-link ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
-      <div className="flex min-w-0 items-center gap-2 px-3 pb-2.5 pl-[3.875rem] pt-0.5 text-xs">
+      <div className={`flex min-w-0 items-center gap-2 px-3 pl-[3.875rem] pt-0.5 text-xs ${ports.length > 1 ? "" : "pb-2.5"}`}>
         {url ? <a href={url} target="_blank" rel="noopener" className="inline-flex min-w-0 items-center gap-1 font-semibold text-link hover:underline"><span className="truncate">{text}</span><ExternalLink size={12} className="shrink-0" aria-hidden /></a> : <span className="truncate text-muted">{text}</span>}
         {more && <span className="ml-auto shrink-0 text-muted">{more}</span>}
       </div>
+      {ports.length > 1 && <p className="truncate px-3 pb-2.5 pl-[3.875rem] font-mono text-xs text-muted" title={tx("Ports : {0}", ports.join(", "))}>{ports.map((p) => `:${p}`).join(" ")}</p>}
       {open && (
         <div className="flex flex-col gap-3 border-t border-line/60 p-3">
           {(g.hosts.length > 0 || g.cards.length > 0) && <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />}

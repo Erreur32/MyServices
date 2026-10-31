@@ -3807,4 +3807,5 @@ export const EN: Record<string, string> = {
   "Les chiffres affichés viennent du dernier relevé réussi. Le service lui-même n'est pas forcément en panne.": "The figures shown come from the last successful reading. The service itself is not necessarily down.",
   "À vérifier d'abord": "Check first",
   "Message technique": "Technical message",
+  "Ports : {0}": "Ports: {0}",
 };

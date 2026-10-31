@@ -39,12 +39,14 @@ export function toWatch(hosts: Host[]): Host[] {
 /** Process names that several programs share (an interpreter, a shell): their ports are never merged, they may be different programs */
 const GENERIC_PROCESS = new Set(["python", "python3", "node", "nodejs", "java", "php", "php-fpm", "ruby", "dotnet", "bash", "sh", "perl", "deno", "bun"]);
 
+export const genericProcess = (name: string): boolean => GENERIC_PROCESS.has(name.toLowerCase());
+
 /** What makes two rows the same service on several ports: a container by its name, a process by its name (unless generic), on the same machine */
 export function portGroupKey(r: Host): string | null {
   if (r.type !== "local" || !r.service?.name) return null;
   const kind = r.service.kind;
   if (kind !== "docker" && kind !== "process") return null;
-  if (kind === "process" && GENERIC_PROCESS.has(r.service.name.toLowerCase())) return null;
+  if (kind === "process" && genericProcess(r.service.name)) return null;
   return `${r.host_ip || r.ip || r.machine || "?"}|${kind}|${r.service.name}`;
 }
 

@@ -2,6 +2,7 @@
 import type { Host, ServiceStatus } from "../types";
 import { tx } from "./i18n";
 import { CLEANUP, checks, hostName, status } from "./status";
+import { genericProcess } from "./servicesState";
 
 export type GroupTone = "ok" | "warn" | "bad" | "off";
 export interface ServiceGroup {
@@ -10,6 +11,7 @@ export interface ServiceGroup {
 }
 
 const PLUMBING = /^(nginx|apache|openssh|samba|cadvisor|anubis|munin)\b/i;
+const WINDOWS_PIECE = /^(system|svchost|lsass|services|wininit|spoolsv)$/i;   // what Windows itself listens with, no service of yours
 const THEMES = (): [string, string[]][] => [
   [tx("Domotique"), ["Domotique"]],
   [tx("Fichiers et médias"), ["Fichiers / sync", "Médias", "Stream"]],
@@ -44,8 +46,28 @@ function placeOf(r: Host, apps: Map<string, string>): { key: string; name: strin
   if (label && !plumbing) return { key: `app:${label}`, name: label, tech: false, site: false };
   if (domain && r.service?.kind === "docker" && r.service.name) return { key: `name:${r.service.name}`, name: r.service.name, tech: false, site: false };   // several addresses of one container
   if (domain) return { key: `site:${domain}`, name: hostName(r), tech: false, site: true };
-  const name = r.service?.kind === "process" ? "" : r.service?.name || r.name;   // « python3 » or « node » say nothing: one service per address
+  const process = r.service?.kind === "process" ? r.service.name : "";
+  if (process && !genericProcess(process)) return { key: `process:${process.toLowerCase()}`, name: process, tech: WINDOWS_PIECE.test(process), site: false };   // one card, on every machine and port
+  const name = process ? "" : r.service?.name || r.name;   // « python3 » or « node » say nothing: one service per address
   return name ? { key: `name:${name}`, name, tech: false, site: false } : { key: `at:${r.ip}:${r.port}`, name: hostName(r), tech: false, site: false };
+}
+
+type Place = ReturnType<typeof placeOf>;
+const containerOf = (r: Host) => (r.service?.kind === "docker" && r.service.name && r.type !== "redirect" && r.type !== "dead" ? `${r.machine || r.host_ip || r.ip}|${r.service.name}` : "");
+const placeRank = (p: Place) => (p.tech ? 2 : Number(!p.key.startsWith("app:")));
+
+/** A container is one service, whatever its ports, addresses and NPM hosts in front of it: all its rows take the place of the one that knows it best */
+function containerPlaces(hosts: Host[], apps: Map<string, string>): Map<string, Place> {
+  const best = new Map<string, Place>(), labels = new Map<string, string>();
+  for (const r of hosts) {
+    const key = containerOf(r);
+    if (!key) continue;
+    const place = placeOf(r, apps), kept = best.get(key);
+    if (!kept || placeRank(place) < placeRank(kept)) best.set(key, place);
+    if (r.app?.label && r.app.confidence !== "possible") labels.set(key, r.app.label.replace(/ \(.*$/, ""));
+  }
+  for (const [key, place] of best) if (place.key.startsWith("name:")) best.set(key, { ...place, name: labels.get(key) ?? place.name });   // its real name when a row knows it
+  return best;
 }
 
 function toneOf(hosts: Host[], cards: ServiceStatus[]): GroupTone {
@@ -60,9 +82,11 @@ function toneOf(hosts: Host[], cards: ServiceStatus[]): GroupTone {
 export function groupServices(hosts: Host[], cards: ServiceStatus[], hidden: (r: Host) => boolean = () => false): ServiceGroup[] {
   const groups = new Map<string, ServiceGroup>(), apps = new Map<string, string>();
   for (const r of hosts) if (r.app && r.app.confidence !== "possible" && !r.app.agent_of && !PLUMBING.test(r.app.label)) apps.set(`${r.ip}:${r.port}`, r.app.label.replace(/ \(.*$/, ""));
+  const containers = containerPlaces(hosts, apps);
   for (const r of hosts) {
-    const p = placeOf(r, apps), g = groups.get(p.key) ?? { key: p.key, name: p.name, theme: placeTheme(r, p.site), hosts: [], cards: [], domains: [], machines: [], tech: p.tech, cloud: false, problems: [], tone: "off" };
+    const p = containers.get(containerOf(r)) ?? placeOf(r, apps), g = groups.get(p.key) ?? { key: p.key, name: p.name, theme: placeTheme(r, p.site), hosts: [], cards: [], domains: [], machines: [], tech: p.tech, cloud: false, problems: [], tone: "off" };
     if (g.theme === OTHERS() || g.theme === tx("Sites web")) g.theme = placeTheme(r, p.site);   // another row may know better
+    if (g.name === g.name.toLowerCase()) g.name = p.name;   // AnyDesk rather than anydesk, whichever machine comes first
     g.hosts.push(r);
     g.domains = [...new Set([...g.domains, ...hostDomains(r)])];
     const machine = r.machine || r.host_ip || r.ip;
@@ -83,6 +107,9 @@ export function groupServices(hosts: Host[], cards: ServiceStatus[], hidden: (r:
   }
   return list.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
+
+/** Every port of a service, in order, for the line of its card */
+export const groupPorts = (g: ServiceGroup): number[] => [...new Set(g.hosts.flatMap((r) => r.port ?? []))].sort((a, b) => a - b);
 
 export const toCheck = (g: ServiceGroup) => g.tone === "warn" || g.tone === "bad";
 
