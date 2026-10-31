@@ -3808,4 +3808,6 @@ export const EN: Record<string, string> = {
   "À vérifier d'abord": "Check first",
   "Message technique": "Technical message",
   "Ports : {0}": "Ports: {0}",
+  "défaut": "default",
+  "minutes": "minutes",
 };

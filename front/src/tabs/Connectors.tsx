@@ -462,11 +462,6 @@ function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: C
   const problems = notice && !notice.advice && !view.problems.includes(notice.text) ? [notice.text, ...view.problems] : view.problems;
   return (
     <>
-      {notice?.advice && <CardFix notice={notice} kept={view.figures.length > 0} />}
-      {problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
-        <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
-        <ul className="divide-y divide-warn/20 text-sm">{problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
-      </div>}
       {view.facts.length > 0 && <div>
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
           <h4 className="text-xs font-bold uppercase tracking-wide text-muted">{tx("Ce que le connecteur lit")}</h4>
@@ -475,6 +470,11 @@ function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: C
         <dl className="grid overflow-hidden rounded-lg border border-line bg-bg2 [grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr))]">{/* the negative margins hide the separators on the outer edge */}
           {view.facts.map((f) => <div key={f.label} className="-mb-px -mr-px min-w-0 border-b border-r border-line px-3 py-2"><dd className={`break-words text-sm font-semibold ${f.tone ? TEXT[f.tone] : ""}`}>{f.value}</dd><dt className="text-xs text-muted">{f.label}</dt></div>)}
         </dl>
+      </div>}
+      {notice?.advice && <CardFix notice={notice} kept={view.figures.length > 0} />}
+      {problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+        <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
+        <ul className="divide-y divide-warn/20 text-sm">{problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
       </div>}
     </>
   );
@@ -580,6 +580,9 @@ function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }:
     <SecretInput value={text} onChange={put} kept={kept} className={box}
       placeholder={kept ? tx("déjà renseigné : laisser vide pour garder") : ""}
       reveal={inst ? (password) => send<{ value: string }>("POST", `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}/reveal`, { field: f.name, password }).then((r) => r.value) : undefined} />
+  );
+  if (f.name === "every") return (   // minutes, within what connectors/base.py period() keeps
+    <span className="flex items-center gap-2"><input className={`${box} !w-28`} type="number" inputMode="numeric" min={1} max={1440} step={1} value={text} placeholder={tx("défaut")} onChange={(e) => put(e.target.value)} /><span className="text-sm text-muted">{tx("minutes")}</span></span>
   );
   return (
     <input className={box} type={f.kind === "number" ? "number" : "text"} autoComplete="off"
