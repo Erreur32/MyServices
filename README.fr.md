@@ -229,8 +229,13 @@ Sauvegardes › Ajouter des sauvegardes montre les **sources** en tuiles (clique
 - **Synology (Hyper Backup)** : les tâches Hyper Backup d'un NAS, lues avec le compte du connecteur Synology DSM existant (utilisateur en lecture seule) ; vous cochez les tâches à suivre, et chacune montre la date et le résultat de son dernier passage (un passage en échec, interrompu ou en retard déclenche une alerte ; une cible cloud ou distante compte comme copie hors machine). Routes écrites d'après l'API web de DSM, à confirmer sur un vrai NAS.
 - **Home Assistant** : sa sauvegarde automatique, avec le jeton du connecteur existant. En option, avec le module communautaire **ha-mcp** installé dans Home Assistant (ce n'est *pas* le MCP natif de Home Assistant), collez son adresse dans le connecteur : MyServices lit alors aussi la liste réelle des sauvegardes (date, taille, chiffrée ou non, où chacune est copiée), les réparations, le contrôle de la configuration et les intégrations en erreur. Il ne lance que six lectures fixes et n'installe, ne supprime ni ne restaure rien ; activez aussi le mode lecture seule de ha-mcp.
 
-- **Un dossier sur une box ou un NAS (FTP, FTPS, Samba)** : un compte saisi dans la page (mot de passe gardé chiffré) permet à MyServices de parcourir un dossier partagé et de le suivre, comme sauvegarde à part entière ou comme **copie de** une autre sauvegarde. Rien n'est écrit sur la box.
+- **Un dossier sur une box ou un NAS (FTP, FTPS, Samba)**, le plus simple, rien à préparer sur l'hôte : un compte saisi dans la page (mot de passe gardé chiffré) permet à MyServices de parcourir un dossier partagé et de le suivre, comme sauvegarde à part entière ou comme **copie de** une autre sauvegarde. Rien n'est écrit sur la box.
 - **Un partage déjà monté sur la machine qui fait tourner MyServices** (Freebox, NAS) : le conteneur le lit en **lecture seule**, sans aucun compte stocké dans MyServices. Montez le partage sur l'hôte (par exemple `/mnt/nas`, avec `/etc/fstab` ou un automount systemd), puis ajoutez une ligne aux volumes de votre fichier compose :
+
+  ```text
+  # /etc/fstab de l'hôte : lecture seule, avec le compte dans un fichier lisible par root seul ; uid=10001 est l'utilisateur du conteneur
+  //nas.local/backups  /mnt/nas  cifs  ro,credentials=/root/.smbcredentials,uid=10001,nofail,x-systemd.automount  0  0
+  ```
 
   ```yaml
       volumes:

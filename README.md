@@ -228,8 +228,13 @@ Backups › Add backups shows the **sources** as tiles (click one to open its wi
 - **Synology (Hyper Backup)**: the Hyper Backup tasks of a NAS, read with the account of the existing Synology DSM connector (read-only user); you tick the tasks to follow, and each shows the date and result of its last run (a failed, interrupted or late run raises an alert; a cloud or remote target counts as a copy outside the machine). Routes written from DSM's web API, to confirm on a real NAS.
 - **Home Assistant**: its automatic backup, through the existing connector's token. Optionally, with the community **ha-mcp** add-on installed in Home Assistant (this is *not* Home Assistant's native MCP), paste its address in the connector: MyServices then also reads the real list of backups (date, size, encrypted or not, where each one is copied), the Repairs, the configuration check and the failing integrations. It only runs six fixed read calls and never installs, deletes or restores anything; also turn on ha-mcp's own read-only mode.
 
-- **A folder on a box or NAS (FTP, FTPS, Samba)**: an account typed in the page (password kept encrypted) lets MyServices browse a shared folder and follow it, as a backup on its own or as the **copy of** another backup. Nothing is written on the box.
+- **A folder on a box or NAS (FTP, FTPS, Samba)**, the simplest way, nothing to set up on the host: an account typed in the page (password kept encrypted) lets MyServices browse a shared folder and follow it, as a backup on its own or as the **copy of** another backup. Nothing is written on the box.
 - **A share already mounted on the machine that runs MyServices** (Freebox, NAS): the container can read it **read-only**, with no account stored in MyServices. Mount the share on the host (for example `/mnt/nas`, from `/etc/fstab` or a systemd automount), then add one line to the volumes of your compose file:
+
+  ```text
+  # /etc/fstab of the host: read-only, with the account in a file only root can read; uid=10001 is the user of the container
+  //nas.local/backups  /mnt/nas  cifs  ro,credentials=/root/.smbcredentials,uid=10001,nofail,x-systemd.automount  0  0
+  ```
 
   ```yaml
       volumes:

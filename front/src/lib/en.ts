@@ -1645,7 +1645,7 @@ export const EN: Record<string, string> = {
   "Dossier suivi : premier relevé en cours, l'onglet Sauvegardes apparaît ensuite": "Folder followed: first reading in progress, the Backups tab appears next",
   "Dossier distant (FTP, FTPS, Samba)": "Remote folder (FTP, FTPS, Samba)",
   "{0} compte(s)": "{0} account(s)",
-  "Un dossier de sauvegarde sur une Freebox, un NAS ou un serveur FTP / Samba. MyServices ne fait que lister les fichiers (nom, date, taille) : rien n'est écrit ni supprimé là-bas. Le mot de passe est chiffré et n'est jamais réaffiché.": "A backup folder on a Freebox, a NAS or an FTP / Samba server. MyServices only lists the files (name, date, size): nothing is written or deleted there. The password is encrypted and never shown again.",
+  "Un dossier de sauvegarde sur une Freebox, un NAS ou un serveur FTP / Samba. MyServices ne fait que lister les fichiers (nom, date, taille) : rien n'est écrit ni supprimé là-bas. Le mot de passe est chiffré et n'est jamais réaffiché. Partage déjà monté sur la machine de MyServices : aucun compte à saisir, voir le README.": "A backup folder on a Freebox, a NAS or an FTP / Samba server. MyServices only lists the files (name, date, size): nothing is written or deleted there. The password is encrypted and never shown again. A share already mounted on the machine running MyServices needs no account: see the README.",
   "Compte :": "Account:",
   "Nouveau compte": "New account",
   "Protocole": "Protocol",
