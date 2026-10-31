@@ -642,12 +642,10 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
     const kept = inst && f.secret && inst.set[f.name];
     const v = conf[f.name];
     const need = needed(f), box = fieldBox(need, !kept && (v === undefined || v === ""));
-    return (
-      <Field key={f.name} label={need ? <Required text={tx(f.label)} /> : tx(f.label)}>
-        <FieldInput f={f} v={v} box={box} need={need} kept={!!kept} inst={inst} picksMachine={!!modeDef} aliases={aliases} put={(x) => setConf({ ...conf, [f.name]: x })} />
-        {f.help && <span className="text-xs text-dim">{tx(f.help)}</span>}
-      </Field>
-    );
+    const input = <FieldInput f={f} v={v} box={box} need={need} kept={!!kept} inst={inst} picksMachine={!!modeDef} aliases={aliases} put={(x) => setConf({ ...conf, [f.name]: x })} />;
+    const help = f.help && <span className="text-xs text-dim">{tx(f.help)}</span>;
+    if (f.kind === "bool") return <div key={f.name} className="flex flex-col gap-1"><label className="flex items-center gap-2 text-sm text-muted">{input}{tx(f.label)}</label>{help}</div>;
+    return <Field key={f.name} label={need ? <Required text={tx(f.label)} /> : tx(f.label)}>{input}{help}</Field>;
   };
   const fields = <>
       {modeDef && (
