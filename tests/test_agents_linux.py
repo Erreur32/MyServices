@@ -210,6 +210,23 @@ class LinuxAgentScripts(unittest.TestCase):
             r = subprocess.run(["bash", "-n"], input=text.encode(), capture_output=True)
             self.assertEqual(r.returncode, 0, r.stderr.decode())
 
+    def test_http_hors_reseau_local_refuse_pareil_sur_linux_et_windows(self):
+        """Plain http would send the token in clear across the internet: same rule in both installers (`[[ =~ ]]` runs the Linux one for real)."""
+        import re
+        import shutil
+        import subprocess
+        linux = re.search(r"LOCAL_HOST='(.+)'", agents.script("install.sh"))[1]
+        self.assertEqual(linux, re.search(r"\$LocalHost = '(.+)'", agents.script("install.ps1"))[1])
+        self.assertIn('"${MSV_ALLOW_HTTP:-}" != 1', agents.script("install.sh"))
+        self.assertIn("$env:MSV_ALLOW_HTTP -ne '1'", agents.script("install.ps1"))
+        kept = ("192.168.1.10", "10.0.0.2", "172.16.0.1", "127.0.0.1", "100.100.1.1", "ms.lan", "ms.tail1234.ts.net", "myservices", "localhost", "[fd00::1]", "[::1]")
+        refused = ("203.0.113.7", "ms.example.org", "172.32.0.1", "100.128.0.1", "[2001:db8::1]")
+        for host in kept + refused:
+            self.assertEqual(bool(re.search(linux, host)), host in kept, host)
+            if shutil.which("bash"):
+                r = subprocess.run(["bash", "-c", '[[ "$1" =~ $2 ]]', "x", host, linux])
+                self.assertEqual(r.returncode == 0, host in kept, host)
+
     def test_install_sh_regles_sudo_exactes(self):
         """MSV_SUDO=1 allows exactly the commands the collection runs through sudo -n: a rule that drifts would silently stop working."""
         from connectors.process import LISTEN_SH

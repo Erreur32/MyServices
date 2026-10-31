@@ -5,6 +5,7 @@
 #   $env:MSV_TOKEN = '<token shown once by MyServices>'
 #   iex (iwr "$env:MSV_URL/agent/install.ps1" -UseBasicParsing).Content
 #
+# Plain http beyond the local network or a VPN is refused, the token would cross the internet unencrypted: $env:MSV_ALLOW_HTTP = '1' accepts it.
 # Uninstall: .\install.ps1 -Uninstall   (or set $env:MSV_UNINSTALL = '1' before the iex line)
 # Re-running is safe: it downloads the agent again and renews the config and the scheduled task.
 param(
@@ -33,6 +34,12 @@ if ($Uninstall -or $env:MSV_UNINSTALL -eq '1') {
 }
 
 if ($Url -notmatch '^https?://[^\s/]+$') { Die "Bad MyServices address: '$Url' (expected http://host:port, no trailing path)" }
+# Same rule in install.sh
+$LocalHost = '^(localhost|[^.\[]+|.*\.(lan|local|home|internal|ts\.net)|10\.[0-9.]+|127\.[0-9.]+|192\.168\.[0-9.]+|169\.254\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9.]+|\[(fc|fd|fe[89ab])[^]]*\]|\[::1\])$'
+$Server = ([regex]'^https?://(\[[^]]+\]|[^:/]+)').Match($Url).Groups[1].Value
+if ($Url -like 'http://*' -and $env:MSV_ALLOW_HTTP -ne '1' -and $Server -notmatch $LocalHost) {  # NOSONAR S5332: this line refuses it
+  Die "Refused: plain http to $Server would send the agent token unencrypted across the internet. Use https or a VPN address, or set `$env:MSV_ALLOW_HTTP = '1'."
+}
 if ($Token -notmatch '^msv_agent_[A-Za-z0-9_-]+$') { Die 'Bad token: it must start with msv_agent_' }
 if ($Minutes -lt 1 -or $Minutes -gt 1440) { Die 'Minutes must be between 1 and 1440' }
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.ServicePointManager]::SecurityProtocol

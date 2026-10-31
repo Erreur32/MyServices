@@ -919,7 +919,7 @@ export const EN: Record<string, string> = {
   "Firmware": "Firmware",
   "Généré le {0}": "Generated on {0}",
   "Cette machine est hors de votre réseau : elle ne joindra pas cette adresse. Mettez une adresse qu'elle peut joindre, par exemple celle d'un VPN (Tailscale, WireGuard). Sans cela, gardez l'accès SSH.": "This machine is outside your network: it will not reach this address. Enter an address it can reach, such as a VPN one (Tailscale, WireGuard). Otherwise, keep the SSH access.",
-  "Cette adresse passe par internet en clair : le jeton de l'agent serait lisible. Utilisez https ou un VPN.": "This address crosses the internet unencrypted: the agent's token could be read. Use https or a VPN.",
+  "Cette adresse passe par internet en clair : le jeton de l'agent serait lisible, et l'installation la refusera. Utilisez https ou un VPN.": "This address crosses the internet unencrypted: the agent's token could be read, and the install will refuse it. Use https or a VPN.",
   "Autoriser trois lectures avec sudo : le programme derrière chaque port, les services à relancer, les adresses bloquées par fail2ban. Chacune est une règle exacte, en lecture seule.": "Allow three reads with sudo: the program behind each port, the services to restart, the addresses banned by fail2ban. Each is an exact, read-only rule.",
   "pas à jour": "out of date",
   "Le dernier essai du {0} a échoué : ce schéma reste l'ancien. Le détail est dans le journal.": "The last try on {0} failed: this diagram is still the previous one. The details are in the log.",
