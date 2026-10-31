@@ -114,15 +114,15 @@ function Compare({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZo
 }
 
 function DayBars({ days }: Readonly<{ days: { date: string; requests: number }[] }>) {
-  const W = 640, H = 180, BOTTOM = 24, TOP = 8, LEFT = 52, top = niceMax(Math.max(...days.map((d) => d.requests), 1));
+  const W = 1000, H = 130, BOTTOM = 22, TOP = 8, LEFT = 52, top = niceMax(Math.max(...days.map((d) => d.requests), 1));
   const y = (v: number) => H - BOTTOM - (v / top) * (H - BOTTOM - TOP), bar = (W - LEFT) / days.length;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[26rem]" role="img" aria-label={tx("Requêtes par jour")}>
-      {[0, 0.5, 1].map((k) => <g key={k} className="text-dim"><line x1={LEFT} x2={W} y1={y(top * k)} y2={y(top * k)} stroke="currentColor" strokeOpacity={0.25} /><text x={LEFT - 6} y={y(top * k) + 4} textAnchor="end" fontSize={11} fill="currentColor">{fmt(top * k)}</text></g>)}
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[40rem]" role="img" aria-label={tx("Requêtes par jour")}>
+      {[0, 0.5, 1].map((k) => <g key={k} className="text-dim"><line x1={LEFT} x2={W} y1={y(top * k)} y2={y(top * k)} stroke="currentColor" strokeOpacity={0.25} /><text x={LEFT - 6} y={y(top * k) + 4} textAnchor="end" fontSize={12} fill="currentColor">{fmt(top * k)}</text></g>)}
       {days.map((d, i) => (
         <g key={d.date}>
           <rect x={LEFT + i * bar + bar * 0.18} y={y(d.requests)} width={bar * 0.64} height={H - BOTTOM - y(d.requests)} className="fill-link"><title>{`${d.date} : ${fmt(d.requests)}`}</title></rect>
-          <text x={LEFT + i * bar + bar / 2} y={H - 7} textAnchor="middle" fontSize={11} className="fill-muted">{d.date.slice(8)}/{d.date.slice(5, 7)}</text>
+          <text x={LEFT + i * bar + bar / 2} y={H - 7} textAnchor="middle" fontSize={12} className="fill-muted">{d.date.slice(8)}/{d.date.slice(5, 7)}</text>
         </g>
       ))}
     </svg>
