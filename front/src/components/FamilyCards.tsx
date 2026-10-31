@@ -1,5 +1,6 @@
 // The pieces the pages of one family of services share (« IA et agents », « Vidéo et caméras »): the « À surveiller » panel, one card per
 // service, and the button that opens the connector a service needs, already filled.
+import { LABEL_BAND } from "./DetailSection";
 import { Eye, Plug, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { appIcon } from "../lib/appIcons";
@@ -52,8 +53,8 @@ export function FamilyCard<R extends string>({ c, role, facts, links, icon: Fall
         <Badge tone="off" outline>{role}</Badge>
         <span className="ml-auto truncate text-xs text-dim" title={c.state}>{c.state}</span>
       </div>
-      <dl className={`grid flex-1 grid-cols-[max-content_minmax(0,1fr)] content-start gap-x-4 gap-y-1 px-4 py-3 text-sm ${wide ? "md:grid-cols-[max-content_minmax(0,1fr)_max-content_minmax(0,1fr)]" : ""}`}>
-        {facts.map(([k, v]) => <div key={k} className="contents"><dt className="text-muted">{k}</dt><dd className="truncate tabular-nums" title={v}>{v}</dd></div>)}
+      <dl className={`relative grid flex-1 grid-cols-[9.5rem_minmax(0,1fr)] content-start py-2 text-sm before:absolute before:inset-y-0 before:left-0 before:w-[9.5rem] before:border-r before:border-line/60 before:bg-bg ${wide ? "md:grid-cols-[9.5rem_minmax(0,1fr)_9.5rem_minmax(0,1fr)]" : ""}`}>
+        {facts.map(([k, v]) => <div key={k} className="contents"><dt className={`relative ${LABEL_BAND} px-4 py-1 text-muted`}>{k}</dt><dd className="truncate px-4 py-1 tabular-nums" title={v}>{v}</dd></div>)}
       </dl>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line/60 px-4 py-2 text-sm">
         {c.serviceHash && <a href={c.serviceHash} className="text-link hover:underline">{tx("Fiche du service")} ›</a>}
