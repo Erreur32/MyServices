@@ -1,6 +1,6 @@
 // Lecture des fichiers produits par les tâches et de l'API v1 (même origine, cookie de session).
 import { serverText, translateConnectorMessages, translateConnectorTypes, translateLabels } from "./lib/serverText";
-import type { AddressSheet, Backups, ConnectorType, Data, Event, Events, Health, Me, StoredEvent } from "./types";
+import type { AddressSheet, Backups, ConnectorType, Data, Event, Events, Health, Me, Host, StoredEvent } from "./types";
 import { tx } from "./lib/i18n";
 
 export const ROOT = "/";   // the app is served at the root of the site (before 0.10.2: /myservices/)
@@ -40,17 +40,28 @@ export class NotConfigured extends Error {
 interface Pulse { ts: number; machines: Record<string, { ping: boolean; ms: number | null; since: number }> }
 const PULSE_MAX_AGE_S = 300;
 
-/** data.json avec le ping du pouls par-dessus, si le pouls est récent ; sinon tel quel */
-export function withPulse(data: Data, p: Pulse | null): Data {
-  if (!p || Date.now() / 1000 - p.ts > PULSE_MAX_AGE_S) return data;
-  let moved = false;
-  const machine_list = data.machine_list.map((m) => {
-    const live = p.machines[m.ip];
-    if (!live || live.ping === m.ping) return m;
-    moved = true;
-    return { ...m, ping: live.ping };
-  });
-  return moved ? { ...data, machine_list } : data;
+const recent = (p: Pulse | null): p is Pulse => !!p && Date.now() / 1000 - p.ts <= PULSE_MAX_AGE_S;
+
+/** Le « ip:port » suivi par le pouls des services, même règle que pulse.port_of */
+function portOf(r: Host): string {
+  const b = r.backend;
+  if (!r.enabled || r.paused || r.machine_off || r.stopped || !b || b.internal || typeof b.up !== "boolean" || (b.up && r.web === "none")) return "";
+  return r.ip && r.port ? `${r.ip}:${r.port}` : "";
+}
+
+/** data.json avec le pouls par-dessus (ping des machines, port des services), s'il est récent ; sinon tel quel */
+export function withPulse(data: Data, p: Pulse | null, ports: Pulse | null = null): Data {
+  let out = data;
+  if (recent(p) && data.machine_list.some((m) => p.machines[m.ip] && p.machines[m.ip].ping !== m.ping)) {
+    out = { ...out, machine_list: data.machine_list.map((m) => { const live = p.machines[m.ip]; return live ? { ...m, ping: live.ping } : m; }) };
+  }
+  if (recent(ports)) {
+    const up = (r: Host) => ports.machines[portOf(r)]?.ping;
+    if (data.hosts.some((r) => up(r) != null && up(r) !== r.backend?.up)) {
+      out = { ...out, hosts: data.hosts.map((r) => (up(r) == null ? r : { ...r, backend: { ...r.backend, up: up(r) } })) };
+    }
+  }
+  return out;
 }
 
 /** Lectures légères des connecteurs (live.json, toutes les 5 min) : MynetworK (état, ports et date de leur scan), invités Proxmox par API */
@@ -118,6 +129,7 @@ export function healConnectors(data: Data, live: Live): Data {
 const loadLive = (): Promise<Live | null> => get<Live>("live.json", true).catch(() => null);
 
 const loadPulse = (): Promise<Pulse | null> => get<Pulse>("pulse.json", true).catch(() => null);
+const loadPorts = (): Promise<Pulse | null> => get<Pulse>("ports.json", true).catch(() => null);
 
 /** Stamp of every produced file (api/v1/manifest): a file is read again only when its stamp moved */
 interface Manifest { ts: number; files: Record<string, string> }
@@ -130,7 +142,7 @@ interface Kept {
   files: Record<string, string>;          // stamps of the manifest at the last refresh
   readAt: Record<string, number>;         // when each file not in the manifest was last read
   meAt: number;
-  me: Me; raw: Data | null; pulse: Pulse | null; live: Live | null;
+  me: Me; raw: Data | null; pulse: Pulse | null; ports: Pulse | null; live: Live | null;
   health: Health | null; backups: Backups | null; watch: Events | null; hev: Events | null;
   snap: Snapshot | null;
 }
@@ -160,10 +172,11 @@ export async function loadSnapshot(known?: Record<string, string>): Promise<Snap
     return read();
   };
   const meFresh = !!k && now - k.meAt < ME_EVERY_MS;
-  const [me, raw, pulse, live] = await Promise.all([
+  const [me, raw, pulse, ports, live] = await Promise.all([
     meFresh ? k!.me : get<Me>("api/v1/me"),
     file<Data>("data.json", k?.raw ?? null, () => get<Data>("data.json", true)),
     file<Pulse>("pulse.json", k?.pulse ?? null, loadPulse),
+    file<Pulse>("ports.json", k?.ports ?? null, loadPorts),
     file<Live>("live.json", k?.live ?? null, loadLive),
   ]);
   if (!raw) { kept = null; throw new NotConfigured(me!); }
@@ -174,14 +187,14 @@ export async function loadSnapshot(known?: Record<string, string>): Promise<Snap
     file<Events>("events.json", k?.watch ?? null, () => get<Events>("events.json", true)),
     hu ? file<Events>(`${hu}events.json`, k?.hev ?? null, () => get<Events>(`${hu}events.json`, true)) : null,
   ]);
-  const same = !!k?.snap && me === k.me && raw === k.raw && pulse === k.pulse && live === k.live && health === k.health && backups === k.backups && watch === k.watch && hev === k.hev;
+  const same = !!k?.snap && me === k.me && raw === k.raw && pulse === k.pulse && ports === k.ports && live === k.live && health === k.health && backups === k.backups && watch === k.watch && hev === k.hev;
   const snap: Snapshot = same ? k!.snap! : {   // nothing moved: the very same object, so the page does not render again
-    me: me!, data: translateConnectorMessages(withPulse(withLive(raw, live), pulse)), health, backups,
+    me: me!, data: translateConnectorMessages(withPulse(withLive(raw, live), pulse, ports)), health, backups,
     events: [...(watch?.events || []), ...(hev?.events || [])],
     labels: translateLabels({ ...hev?.labels, ...watch?.labels }),
     severity: { ...hev?.severity, ...watch?.severity },
   };
-  kept = { files: stamps ?? {}, readAt, meAt: meFresh ? k!.meAt : now, me: me!, raw, pulse, live, health, backups, watch, hev, snap };
+  kept = { files: stamps ?? {}, readAt, meAt: meFresh ? k!.meAt : now, me: me!, raw, pulse, ports, live, health, backups, watch, hev, snap };
   return snap;
 }
 

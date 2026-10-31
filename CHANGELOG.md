@@ -29,6 +29,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Assistant**: the last step is a short message with one main button, « Add a machine », and a link to connect your tools. Adding a machine now offers the agent first.
 - **Services**: « Ignored domains » shows its list in the title and always starts folded.
 - **Assistant**: « Finish » always ends it and brings the summary into view.
+- **Services**: a closed port no longer waits for two collections. A light pulse tries the port of every web service each minute, confirmed twice: the status changes and the alert leaves within 2 to 3 minutes, instead of 20 to 35. Ports without a web page (SSH, mail, SMB, databases), 5xx errors and public sites stay read by the collection. Set or turned off in Tasks and schedules, « Live checks ».
 - **Availability**: redesigned, with machines, services, domains, machine, domain and state always in sight, and cells that line up from row to row. It opens on the machines and keeps your filters.
 - **Machines**: a visible filter, on by default, hides the machines powered off or no longer followed.
 - **Cloudflare**: new pages Security, Server and cache, and DNS; Traffic gains visits, page views, most requested pages, bots and clients, methods. Two more calls per domain each hour.

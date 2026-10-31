@@ -316,6 +316,7 @@ def services_watch_hide(body: ServiceHide, request: Request):
 class LiveChecks(BaseModel):
     pulse_every: int | None = None
     pulse_confirm: int | None = None
+    ports_every: int | None = None
     fast_every: int | None = None
 
 

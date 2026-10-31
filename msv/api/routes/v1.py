@@ -79,7 +79,7 @@ def produced_manifest() -> dict:
     file again only when its stamp moved, instead of revalidating each of them. A file served from elsewhere (health_url or
     backups_url as a full URL) is not listed: the page keeps its own pace for it."""
     hu, bu = str(core.CFG.get("health_url") or ""), str(core.CFG.get("backups_url") or "")
-    rels = ["data.json", "pulse.json", "live.json", "events.json"]
+    rels = ["data.json", "pulse.json", "ports.json", "live.json", "events.json"]
     if hu and "://" not in hu:
         rels += [hu + "stats.json", hu + "events.json"]
     if bu and "://" not in bu:

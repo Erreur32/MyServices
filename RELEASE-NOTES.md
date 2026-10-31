@@ -11,6 +11,7 @@
 - **Read now**: a button reads one connector, tests one service or reads the health of one machine, without waiting for a whole pass.
 
 **What's changed?**
+- **Services**: an outage shows in 2 to 3 minutes instead of 20 to 35. A light pulse tries the port of every web service each minute; you can set it or turn it off in « Live checks ». SSH, mail, SMB, 5xx errors and public sites are still seen by the collection, every 15 minutes.
 - **Services**: one service, one place. Its sheet opens inside its card, under the table, and its pencil edits it there. Old links open the same service in the list.
 - **Availability**: machines, services, domains and Uptime Kuma are named as you name them, the filters stay in sight and the cells line up. The page opens on the machines, then keeps your filters in your browser.
 - **Machines**: a visible filter, on by default, hides the machines powered off or no longer followed. The « Off » tile brings them back.
@@ -32,6 +33,7 @@
 
 - **Image**: `ghcr.io/erreur32/myservices:0.31.9` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
 - **API and storage**: the Cloudflare figures join `data.json`. The pages `#services/item` and `#services/edit` are gone and redirect to `#services/all/<key>`.
+- **Service pulse**: a new `ports.json` beside `pulse.json`, and a new `ports_every` setting (60 s by default, 0 = off).
 - **Cloudflare**: read once an hour, about 11 calls per domain, no new right beyond read access. Paths and user agents are stored, client IPs never are.
 - **Agents**: same agent scripts (Linux agent 4, Windows agent 9); only the timer of a new install changes.
 - **Migration**: nothing required from 0.31.9, see [MIGRATION.md](MIGRATION.md).

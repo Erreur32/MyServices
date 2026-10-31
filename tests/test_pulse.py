@@ -3,6 +3,7 @@
   python3 -m unittest discover -s tests
 """
 import json
+import socket
 import sys
 import tempfile
 import time
@@ -134,10 +135,40 @@ class WatcherTakesThePulse(unittest.TestCase):
         self.assertEqual(watcher.diff_machines(prev, cur, {})[0], [])
 
 
+class PortPulse(unittest.TestCase):
+    ROW = {"type": "local", "id": "1", "enabled": True, "ip": "10.0.0.5", "port": 8080, "backend": {"up": True}}
+
+    def test_only_a_port_the_collection_probed_is_followed(self):
+        self.assertEqual(pulse.port_of(self.ROW), "10.0.0.5:8080")
+        for other in ({"paused": "x"}, {"machine_off": True}, {"stopped": "exited"}, {"enabled": False}, {"backend": {"up": True, "internal": True}},
+                      {"backend": {}}, {"ip": None}, {"web": "none"}):
+            self.assertIsNone(pulse.port_of({**self.ROW, **other}), other)
+        self.assertEqual(pulse.port_of({**self.ROW, "web": "none", "backend": {"up": False}}), "10.0.0.5:8080")   # down: its return is followed
+
+    def test_a_closed_port_is_seen_without_a_wait(self):
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            s.listen()
+            target = "127.0.0.1:%d" % s.getsockname()[1]
+            self.assertTrue(pulse.port_open(target)[0])
+        self.assertEqual(pulse.port_open(target), (False, None))
+
+    def test_a_confirmed_port_change_is_announced_at_once_and_a_5xx_keeps_its_two_runs(self):
+        down = watcher.snapshot(self.ROW, {"10.0.0.5:8080": {"ping": False}})
+        self.assertEqual((down["status"], down["pulse"]), ("bad", True))
+        before = watcher.snapshot(self.ROW)
+        self.assertEqual([e["kind"] for e in watcher.diff({"local:1": before}, {"local:1": down}, {})[0]], ["panne"])
+        proxy = {**self.ROW, "type": "proxy", "public": {"code": 502}}
+        bad = watcher.snapshot(proxy, {"10.0.0.5:8080": {"ping": True}})
+        self.assertEqual((bad["status"], bad["pulse"]), ("bad", False))
+        ok = watcher.snapshot({**self.ROW, "type": "proxy", "public": {"code": 200}})
+        self.assertEqual(watcher.diff({"proxy:1": ok}, {"proxy:1": bad}, {})[0], [])
+
+
 class LiveSettings(unittest.TestCase):
     def core(self):
         from msv.core import config
-        return type("Core", (), {"CFG": {k: config.DEFAULTS[k] for k in ("pulse_every", "pulse_confirm", "fast_every")}})()
+        return type("Core", (), {"CFG": {k: config.DEFAULTS[k] for k in ("pulse_every", "pulse_confirm", "ports_every", "fast_every")}})()
 
     def test_values_are_checked_and_defaults_are_not_written(self):
         from msv.collect import system
