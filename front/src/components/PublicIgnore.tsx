@@ -20,7 +20,8 @@ export function PublicIgnore() {
   };
   const add = (e: FormEvent) => { e.preventDefault(); if (list && text.trim()) void save([...list, ...text.split(/[\s,;]+/)]); };
   return (
-    <FoldPanel id="services-public-ignore" icon={EyeOff} title={tx("Domaines ignorés")} count={list?.length} startFolded>
+    <FoldPanel icon={EyeOff} title={tx("Domaines ignorés")} count={list?.length} startFolded
+      extra={!!list?.length && <span className="min-w-0 truncate font-mono text-xs text-muted" title={list.join("\n")}>{list.join(", ")}</span>}>
       <InfoNote>{tx("Un site qui répond à Internet sans liste d'accès est signalé « ⚠ public ? ». Les domaines de cette liste ne sont jamais signalés ainsi (un motif comme *.lan.monsite.fr couvre tous ses sous-domaines). Leurs sondes, certificats et DNS restent contrôlés. Un site qui porte aussi un autre domaine reste signalé.")}</InfoNote>
       <form onSubmit={add} className="mt-3 flex flex-wrap items-center gap-2">
         <label className="min-w-[14rem] flex-1 max-w-md"><span className="sr-only">{tx("Domaine ou motif")}</span>

@@ -1,7 +1,7 @@
 // Assistant de démarrage : une étape à la fois, « Passer » et « Retour » partout, rien n'est modifié sur les machines.
 // Cinq étapes : bienvenue, cette machine (sans SSH), le réseau, la façon de lire chaque machine, relier les outils, puis un résumé.
 // La progression est gardée côté serveur (reprise depuis un autre navigateur), avec une copie dans ce navigateur.
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Download, Eye, KeyRound, Loader2, Plug, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Download, Eye, Flag, KeyRound, Loader2, Plug, Plus, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
 import { createElement, useCallback, useEffect, useState } from "react";
 import { read, send } from "../api";
 import type { Snapshot } from "../api";
@@ -19,7 +19,7 @@ import { primary, quiet } from "../lib/forms";
 import { useNetScan } from "../lib/netScan";
 import { tx } from "../lib/i18n";
 import { plural } from "../lib/summary";
-import type { Advice, ConnectorInstance, ConnectorsState, Machine, Proposal, SystemState } from "../types";
+import type { Advice, ConnectorInstance, ConnectorsState, Machine, SystemState } from "../types";
 import { InfoNote } from "../components/InfoNote";
 
 const confide = (local: AssistantProgress) => void send("PUT", "assistant", local).catch(() => undefined);   // confie au serveur la progression de ce navigateur
@@ -33,7 +33,6 @@ const stepDot = (now: boolean, done: boolean, skipped: boolean) => {
 
 const ADVICE_PANEL: Record<string, string> = { ok: "border-ok/50 bg-ok/10", optimize: "border-warn/50 bg-warn/5" };
 const SETUP_ICON = { ssh: KeyRound, agent: Download, connector: Plug } as const;
-const CONFIDENCE_TONE = { sure: "ok", probable: "info", possible: "off" } as const;
 
 export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
   const [p, setP] = useState<AssistantProgress>(() => reopened(loadProgress()));
@@ -51,7 +50,7 @@ export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
   // Chaque étape dit si elle est déjà en ordre (rien à régler) : « Passer » n'a alors plus de sens et disparaît
   const [setup, setSetup] = useState<Setup | null>(null), [rev, setRev] = useState(0);   // fenêtre de réglage ouverte ; rev : les étapes se relisent à sa fermeture
   const closeSetup = () => { setSetup(null); setRev((n) => n + 1); };
-  const [inOrder, setInOrder] = useState<Partial<Record<AssistantStep, boolean>>>({ welcome: true });
+  const [inOrder, setInOrder] = useState<Partial<Record<AssistantStep, boolean>>>({ welcome: true, tools: true });   // rien d'obligatoire à ces étapes : « Passer » n'y a pas de sens
   const report = useCallback((id: AssistantStep, ok: boolean) => setInOrder((o) => (o[id] === ok ? o : { ...o, [id]: ok })), []);
 
   return (
@@ -87,7 +86,7 @@ export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
         {p.current === "network" && <Network snap={snap} report={report} open={setSetup} />}
         {p.current === "access" && <Access snap={snap} report={report} open={setSetup} rev={rev} accepted={p.accepted}
           onAccept={(ip, on) => store({ ...p, accepted: on ? [...new Set([...p.accepted, ip])] : p.accepted.filter((a) => a !== ip) })} />}
-        {p.current === "tools" && <Tools snap={snap} report={report} open={setSetup} rev={rev} />}
+        {p.current === "tools" && <NextStep snap={snap} open={setSetup} rev={rev} />}
         {!step.ready && <Soon title={step.title} />}
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line/60 pt-4">
           {index > 0 && <button type="button" className={quiet} onClick={() => update({ ...p, current: previousStep(p.current) })}><ArrowLeft size={14} aria-hidden />{tx("Retour")}</button>}
@@ -95,7 +94,7 @@ export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
             {!inOrder[p.current] && (!last || !finished) ? <button type="button" className={quiet} title={tx("Pas maintenant : l'étape est marquée « passée » et la suivante s'affiche. Vous pourrez y revenir à tout moment ; l'assistant reste ouvert.")}
               onClick={() => update(advance(p, "skipped"))}><SkipForward size={14} aria-hidden />{tx("Passer cette étape")}</button> : null}
             {step.ready
-              ? <button type="button" className={primary} title={last ? tx("C'est fait : l'assistant affiche son résumé.") : tx("Cette étape est faite : la suivante s'affiche.")}
+              ? <button type="button" className={last ? quiet : primary} title={last ? tx("C'est fait : l'assistant affiche son résumé.") : tx("Cette étape est faite : la suivante s'affiche.")}
                 onClick={() => update(advance(p, "done"))}>{last ? tx("Terminer") : tx("Continuer")}<ArrowRight size={14} aria-hidden /></button>
               : null}
           </span>
@@ -281,35 +280,20 @@ function Access({ snap, report, open, rev, accepted, onAccept }: Readonly<{ snap
   );
 }
 
-/** Étape 5 : les outils reconnus sur le réseau que MyServices sait lire par leur API, pas encore reliés */
-function Tools({ snap, report, open, rev }: Readonly<{ snap: Snapshot; report: Report; open: Open; rev: number }>) {
-  const [instances, setInstances] = useState<ConnectorInstance[] | null>(null);
-  useEffect(() => { read<ConnectorsState>("connectors/settings").then((c) => setInstances(c.instances)).catch(() => setInstances([])); }, [snap.data.generated, rev]);
-  const list: Proposal[] | null = instances ? (snap.data.proposals ?? []).filter((x) => !savedFor(x, instances)) : null;
-  useEffect(() => report("tools", !!list && list.length === 0), [list?.length, report]);   // aucun outil reconnu qui reste à relier
-  const how = (c: Proposal["confidence"]) => ({ sure: tx("conteneur reconnu"), probable: tx("page reconnue"), possible: tx("à vérifier") })[c];
+/** Étape 5 : le mot de la fin. Ajouter une machine d'abord (l'agent y est proposé en premier), relier ses outils ensuite */
+function NextStep({ snap, open, rev }: Readonly<{ snap: Snapshot; open: Open; rev: number }>) {
+  const [instances, setInstances] = useState<ConnectorInstance[]>([]);
+  useEffect(() => { read<ConnectorsState>("connectors/settings").then((c) => setInstances(c.instances)).catch(() => undefined); }, [snap.data.generated, rev]);
+  const found = (snap.data.proposals ?? []).filter((x) => !savedFor(x, instances)).length;
   return (
     <div>
-      <h2 className="flex items-center gap-2 text-xl font-bold"><Plug size={20} className="text-link" aria-hidden />{tx("Relier vos outils")}</h2>
-      {!list && <p className="mt-3 flex items-center gap-2 text-sm text-muted"><Loader2 size={16} className="animate-spin" aria-hidden />{tx("Chargement…")}</p>}
-      {list?.length === 0 && (
-        <p className="mt-3 rounded-lg bg-ok/10 px-3 py-2 text-sm text-ok">✓ {tx("Aucun outil à relier pour l'instant : tout ce qui est reconnu l'est déjà. Vous pourrez en ajouter à tout moment dans Réglages → Connecteurs.")}</p>
-      )}
-      {list && list.length > 0 && (
-        <>
-          <InfoNote className="mt-2">{tx("MyServices a reconnu ces outils sur votre réseau. Reliez-les pour lire leurs données (certificats, DNS, sauvegardes, santé) : une clé en lecture seule suffit.")}</InfoNote>
-          <ul className="mt-4 flex flex-col gap-2">
-            {list.map((x) => (
-              <li key={`${x.connector}/${x.ip}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
-                {appIcon([x.label]) && <img src={appIcon([x.label])!} alt="" aria-hidden className="h-5 w-5 object-contain" />}
-                <b className="text-sm text-txt">{x.label}</b><Dim>{x.machine || x.ip}</Dim>
-                <Badge tone={CONFIDENCE_TONE[x.confidence]}>{how(x.confidence)}</Badge>
-                <button type="button" className={`${x.confidence === "possible" ? quiet : primary} ml-auto`} onClick={() => open({ kind: "connector", ip: x.ip, name: x.label, proposal: x })}>{tx("Configurer")}</button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      <h2 className="flex items-center gap-2 text-xl font-bold"><Flag size={20} className="text-link" aria-hidden />{tx("Et maintenant ?")}</h2>
+      <p className="mt-2 text-sm text-muted">{tx("Ajoutez une autre machine, ou reliez les outils que vous utilisez déjà. Rien ne presse : vous pourrez y revenir à tout moment.")}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <button type="button" className={primary} onClick={() => open({ kind: "machine" })}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</button>
+        <a href="#settings/connectors" className="inline-flex items-center gap-1.5 text-sm font-semibold text-link hover:underline"><Plug size={14} aria-hidden />{tx("Relier mes outils")}</a>
+        {found > 0 && <Dim>{tx("{0} reconnus sur votre réseau", found)}</Dim>}
+      </div>
     </div>
   );
 }

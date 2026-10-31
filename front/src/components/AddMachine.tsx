@@ -233,8 +233,8 @@ function AccessStep({ d, st, kind, setKind, access, setAccess, alias, onAlias, o
   alias: string | null; onAlias: (alias: string, created: boolean) => void; onNext: () => void;
 }>) {
   const options = [
-    { value: "ssh" as const, label: "SSH", hint: tx("Lire la machine par SSH avec la clé de l'app (Docker, santé, système)"), icon: <KeyRound size={24} className={access === "ssh" ? "text-link" : "text-dim"} aria-hidden /> },
     { value: "agent" as const, label: tx("Agent"), hint: tx("Un petit script sur la machine envoie sa santé à MyServices (PC Windows, ou SSH impossible)"), icon: <MonitorUp size={24} className={access === "agent" ? "text-link" : "text-dim"} aria-hidden /> },
+    { value: "ssh" as const, label: "SSH", hint: tx("Lire la machine par SSH avec la clé de l'app (Docker, santé, système)"), icon: <KeyRound size={24} className={access === "ssh" ? "text-link" : "text-dim"} aria-hidden /> },
     { value: "none" as const, label: tx("Aucun"), hint: tx("Ping et services web seulement"), icon: <Ban size={24} className={access === "none" ? "text-link" : "text-dim"} aria-hidden /> },
   ];
   if (!d.up || kind === "windows") options.unshift(...options.splice(1, 1));   // the agent first: it needs no ping and no SSH

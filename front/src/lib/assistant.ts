@@ -12,7 +12,7 @@ export const STEPS: { id: AssistantStep; title: string; ready: boolean }[] = [
   { id: "machine", title: tx("Cette machine"), ready: true },
   { id: "network", title: tx("Le réseau"), ready: true },
   { id: "access", title: tx("Lire chaque machine"), ready: true },
-  { id: "tools", title: tx("Relier vos outils"), ready: true },
+  { id: "tools", title: tx("Et maintenant ?"), ready: true },
 ];
 
 export interface AssistantProgress { current: AssistantStep; done: AssistantStep[]; skipped: AssistantStep[]; host: string; accepted: string[] }   // accepted : machines gardées avec leur méthode actuelle
