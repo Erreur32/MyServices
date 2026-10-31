@@ -11,7 +11,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.33.3 (2026-11-01)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
+- **Agents page**: the « Update the late agents » button pulses while agents are waiting, so it is not missed. It goes away once the update is asked.
 - **Agents page**: a mark appears beside an agent only when something is to be done: it cannot read Docker or the owners of its ports, and its machine has no SSH to read them instead. The note about the rhythm is gone, and what an update brings is in the tooltip of its arrow. Confirmations show for a few seconds in the header: nothing moves in the page, and an error stays next to its agent.
 
 ## v0.33.2 (2026-11-01)
