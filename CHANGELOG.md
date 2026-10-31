@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Agent install**: a box adds the three exact read-only sudo rules to the Linux command, instead of typing `MSV_SUDO=1` by hand. It is off by default.
+- **Agent on a machine outside your network**: the install frame shows the address field and warns when the machine cannot reach this address, or when its token would cross the internet unencrypted. A VPN address (Tailscale, WireGuard) or https is the way to go.
+
 ### Fixed
 - **Backups map**: it could stay frozen when a machine both sends and keeps copies. Links inside a row now go under it instead of through the machines.
 - **Maps**: a map that failed is tried again at the next pass, even when its data did not change. Until then, the Diagrams page says it is out of date instead of showing it as up to date.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanAgentUrl, installCommand } from "./agentCommand";
+import { cleanAgentUrl, installCommand, isPublicIp, outsideProblem } from "./agentCommand";
 
 describe("commande d'installation de l'agent", () => {
   it("accepte une adresse http(s)://hôte[:port] et retire le « / » final", () => {
@@ -26,5 +26,22 @@ describe("commande d'installation de l'agent", () => {
     expect(c?.[2]).toContain("/agent/install.sh");
     expect(c?.[2]).toContain("sudo env");
     expect(installCommand("n'importe quoi", "t", "linux")).toBeNull();
+  });
+
+  it("adds the sudo rules to a Linux command only when asked", () => {
+    expect(installCommand("http://192.168.1.10:8091", "t", "linux")).not.toContain("MSV_SUDO");
+    expect(installCommand("http://192.168.1.10:8091", "t", "linux", true)).toContain("sudo env MSV_SUDO=1 MSV_URL=");
+    expect(installCommand("http://192.168.1.10:8091", "t", "windows", true)).not.toContain("MSV_SUDO");
+  });
+
+  it("tells a machine outside the network from one inside", () => {
+    expect(isPublicIp("203.0.113.7")).toBe(true);
+    for (const ip of ["192.168.1.10", "10.0.0.2", "172.16.0.1", "100.100.1.1", "ms.lan"]) expect(isPublicIp(ip), ip).toBe(false);
+  });
+
+  it("names what a machine outside the network cannot use", () => {
+    for (const url of ["http://192.168.1.10:8090", "http://myservices:8090", "https://ms.lan"]) expect(outsideProblem(url), url).toBe("private");
+    expect(outsideProblem("http://ms.example.org")).toBe("clear");
+    for (const url of ["https://ms.example.org", "http://100.100.1.1:8090", "http://ms.tail1234.ts.net:8090", "pas une adresse"]) expect(outsideProblem(url), url).toBeNull();
   });
 });
