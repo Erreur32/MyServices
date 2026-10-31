@@ -7,7 +7,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from connectors import docker_ssh  # noqa: E402
+from connectors import asus_router, docker_ssh  # noqa: E402
 from msv.core import config  # noqa: E402
 
 # CI has no /config/services-meta.json and importing myservices reads it: the example stands in, for the import only
@@ -21,6 +21,13 @@ class SlowPatterns(unittest.TestCase):
         got = read()
         self.assertLess(time.monotonic() - t0, 1)
         return got
+
+    def test_a_stray_comma_in_a_router_answer_is_still_read(self):
+        self.assertEqual(asus_router.parse('{"a": 1 , , "b": , "c": 2,}'), {"a": 1, "b": None, "c": 2})
+
+    def test_a_long_blank_in_a_router_answer_is_quick(self):
+        with self.assertRaises(asus_router.ConnectorError):
+            self.quick(lambda: asus_router.parse(" " * 200_000 + "x"))
 
     def test_internal_addresses_are_read(self):
         out = "web=172.16.0.2/16 db=172.16.0.3/16 \n_host=10.0.0.5/24\nnothing here\nempty= \n"

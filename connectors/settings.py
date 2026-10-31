@@ -28,7 +28,7 @@ NETWORK = "Réseau / DNS"
 # Category of a connector in the « add » picker: the one of its known app (known_apps), except the backup tools grouped apart and
 # the connectors without a known app
 BACKUP_TYPES = {"backup-folder", "backrest", "borgmatic", "urbackup", "veeam", "veeam-m365", "proxmox-backup"}
-CATEGORY = {"cloudflare": NETWORK, "netatmo": "Domotique", "tapo": "Domotique", "upnp-box": NETWORK, "fritzbox": NETWORK, "sfrbox": NETWORK, "livebox": NETWORK, "vodafone-station": NETWORK, "sagemcom-fast": NETWORK, "bbox": NETWORK, "swisscom-box": NETWORK, "connect-box": NETWORK, "liberty-gateway": NETWORK, "speedport": NETWORK, "technicolor-gateway": NETWORK, "tmobile-home-internet": NETWORK, "hitron-coda": NETWORK, "verizon-fios": NETWORK, "arris-surfboard": NETWORK, "vcenter": "Infra / virtualisation", "synology": "Fichiers / sync"}
+CATEGORY = {"cloudflare": NETWORK, "netatmo": "Domotique", "tapo": "Domotique", "upnp-box": NETWORK, "fritzbox": NETWORK, "sfrbox": NETWORK, "livebox": NETWORK, "vodafone-station": NETWORK, "sagemcom-fast": NETWORK, "bbox": NETWORK, "swisscom-box": NETWORK, "connect-box": NETWORK, "liberty-gateway": NETWORK, "speedport": NETWORK, "technicolor-gateway": NETWORK, "tmobile-home-internet": NETWORK, "hitron-coda": NETWORK, "verizon-fios": NETWORK, "arris-surfboard": NETWORK, "openwrt": NETWORK, "mikrotik": NETWORK, "asus-router": NETWORK, "tplink-router": NETWORK, "vcenter": "Infra / virtualisation", "synology": "Fichiers / sync"}
 
 
 def category(type_: str) -> str:

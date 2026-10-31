@@ -2045,6 +2045,8 @@ export const EN: Record<string, string> = {
   "État git d'où vient cette image": "Git state this image was built from",
   "+{0} depuis {1}": "+{0} since {1}",
   "modifs non commitées": "uncommitted changes",
+  "État git de la copie de travail": "Git state of the working copy",
+  "Branche active : {0} commit(s) pas encore ici": "Active branch: {0} commit(s) not here yet",
   "Version prévue d'après le journal des changements": "Planned version, from the changelog",
   "Mém.": "Mem.",
   "Disque le plus rempli : {0}": "Fullest disk: {0}",

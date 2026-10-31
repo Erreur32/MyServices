@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.32.1 → 0.33.0
+
+**Nothing to do.** No setting, volume, agent or database change. Four optional connectors appear: OpenWrt, MikroTik RouterOS, Asus router and TP-Link Archer. None was tested on a real router, and nothing is read until you add one.
+
 ## 0.32.0 → 0.32.1
 
 **Nothing to do.** No setting, volume, agent or database change. Reading the generator tag of a page and the Docker networks of a machine gives the same results as before, only quickly on a crafted text.
