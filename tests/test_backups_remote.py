@@ -113,8 +113,9 @@ class Scan(unittest.TestCase):
 
     def test_erreur_reseau_reste_une_erreur(self):
         with mock.patch.object(rf.RemoteFolder, "list_dir", side_effect=ConnectorError("FTP : timed out")):
+            box = conn()
             with self.assertRaises(ConnectorError):
-                conn().scan("/backups")
+                box.scan("/backups")
 
 
 class Collect(unittest.TestCase):
@@ -172,12 +173,15 @@ class Assistant(unittest.TestCase):
         self.assertEqual((out["folders"], out["file_count"], out["size"]), (["pve"], 2, 10 + 1))   # .hidden still listed here: browsing shows all
         self.assertEqual(self.config.read_text(encoding="utf-8"), "{}")
         self.assertFalse(self.meta.exists())
+        acct = self.acct()
         with self.assertRaises(ba.BackupError):
-            ba.remote_browse(self.acct(), "/nope")
+            ba.remote_browse(acct, "/nope")
+        acct = self.acct()
         with self.assertRaises(ba.BackupError):
-            ba.remote_browse(self.acct(), "/a/../b")
+            ba.remote_browse(acct, "/a/../b")
+        acct = self.acct(name="")
         with self.assertRaises(ba.BackupError):
-            ba.remote_test(self.acct(name=""))
+            ba.remote_test(acct)
 
     def test_suivi_ecrit_le_compte_chiffre_et_le_jeu(self):
         self.assertEqual(ba.remote_follow(self.acct(), "/backups/pve", "PVE sur Freebox", 2), {"added": 1, "updated": 0, "copy": False})
@@ -197,10 +201,12 @@ class Assistant(unittest.TestCase):
 
     def test_refus_sans_rien_enregistrer(self):
         for path in ("/nope", "/"):
+            acct = self.acct()
             with self.assertRaises(ba.BackupError, msg=path):
-                ba.remote_follow(self.acct(), path)
+                ba.remote_follow(acct, path)
+        acct = self.acct()
         with self.assertRaises(ba.BackupError):
-            ba.remote_follow(self.acct(), "/backups/pve", "x", 999)
+            ba.remote_follow(acct, "/backups/pve", "x", 999)
         self.assertEqual(self.config.read_text(encoding="utf-8"), "{}")
         self.assertFalse(self.meta.exists())
 
@@ -212,10 +218,12 @@ class Assistant(unittest.TestCase):
         s = json.loads(self.meta.read_text(encoding="utf-8"))["sets"][0]
         self.assertEqual([l["host"] for l in s["locations"]], ["srv", "remote-freebox"])
         self.assertTrue(s["locations"][1]["offsite"] and s["expect_offsite"])
+        acct = self.acct()
         with self.assertRaises(ba.BackupError):
-            ba.remote_follow(self.acct(), "/backups/pve", copy_of="pve-config")   # already there
+            ba.remote_follow(acct, "/backups/pve", copy_of="pve-config")   # already there
+        acct = self.acct()
         with self.assertRaises(ba.BackupError):
-            ba.remote_follow(self.acct(), "/backups/pve", copy_of="inconnu")
+            ba.remote_follow(acct, "/backups/pve", copy_of="inconnu")
 
 
 if __name__ == "__main__":

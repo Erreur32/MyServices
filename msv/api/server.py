@@ -38,6 +38,9 @@ HERE = Path(__file__).resolve().parents[2]   # the project folder (msv/api/serve
 STATIC = HERE / "web"
 WEB = Path(CFG["web_dir"])
 BACKUPS_FILE = "backups.json"
+NETSCAN_FILE = "network-scan.json"
+STATS_FILE = "stats.json"
+DATA_FILE = "data.json"
 CONNECTORS_FILE = "connectors.json"   # the readers' shared state, in the state directory
 PREFIX = "/"
 PORT = int(os.environ.get("MYSERVICES_PORT", "8090"))
@@ -264,7 +267,7 @@ def agent_listening() -> dict[str, set[int]]:
 
 def last_collection() -> dict:
     try:
-        return json.loads((WEB / "data.json").read_text(encoding="utf-8"))
+        return json.loads((WEB / DATA_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -318,7 +321,7 @@ def pulse_stale_health() -> list[str]:
     if not enabled("health"):
         return []
     try:
-        stats = json.loads((WEB / "health" / "stats.json").read_text(encoding="utf-8"))
+        stats = json.loads((WEB / "health" / STATS_FILE).read_text(encoding="utf-8"))
         age = time.time() - datetime.fromisoformat(stats["timestamp"]).timestamp()
     except (OSError, ValueError, KeyError, TypeError):
         return []
@@ -465,7 +468,7 @@ def fast_loop() -> None:
 def local_dns_servers() -> list[str]:
     """The DNS servers of the DNS page (data.json, `dns.servers`): the ones the tiles test for an answer."""
     try:
-        servers = (json.loads((WEB / "data.json").read_text(encoding="utf-8")).get("dns") or {}).get("servers") or {}
+        servers = (json.loads((WEB / DATA_FILE).read_text(encoding="utf-8")).get("dns") or {}).get("servers") or {}
     except (OSError, ValueError):
         return []
     return [ip for ip in servers if isinstance(ip, str)]
@@ -480,13 +483,13 @@ def keep_availability() -> None:
     from msv.core.auth import db_path
     db = db_path(CFG)
     steps = {
-        "disponibilité": lambda: availability.sample(db, WEB / "data.json"),
-        "cadres Réseau": lambda: tile_history.sample_network(db, WEB / "data.json"),
+        "disponibilité": lambda: availability.sample(db, WEB / DATA_FILE),
+        "cadres Réseau": lambda: tile_history.sample_network(db, WEB / DATA_FILE),
         "cadres Sauvegardes": lambda: tile_history.sample_backups(db, WEB / BACKUPS_FILE),
-        "cadres Services": lambda: tile_history.sample_services(db, WEB / "data.json"),
+        "cadres Services": lambda: tile_history.sample_services(db, WEB / DATA_FILE),
         "cadres Agents": lambda: tile_history.sample_agents(db, agents.Agents(db).listing()),
-        "cadres IA": lambda: tile_history.sample_ai(db, WEB / "data.json", WEB / "health" / "stats.json"),
-        "cadres Virtualisation": lambda: tile_history.sample_virt(db, WEB / "data.json", WEB / BACKUPS_FILE),
+        "cadres IA": lambda: tile_history.sample_ai(db, WEB / DATA_FILE, WEB / "health" / STATS_FILE),
+        "cadres Virtualisation": lambda: tile_history.sample_virt(db, WEB / DATA_FILE, WEB / BACKUPS_FILE),
     }
     for name, step in steps.items():
         try:
@@ -504,8 +507,8 @@ def keep_metrics() -> None:
     from msv.collect import tile_history
     from msv.core.auth import db_path
     try:
-        metrics.sample(db_path(CFG), WEB / "health" / "stats.json")
-        tile_history.sample(db_path(CFG), WEB / "health" / "stats.json")
+        metrics.sample(db_path(CFG), WEB / "health" / STATS_FILE)
+        tile_history.sample(db_path(CFG), WEB / "health" / STATS_FILE)
     except Exception as e:  # base unavailable: only the curves miss a point
         log(f"⚠ mesures des machines : {e}")
 
@@ -661,7 +664,7 @@ def auto_netscan() -> None:
     les « netscan_every » heures (config.json, Réglages → Recherche réseau ; 0 = coupée). Mêmes garanties que le bouton :
     lecture seule, un /24 au plus, un passage à la fois."""
     every = CFG["netscan_every"]
-    f = Path(CFG["state_dir"]) / "network-scan.json"
+    f = Path(CFG["state_dir"]) / NETSCAN_FILE
     if netscan.due(f, every) and not netscan.summary()["running"]:
         try:
             from msv.machines import machines_admin
@@ -674,7 +677,7 @@ def auto_netscan() -> None:
 def auto_adopt() -> None:
     """Auto mode (Settings -> Discovery): once per finished network search, the machines worth following are added (machines_admin
     .adopt_found), then a collection reads them. An IP added this way and removed by hand later is never added again (auto-mode.json)."""
-    f, mark = Path(CFG["state_dir"]) / "network-scan.json", Path(CFG["state_dir"]) / "auto-mode.json"
+    f, mark = Path(CFG["state_dir"]) / NETSCAN_FILE, Path(CFG["state_dir"]) / "auto-mode.json"
     if not CFG["auto_mode"] or not f.exists():
         return
     st = netscan.state(f)
@@ -705,7 +708,7 @@ def auto_adopt() -> None:
 def netscan_task() -> dict:
     """La recherche réseau automatique, présentée comme une tâche (en-tête) : prochaine échéance = dernière recherche + « netscan_every » h
     (vérifiée chaque minute par le planificateur ; tout de suite s'il n'y en a jamais eu) ; coupée si netscan_every = 0."""
-    every, f = CFG["netscan_every"], Path(CFG["state_dir"]) / "network-scan.json"
+    every, f = CFG["netscan_every"], Path(CFG["state_dir"]) / NETSCAN_FILE
     on = every > 0
     st = netscan.state(f) if f.exists() else {}
     last = st.get("ended") or st.get("started")
@@ -750,7 +753,7 @@ def wake_check() -> None:
     """Postes « souvent éteints » dont la fiche est grisée dans Santé : un ping ciblé chaque minute ; si la réponse change (le PC
     s'allume ou s'éteint), la santé de cette seule machine est relue, la fiche passe de « éteinte » à « allumée, agent en attente »."""
     try:
-        asleep = json.loads((WEB / "health" / "stats.json").read_text(encoding="utf-8")).get("asleep", [])
+        asleep = json.loads((WEB / "health" / STATS_FILE).read_text(encoding="utf-8")).get("asleep", [])
     except (OSError, ValueError):
         return
     for a in asleep:
@@ -879,7 +882,7 @@ def first_meta() -> None:
     log(f"installation neuve : {meta} créé avec la machine hôte ({ip}) ; ses ports en écoute sont relevés tout de suite")
 
 
-FIRST = {"collect": "data.json", "watch": "events.json", "health": "health/stats.json", "backups": BACKUPS_FILE}
+FIRST = {"collect": DATA_FILE, "watch": "events.json", "health": "health/stats.json", "backups": BACKUPS_FILE}
 
 
 def first_runs() -> None:
@@ -927,7 +930,7 @@ def status() -> dict:
                 prog = None  # fichier du passage précédent
         except (OSError, ValueError):
             pass
-    generated = generated_of(WEB / "data.json")
+    generated = generated_of(WEB / DATA_FILE)
     ts = (lambda x: int(x) if x else None)
     return {"running": running, "progress": prog, "started": ts(t["start"]), "ended": ts(t["end"]),
             "result": t["result"], "generated": generated, "cooldown": COOLDOWN, "wait": wait, "now": int(now),

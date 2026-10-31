@@ -32,7 +32,7 @@ export function SearchBox({ value, onChange, placeholder, count, className = "" 
   );
 }
 
-export function Badge({ tone, children, title, outline = false, plainText = false }: { tone: Tone; children: ReactNode; title?: string; outline?: boolean; plainText?: boolean }) {   // outline: the border and the text colour only, no filled background ; plainText: the text in the normal colour (white on dark), the state is carried by the border
+export function Badge({ tone, children, title, outline = false, plainText = false }: Readonly<{ tone: Tone; children: ReactNode; title?: string; outline?: boolean; plainText?: boolean }>) {   // outline: the border and the text colour only, no filled background ; plainText: the text in the normal colour (white on dark), the state is carried by the border
   return (
     <span title={title} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-semibold ${(outline ? TONE[tone].replace(/bg-\S+/, "bg-transparent") : TONE[tone]).replace(plainText ? /text-\S+/ : /$^/, "text-txt")}`}>
       {children}
@@ -41,7 +41,7 @@ export function Badge({ tone, children, title, outline = false, plainText = fals
 }
 
 
-export function Level({ level, children, outline, plainText }: { level: string; children?: ReactNode; outline?: boolean; plainText?: boolean }) {   // outline: border and text colour only; always so for « to watch »
+export function Level({ level, children, outline, plainText }: Readonly<{ level: string; children?: ReactNode; outline?: boolean; plainText?: boolean }>) {   // outline: border and text colour only; always so for « to watch »
   const [tone, label] = LEVEL[level] || ["off", level];
   return <Badge tone={tone} outline={outline ?? level === "warn"} plainText={plainText ?? level === "warn"}>{children ?? label}</Badge>;
 }
@@ -93,7 +93,7 @@ export function TableCard({ title, tone, count, cols, rows, sort, note, empty, f
 }
 
 /** Nombre d'un titre de carte, dans une bulle ronde (teinte au choix : info par défaut) */
-export function Count({ n, tone = "info" }: { n: ReactNode; tone?: "info" | "ok" | "warn" | "bad" | "off" }) {
+export function Count({ n, tone = "info" }: Readonly<{ n: ReactNode; tone?: "info" | "ok" | "warn" | "bad" | "off" }>) {
   const c = { info: "bg-link/15 text-link", ok: "bg-ok/15 text-ok", warn: "bg-warn text-bg", bad: "bg-bad text-bg", off: "bg-bg2 text-muted" }[tone];
   return <span className={`inline-grid h-[22px] min-w-[22px] shrink-0 place-items-center rounded-full px-1.5 align-middle font-mono text-xs font-bold leading-none ${c}`}>{n}</span>;
 }
@@ -103,7 +103,7 @@ export function Loading({ error }: Readonly<{ error?: string }>) {
   return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 }
 
-export function Dim({ children }: { children: ReactNode }) {
+export function Dim({ children }: Readonly<{ children: ReactNode }>) {
   return <span className="text-dim">{children}</span>;
 }
 
@@ -121,7 +121,7 @@ const CARD_TONE: Record<"ok" | "warn" | "bad", string> = {
   bad: "border-bad/50",
 };
 
-export function Card({ children, className = "", tone }: { children: ReactNode; className?: string; tone?: "ok" | "warn" | "bad" }) {
+export function Card({ children, className = "", tone }: Readonly<{ children: ReactNode; className?: string; tone?: "ok" | "warn" | "bad" }>) {
   return <section className={`rounded-2xl border ${tone ? "" : "border-line"} bg-card p-4 shadow-sm ${TITLE} ${tone ? CARD_TONE[tone] : ""} ${className}`}>{children}</section>;
 }
 
@@ -296,9 +296,9 @@ function SortLabel({ k, sort, children }: Readonly<{ k: string; sort: ColumnSort
   );
 }
 
-export function Th({ k, sort, children, className = "", title }: {
+export function Th({ k, sort, children, className = "", title }: Readonly<{
   title?: string; k?: string; sort?: ColumnSort; children?: ReactNode; className?: string;
-}) {
+}>) {
   return (
     <th title={title} className={`sticky top-0 z-10 whitespace-nowrap border-b border-line bg-bg2 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim ${className}`}>
       {k && sort ? <SortLabel k={k} sort={sort}>{children}</SortLabel> : children}
@@ -318,16 +318,16 @@ export function Table({ head, children, fit = false, fixed = false }: Readonly<{
 }
 
 /** Version mobile d'un tableau : une fiche par ligne */
-export function Cards({ children, always = false, dense = false }: { children: ReactNode; always?: boolean; dense?: boolean }) {  // always : aussi sur grand écran (choix « Cartes ») ; dense : cartes compactes, une colonne de plus
+export function Cards({ children, always = false, dense = false }: Readonly<{ children: ReactNode; always?: boolean; dense?: boolean }>) {  // always : aussi sur grand écran (choix « Cartes ») ; dense : cartes compactes, une colonne de plus
   if (!always) return <div className="flex flex-col gap-2.5 md:hidden">{children}</div>;
   return <div className={`grid gap-2.5 md:grid-cols-2 ${dense ? "lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" : "xl:grid-cols-3"}`}>{children}</div>;
 }
 
-export function Empty({ children }: { children: ReactNode }) {
+export function Empty({ children }: Readonly<{ children: ReactNode }>) {
   return <p className="rounded-2xl border border-dashed border-line p-8 text-center text-muted">{children}</p>;
 }
 
-export function Td({ children, className = "" }: { children?: ReactNode; className?: string }) {
+export function Td({ children, className = "" }: Readonly<{ children?: ReactNode; className?: string }>) {
   return <td className={`px-3 py-2.5 align-top ${className}`}>{children}</td>;
 }
 

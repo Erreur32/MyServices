@@ -36,7 +36,7 @@ function barLabel(main: string, p: Progress | undefined, net: NetworkSummary | n
   return main === "collect" ? tx("démarrage…") : "";
 }
 
-export function ScanBar({ onFinished }: { onFinished: () => void }) {
+export function ScanBar({ onFinished }: Readonly<{ onFinished: () => void }>) {
   const st = useScan();
   const was = useRef(false);
   const finished = useRef(onFinished);

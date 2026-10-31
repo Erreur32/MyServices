@@ -138,7 +138,7 @@ export function NetworkStep({ net, reload, machines, connected, unlinked, hidden
 
 /** Machine ajoutée : si elle répond en SSH, préparer l'accès (alias avec la clé de l'app), puis la commande et le test */
 /** linked : l'accès marche déjà d'après les données du serveur (cadre rouvert après un rechargement de la page) */
-function AddedMachine({ host, linked, onDone, onForget }: { host: NetHost; linked: boolean; onDone: () => void; onForget: () => void }) {
+function AddedMachine({ host, linked, onDone, onForget }: Readonly<{ host: NetHost; linked: boolean; onDone: () => void; onForget: () => void }>) {
   const ha = host.apps.includes("Home Assistant");
   const mwk = viaMynetwork(host);  // UniFi : API MynetworK à venir ; SSH facultatif
   const ssh = !!host.ssh_port && !ha;  // Home Assistant se relie par son API : pas de SSH proposé, même s'il répond
@@ -210,7 +210,7 @@ function AddedMachine({ host, linked, onDone, onForget }: { host: NetHost; linke
 }
 
 /** Home Assistant : pas de SSH, son API avec un jeton (connecteur « home-assistant », formulaire et aide partagés avec Réglages) */
-function HomeAssistantLink({ host, onLinked }: { host: NetHost; onLinked: () => void }) {
+function HomeAssistantLink({ host, onLinked }: Readonly<{ host: NetHost; onLinked: () => void }>) {
   const [type, setType] = useState<ConnectorType | null>(null), [open, setOpen] = useState(true), [done, setDone] = useState(false);
   const [note, setNote] = useState<Note>(null);
   useEffect(() => {  // le formulaire (et son aide) s'ouvre d'office : c'est la suite logique de l'ajout

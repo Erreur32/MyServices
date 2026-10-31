@@ -81,12 +81,14 @@ class Reading(unittest.TestCase):
 
     def test_not_a_bbox_and_unreadable_answers(self):
         for device in ([], "x", [{"other": 1}], ConnectorError("HTTP 500")):
+            box = Fake({**FULL, "device": device})
             with self.assertRaises(ConnectorError):
-                Fake({**FULL, "device": device}).collect()
+                box.collect()
 
     def test_session_lost_midway_is_an_error(self):
+        box = Fake({**FULL, "wan/ip": ConnectorError("HTTP 401")})
         with self.assertRaises(ConnectorError) as cm:
-            Fake({**FULL, "wan/ip": ConnectorError("HTTP 401")}).collect()
+            box.collect()
         self.assertNotIn(SECRET, str(cm.exception))
 
     def test_the_test_button_shows_no_secret(self):

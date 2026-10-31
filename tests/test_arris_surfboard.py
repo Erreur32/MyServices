@@ -143,19 +143,22 @@ class OpenPage(unittest.TestCase):
         self.assertNotIn("SECRETSERIAL", json.dumps(card))
 
     def test_login_page_without_password(self):
+        box = Fake({"cmconnectionstatus.html": b"<html>Login</html>"})
         with self.assertRaises(ConnectorError) as e:
-            Fake({"cmconnectionstatus.html": b"<html>Login</html>"}).collect()
+            box.collect()
         self.assertEqual(str(e.exception), arris.NEEDS_LOGIN)
 
     def test_not_a_modem_and_redirect(self):
+        box = Fake({})
         with self.assertRaises(ConnectorError) as e:
-            Fake({}).collect()
+            box.collect()
         self.assertEqual(str(e.exception), arris.NOT_ARRIS)
 
         def redirect(body, headers):
             raise ConnectorError("HTTP 302")
+        box = Fake({"cmconnectionstatus.html": redirect})
         with self.assertRaises(ConnectorError) as e:
-            Fake({"cmconnectionstatus.html": redirect}).collect()
+            box.collect()
         self.assertEqual(str(e.exception), arris.REDIRECTED)
 
 

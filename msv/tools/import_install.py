@@ -25,6 +25,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+CONFIG_JSON = "config.json"
+SERVICES_META = "services-meta.json"
+BACKUPS_META = "backups-meta.json"
+
 HOST_ALIAS = "hote"
 DROP = ("web_dir", "cache_dir", "state_dir", "meta", "backups_meta", "sshlist")
 UID = 10001  # compte myservices de l'image
@@ -188,7 +192,7 @@ def main() -> int:
     a = ap.parse_args()
 
     src, dest, sshd = Path(a.src), Path(a.to), Path(a.ssh_dir)
-    if not (src / "config.json").exists() or not (src / "services-meta.json").exists():
+    if not (src / CONFIG_JSON).exists() or not (src / SERVICES_META).exists():
         sys.exit(f"{src} : config.json ou services-meta.json absent, pas une installation MyServices")
     if dest.exists() and any(dest.iterdir()) and not a.force:
         sys.exit(f"{dest} n'est pas vide (--force pour écraser)")
@@ -200,16 +204,16 @@ def main() -> int:
     dest.mkdir(parents=True, exist_ok=True)  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
     print(f"== Import {src} -> {dest} (machine hôte {host}, alias SSH « {HOST_ALIAS} »)")
 
-    cfg = convert_config(json.loads((src / "config.json").read_text(encoding="utf-8")), host, a.public_url, a.no_alerts)  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
-    (dest / "config.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
-    meta = json.loads((src / "services-meta.json").read_text(encoding="utf-8"))  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
+    cfg = convert_config(json.loads((src / CONFIG_JSON).read_text(encoding="utf-8")), host, a.public_url, a.no_alerts)  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
+    (dest / CONFIG_JSON).write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
+    meta = json.loads((src / SERVICES_META).read_text(encoding="utf-8"))  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
     n = convert_meta(meta)
-    (dest / "services-meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083,S8707: command-line tool, the paths are the ones its operator typed
+    (dest / SERVICES_META).write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083,S8707: command-line tool, the paths are the ones its operator typed
     say(f"✓ services-meta.json : {len(meta.get('machines', {}))} machines, {n} accès « local » -> « {HOST_ALIAS} »")
-    if (src / "backups-meta.json").exists():
-        bm = json.loads((src / "backups-meta.json").read_text(encoding="utf-8"))  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
+    if (src / BACKUPS_META).exists():
+        bm = json.loads((src / BACKUPS_META).read_text(encoding="utf-8"))  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
         convert_backups(bm, dest)
-        (dest / "backups-meta.json").write_text(json.dumps(bm, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083,S8707: command-line tool, the paths are the ones its operator typed
+        (dest / BACKUPS_META).write_text(json.dumps(bm, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083,S8707: command-line tool, the paths are the ones its operator typed
         say(f"✓ backups-meta.json : {len(bm.get('sets', []))} jeux")
     if sshd.is_dir():
         keys = convert_ssh(sshd, dest, host, a.host_user, a.host_key or None)

@@ -44,7 +44,7 @@ const FIXES: { problem: string; fix: ReactNode }[] = [
   { problem: tx("Qui a changé quoi ?"), fix: tx("Application › Journal d'audit liste chaque action des comptes (et des jetons MCP), filtrable et exportable en CSV. Application › Journaux montre ce que le conteneur écrit.") },
 ];
 
-function Block({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
+function Block({ icon: Icon, title, children }: Readonly<{ icon: LucideIcon; title: string; children: ReactNode }>) {
   return <Card><h2 className="mb-3 flex items-center gap-2 font-bold"><Icon size={16} aria-hidden />{title}</h2>{children}</Card>;
 }
 

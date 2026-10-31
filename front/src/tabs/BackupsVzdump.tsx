@@ -18,7 +18,7 @@ interface Choice { on: boolean; label: string; age: string }
 
 const keyOf = (ip: string, g: Group) => `${ip}|${g.dir}|${g.kind}/${g.vmid}`;
 
-export function BackupsVzdump({ state, reload }: { state: VzdumpState; reload: () => void }) {
+export function BackupsVzdump({ state, reload }: Readonly<{ state: VzdumpState; reload: () => void }>) {
   const [hosts, setHosts] = useState<Host[] | null>(null), [pick, setPick] = useState<Record<string, Choice>>({});
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState<"" | "search" | "follow">("");
   const chosen = Object.entries(pick).filter(([, c]) => c.on);

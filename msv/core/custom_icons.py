@@ -16,6 +16,8 @@ from pathlib import Path
 
 from msv.core import avatars
 
+INDEX_JSON = "index.json"
+
 MAX_ICONS = 200
 KEY_RE = re.compile(r"custom-[0-9a-f]{12}")
 EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif", "image/svg+xml": "svg"}
@@ -44,7 +46,7 @@ def _file(key: str, mime: str | None) -> Path:
 
 def _index() -> dict[str, dict]:
     try:
-        got = json.loads((_dir() / "index.json").read_text(encoding="utf-8"))
+        got = json.loads((_dir() / INDEX_JSON).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return got if isinstance(got, dict) else {}
@@ -73,7 +75,7 @@ def add(raw: bytes, name: str | None = None) -> str:
         folder.mkdir(parents=True, exist_ok=True)
         _write(_file(key, mime), raw)
         idx[key] = {"label": _label(name), "mime": mime, "created": idx.get(key, {}).get("created") or time.time()}
-        _write(folder / "index.json", json.dumps(idx, ensure_ascii=False).encode("utf-8"))
+        _write(folder / INDEX_JSON, json.dumps(idx, ensure_ascii=False).encode("utf-8"))
     return key
 
 
@@ -103,7 +105,7 @@ def remove(key: str) -> bool:
         if entry is None:
             return False
         _file(key, entry.get("mime")).unlink(missing_ok=True)
-        _write(_dir() / "index.json", json.dumps(idx, ensure_ascii=False).encode("utf-8"))
+        _write(_dir() / INDEX_JSON, json.dumps(idx, ensure_ascii=False).encode("utf-8"))
     return True
 
 

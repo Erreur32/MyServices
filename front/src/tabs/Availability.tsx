@@ -54,7 +54,7 @@ export const cellColor = (p: number | null) => (p == null ? "bg-bg2" : p >= 100 
 export const pctTone = (p: number) => (p >= 99.9 ? "text-ok" : p >= 95 ? "text-warn" : "text-bad");
 export const pct = (p: number) => `${p >= 99.995 ? "100" : p.toFixed(p >= 99 ? 2 : 1).replace(".", LANG === "fr" ? "," : ".")} %`;
 
-function Strip({ cells, step }: { cells: Cell[]; step: Report["step"] }) {
+function Strip({ cells, step }: Readonly<{ cells: Cell[]; step: Report["step"] }>) {
   return (
     <span className="flex h-5 min-w-[9rem] flex-1 items-stretch gap-px" aria-hidden>
       {cells.map((c) => (

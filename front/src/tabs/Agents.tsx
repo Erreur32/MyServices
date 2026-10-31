@@ -240,7 +240,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
 }
 
 /** Carte d'un agent révoqué : qui, quand, et deux gestes : en recréer un pour ce PC, ou l'effacer de la liste (confirmation) */
-function RevokedCard({ a, conf, ip, busy, onNew, reload }: { a: AgentInfo; conf?: MachineConf; ip: string; busy: boolean; onNew?: () => void; reload: () => void }) {
+function RevokedCard({ a, conf, ip, busy, onNew, reload }: Readonly<{ a: AgentInfo; conf?: MachineConf; ip: string; busy: boolean; onNew?: () => void; reload: () => void }>) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-dim/50 bg-card/60 p-3 text-sm">

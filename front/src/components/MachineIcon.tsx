@@ -20,7 +20,7 @@ interface Props {
   empty?: React.ReactNode;
 }
 
-export function MachineIcon({ m, scan, large, empty }: Props) {
+export function MachineIcon({ m, scan, large, empty }: Readonly<Props>) {
   const box = large ? "h-9 w-9" : "h-6 w-6", img = large ? "h-6 w-6" : "h-4 w-4", glyph = large ? 20 : 14;
   const picked = chosenIcon(m.icon);  // choix de l'utilisateur : prioritaire sur la détection
   if (picked) {

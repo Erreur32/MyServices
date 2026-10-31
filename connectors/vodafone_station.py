@@ -30,6 +30,8 @@ from connectors.base import ConnectorError, Field, RateLimited
 from connectors.box_kit import Box, box_card
 from connectors.status_kit import StatusConnector, num
 
+HTTP_401 = "HTTP 401"
+
 HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:78.0) Gecko/20100101 Firefox/78.0", "Accept-Language": "en-GB,en;q=0.5", "X-Requested-With": "XMLHttpRequest"}
 MAX_BYTES = 2_000_000
 TECHNICOLOR_BUSY = "MSG_LOGIN_150"   # the answer of a box that already has a session
@@ -143,7 +145,7 @@ class VodafoneStation(StatusConnector):
             e.close()
             if e.code == 429:
                 raise RateLimited(f"HTTP {e.code}") from None
-            raise ConnectorError("HTTP 401" if e.code in (301, 302, 303, 307, 401, 403) else f"HTTP {e.code}") from None
+            raise ConnectorError(HTTP_401 if e.code in (301, 302, 303, 307, 401, 403) else f"HTTP {e.code}") from None
         except (OSError, ValueError) as e:
             raise ConnectorError(f"injoignable ({getattr(e, 'reason', e.__class__.__name__)})") from None
 
@@ -211,7 +213,7 @@ class VodafoneStation(StatusConnector):
         except RateLimited:
             raise
         except ConnectorError as e:
-            if str(e) == "HTTP 401":
+            if str(e) == HTTP_401:
                 raise
             hosts = None
         devices = sum(1 for h in hosts if isinstance(h, dict) and h.get("active") == "true") if isinstance(hosts, list) else None
@@ -278,7 +280,7 @@ class VodafoneStation(StatusConnector):
             except RateLimited:
                 raise
             except ConnectorError as e:
-                if str(e) == "HTTP 401":
+                if str(e) == HTTP_401:
                     raise
         page |= overview
         lists = [str(page.get(k) or "").split(";") for k in ("wifi_user", "wifi_guest", "ethernet")] if any(k in page for k in ("wifi_user", "wifi_guest", "ethernet")) else None
@@ -304,7 +306,7 @@ class VodafoneStation(StatusConnector):
             else:
                 box = self.sercomm_read(self.sercomm_login(base, info["page"]))   # no logout page is known: the session times out by itself
         except ConnectorError as e:
-            if str(e) == "HTTP 401":
+            if str(e) == HTTP_401:
                 raise ConnectorError(SESSION_LOST) from None
             raise
         REFUSED_BY.pop(base, None)

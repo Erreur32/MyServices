@@ -39,7 +39,7 @@ export function Src({ children }: Readonly<{ children: ReactNode }>) {
 
 const handSet = (r: Host, field: string) => !!r.hand?.includes(field);
 
-function Block({ title, tone, rows }: { title: string; tone: keyof typeof TONES; rows: Row[] }) {
+function Block({ title, tone, rows }: Readonly<{ title: string; tone: keyof typeof TONES; rows: Row[] }>) {
   return (
     <BlockFrame title={title} tone={tone}>
       <dl className="mx-3 mb-3 mt-2 grid grid-cols-[minmax(90px,auto)_1fr] overflow-hidden rounded-md text-sm">
@@ -75,7 +75,7 @@ function PublicOnPurpose({ r, admin }: Readonly<{ r: Host; admin: boolean }>) {
 }
 
 /** A service of a machine in pause (not followed, or « pause » set by hand): why, and the way back (admin) */
-function Paused({ r, admin }: { r: Host; admin: boolean }) {
+function Paused({ r, admin }: Readonly<{ r: Host; admin: boolean }>) {
   const [note, setNote] = useState<Note>(null);
   const resume = () => act(() => send("DELETE", `services/pause/${encodeURIComponent(`${r.ip}:${r.port}`)}`), tx("suivi repris : sondé à la prochaine collecte"), setNote);
   return (

@@ -49,6 +49,8 @@ from msv.core.docker_state import allowed_names, intended_stop
 from msv.collect import readers
 from msv.remote.sshmux import SSH_MUX
 
+DOCKER_LABEL = "🐳 Docker"
+
 STATE_FILE = Path(CFG["state_dir"]) / "health.json"
 DOCKER_CACHE = os.path.join(CFG["cache_dir"], "docker.json")   # the collection's Docker inventory (myservices.DOCKER_CACHE): its container states are refreshed here
 CONNECTORS_STATE = Path(CFG["state_dir"]) / "connectors.json"   # shared readings of the connectors (readers.py, the collection)
@@ -1896,7 +1898,7 @@ def compute_host_blocks(h: dict) -> dict:
             "disk": "<div class='muted'>Hôte injoignable en SSH (timeout ou clé refusée)"
                     + (" ou PowerShell sans réponse" if h.get("os") == "windows" else "") + ".</div>",
             "systemd": na, "load": na, "kernel": na, "apt": na, "ssh": na, "smart": na,
-            "docker_label": "🐳 Docker", "docker": na,
+            "docker_label": DOCKER_LABEL, "docker": na,
         }
 
     level = h["level"]
@@ -1958,7 +1960,7 @@ def compute_host_blocks(h: dict) -> dict:
 
     dk = h["docker"]
     if not dk.get("accessible"):
-        docker_label = "🐳 Docker"
+        docker_label = DOCKER_LABEL
         docker_block = ("<div class='muted'>N/A (Windows)</div>" if dk.get("reason") == "windows"
                         else "<div class='muted'>Non relevé (Beszel seul)</div>" if dk.get("reason") == "beszel"
                         else "<div class='muted'>Non accessible (pas d'accès docker)</div>")
@@ -2076,7 +2078,7 @@ def render_html(stats: dict) -> str:
     columns = [
         ("💾 Disque", "disk"), ("⚙️ Systemd", "systemd"), ("⚡ Charge", "load"),
         ("🐧 Kernel", "kernel"), ("📦 Maj", "apt"), ("🔐 SSH", "ssh"),
-        ("🩺 SMART", "smart"), ("🐳 Docker", "docker"),
+        ("🩺 SMART", "smart"), (DOCKER_LABEL, "docker"),
     ]
     thead = "<th>Machine</th>" + "".join(f"<th>{label}</th>" for label, _ in columns)
     trows = []

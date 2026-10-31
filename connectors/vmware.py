@@ -18,6 +18,8 @@ import urllib.parse
 
 from connectors.base import Connector, ConnectorError, Field, Result
 
+REST_PREFIX = "/rest"
+
 MAX_VMS = 500
 MAX_IDENTITY = 200   # guest identity is one call per VM: the first ones only on a very big vCenter
 
@@ -54,7 +56,7 @@ class VCenter(Connector):
     def _login(self) -> tuple[str, str]:
         """(session token, API prefix: « /api » or « /rest » for vCenter 6.7 / 7.0 before U2)."""
         basic = "Basic " + base64.b64encode(f"{self.conf['user']}:{self.conf['password']}".encode()).decode()
-        for prefix, path in (("/api", "/api/session"), ("/rest", "/rest/com/vmware/cis/session")):
+        for prefix, path in (("/api", "/api/session"), (REST_PREFIX, "/rest/com/vmware/cis/session")):
             try:
                 got = self._call(path, "POST", {"Authorization": basic})
             except ConnectorError as e:
@@ -74,7 +76,7 @@ class VCenter(Connector):
 
     def _get(self, token: str, prefix: str, path: str, optional: bool = False):
         rest = path
-        if prefix == "/rest":   # old API: filters spelled filter.hosts, answers wrapped in {"value": …}
+        if prefix == REST_PREFIX:   # old API: filters spelled filter.hosts, answers wrapped in {"value": …}
             rest = rest.replace("?hosts=", "?filter.hosts=")
         try:
             got = self._call(prefix + rest, headers={"vmware-api-session-id": token})
@@ -84,7 +86,7 @@ class VCenter(Connector):
             if str(e).startswith("HTTP 403"):
                 raise ConnectorError("droits insuffisants : donner le rôle « Read-only » au compte, propagé") from None
             raise
-        return got.get("value") if prefix == "/rest" and isinstance(got, dict) and "value" in got else got
+        return got.get("value") if prefix == REST_PREFIX and isinstance(got, dict) and "value" in got else got
 
     def collect(self) -> dict:
         token, prefix = self._login()

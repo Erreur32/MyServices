@@ -56,7 +56,7 @@ def tasks_v1():
 @router.get(API + "/connectors", tags=["connecteurs"], summary="État des connecteurs au dernier passage")
 def connectors_v1():
     try:
-        data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
+        data = json.loads((core.WEB / core.DATA_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {"generated": None, "connectors": []}
     return {"generated": data.get("generated"), "connectors": data.get("connectors", [])}
@@ -79,7 +79,7 @@ def produced_manifest() -> dict:
     file again only when its stamp moved, instead of revalidating each of them. A file served from elsewhere (health_url or
     backups_url as a full URL) is not listed: the page keeps its own pace for it."""
     hu, bu = str(core.CFG.get("health_url") or ""), str(core.CFG.get("backups_url") or "")
-    rels = ["data.json", "pulse.json", "ports.json", "live.json", "events.json"]
+    rels = [core.DATA_FILE, "pulse.json", "ports.json", "live.json", "events.json"]
     if hu and "://" not in hu:
         rels += [hu + "stats.json", hu + "events.json"]
     if bu and "://" not in bu:
@@ -103,7 +103,7 @@ def manifest(request: Request):
 
 @router.get(API + "/machines", tags=["modèle"], summary="Machines du réseau (modèle commun)", response_model=MachinesOut)
 def machines_v1():
-    d = read_produced("data.json") or {}
+    d = read_produced(core.DATA_FILE) or {}
     items, skipped = typed(models.Machine, d.get("machine_list"))
     return MachinesOut(generated=d.get("generated"), machines=items, skipped=skipped)
 
@@ -111,7 +111,7 @@ def machines_v1():
 @router.get(API + "/services", tags=["modèle"], summary="Services exposés (modèle commun), filtrables par machine et par type",
          response_model=ServicesOut)
 def services_v1(machine: str | None = None, type: Literal["proxy", "redirect", "dead", "stream", "local"] | None = None):
-    d = read_produced("data.json") or {}
+    d = read_produced(core.DATA_FILE) or {}
     items, skipped = typed(models.Service, d.get("hosts"))
     if machine:
         items = [s for s in items if (s.machine or "").casefold() == machine.casefold() or s.ip == machine]

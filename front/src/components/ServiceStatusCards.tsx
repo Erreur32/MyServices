@@ -9,7 +9,7 @@ import { tx } from "../lib/i18n";
 import { Count } from "./ui";
 import { CardHead } from "./InfraCards";
 
-function Tile({ icon, value, label, tone }: { icon: React.ReactNode; value: string | number; label: string; tone?: string }) {
+function Tile({ icon, value, label, tone }: Readonly<{ icon: React.ReactNode; value: string | number; label: string; tone?: string }>) {
   return (
     <div className="flex items-center gap-2.5 rounded-lg bg-bg2/60 px-3 py-2">
       <span className="text-dim" aria-hidden>{icon}</span>
@@ -22,7 +22,7 @@ function Tile({ icon, value, label, tone }: { icon: React.ReactNode; value: stri
 const GROUPS: ["core" | "addon" | "other", string][] = [["core", tx("Home Assistant")], ["addon", tx("Modules complémentaires")], ["other", tx("Autres appareils et intégrations")]];
 
 /** Gauge of the machine that hosts Home Assistant: value, bar, colour by threshold */
-function HostGauge({ label, value, pct, warn = 80, bad = 90 }: { label: string; value: string; pct: number | null | undefined; warn?: number; bad?: number }) {
+function HostGauge({ label, value, pct, warn = 80, bad = 90 }: Readonly<{ label: string; value: string; pct: number | null | undefined; warn?: number; bad?: number }>) {
   if (pct == null) return null;
   const tone = pct >= bad ? "bad" : pct >= warn ? "warn" : "ok";
   return (
@@ -34,7 +34,7 @@ function HostGauge({ label, value, pct, warn = 80, bad = 90 }: { label: string; 
 }
 
 /** Small list folded under a title with its count; open when it is short and worth a look */
-function Fold({ title, tone, items, open }: { title: string; tone: "warn" | "off"; items: React.ReactNode[]; open?: boolean }) {
+function Fold({ title, tone, items, open }: Readonly<{ title: string; tone: "warn" | "off"; items: React.ReactNode[]; open?: boolean }>) {
   if (!items.length) return null;
   return (
     <details className="group rounded-lg border border-line/60" open={open}>
@@ -101,7 +101,7 @@ function AddonIcon({ src, title, small = false }: Readonly<{ src: string; title?
 }
 
 /** Home Assistant: its state, the machine that hosts it (System Monitor), key figures, then what to look at, folded */
-function HomeAssistantCard({ s }: { s: ServiceStatus }) {
+function HomeAssistantCard({ s }: Readonly<{ s: ServiceStatus }>) {
   const ups = s.updates ?? [], core = ups.filter((u) => u.group === "core"), rest = ups.filter((u) => u.group !== "core");
   const h = s.host, disk = h?.disks?.[0];
   const up = h?.boot ? (Date.now() - Date.parse(h.boot)) / 1000 : null;
@@ -148,7 +148,7 @@ function HomeAssistantCard({ s }: { s: ServiceStatus }) {
   );
 }
 
-export function ServiceCard({ s }: { s: ServiceStatus }) {
+export function ServiceCard({ s }: Readonly<{ s: ServiceStatus }>) {
   if (s.connector === "home-assistant") return <HomeAssistantCard s={s} />;
   const ups = s.updates ?? [], group = (g: string) => ups.filter((u) => (u.group ?? "other") === g);
   const core = group("core").length, rest = ups.length - core;

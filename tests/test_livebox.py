@@ -93,8 +93,9 @@ class Reading(unittest.TestCase):
 class Refusals(unittest.TestCase):
     def check(self, login, **conf):
         ctx = FakeContext(FIBRE, login)
+        box = Livebox({"type": "livebox", "name": "box", "url": BASE, "username": "admin", "password": PASSWORD, **conf}, ctx)
         with self.assertRaises(ConnectorError) as e:
-            Livebox({"type": "livebox", "name": "box", "url": BASE, "username": "admin", "password": PASSWORD, **conf}, ctx).collect()
+            box.collect()
         self.assertEqual(len(ctx.calls), 1, "a refused login is the only call")
         self.assertNotIn(PASSWORD, str(e.exception))
         return str(e.exception)
@@ -111,8 +112,9 @@ class Refusals(unittest.TestCase):
 
     def test_bad_address(self):
         ctx = FakeContext(FIBRE)
+        box = Livebox({"type": "livebox", "name": "box", "url": "nope", "password": PASSWORD}, ctx)
         with self.assertRaises(ConnectorError):
-            Livebox({"type": "livebox", "name": "box", "url": "nope", "password": PASSWORD}, ctx).collect()
+            box.collect()
         self.assertEqual(ctx.calls, [])
 
     def test_test_shows_no_secret(self):

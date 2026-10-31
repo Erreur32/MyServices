@@ -95,8 +95,9 @@ class Reading(unittest.TestCase):
 
     def test_unknown_encryption_is_an_error_before_any_call(self):
         ctx = FakeContext([])
+        unit = box(ctx, encryption="NONE")
         with self.assertRaises(ConnectorError):
-            box(ctx, encryption="NONE").collect()
+            unit.collect()
         self.assertEqual(ctx.calls, [])
 
     def test_hosts_are_optional(self):
@@ -110,15 +111,17 @@ class Reading(unittest.TestCase):
         self.assertEqual((d["box"]["model"], d["box"]["firmware"], d["box"]["devices"]), ("BoxX", "9.9", 0))
 
     def test_the_device_info_refused_is_an_error(self):
+        unit = box(FakeContext([LOGIN, reply("XMO_REQUEST_ACTION_ERR", [action(0, error="XMO_UNKNOWN_PATH_ERR"), action(1)]), LOGOUT]))
         with self.assertRaises(ConnectorError):
-            box(FakeContext([LOGIN, reply("XMO_REQUEST_ACTION_ERR", [action(0, error="XMO_UNKNOWN_PATH_ERR"), action(1)]), LOGOUT])).collect()
+            unit.collect()
 
 
 class Failures(unittest.TestCase):
     def refused(self, answers, **over):
         ctx = FakeContext(answers)
+        unit = box(ctx, **over)
         with self.assertRaises(ConnectorError) as cm:
-            box(ctx, **over).collect()
+            unit.collect()
         for secret in (SECRET, hashlib.sha512(SECRET.encode()).hexdigest()):
             self.assertNotIn(secret, str(cm.exception))
         return cm.exception, ctx
@@ -149,8 +152,9 @@ class Failures(unittest.TestCase):
         self.refused([None])
 
     def test_rate_limit_is_kept(self):
+        unit = box(FakeContext([RateLimited("HTTP 429", 5)]))
         with self.assertRaises(RateLimited):
-            box(FakeContext([RateLimited("HTTP 429", 5)])).collect()
+            unit.collect()
 
     def test_the_test_button_shows_no_secret(self):
         r = box(FakeContext([LOGIN, READ, LOGOUT])).test()

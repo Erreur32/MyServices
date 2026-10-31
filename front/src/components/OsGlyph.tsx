@@ -8,7 +8,7 @@ export const OS_ICON: Record<OsKind, typeof Terminal> = { linux: Terminal, windo
 /** Système inconnu : icône générique, jamais de vide dans un tableau */
 export const GENERIC_ICON = Server;
 
-export function OsGlyph({ kind, name, size = 14 }: { kind?: OsKind | null; name?: string | null; size?: number }) {
+export function OsGlyph({ kind, name, size = 14 }: Readonly<{ kind?: OsKind | null; name?: string | null; size?: number }>) {
   const logo = distroIcon(name);
   if (logo) return <img src={logo} alt="" style={{ width: size, height: size }} className="shrink-0" />;
   const Icon = kind ? OS_ICON[kind] : GENERIC_ICON;

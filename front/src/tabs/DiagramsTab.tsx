@@ -12,7 +12,7 @@ import { usePoll } from "../lib/polling";
 import { act, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
-function DiagramCard({ d, open, toggle, onRemove }: { d: Diagram; open: boolean; toggle: () => void; onRemove?: () => void }) {
+function DiagramCard({ d, open, toggle, onRemove }: Readonly<{ d: Diagram; open: boolean; toggle: () => void; onRemove?: () => void }>) {
   return (
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -33,7 +33,7 @@ function DiagramCard({ d, open, toggle, onRemove }: { d: Diagram; open: boolean;
   );
 }
 
-export function DiagramsTab({ admin }: { admin: boolean }) {
+export function DiagramsTab({ admin }: Readonly<{ admin: boolean }>) {
   const [d, reload] = useDiagrams();
   const [open, setOpen] = useState<string | null>(null), [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
   const [now, setNow] = useState(Date.now());

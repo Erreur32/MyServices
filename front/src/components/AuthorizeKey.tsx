@@ -12,7 +12,7 @@ import { Copyable, NoteLine } from "./form";
 import { Card } from "./ui";
 import { InfoNote } from "./InfoNote";
 
-export function AuthorizeKey({ failing, bare = false, onAccepted, user, userOf }: { failing: Connector[]; bare?: boolean; onAccepted?: () => void; user?: string; userOf?: (c: Connector) => string }) {  // user : compte SSH commun ; userOf : compte de chaque machine (une commande par compte)  // user : compte SSH commun aux machines visées (chemin complet de authorized_keys)
+export function AuthorizeKey({ failing, bare = false, onAccepted, user, userOf }: Readonly<{ failing: Connector[]; bare?: boolean; onAccepted?: () => void; user?: string; userOf?: (c: Connector) => string }>) {  // user : compte SSH commun ; userOf : compte de chaque machine (une commande par compte)  // user : compte SSH commun aux machines visées (chemin complet de authorized_keys)
   const [cmd, setCmd] = useState<string | null>(null), [esxiKey, setEsxiKey] = useState<string | null>(null), [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
   useEffect(() => {
     read<SystemState>("system").then((s) => { setCmd(s.ssh.authorize || null); setEsxiKey(s.ssh.public_esxi ?? null); })

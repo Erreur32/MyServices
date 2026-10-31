@@ -7,7 +7,7 @@ import { Badge, Dim, Fill } from "./ui";
 
 
 /** Shared header of every card of the grid: logo, name and address, what kind of thing it is, and its state. */
-export function CardHead({ c, icon, kind }: { c: { label: string; url?: string | null; ok: boolean; version?: string | null; stale: boolean }; icon: React.ReactNode; kind: string }) {
+export function CardHead({ c, icon, kind }: Readonly<{ c: { label: string; url?: string | null; ok: boolean; version?: string | null; stale: boolean }; icon: React.ReactNode; kind: string }>) {
   const img = appIcon([c.label]);
   return (
     <>
@@ -28,7 +28,7 @@ export function CardHead({ c, icon, kind }: { c: { label: string; url?: string |
   );
 }
 
-export function PbsCard({ c }: { c: VirtualizationConnector }) {
+export function PbsCard({ c }: Readonly<{ c: VirtualizationConnector }>) {
   return (
     <article className={`flex flex-col overflow-hidden rounded-2xl border bg-card pb-3 shadow-sm ${c.ok ? "border-line" : "border-bad/40"}`}>
       <CardHead c={c} kind={tx("Sauvegardes")} icon={<HardDrive size={20} className="text-muted" aria-hidden />} />

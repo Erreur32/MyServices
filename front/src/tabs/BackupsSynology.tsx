@@ -14,7 +14,7 @@ export interface SynologyState { connectors: string[]; followed: number }
 interface Task { key: string; name: string; last_run: number | null; result: string; next: number | null; target_type: string; followed: boolean }
 interface Choice { on: boolean; label: string; age: string }
 
-export function BackupsSynology({ state, reload }: { state: SynologyState; reload: () => void }) {
+export function BackupsSynology({ state, reload }: Readonly<{ state: SynologyState; reload: () => void }>) {
   const [name, setName] = useState(state.connectors[0] ?? "");
   const [tasks, setTasks] = useState<Task[] | null>(null), [pick, setPick] = useState<Record<string, Choice>>({});
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState<"" | "search" | "follow">("");
