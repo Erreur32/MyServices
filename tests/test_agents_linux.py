@@ -246,7 +246,7 @@ class LinuxAgentScripts(unittest.TestCase):
         remote = "##OS Debian\n##UP 1\n"
         inv = agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote], hostinfo.UNITS_SH: [0, out]}}})
         self.assertEqual(inv["info"]["units"], hostinfo.parse_units(out))
-        self.assertEqual(agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote]}}})["info"]["units"], None)   # agent 4: still served, the page asks for its update
+        self.assertIsNone(agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote]}}})["info"]["units"])   # agent 4: still served, the page asks for its update
 
     def test_v4_inventaire_lu_comme_par_ssh(self):
         from msv.collect import hostinfo

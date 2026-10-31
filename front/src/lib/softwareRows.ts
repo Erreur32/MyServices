@@ -55,8 +55,9 @@ export function softwareRows(m: Machine, hosts: Host[]): SoftwareRow[] {
   const programs = [...processRows, ...[...units].map(([name, own]) => program(name, [], "service", own))];
   const rank = (r: SoftwareRow) => Number(r.alone) + Number(!r.up);
   const byName = (a: SoftwareRow, b: SoftwareRow) => a.name.localeCompare(b.name);
-  return [...webRows, ...[...boxRows, ...siteRows].sort((a, b) => rank(a) - rank(b) || byName(a, b)),
-    ...programs.sort((a, b) => Number(a.system) - Number(b.system) || byName(a, b))].map((r, order) => ({ ...r, order }));
+  const others = [...boxRows, ...siteRows].sort((a, b) => rank(a) - rank(b) || byName(a, b));
+  programs.sort((a, b) => Number(a.system) - Number(b.system) || byName(a, b));
+  return [...webRows, ...others, ...programs].map((r, order) => ({ ...r, order }));
 }
 
 export function matchesFilter(r: SoftwareRow, filter: SoftwareFilter): boolean {

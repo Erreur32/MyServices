@@ -1054,7 +1054,7 @@ function PageColumn({ title, wide = false, full = false, className = "", childre
   return (
     <div className={`min-w-0 ${wide ? "lg:col-span-2" : ""} ${wide && !full ? "xl:col-span-1" : ""} ${full ? "xl:col-span-2" : ""} ${className}`}>
       <h2 className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-dim">{title || "\u00a0"}</h2>
-      <div className={wide ? `gap-3 lg:columns-2 ${full ? "" : "xl:columns-1"}` : ""}>{children}</div>
+      <div className={`${wide ? "gap-3 lg:columns-2" : ""} ${wide && !full ? "xl:columns-1" : ""}`}>{children}</div>
     </div>
   );
 }

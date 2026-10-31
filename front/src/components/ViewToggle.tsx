@@ -14,10 +14,10 @@ export function useStoredView(key: string, fallback: View): [View, (v: View) => 
 
 export function ViewToggle({ view, onPick }: Readonly<{ view: View; onPick: (v: View) => void }>) {
   return (
-    <span className="inline-flex gap-1.5" role="group" aria-label={tx("Affichage")}>
+    <fieldset className="m-0 inline-flex gap-1.5 border-0 p-0" aria-label={tx("Affichage")}>
       {([["cards", tx("Cartes"), LayoutGrid], ["table", tx("Tableau"), Table2]] as const).map(([k, l, Icon]) => (
         <ChipButton key={k} on={view === k} mark={<Icon size={14} aria-hidden />} label={l} onClick={() => onPick(k)} />
       ))}
-    </span>
+    </fieldset>
   );
 }
