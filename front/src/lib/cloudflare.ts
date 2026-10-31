@@ -125,14 +125,17 @@ function checkOf(name: string, z: CloudflareZone, r: CloudflareRecord | undefine
   return { name, zone: z.name, record: recordKind(r), via: viaOf(h), machine: h?.machine ?? null, code, tone, notes: found.map(([, t]) => t) };
 }
 
+function namesToCheck(zones: CloudflareZone[], known: Map<string, Host>): Set<string> {
+  const proxied = zones.flatMap((z) => z.dns?.records ?? []).filter((r) => r.proxied).map((r) => r.name.toLowerCase());
+  const served = [...known.keys()].filter((name) => zoneOf(name, zones));
+  return new Set([...proxied, ...served].filter((name) => !name.startsWith("*.")));
+}
+
 /** Each name that Cloudflare sends somewhere or that a reverse proxy serves in one of the domains, with what was found on both sides.
  *  A record with no site behind it and no proxy (mail…) is left out, and so is a local name with no public record. */
 export function cloudflareChecks(zones: CloudflareZone[], hosts: Host[]): Check[] {
-  const known = hostsByName(hosts), names = new Set<string>();
-  for (const z of zones) for (const r of z.dns?.records ?? []) if (r.proxied && !r.name.startsWith("*.")) names.add(r.name.toLowerCase());
-  for (const name of known.keys()) if (!name.startsWith("*.") && zoneOf(name, zones)) names.add(name);
-  const out: Check[] = [];
-  for (const name of names) {
+  const known = hostsByName(hosts), out: Check[] = [];
+  for (const name of namesToCheck(zones, known)) {
     const z = zoneOf(name, zones);
     if (!z) continue;
     const h = known.get(name) ?? known.get(wildcardOf(name)), r = recordOf(z, name);
