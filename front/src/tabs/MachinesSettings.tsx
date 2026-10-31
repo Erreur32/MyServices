@@ -1086,7 +1086,7 @@ function TempSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
       <InfoNote className="mb-3">{tx("Au-dessus de ce seuil, le processeur met la machine « à surveiller » (critique 10 °C plus haut), mais seulement s'il y reste plus de dix minutes : un pic pendant une compilation ou une sauvegarde ne compte pas. Vide : {0} °C.", TEMP_DEFAULT)}</InfoNote>
       <label className="inline-flex items-center gap-2 text-sm text-muted">{tx("Avertir à partir de")}
         <input className={`${input} w-24`} type="number" min={TEMP_MIN} max={TEMP_MAX} step={1} {...field} />
-        °C
+        <span>°C</span>
       </label>
       <SavedMark k="temp_warn_c" s={ctx.ss} />
     </section>

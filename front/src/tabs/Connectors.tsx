@@ -82,7 +82,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
-  const [edited, setEditing] = useState(focusKey);  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
+  const [edited, setEdited] = useState(focusKey);  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
   const [pointed] = useState(takePointed), [only, setOnly] = useState<string[]>([]), pointing = useRef(true);   // the connector button of a page: its connector opened, or its connectors alone
   const [linking, setLinking] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire prend la place de la liste
   const [saved, setSaved] = useState<string[]>([]);   // detected services just activated: hidden at once, before any reload
@@ -97,7 +97,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
         if (!pointing.current) return;
         pointing.current = false;
         const hits = pointedHits(s.instances, s.types, pointed);
-        if (hits.length === 1) setEditing(`${hits[0].type}/${hits[0].name}`);
+        if (hits.length === 1) setEdited(`${hits[0].type}/${hits[0].name}`);
         else if (pointed.category) setView(pointed.category);
         else if (hits.length > 1) setOnly(pointed.types);
       })
@@ -135,7 +135,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
               tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
             onCollect={(on) => { setSrcKey(`${i.type}/${i.name}`); setSrcNote(null); setToggling(`${i.type}/${i.name}`); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
               on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { setToggling(""); if (ok) { setChanged(true); reload(); } }); }}
-            focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
+            focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={picking || !!adding} setEdited={(on) => setEdited(on ? `${i.type}/${i.name}` : "")} />
         ))}
         {changed && (
           <div className="col-span-full flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
@@ -492,8 +492,8 @@ function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: C
   );
 }
 
-function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEditing: setEdit }: Readonly<{
-  view: CardView; toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEdited: setEdit }: Readonly<{
+  view: CardView; toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEdited: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }>) {
   const [note, setNote] = useState<Note>(null);
   const url = inst.config.url as string | undefined;

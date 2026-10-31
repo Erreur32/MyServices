@@ -55,9 +55,9 @@ const BUBBLE: Record<CardTone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", wa
 
 /** Card with a coloured header strip (title, count in a round bubble) over a table with fixed columns and headers. Nothing is shown without a row,
  *  unless `empty` (the "all good" message) is given. `footer` goes under the table. */
-export function TableCard({ title, tone, count, cols, rows, sort, note, empty, footer, className = "", zebra = false, foldable = false, folded = false }: {
+export function TableCard({ title, tone, count, cols, rows, sort, note, empty, footer, className = "", zebra = false, foldable = false, folded = false }: Readonly<{
   title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string; k?: string }[]; rows: ReactNode[][]; sort?: ColumnSort; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string; zebra?: boolean; foldable?: boolean; folded?: boolean;   // zebra: every other row darker; foldable: the header strip folds the frame, `folded` is its starting state
-}) {
+}>) {
   const [shut, setShut] = useState(foldable && folded);
   const n = count ?? rows.length;
   const clickable = foldable ? FOLD_HEADER + " hover:bg-bg2/40" : "";

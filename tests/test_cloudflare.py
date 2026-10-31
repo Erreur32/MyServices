@@ -185,10 +185,11 @@ class CloudflareRead(unittest.TestCase):
         self.assertEqual([z["name"] for z in d["cloudflare"]["zones"]], ["b.example", "a.example"])
 
     def test_refused_token_or_no_domain(self):
+        refused, empty = conn(Fake(refuse=("/zones?",))), conn(Fake(zones=[]))
         with self.assertRaisesRegex(ConnectorError, "accès refusé"):
-            conn(Fake(refuse=("/zones?",))).collect()
+            refused.collect()
         with self.assertRaisesRegex(ConnectorError, "aucun domaine visible"):
-            conn(Fake(zones=[])).collect()
+            empty.collect()
         self.assertFalse(conn(Fake(refuse=("/zones?",))).test().ok)
 
     def test_rate_limit_stops_the_pass(self):
@@ -197,8 +198,9 @@ class CloudflareRead(unittest.TestCase):
                 if "/settings/" in url:
                     raise RateLimited("HTTP 429", 60)
                 return super().http(url, **kw)
+        limited = conn(Limited())
         with self.assertRaises(RateLimited):
-            conn(Limited()).collect()
+            limited.collect()
 
     def test_paused_pending_and_left_out_domains(self):
         d = conn(Fake(zones=[zone("z1", "exemple.fr", paused=True, status="pending")], total=23)).collect()

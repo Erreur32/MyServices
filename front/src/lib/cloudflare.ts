@@ -110,6 +110,21 @@ function proxiedTrouble(z: CloudflareZone, h: Host): [CheckTone, string][] {
   return out;
 }
 
+function recordTrouble(z: CloudflareZone, r: CloudflareRecord | undefined, h: Host | undefined): [CheckTone, string][] {
+  if (r?.proxied) return h ? proxiedTrouble(z, h) : [["info", tx("proxifié, mais aucun hôte connu : il est servi ailleurs, ou le reverse proxy n'est pas lu")]];
+  if (r && h && !h.lan_only) return [["info", tx("DNS seul : l'adresse du serveur est visible de tous")]];
+  if (!r && h) return [[h.public_ok ? "warn" : "info", tx("aucun enregistrement dans Cloudflare : ce nom ne répond pas depuis Internet")]];
+  return [];
+}
+
+function checkOf(name: string, z: CloudflareZone, r: CloudflareRecord | undefined, h: Host | undefined): Check {
+  const found = recordTrouble(z, r, h), code = h?.public?.code ?? null;
+  if (code !== null && code >= 500) found.push(["bad", tx("répond {0}", code)]);
+  if (h?.public?.cert_ok === false) found.push(["warn", tx("certificat refusé")]);
+  const tone = CHECK_ORDER.find((t) => found.some(([x]) => x === t)) ?? "ok";
+  return { name, zone: z.name, record: recordKind(r), via: viaOf(h), machine: h?.machine ?? null, code, tone, notes: found.map(([, t]) => t) };
+}
+
 /** Each name that Cloudflare sends somewhere or that a reverse proxy serves in one of the domains, with what was found on both sides.
  *  A record with no site behind it and no proxy (mail…) is left out, and so is a local name with no public record. */
 export function cloudflareChecks(zones: CloudflareZone[], hosts: Host[]): Check[] {
@@ -121,17 +136,7 @@ export function cloudflareChecks(zones: CloudflareZone[], hosts: Host[]): Check[
     const z = zoneOf(name, zones);
     if (!z) continue;
     const h = known.get(name) ?? known.get(wildcardOf(name)), r = recordOf(z, name);
-    if (!r && h?.lan_only) continue;
-    const found: [CheckTone, string][] = [];
-    if (r?.proxied && h) found.push(...proxiedTrouble(z, h));
-    else if (r?.proxied) found.push(["info", tx("proxifié, mais aucun hôte connu : il est servi ailleurs, ou le reverse proxy n'est pas lu")]);
-    else if (r && h && !h.lan_only) found.push(["info", tx("DNS seul : l'adresse du serveur est visible de tous")]);
-    else if (!r && h) found.push([h.public_ok ? "warn" : "info", tx("aucun enregistrement dans Cloudflare : ce nom ne répond pas depuis Internet")]);
-    const code = h?.public?.code ?? null;
-    if (code !== null && code >= 500) found.push(["bad", tx("répond {0}", code)]);
-    if (h?.public?.cert_ok === false) found.push(["warn", tx("certificat refusé")]);
-    const tone = CHECK_ORDER.find((t) => found.some(([x]) => x === t)) ?? "ok";
-    out.push({ name, zone: z.name, record: recordKind(r), via: viaOf(h), machine: h?.machine ?? null, code, tone, notes: found.map(([, t]) => t) });
+    if (r || !h?.lan_only) out.push(checkOf(name, z, r, h));
   }
   return out.sort((a, b) => CHECK_ORDER.indexOf(a.tone) - CHECK_ORDER.indexOf(b.tone) || a.name.localeCompare(b.name));
 }

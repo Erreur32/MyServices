@@ -42,9 +42,11 @@ def _whole(alias: str, table: str, window: str, fields: str) -> str:
     return f"{alias}:{table}(limit:1,filter:{{{window}}}){{sum{{{fields}}} uniq{{uniques}}}} "
 
 
+ZONE_OPEN = "{viewer{zones(filter:{zoneTag:$zone}){"
+
 # Variables left undeclared, as in Cloudflare's own example: its gateway fills them in by name. One query for each domain: every period, the one before it, and
 # its bars. Hours are the only table read by the hour, and it reaches back 3 days.
-TRAFFIC = ("{viewer{zones(filter:{zoneTag:$zone}){"
+TRAFFIC = (ZONE_OPEN
            + _whole("day", "httpRequests1hGroups", HOUR_WINDOW.format("day", "hour"), f"{TOTALS} {BREAKDOWN}")
            + _whole("day_before", "httpRequests1hGroups", HOUR_WINDOW.format("day_before", "day"), TOTALS)
            + _whole("week", "httpRequests1dGroups", DAY_WINDOW.format("week", "today"), f"{TOTALS} {BREAKDOWN}")
@@ -78,14 +80,14 @@ def _edge_parts(a: str, window: str) -> str:
 
 
 def _each_period(parts) -> str:
-    return "{viewer{zones(filter:{zoneTag:$zone}){" + " ".join(parts(a, f"datetime_geq:${since},datetime_lt:${until}") for a, since, until in WINDOWS) + "}}}"
+    return ZONE_OPEN + " ".join(parts(a, f"datetime_geq:${since},datetime_lt:${until}") for a, since, until in WINDOWS) + "}}}"
 
 
 # Two queries, whatever the number of figures: the second reads the tables a plan can refuse, and the first must survive that
 HTTP_DETAIL, EDGE_DETAIL = _each_period(_http_parts), _each_period(_edge_parts)
 # A query of its own: this table is the one a plan can refuse, and the rest must survive that
 _ERRORS_FILTER = "edgeResponseStatus_geq:500,edgeResponseStatus_lt:600"
-ERROR_NAMES = ("{viewer{zones(filter:{zoneTag:$zone}){"
+ERROR_NAMES = (ZONE_OPEN
                + " ".join(f"{alias}:httpRequestsAdaptiveGroups(limit:{ERROR_HOSTS},orderBy:[count_DESC],filter:{{datetime_geq:${since},datetime_lt:${until},{_ERRORS_FILTER}}})"
                           "{count dimensions{clientRequestHTTPHost edgeResponseStatus}}"
                           for alias, since, until in WINDOWS)

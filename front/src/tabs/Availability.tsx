@@ -33,6 +33,10 @@ const nowColor = (x: Item) => {
   if (!x.last) return "bg-dim";
   return x.last.up ? "bg-ok" : "bg-bad";
 };
+const lastSeen = (x: Item) => {
+  if (!x.last) return "";
+  return tx("dernier relevé {0} : {1}", dateTime(x.last.ts * 1000), x.last.up ? tx("répond") : tx("ne répond pas"));
+};
 const COLUMNS = "grid grid-cols-[minmax(14rem,1.1fr)_5rem_6.5rem_minmax(18rem,1.6fr)] items-center gap-x-3.5 px-4";
 const BOX = `${input.replace("w-full", "w-auto")} !py-1 text-sm`;
 const CAPTION = "text-[11px] font-bold uppercase tracking-wide text-dim";
@@ -96,9 +100,9 @@ export function Availability({ snap }: Readonly<{ snap: Snapshot }>) {
   const downNow = items.filter((x) => x.last && !x.last.up).length, under = items.filter((x) => x.uptime < 95).length;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={Activity} title={tx("Disponibilité")} tags={null} actions={<span className="inline-flex rounded-full border border-line bg-card p-0.5" role="group" aria-label={tx("Période")}>
+      <PageHead icon={Activity} title={tx("Disponibilité")} tags={null} actions={<fieldset className="inline-flex rounded-full border border-line bg-card p-0.5" aria-label={tx("Période")}>
         {PERIODS.map(([d, l]) => <button key={d} type="button" onClick={() => pick(d)} aria-pressed={days === d} className={`rounded-full px-3 py-1 text-sm font-semibold ${days === d ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}>{l}</button>)}
-      </span>} />
+      </fieldset>} />
       {items.length > 0 && (
         <div className="flex gap-2.5 overflow-x-auto pb-1">
           {KINDS.map((k) => { const a = avg(k); return a == null ? null : <StatTile key={k} n={pct(a)} label={KIND[k][2]} tone={tileTone(a)} sub={tx("moyenne sur la période")} />; })}
@@ -131,7 +135,7 @@ function Row({ x, step }: Readonly<{ x: Item; step: Report["step"] }>) {
   return (
     <li className={`${COLUMNS} border-b border-line/60 py-2 last:border-0 even:bg-bg/30`}>
       <span className="flex min-w-0 items-center gap-2">
-        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${nowColor(x)}`} title={x.last ? tx("dernier relevé {0} : {1}", dateTime(x.last.ts * 1000), x.last.up ? tx("répond") : tx("ne répond pas")) : ""} />
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${nowColor(x)}`} title={lastSeen(x)} />
         <span className="min-w-0 flex-1"><b className="block truncate">{x.label || x.key}</b><span className="block truncate text-xs text-dim">{[x.machine, x.target].filter(Boolean).join(" · ")}</span></span>
         <span title={kind} className="shrink-0 text-dim"><Icon size={14} aria-label={kind} /></span>
       </span>
@@ -145,7 +149,15 @@ function Row({ x, step }: Readonly<{ x: Item; step: Report["step"] }>) {
 /** The filters that matter, always in sight: what to see and the search, then the machine, the domain and the state */
 function Filters({ f }: Readonly<{ f: ReturnType<typeof useFilter<Item>> }>) {
   const chips = (key: string): Chip[] => f.chips.find((g) => g.facet.key === key)?.chips ?? [];
-  const one = (key: string, value: string) => f.setSel((s) => { const next = { ...s }; if (value) next[key] = [value]; else delete next[key]; return next; });
+  const one = (key: string, value: string) => f.setSel((s) => {
+    const next = { ...s };
+    if (value) {
+      next[key] = [value];
+    } else {
+      delete next[key];
+    }
+    return next;
+  });
   const choice = (key: string, label: string, all: string) => (
     <label className="inline-flex items-center gap-1.5 text-xs text-muted">{label}
       <select className={BOX} value={f.sel[key]?.[0] ?? ""} onChange={(e) => one(key, e.target.value)}>

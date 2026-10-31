@@ -48,7 +48,7 @@ export function RereadButton({ label, tip, run, compact = false, onNote, classNa
         className={className ?? (compact ? "shrink-0 rounded-md p-1 text-muted hover:bg-link/10 hover:text-link" : quiet)}>
         <Icon size={14} className={busy ? "animate-spin" : ""} aria-hidden />{!compact && label}
       </button>
-      {own && <span role="status" className={`text-xs ${own.ok ? "text-ok" : "text-bad"}`}>{own.text}</span>}
+      {own && <output className={`text-xs ${own.ok ? "text-ok" : "text-bad"}`}>{own.text}</output>}
     </>
   );
 }
