@@ -801,7 +801,7 @@ function SystemUpdates({ s }: Readonly<{ s?: HostSystem }>) {
   return (
     <>
       {u?.available && (
-        <Row k={tx("Automatiques")}>
+        <Row k={tx("Automatiques")} watch="auto_upd">
           {!u.enabled ? <Dim>{tx("désactivées")}</Dim> : (
             <span className={u.errors?.length || (u.days ?? 0) > UU_STALE_DAYS ? "text-warn" : ""} title={u.errors?.join("\n") || undefined}>
               {u.days == null ? tx("activées, jamais passées") : tx("dernier passage il y a {0}", durShort(u.days * 86400))}{u.errors?.length ? ` · ${tx("{0} erreur(s)", u.errors.length)}` : ""}
@@ -1589,14 +1589,15 @@ function UpdatesChip({ h }: Readonly<{ h?: HealthHost }>) {
 export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys, ha }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[]; freebox?: FreeboxInfo; unifi?: UnifiDevice; unifiSys?: UnifiSystem; ha?: ServiceStatus }>) {
   if (!h && !ha) return null;
   const haN = ha?.updates?.length ?? 0, n = (h?.apt?.upgradable ?? 0) + haN;
-  // nothing to update, no reboot, no firmware offered: no card (the page stays short)
+  // nothing to update, no reboot, no firmware offered, no notice pointing here: no card (the page stays short)
   const firmware = !!freebox?.system?.update_available || !!unifi?.upgradable || !!(unifi && unifiSys?.update_available && isGateway(unifi, unifiSys));
-  if (!n && !h?.reboot_required && !firmware) return null;
+  const notice = !!h && healthItems(h).some((i) => WATCH_SECTION[i.kind] === "updates");
+  if (!n && !h?.reboot_required && !firmware && !notice) return null;
   return (
-    <Section sec="updates" icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || h?.reboot_required ? "warn" : "ok"} from={from}>
+    <Section sec="updates" icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || notice ? "warn" : "ok"} from={from}>
       {freebox && <FreeboxFirmware fb={freebox} />}
       {!freebox && unifi && <UnifiFirmware d={unifi} sys={unifiSys} />}
-      {!n && <Row k={tx("État")}><span className="text-ok">{tx("à jour")}</span></Row>}
+      {!n && !notice && <Row k={tx("État")}><span className="text-ok">{tx("à jour")}</span></Row>}
       {ha && <HaUpdates ha={ha} />}
       {h?.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
       {h && <UpdatesFold h={h} windows={windows} />}

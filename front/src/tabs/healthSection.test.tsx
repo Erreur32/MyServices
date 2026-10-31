@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { Machine } from "../types";
+import type { HealthHost, Machine } from "../types";
 import { freeboxHealth } from "../lib/freebox";
 import { DriveStatus, FreeboxAccessSection, FreeboxFirmware, FreeboxNetwork, FreeboxWifi, HealthSection, ProbeChips, SystemSection, UpdatesSection } from "./Machines";
 
@@ -31,6 +31,26 @@ describe("section Mises à jour de la fiche d'une Freebox", () => {
   });
   it("n'affiche rien sans mise à jour, redémarrage ni firmware proposé", () => {
     expect(renderToStaticMarkup(<UpdatesSection h={h} windows={false} from={[]} />)).toBe("");
+  });
+});
+
+describe("section Mises à jour quand rien n'attend mais qu'un souci la vise", () => {
+  const card = (system: HealthHost["system"]) => renderToStaticMarkup(<UpdatesSection h={{ name: "PapoMintBeach (10.0.0.16)", system } as HealthHost} windows={false} from={[]} />);
+  it("reste affichée pour des mises à jour automatiques en erreur, avec la ligne que vise le lien", () => {
+    const html = card({ auto_upd: { available: true, enabled: true, days: 1, errors: ["sendmail missing"] } } as HealthHost["system"]);
+    expect(html).toContain('data-sec="updates"');
+    expect(html).toContain('data-watch="auto_upd"');
+    expect(html).toContain("1 erreur(s)");
+    expect(html).not.toContain("à jour</span>");
+  });
+  it("reste affichée pour un dernier passage trop ancien, un snap ou un service à redémarrer", () => {
+    expect(card({ auto_upd: { available: true, enabled: true, days: 9 } } as HealthHost["system"])).toContain('data-sec="updates"');
+    expect(card({ snap: { available: true, pending: 2, names: ["core"] } } as HealthHost["system"])).toContain('data-sec="updates"');
+    expect(card({ needrestart: { available: true, services: ["cron"] } } as HealthHost["system"])).toContain('data-sec="updates"');
+  });
+  it("reste masquée pour des mises à jour automatiques saines ou coupées", () => {
+    expect(card({ auto_upd: { available: true, enabled: true, days: 1 } } as HealthHost["system"])).toBe("");
+    expect(card({ auto_upd: { available: true, enabled: false } } as HealthHost["system"])).toBe("");
   });
 });
 
