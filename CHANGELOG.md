@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.33.0 (2026-10-31)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **Routers**: four read-only connectors shown with the Internet boxes. None was tried on a real router: the answers come from the documentation or from client libraries, so please tell us how they behave.
   - **OpenWrt**: through ubus, model, firmware, state and address of the Internet connection. A dedicated read-only account is explained in the guide.
