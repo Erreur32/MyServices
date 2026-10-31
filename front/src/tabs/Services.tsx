@@ -432,10 +432,9 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   if (view !== "watch" && view !== "all" && view !== "fresh") return <Empty>{tx("Ce service n'existe plus.")} <a href="#services/all" className="text-link hover:underline">{tx("Tous les services")}</a></Empty>;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={Boxes} title={tx("Services")} tags={<HeadTags counts={[groupsTitle(groups), tx("{0} machines", every.machines)]} at={snap.data.generated} />}
+      <PageHead icon={Boxes} title={tx("Services")} tags={<><HeadTags counts={[groupsTitle(groups), tx("{0} machines", every.machines)]} at={snap.data.generated} />{(view === "all" || view === "watch") && admin && <PublicIgnore />}</>}
         actions={<>{admin && <a href="#services/new" className={`${primary} py-1 no-underline`} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</a>}<PeriodSwitch value={hours} onChange={setHours} /></>} />
       <ServicesTiles hosts={snap.data.hosts} hidden={hiddenMap} generated={snap.data.generated} hours={hours} />
-      {(view === "all" || view === "watch") && admin && <PublicIgnore />}
       {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}
       {(view === "all" || view === "watch") && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={groups.filter((g) => !g.tech).length} pinned
         center={<SearchBox value={f.query} onChange={f.setQuery} placeholder={tx("Nom, domaine, IP…")} count={[shownReal.length, groups.filter((g) => !g.tech).length]} />}>

@@ -27,6 +27,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Tasks and schedules**: the coming runs in a table sorted by time at the top of the page, a real table with state, schedule, next run and header columns on wide screens, and a task that ends shows at once instead of at the next read. The section "By hand or once" is now "Searches with no schedule" and says there is nothing to do day to day.
 - **Analytics connectors**: Rybbit and Umami are read every 15 minutes instead of 5: their counts cover 24 hours and each site is one call.
 - **Machines, Services, Connectors**: the search field moves into the title of the frame, centred. Services shows its main filters on the left like Machines. Connectors gets the same frame, 6 cards a line at most, a tighter card body on its own background, and a footer that belongs to its card, with a short link.
+- **Services**: the ignored domains leave their frame for a small button in the title line, with the domains beside it and the full panel opening under the button.
 - **Login page**: the button text uses the page font at its proper size.
 
 ### Removed
