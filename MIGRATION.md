@@ -7,10 +7,14 @@ Keep a copy of `config/` and `data/` before any update.
 
 ## 0.31.9 → 0.31.10
 
-**Nothing to do.** Three things to know:
+**Nothing to do.** What to know:
 
 - Agents: only a new agent reports every 5 minutes. An agent already installed keeps its rhythm, automatic update included, because the rhythm lives in its system timer and the update only replaces the script. To move one to 5 minutes, run its install command again, with `MSV_MINUTES=5` on Linux, `-Minutes 5` on Windows.
-- Cloudflare: a new read-only connector, optional. It needs an API token created in your Cloudflare account, with read access only.
+- Cloudflare: a new read-only connector, optional. It needs an API token created in your Cloudflare account, with read access only. It is read once an hour, about 11 calls per domain.
+- Cloudflare data: the Traffic page shows the most requested paths and the user agents seen by Cloudflare. They appear to every account of the app that can open the page; client IPs are never read.
+- Services: the separate service and edit pages are gone. A saved link to them opens the same service inside the Services list.
+- Machines: the list now hides machines powered off or no longer followed, by default. Turn off « Hide powered off and unfollowed », or click the « Off » tile, to see them.
+- Availability: the page opens on the machines. Your filters are kept in your browser from then on.
 - Assistant: « Review the setup assistant » no longer erases what was validated; « Start over » inside the assistant does.
 - SSH page: machines that still need SSH now carry a « Keep SSH » badge and the reason. Nothing is changed for you.
 
