@@ -17,10 +17,11 @@ function DiagramCard({ d, open, toggle, onRemove }: Readonly<{ d: Diagram; open:
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h3 className="font-bold">{d.title}</h3>
-        {!d.available ? <Badge tone="off">{tx("source non activée")}</Badge> : d.exists ? <Badge tone="ok">{tx("à jour")}</Badge> : <Badge tone="warn">{tx("pas encore généré")}</Badge>}
+        {!d.available ? <Badge tone="off">{tx("source non activée")}</Badge> : d.failed && d.exists ? <Badge tone="warn">{tx("pas à jour")}</Badge> : d.exists ? <Badge tone="ok">{tx("à jour")}</Badge> : <Badge tone="warn">{tx("pas encore généré")}</Badge>}
       </div>
       <p className="mt-1 text-sm text-muted">{d.what}</p>
       {d.updated && <p className="mt-1 text-xs text-dim">{tx("Généré le {0}", dateTime(d.updated * 1000))}</p>}
+      {d.failed && d.exists && <p className="mt-1 text-xs text-warn">{tx("Le dernier essai du {0} a échoué : ce schéma reste l'ancien. Le détail est dans le journal.", dateTime(d.failed * 1000))}</p>}
       {d.exists && (
         <div className="mt-3 flex flex-wrap gap-2">
           <a className={primary} href={`${ROOT}${d.file}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} aria-hidden />{tx("Ouvrir")}</a>

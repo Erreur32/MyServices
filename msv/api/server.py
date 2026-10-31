@@ -578,6 +578,7 @@ def alerts_store():
 
 
 ARCHIFY = os.environ.get("MYSERVICES_ARCHIFY", "")
+MAP_FAILURES = "diagrams-failed.json"
 
 
 def refresh_nav() -> None:
@@ -639,6 +640,14 @@ def clear_stale_locks() -> None:
             shutil.rmtree(d, ignore_errors=True)
 
 
+def map_failures() -> dict:
+    """{map: time of its last failed try}, for the Diagrams page: a failed map keeps showing the previous one."""
+    try:
+        return json.loads((Path(CFG["state_dir"]) / MAP_FAILURES).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
 def _build_map() -> None:
     """Cartes de l'infra (carte.html, sauvegardes.html ; Archify) depuis les fichiers de la page. Facultatif :
     sans Archify ou en échec, la carte précédente reste, les tâches n'en dépendent pas."""
@@ -656,8 +665,10 @@ def _build_map() -> None:
     except (OSError, subprocess.SubprocessError) as e:
         log(f"⚠ carte : {e}")
         return
+    failures = map_failures()
     for spec in specs:
-        out = Path(spec).name.replace(".archify.json", ".html")
+        name = Path(spec).name.replace(".archify.json", "")
+        out = f"{name}.html"
         r = None
         try:
             r = subprocess.run(["node", ARCHIFY, "deliver", "architecture", spec, out, "--json"],
@@ -667,11 +678,21 @@ def _build_map() -> None:
             ok = False
             log(f"⚠ carte {out} : {e}")
         if ok:
+            failures.pop(name, None)
             log(f"carte : régénérée ({out})")
             continue
+        failures[name] = time.time()
         Path(spec).unlink(missing_ok=True)   # the next pass only draws what changed: without its spec, a failed map is tried again
         if r is not None:
             log(f"⚠ carte {out} : non régénérée (Archify) : {archify_why(r.stdout, r.stderr)}")
+    if specs:
+        try:
+            f = Path(CFG["state_dir"]) / MAP_FAILURES
+            tmp = f.with_suffix(".tmp")
+            tmp.write_text(json.dumps(failures), encoding="utf-8")
+            tmp.replace(f)
+        except OSError as e:
+            log(f"⚠ cartes : état des échecs non écrit ({e})")
     refresh_nav()
 
 

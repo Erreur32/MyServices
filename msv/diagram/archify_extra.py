@@ -163,7 +163,11 @@ def build_reseau(data: dict) -> dict:
                    "items": [{"id": slug(d.get("ip") or "x"), "label": d.get("hostname") or d.get("vendor") or d.get("ip") or "?",
                               "sublabel": f"{d.get('ip') or '?'} · {'en ligne' if d.get('status') == 'online' else 'hors ligne'}", "type": "frontend"} for d in others]})
     hub = {"label": (gw or {}).get("name", "Réseau local").replace("☠", "").strip(), "sublabel": "passerelle" + (f" · {gw['ip']}" if gw and gw.get("ip") else ""), "type": "security"}
-    return grouped("Équipements et appareils du réseau", data.get("generated", ""), "reseau.html", hub, groups)
+    spec = grouped("Équipements et appareils du réseau", data.get("generated", ""), "reseau.html", hub, groups)
+    for c in spec["connections"]:
+        if c["from"] == "hub":   # the group already says it; with some group widths this label lands on a neighbour's title and Archify refuses the map
+            del c["label"]
+    return spec
 
 
 def build_services(data: dict) -> dict:

@@ -918,6 +918,8 @@ export const EN: Record<string, string> = {
   "{0} trouvés": "{0} found",
   "Firmware": "Firmware",
   "Généré le {0}": "Generated on {0}",
+  "pas à jour": "out of date",
+  "Le dernier essai du {0} a échoué : ce schéma reste l'ancien. Le détail est dans le journal.": "The last try on {0} failed: this diagram is still the previous one. The details are in the log.",
   "Ouvrir": "Open",
   "Masquer l'aperçu": "Hide preview",
   "Aperçu": "Preview",

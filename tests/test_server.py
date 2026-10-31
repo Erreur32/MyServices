@@ -73,6 +73,7 @@ class FailedMap(unittest.TestCase):   # server only: runs without FastAPI
                     mock.patch.object(server, "log"), mock.patch.object(server.subprocess, "run", side_effect=runs), \
                     mock.patch.dict(server.CFG, {"state_dir": d, "diagrams_extra": []}):
                 server._build_map()
+                self.assertEqual(list(server.map_failures()), ["bad"])
             self.assertTrue(good.exists())
             self.assertFalse(bad.exists())
 

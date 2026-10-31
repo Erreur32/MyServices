@@ -166,12 +166,13 @@ def diagrams(request: Request):
     except (OSError, ValueError):
         pass
     asked = set(core.CFG.get("diagrams_extra") or [])
+    failures = core.map_failures()
     out = []
     for key, title, what, needs in [*DIAGRAMS, *optional()]:
         f = core.WEB / f"{key}.html"
         opt = key in archify_extra.CATALOG
         out.append({"id": key, "title": title, "what": what, "file": f"{key}.html", "exists": f.exists(), "updated": f.stat().st_mtime if f.exists() else None,
-                    "bytes": f.stat().st_size if f.exists() else 0, "needs": needs, "optional": opt, "enabled": key in asked,
+                    "bytes": f.stat().st_size if f.exists() else 0, "failed": failures.get(key), "needs": needs, "optional": opt, "enabled": key in asked,
                     "available": archify_extra.available(key, data) if opt else needs != "backups" or bool(core.CFG.get("backups_url"))})
     return {"diagrams": out, "archify": bool(core.ARCHIFY and Path(core.ARCHIFY).exists()), "archify_url": ARCHIFY_URL,
             "build": {"running": core.MAP_STATE["running"], "started": core.MAP_STATE["started"], "last_seconds": core.MAP_STATE["last_seconds"],
