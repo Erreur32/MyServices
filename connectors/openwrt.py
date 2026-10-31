@@ -47,7 +47,9 @@ def is_default_route(route: object) -> bool:
 
 def pick_wan(interfaces: object) -> dict:
     """The WAN interface: the one named wan, else the first with an IPv4 default route; {} when none."""
-    items = [as_dict(i) for i in interfaces] if isinstance(interfaces, list) else []
+    if not isinstance(interfaces, list):
+        return {}
+    items = [as_dict(i) for i in interfaces]
     named = [i for i in items if i.get("interface") == "wan"]
     routed = [i for i in items if any(is_default_route(r) for r in i.get("route") or [])]
     return (named or routed or [{}])[0]

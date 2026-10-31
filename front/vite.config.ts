@@ -34,7 +34,7 @@ const devGitState = {
   configureServer(server: ViteDevServer) {
     server.middlewares.use("/dev-git.json", (_req, res) => {
       try {
-        const git = execFileSync("sh", [fileURLToPath(new URL("../scripts/git-rev.sh", import.meta.url))], { encoding: "utf-8" }).trim();
+        const git = execFileSync("/bin/sh", [fileURLToPath(new URL("../scripts/git-rev.sh", import.meta.url))], { encoding: "utf-8" }).trim();
         const changelog = readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf-8");
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify({ git, planned: plannedVersion(changelog, git.split("|")[3]) }));

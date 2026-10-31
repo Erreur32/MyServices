@@ -157,8 +157,9 @@ class Login(unittest.TestCase):
         self.assertGreater(tried, 0)
 
     def test_changed_password_is_tried_again(self):
+        refused = FakeRouter(password="-".join(("wrong", "pw")))
         with self.assertRaises(ConnectorError):
-            FakeRouter(password="-".join(("wrong", "pw"))).collect()
+            refused.collect()
         self.assertEqual(FakeRouter().collect()["box"]["model"], "Archer C6U")
 
     def test_locked_router_is_not_remembered_as_refused(self):

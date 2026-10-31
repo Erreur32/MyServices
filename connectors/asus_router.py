@@ -49,9 +49,9 @@ REMEMBERED = {"2", "3", "10"}     # codes that mean « do not try again with the
 def parse(raw: object) -> dict:
     """The JSON object of an answer, read leniently (empty values, stray commas); ConnectorError when it is not one."""
     text = raw.decode("utf-8-sig", "replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
-    text = re.sub(r"\s*,\s*,", ", ", text)
+    text = re.sub(r",\s*,", ", ", text)
     text = re.sub(r",\s*}\s*$", "}", text)
-    text = re.sub(r":\s*(,|\})", ": null\\1", text)
+    text = re.sub(r":\s*([,}])", ": null\\1", text)
     try:
         data = json.loads(text)
     except ValueError:
