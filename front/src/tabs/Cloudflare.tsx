@@ -7,7 +7,8 @@ import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { StatTile } from "../components/StatTile";
 import { Badge, Empty, TableCard } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
-import { advice, bestZone, cloudflareChecks, cloudflareZones, dnsOnly, isTrouble, niceMax, requestsByDay, settingText, SETTINGS, type Check } from "../lib/cloudflare";
+import { advice, bestZone, CHECK_ORDER, cloudflareChecks, cloudflareZones, dnsOnly, isTrouble, niceMax, requestsByDay, settingText, SETTINGS, type Check } from "../lib/cloudflare";
+import { useSort } from "../lib/filter";
 import { bytes } from "../lib/format";
 import { LOCALE, tx } from "../lib/i18n";
 import { usePageView } from "../lib/route";
@@ -164,11 +165,14 @@ function Traffic({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZo
 
 const TONE: Record<Check["tone"], "ok" | "warn" | "bad" | "off"> = { ok: "ok", info: "off", warn: "warn", bad: "bad" };
 
+const CHECK_SORT: Record<string, (c: Check) => string | number> = { name: (c) => c.name, record: (c) => c.record, via: (c) => c.via ?? "", machine: (c) => c.machine ?? "", code: (c) => c.code ?? 0, tone: (c) => CHECK_ORDER.indexOf(c.tone) };
+const checkKey = (c: Check, key: string) => CHECK_SORT[key](c);
+
 function Checks({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZone[] }>) {
   const [alerts, setAlerts] = useState(false);
   const all = cloudflareChecks(zones, snap.data.hosts), trouble = all.filter(isTrouble);
   const count = (t: Check["tone"]) => all.filter((c) => c.tone === t).length;
-  const rows = alerts ? trouble : all;
+  const sort = useSort(alerts ? trouble : all, checkKey, "tone");
   const toneLabel: Record<Check["tone"], string> = { ok: tx("OK"), info: tx("pour info"), warn: tx("à vérifier"), bad: tx("en panne") };
   const recordLabel: Record<Check["record"], string> = { proxied: tx("Proxifié"), dns: tx("DNS seul"), none: tx("Absent") };
   return (
@@ -182,9 +186,9 @@ function Checks({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZon
         <StatTile n={count("ok")} label={tx("sans souci")} tone="ok" />
       </div>
       {!snap.data.hosts.some((h) => h.type === "proxy" || h.vhost_domains?.length) && <InfoNote tone="warn" open>{tx("Aucun reverse proxy lu : relie NPM, ou lis la machine Apache ou nginx par SSH ou agent, pour que cette vérification serve vraiment.")}</InfoNote>}
-      <TableCard zebra title={tx("Noms")} tone="info" count={rows.length} empty={<Empty>{tx("Rien à signaler.")}</Empty>}
-        cols={[{ label: tx("Nom") }, { label: "Cloudflare" }, { label: tx("Servi par") }, { label: tx("Machine") }, { label: tx("Réponse") }, { label: tx("État") }]}
-        rows={rows.map((c) => [
+      <TableCard zebra title={tx("Noms")} tone="info" count={sort.sorted.length} sort={sort} empty={<Empty>{tx("Rien à signaler.")}</Empty>}
+        cols={[{ label: tx("Nom"), k: "name" }, { label: "Cloudflare", k: "record" }, { label: tx("Servi par"), k: "via" }, { label: tx("Machine"), k: "machine" }, { label: tx("Réponse"), k: "code" }, { label: tx("État"), k: "tone" }]}
+        rows={sort.sorted.map((c) => [
           <div key="n" className="min-w-0"><b className="font-semibold">{c.name}</b>{c.notes.map((n) => <div key={n} className="whitespace-normal text-xs text-muted">{n}</div>)}</div>,
           <Badge key="r" outline tone={c.record === "proxied" ? "ok" : "off"}>{recordLabel[c.record]}</Badge>,
           c.via ?? "-", c.machine ?? "-", <span key="c" className="font-mono">{c.code ?? "-"}</span>,

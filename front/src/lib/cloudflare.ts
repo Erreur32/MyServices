@@ -66,7 +66,7 @@ export function bestZone(zones: CloudflareZone[]): number {
 export type CheckTone = "ok" | "info" | "warn" | "bad";
 export interface Check { name: string; zone: string; record: "proxied" | "dns" | "none"; via: string | null; machine: string | null; code: number | null; tone: CheckTone; notes: string[] }
 
-const ORDER: CheckTone[] = ["bad", "warn", "info", "ok"];
+export const CHECK_ORDER: CheckTone[] = ["bad", "warn", "info", "ok"];
 const wildcardOf = (name: string) => `*.${name.split(".").slice(1).join(".")}`;
 const zoneOf = (name: string, zones: CloudflareZone[]) => zones.filter((z) => name === z.name || name.endsWith(`.${z.name}`)).sort((a, b) => b.name.length - a.name.length)[0];
 
@@ -130,10 +130,10 @@ export function cloudflareChecks(zones: CloudflareZone[], hosts: Host[]): Check[
     const code = h?.public?.code ?? null;
     if (code !== null && code >= 500) found.push(["bad", tx("répond {0}", code)]);
     if (h?.public?.cert_ok === false) found.push(["warn", tx("certificat refusé")]);
-    const tone = ORDER.find((t) => found.some(([x]) => x === t)) ?? "ok";
+    const tone = CHECK_ORDER.find((t) => found.some(([x]) => x === t)) ?? "ok";
     out.push({ name, zone: z.name, record: recordKind(r), via: viaOf(h), machine: h?.machine ?? null, code, tone, notes: found.map(([, t]) => t) });
   }
-  return out.sort((a, b) => ORDER.indexOf(a.tone) - ORDER.indexOf(b.tone) || a.name.localeCompare(b.name));
+  return out.sort((a, b) => CHECK_ORDER.indexOf(a.tone) - CHECK_ORDER.indexOf(b.tone) || a.name.localeCompare(b.name));
 }
 
 /** The dots of the side menu: what to correct on each sub-page */

@@ -64,8 +64,8 @@ export const NAV: NavGroup[] = [
     ] },
     { id: "cloudflare", hash: "cloudflare/overview", tab: "cloudflare", icon: Cloud, label: "Cloudflare", subs: [
       sub("cloudflare-overview", "cloudflare/overview", "cloudflare", LayoutDashboard, tx("Vue d'ensemble")),
-      sub("cloudflare-compare", "cloudflare/compare", "cloudflare", Layers, tx("Comparer les domaines")),
       sub("cloudflare-traffic", "cloudflare/traffic", "cloudflare", Activity, tx("Trafic")),
+      sub("cloudflare-compare", "cloudflare/compare", "cloudflare", Layers, tx("Comparer les domaines")),
       sub("cloudflare-checks", "cloudflare/checks", "cloudflare", ListChecks, tx("Vérification")),
     ] },
     { id: "virtualization", hash: "virtualization", tab: "virtualization", icon: Server, label: tx("Virtualisation") },
