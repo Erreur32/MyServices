@@ -72,8 +72,9 @@ class Reading(unittest.TestCase):
         self.assertEqual(f.calls[1][1], TOKEN)
 
     def test_needs_account(self):
+        box = Fake(open_state=False)
         with self.assertRaises(ConnectorError) as cm:
-            Fake(open_state=False).collect()
+            box.collect()
         self.assertIn("compte", str(cm.exception))
         self.assertEqual(Fake(open_state=False, password=SECRET).collect()["box"]["model"], "KVD21")
 
@@ -88,8 +89,9 @@ class Reading(unittest.TestCase):
         self.assertNotIn(SECRET, str([c[:2] for c in f.calls]))
 
     def test_unknown_and_unreadable_and_offline(self):
+        box = Fake({GATEWAY_PATH: None})
         with self.assertRaises(ConnectorError) as cm:
-            Fake({GATEWAY_PATH: None}).collect()
+            box.collect()
         self.assertIn("illisible", str(cm.exception))
         f = Fake()
         f.answers = {}

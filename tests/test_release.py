@@ -60,13 +60,17 @@ class Release(unittest.TestCase):
         self.assertIn("## v", again["CHANGELOG.md"])
 
     def test_refus(self):
+        today = dt.date.today()
         with self.assertRaises(release.ReleaseError):
-            release.apply(self.root, "abc", dt.date.today())
+            release.apply(self.root, "abc", today)
+        current = release.current(self.root)
+        today = dt.date.today()
         with self.assertRaises(release.ReleaseError):
-            release.apply(self.root, release.current(self.root), dt.date.today())
+            release.apply(self.root, current, today)
         (self.root / "CHANGELOG.md").write_text("# Changelog\n\n## v0.9.3 (2026-10-11)\n", encoding="utf-8")   # rien à publier
+        today = dt.date.today()
         with self.assertRaises(release.ReleaseError):
-            release.apply(self.root, "0.9.4", dt.date.today())
+            release.apply(self.root, "0.9.4", today)
 
     def test_incoherence_detectee(self):
         cur = release.current(self.root)

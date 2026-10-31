@@ -130,8 +130,9 @@ class Discovery(unittest.TestCase):
         self.assertIn(b"ssdp:discover", sock.sendto.call_args[0][0])
 
     def test_no_box_says_what_to_do(self):
+        err = TimeoutError()
         with self.assertRaises(ConnectorError) as e:
-            self._search(TimeoutError())
+            self._search(err)
         self.assertIn("aucune box UPnP", str(e.exception))
 
     def test_no_multicast_route_is_a_readable_error(self):
@@ -233,29 +234,34 @@ class Reading(unittest.TestCase):
         self.assertEqual((d["box"]["connected"], d["box"]["public_ip"], d["problems"]), (False, None, ["connexion Internet coupée"]))
 
     def test_device_that_is_no_gateway(self):
+        desc = description(service("ContentDirectory", "/cd"))
         with self.assertRaises(ConnectorError) as e:
-            read(description(service("ContentDirectory", "/cd")))
+            read(desc)
         self.assertIn("aucune connexion Internet", str(e.exception))
 
     def test_tr064_services_are_ignored(self):
+        desc = description(service("WANIPConnection", "/tr", urn="urn:dslforum-org"))
         with self.assertRaises(ConnectorError):
-            read(description(service("WANIPConnection", "/tr", urn="urn:dslforum-org")))
+            read(desc)
 
     def test_box_that_refuses_every_query(self):
+        desc = description(COMMON, IP)
         with self.assertRaises(ConnectorError) as e:
-            read(description(COMMON, IP))
+            read(desc)
         self.assertIn("refuse les requêtes", str(e.exception))
 
     def test_rate_limit_is_not_a_missing_value(self):
         ctx = FakeContext(description(COMMON, IP))
         ctx.http = mock.Mock(side_effect=[description(COMMON, IP), RateLimited("HTTP 429")])
+        box = UPnPBox({"type": "upnp-box", "name": "b", "url": LOCATION}, ctx)
         with self.assertRaises(RateLimited):
-            UPnPBox({"type": "upnp-box", "name": "b", "url": LOCATION}, ctx).collect()
+            box.collect()
 
     def test_control_address_on_another_host_is_dropped(self):
         evil = service("WANCommonInterfaceConfig", "http://10.0.0.99/steal")
+        desc = description(evil)
         with self.assertRaises(ConnectorError):
-            read(description(evil))
+            read(desc)
 
     def test_url_base_is_honoured_on_the_same_host(self):
         _, ctx = read(description(COMMON, IP, extra="<URLBase>http://10.0.0.1:5000/</URLBase>"), FULL)
@@ -286,5 +292,6 @@ class Registration(unittest.TestCase):
         self.assertEqual(UPnPBox.validate({}), [], "the address is optional: the box is searched for")
 
     def test_bad_address_refused(self):
+        box = UPnPBox({"name": "b", "url": "ftp://x"}, FakeContext(b""))
         with self.assertRaises(ConnectorError):
-            UPnPBox({"name": "b", "url": "ftp://x"}, FakeContext(b"")).location()
+            box.location()

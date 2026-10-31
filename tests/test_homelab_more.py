@@ -443,7 +443,8 @@ class Webmin(unittest.TestCase):
         srv = HTTPServer(("127.0.0.1", 0), type("Quiet", (BaseHTTPRequestHandler,), {"log_message": lambda *a: None}))
         threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         try:
+            box = connectors.TYPES["webmin"]({"type": "webmin", "name": "w", "url": f"http://127.0.0.1:{srv.server_port}"}, Context(timeout=5))
             with self.assertRaises(ConnectorError):
-                connectors.TYPES["webmin"]({"type": "webmin", "name": "w", "url": f"http://127.0.0.1:{srv.server_port}"}, Context(timeout=5)).collect()
+                box.collect()
         finally:
             srv.shutdown()

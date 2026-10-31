@@ -123,12 +123,14 @@ class Technicolor(Base):
         self.assertEqual((b["firmware"], b["uptime_s"], b["devices"], b["connected"]), (None, None, None, True))
 
     def test_unreadable_answer_is_an_error(self):
+        box = make(tc_answers(**{"GET api/v1/sta_status": b"<<<"}))
         with self.assertRaises(ConnectorError):
-            make(tc_answers(**{"GET api/v1/sta_status": b"<<<"})).collect()
+            box.collect()
 
     def test_session_lost_midway(self):
+        box = make(tc_answers(**{"GET api/v1/sta_status": ConnectorError("HTTP 401")}))
         with self.assertRaises(ConnectorError) as cm:
-            make(tc_answers(**{"GET api/v1/sta_status": ConnectorError("HTTP 401")})).collect()
+            box.collect()
         self.assertIn("fermé la session", str(cm.exception))
 
     def test_the_test_button_shows_no_secret(self):
@@ -182,8 +184,9 @@ class Sercomm(Base):
         self.assertEqual(len([c for c in box.calls if c[1] == "data/login.json" and c[0] == "POST"]), 1)
 
     def test_session_already_taken(self):
+        box = make(sc_answers(code="2"))
         with self.assertRaises(ConnectorError) as cm:
-            make(sc_answers(code="2")).collect()
+            box.collect()
         self.assertIn("session ouverte", str(cm.exception))
 
     def test_devices_absent_and_wan_down(self):
@@ -197,17 +200,20 @@ class Sercomm(Base):
 class Detection(Base):
     def test_unsupported_families_are_named(self):
         for answers in ({"GET login.lp": j({"status": "alive"})}, {"GET api/config/details.jst": j({"X_VODAFONE_WebUI_Language": "en"})}):
+            box = make(answers)
             with self.assertRaises(ConnectorError) as cm:
-                make(answers).collect()
+                box.collect()
             self.assertIn("n'est pas géré", str(cm.exception))
 
     def test_not_a_vodafone_station(self):
+        box = make({})
         with self.assertRaises(ConnectorError):
-            make({}).collect()
+            box.collect()
 
     def test_unreachable_is_an_error(self):
+        box = make({"GET api/v1/login_conf": ConnectorError("injoignable (timed out)")})
         with self.assertRaises(ConnectorError) as cm:
-            make({"GET api/v1/login_conf": ConnectorError("injoignable (timed out)")}).collect()
+            box.collect()
         self.assertIn("injoignable", str(cm.exception))
 
 

@@ -122,8 +122,9 @@ class VeeamAssistant(Base):
         self.assertEqual(names["Serveur fichiers"]["last_result"], "Warning")
         self.assertEqual([r["name"] for r in out["repos"]], ["NAS", "Local"])
         self.assertNotIn(SECRET, json.dumps(out))
+        acct = self.acct(password="faux")
         with self.assertRaises(ba.BackupError):
-            ba.veeam_discover(self.acct(password="faux"))
+            ba.veeam_discover(acct)
 
     def test_suivi_ecrit_le_compte_chiffre_et_les_jeux(self):
         jobs = [{"name": "PC-Jeu image", "label": "PC de jeu", "max_age_days": 2}, {"name": "Serveur fichiers"}]
@@ -193,8 +194,9 @@ class VeeamAssistant(Base):
             acct = self.acct()
             with self.assertRaises(ba.BackupError, msg=str(jobs)):
                 ba.veeam_follow(acct, jobs)
+        acct = self.acct(password="faux")
         with self.assertRaises(ba.BackupError):
-            ba.veeam_follow(self.acct(password="faux"), [{"name": "PC-Jeu image"}])
+            ba.veeam_follow(acct, [{"name": "PC-Jeu image"}])
         self.assertEqual(self.config.read_text(encoding="utf-8"), "{}")
         self.assertFalse(self.meta.exists())
 

@@ -114,8 +114,9 @@ class Frigate(Base):
 
     def test_pas_frigate(self):
         self.route("/api/stats", ["autre chose"])
+        box = self.conn("frigate")
         with self.assertRaises(ConnectorError):
-            self.conn("frigate").collect()
+            box.collect()
 
 
 class Arr(Base):
@@ -139,8 +140,9 @@ class Arr(Base):
 
     def test_cle_refusee(self):
         self.route("/api/v3/system/status", {"error": "Unauthorized"}, code=401)
+        box = self.conn("arr", app="radarr", api_key="mauvaise")
         with self.assertRaises(ConnectorError) as e:
-            self.conn("arr", app="radarr", api_key="mauvaise").collect()
+            box.collect()
         self.assertIn("accès refusé", str(e.exception))
 
 
@@ -188,8 +190,9 @@ class PiHole(Base):
         self.route("/api/dns/blocking", {"blocking": "disabled"})
         self.assertEqual(self.conn("pihole", password="pw").collect()["problems"], ["le blocage des publicités est coupé"])
         self.route("/api/auth", {"session": {"valid": False}}, "POST")
+        box = self.conn("pihole", password="x")
         with self.assertRaises(ConnectorError):
-            self.conn("pihole", password="x").collect()
+            box.collect()
 
 
 class Technitium(Base):
@@ -202,8 +205,9 @@ class Technitium(Base):
 
     def test_jeton_invalide(self):
         self.route("/api/dashboard/stats/get", {"status": "invalid-token"}, "POST")
+        box = self.conn("technitium", token="x")
         with self.assertRaises(ConnectorError):
-            self.conn("technitium", token="x").collect()
+            box.collect()
 
 
 class TrueNAS(Base):
@@ -260,8 +264,9 @@ class Synology(Base):
 
     def test_connexion_refusee(self):
         self.route("/webapi/auth.cgi", {"success": False, "error": {"code": 400}}, "POST")
+        box = self.conn("synology", user="u", password="x")
         with self.assertRaises(ConnectorError) as e:
-            self.conn("synology", user="u", password="x").collect()
+            box.collect()
         self.assertIn("refusé", str(e.exception))
 
 
@@ -339,8 +344,9 @@ class UniFi(Base):
 
     def test_compte_refuse(self):
         self.route("/api/login", {"meta": {"rc": "error", "msg": "api.err.Invalid"}}, "POST", code=400)
+        box = self.conn("unifi", auth="account", user="ro", password="x" * 4)
         with self.assertRaises(ConnectorError) as e:
-            self.conn("unifi", auth="account", user="ro", password="x" * 4).collect()
+            box.collect()
         self.assertIn("compte refusé", str(e.exception))
 
     def test_reglages_selon_acces(self):
@@ -351,8 +357,9 @@ class UniFi(Base):
                          {"auth": "account", "url": "https://10.0.0.5:8443", "verify_tls": False})
 
     def test_pas_une_console_unifi_os(self):
+        box = self.conn("unifi", api_key="K")
         with self.assertRaises(ConnectorError):
-            self.conn("unifi", api_key="K").collect()
+            box.collect()
 
 
 class Tailscale(Base):

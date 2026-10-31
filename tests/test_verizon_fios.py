@@ -108,18 +108,21 @@ class Reading(unittest.TestCase):
         def full(_):
             raise HttpStatus(403)
         answers = {**g3100(), "login.cgi": full}
+        box = Fake(answers)
         with self.assertRaises(ConnectorError) as cm:
-            Fake(answers).collect()
+            box.collect()
         self.assertIn("Refused", type(cm.exception).__name__)   # 403 without the sessions flag = refused
         body = json.dumps({"flag": 2, "maxsession": 3}).encode()
 
         def full2(_):
             raise HttpStatus(403, body)
+        box = Fake({**g3100(), "login.cgi": full2}, password=SECRET + "2")
         with self.assertRaises(ConnectorError) as cm:
-            Fake({**g3100(), "login.cgi": full2}, password=SECRET + "2").collect()
+            box.collect()
         self.assertIn("sessions", str(cm.exception))
+        box = Fake({"loginStatus.cgi": b"<html>"})
         with self.assertRaises(ConnectorError):
-            Fake({"loginStatus.cgi": b"<html>"}).collect()
+            box.collect()
 
     def test_g1100(self):
         f = Fake(g1100(), cookies={"XSRF-TOKEN": "xt"})
@@ -129,19 +132,22 @@ class Reading(unittest.TestCase):
         self.assertNotIn(SECRET, str(f.calls))
 
     def test_g1100_refused_and_no_cookie(self):
+        box = Fake(g1100(False), cookies={"XSRF-TOKEN": "xt"})
         with self.assertRaises(ConnectorError) as cm:
-            Fake(g1100(False), cookies={"XSRF-TOKEN": "xt"}).collect()
+            box.collect()
         self.assertNotIn(SECRET, str(cm.exception))
         REFUSED_BY.clear()
+        box = Fake(g1100())
         with self.assertRaises(ConnectorError):
-            Fake(g1100()).collect()   # login answered but no XSRF cookie
+            box.collect()   # login answered but no XSRF cookie
 
     def test_unreachable_is_not_a_refusal(self):
         class Down(Fake):
             def fetch(self, *a, **k):
                 raise ConnectorError("injoignable (timeout)")
+        box = Down({})
         with self.assertRaises(ConnectorError):
-            Down({}).collect()
+            box.collect()
         self.assertEqual(REFUSED_BY, {})
 
 

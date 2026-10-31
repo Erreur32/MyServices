@@ -58,8 +58,9 @@ class Helpers(unittest.TestCase):
     def test_round_trip_and_plain(self):
         self.assertEqual(decode(blob(SHARED_KEY, a="1"), SHARED_KEY), {"a": "1"})
         self.assertEqual(decode(json.dumps(page(a="1")).encode()), {"a": "1"})
+        payload = blob(CHALLENGE, a="1")
         with self.assertRaises(ConnectorError):
-            decode(blob(CHALLENGE, a="1"), SHARED_KEY)
+            decode(payload, SHARED_KEY)
         with self.assertRaises(ConnectorError):
             decode(b"<html>")
 
@@ -98,8 +99,9 @@ class Reading(unittest.TestCase):
         self.assertEqual(len([c for c in f.calls[n:] if c[0] == "data/Login.json"]), 0)
 
     def test_not_a_speedport_and_offline(self):
+        box = Fake({})
         with self.assertRaises(ConnectorError) as cm:
-            Fake({}).collect()
+            box.collect()
         self.assertIn("Speedport", str(cm.exception))
         box = Fake({"data/Status.json": blob(SHARED_KEY, onlinestatus="offline")}).collect()
         self.assertEqual(box["problems"], ["connexion Internet coupée"])
