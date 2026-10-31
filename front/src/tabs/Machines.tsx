@@ -47,7 +47,7 @@ import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernel
 import { MachineIcon } from "../components/MachineIcon";
 import { FollowAsk, FollowIcon } from "../components/MachineFollow";
 import { InfoNote } from "../components/InfoNote";
-import { Badge, Cards, Count, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
+import { Badge, Cards, Count, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, SearchBox, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
@@ -1912,8 +1912,9 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
         if (sel.state?.includes("off")) setHideOff(false);
         f.setSel(sel);
       }} />
-      <FoldPanel id="machines-all" icon={Monitor} title={tx("Toutes les machines")} count={sort.sorted.length} pinned>
-      <FilterBar bare f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
+      <FoldPanel id="machines-all" icon={Monitor} title={tx("Toutes les machines")} count={sort.sorted.length} pinned
+        center={<SearchBox value={f.query} onChange={f.setQuery} placeholder={tx("Nom, IP, rôle, système, compte SSH…")} count={[f.shown.length, f.total]} />}>
+      <FilterBar bare searchBox={false} f={f} placeholder=""
         primary={["alert", "kind"]} oneLine optionsLabel={tx("Affichage")}
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Masquer éteintes et non suivies"), on: hideOff, toggle: () => setHideOff(!hideOff), mark: hideOff ? <EyeOff size={12} aria-hidden /> : <Eye size={12} aria-hidden />, count: nOff }] : []),

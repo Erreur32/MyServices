@@ -9,7 +9,7 @@ import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
 import { act, danger, fieldFrame, fieldText, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Count, Dim, Th } from "../components/ui";
+import { Badge, Card, Count, Dim, SearchBox, Th } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
@@ -126,7 +126,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   };
   const listed = st.instances.filter((i) => key(i) === edited || key(i) === focusKey || (kept(i) && searchHit(`${i.label} ${i.name} ${i.type}`, find)))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name));   // alphabetical, like the picker
-  const mine = (<div className="mt-3 grid grid-flow-dense gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,18rem),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
+  const mine = (<div className="mt-3 grid grid-flow-dense gap-x-2.5 gap-y-4 [grid-template-columns:repeat(auto-fill,minmax(max(min(100%,18rem),calc((100%_-_3.125rem)/6)),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
         {only.length > 0 && <button type="button" className="col-span-full justify-self-start text-sm font-semibold text-link hover:underline" onClick={() => setOnly([])}>{tx("Voir tous mes connecteurs")}</button>}
         {listed.length === 0 && <p className="col-span-full py-4 text-center text-sm text-muted">{tx("Aucun connecteur ne correspond.")}</p>}
         {listed.map((i) => (
@@ -152,9 +152,10 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   return (
     <div className="flex flex-col gap-4">
       {part === "mine" && <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 md:grid md:grid-cols-[1fr_minmax(0,32rem)_1fr]">
           <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Count n={st.instances.length} /></h2>
-          <a href={`#${MINE}/available`} className={`${primary} no-underline`}><Plus size={14} />{tx("Ajouter un connecteur")}</a>
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-3">{st.instances.length > 0 && <SearchBox value={find} onChange={setFind} placeholder={tx("Chercher un connecteur")} count={[listed.length, st.instances.length]} />}</div>
+          <a href={`#${MINE}/available`} className={`${primary} no-underline md:justify-self-end`}><Plus size={14} />{tx("Ajouter un connecteur")}</a>
         </div>
         {st.instances.length > 0 && <p className="mt-1 text-sm text-muted">{cardsTitle([...views.values()])}</p>}
         {form}
@@ -163,10 +164,6 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
         )}
         {st.instances.length > 0 && <>
           <div className="mt-3 flex flex-wrap items-start gap-x-3 gap-y-2">
-            <label className="w-full max-w-[18rem]">
-              <span className="sr-only">{tx("Chercher un connecteur")}</span>
-              <input type="search" className={input} value={find} onChange={(e) => setFind(e.target.value)} placeholder={tx("Chercher un connecteur")} />
-            </label>
             <CategoryChips types={st.instances.map(typeOf)} cat={view} setCat={setView} extra={[[WATCH, tx("À vérifier"), watching, failing ? "bad" : "warn"], [OFF, tx("Coupés"), stopped, "off"]]} />
           </div>
           {mine}
@@ -511,7 +508,7 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
         <CardHead inst={inst} category={type.category} view={view} open={edit} />
         {edit ? <span className="block h-2" /> : <span className="grid min-h-16 grid-cols-3 gap-2 px-3 pb-2 pt-2.5">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
       </button>
-      <div className={`mt-auto flex items-center gap-1 border-t border-line/40 bg-bg py-1.5 pl-3 pr-2 ${edit ? "" : "rounded-b-xl"}`}>
+      <div className="mt-auto flex items-center gap-1 border-t border-dashed border-line/60 py-1 pl-3 pr-2">
         {notice && !edit ? <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${TEXT[notice.tone]}`} title={notice.raw ?? notice.text}>{notice.text}</span>
           : <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>}
         {inst.enabled && <RereadButton compact label={tx("Relire {0}", inst.label)} tip={tx("Lire ce connecteur maintenant, sans attendre sa période")} run={readConnector(inst.type, inst.name)} onNote={setNote} />}

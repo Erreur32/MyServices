@@ -12,7 +12,7 @@ import { Dot, Logo } from "../components/marks";
 import { appIcon, serviceIcon } from "../lib/appIcons";
 import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, openUrl, status, type Check } from "../lib/status";
 import type { Host } from "../types";
-import { Badge, Empty, FilterBar, type Tone } from "../components/ui";
+import { Badge, Empty, FilterBar, SearchBox, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
 import { RereadButton, testService } from "../components/Reread";
 import { ServiceEdit } from "../components/ServiceEdit";
@@ -437,8 +437,9 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
       <ServicesTiles hosts={snap.data.hosts} hidden={hiddenMap} generated={snap.data.generated} hours={hours} />
       {(view === "all" || view === "watch") && admin && <PublicIgnore />}
       {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}
-      {(view === "all" || view === "watch") && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={groups.filter((g) => !g.tech).length} pinned>
-        <FilterBar f={{ ...f, shown: shownReal, total: groups.filter((g) => !g.tech).length }} oneLine bare placeholder={tx("Nom, domaine, IP…")}   // one line in the panel's frame; the others behind « More filters »
+      {(view === "all" || view === "watch") && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={groups.filter((g) => !g.tech).length} pinned
+        center={<SearchBox value={f.query} onChange={f.setQuery} placeholder={tx("Nom, domaine, IP…")} count={[shownReal.length, groups.filter((g) => !g.tech).length]} />}>
+        <FilterBar f={{ ...f, shown: shownReal, total: groups.filter((g) => !g.tech).length }} oneLine bare searchBox={false} placeholder=""   // one line in the panel's frame; the others behind « More filters »
           extra={<>{watching > 0 && <button type="button" onClick={() => f.toggle("todo", "on")} aria-pressed={!!f.sel.todo?.length} title={tx("Pannes, avertissements et points à contrôler")}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${f.sel.todo?.length ? "border-warn bg-warn/15 text-warn" : "border-warn/60 text-warn hover:bg-warn/10"}`}>
             <span className="h-2 w-2 rounded-full bg-warn" aria-hidden />{tx("À vérifier")} <b>{watching}</b></button>}

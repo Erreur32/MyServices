@@ -144,7 +144,7 @@ export function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: b
   );
 }
 
-export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions = [], optionsLabel, primary: primaryProp = [], oneLine = false, bare = false }: Readonly<{
+export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions = [], optionsLabel, primary: primaryProp = [], oneLine = false, bare = false, searchBox = true }: Readonly<{
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
   placeholder: string; extra?: ReactNode; side?: ReactNode; options?: FilterOption[];   // side : à droite, sous le bouton « Filtres »
@@ -152,6 +152,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   primary?: string[];
   /** Filtres visibles sur la même ligne que la recherche ; au-delà de 10 pastilles ou si la ligne déborde, ils passent derrière le bouton « Filtres » */
   oneLine?: boolean; bare?: boolean   // bare: no frame of its own (the page's list right under it has one);
+  searchBox?: boolean;   // false: the field lives in the title of the panel (FoldPanel center)
   /** Given: the options are toggles shown on the search line under this caption (« Masquer »), not behind the « Filtres » button */
   optionsLabel?: string;
 }>) {
@@ -200,7 +201,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   return (
     <div className={`my-4 flex flex-col gap-3 ${bare ? "" : "rounded-2xl border border-line bg-card/70 p-3"}`}>
       <div ref={rowRef} className={`flex items-center gap-3 ${oneLine && !collapsed ? "flex-nowrap" : "flex-wrap"}`}>
-        <SearchBox value={f.query} onChange={f.setQuery} placeholder={placeholder} count={[f.shown.length, f.total]} />
+        {searchBox && <SearchBox value={f.query} onChange={f.setQuery} placeholder={placeholder} count={[f.shown.length, f.total]} />}
         {oneLine && inlineFilters}
         {optionsLabel && allOptions.length > 0 && (
           <span className="flex flex-wrap items-center gap-1.5">
