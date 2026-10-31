@@ -9,6 +9,7 @@ export interface ScanStatus {
   running: boolean;
   network?: NetworkSummary;
   progress: { step: number; steps: number; label: string; done: number | null; total: number | null } | null;
+  tasks?: string[];   // the other scheduled tasks running now
 }
 
 let current: ScanStatus | null = null;

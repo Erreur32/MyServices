@@ -931,7 +931,7 @@ def status() -> dict:
     ts = (lambda x: int(x) if x else None)
     return {"running": running, "progress": prog, "started": ts(t["start"]), "ended": ts(t["end"]),
             "result": t["result"], "generated": generated, "cooldown": COOLDOWN, "wait": wait, "now": int(now),
-            "network": netscan.summary()}
+            "network": netscan.summary(), "tasks": [n for n, x in TASKS.items() if n != "collect" and x["proc"] is not None]}
 
 
 def start() -> None:

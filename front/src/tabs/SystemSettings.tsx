@@ -10,6 +10,7 @@ import { Badge, Card, Dim, type Tone } from "../components/ui";
 import { bytes, dateTime, dur, hm } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
 import { usePoll } from "../lib/polling";
+import { useHeaderTask } from "../lib/headerTasks";
 import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
 import { GITHUB, releaseOf } from "../lib/links";
@@ -224,6 +225,11 @@ function RunButton({ label, busy, disabled, onRun }: Readonly<{ label: string; b
   );
 }
 
+function HeaderSwitch({ task }: Readonly<{ task: string }>) {
+  const [on, set] = useHeaderTask(task);
+  return <p className="mt-1 flex items-center gap-2 text-xs text-muted"><Switch on={on} onChange={set} label={tx("Afficher dans l'en-tête")} />{tx("Afficher dans l'en-tête")}</p>;
+}
+
 function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number; reload: () => void; edit: boolean }>) {
   const [at, setAt] = useState(t.at), [note, setNote] = useState<Note>(null);
   const parsed = parseAt(at), changed = at.trim() !== t.at, state = runState(t);
@@ -234,6 +240,7 @@ function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number
         <TaskHead name={t.name} title={t.label} state={state} note={note}
           about={<><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></>}>
           {t.enabled && <LastRun t={t} />}
+          <HeaderSwitch task={t.name} />
         </TaskHead>
         <div>
           <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
@@ -333,6 +340,7 @@ function NetscanRow({ n, now, reload, edit }: Readonly<{ n: NonNullable<SystemSt
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
         <TaskHead name="netscan" title={tx("Recherche réseau")} state={state} note={note} about={<><span>{desc("netscan")}</span><AlsoFinds task="netscan" /></>}>
           {n.enabled && <LastRun t={{ running: n.running, result: null, started: n.started, ended: n.ended }} />}
+          <HeaderSwitch task="netscan" />
         </TaskHead>
         <div>
           <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
