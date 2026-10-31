@@ -203,7 +203,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         actions={<>
           <a href="#settings/machines/agents/new" className={`${primary} py-1 no-underline`}><Plus size={14} aria-hidden />{tx("Agent")}</a>
           <PeriodSwitch value={hours} onChange={setHours} />
-          {s.outdated.length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void updateLate()}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", s.outdated.length)}</button>}
+          {s.outdated.length > 0 && <button type="button" className={`${primary} nudge`} disabled={busy} onClick={() => void updateLate()}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", s.outdated.length)}</button>}
         </>} />
       <div className="flex flex-wrap gap-2.5 pb-1">
         <HistoryTile n={s.active} label={tx("Actifs")} tone="ok" kind="curve" points={hist?.running ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
