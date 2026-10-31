@@ -5,7 +5,7 @@
 import { Cpu, Plus, Terminal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
-import type { AgentInfo, MachinesSettings, SystemState } from "../types";
+import type { Advice, AgentInfo, MachinesSettings, SystemState } from "../types";
 import { AppKeyBand, keyOf } from "../components/AppKey";
 import { Badge, Dim, type Tone } from "../components/ui";
 import { StatTile } from "../components/StatTile";
@@ -13,7 +13,7 @@ import { InfoNote } from "../components/InfoNote";
 import { FoldPanel } from "../components/FoldPanel";
 import { PageHead } from "../components/PageHead";
 import { MachineIcon } from "../components/MachineIcon";
-import { sshRows, type SshState } from "../lib/accessLists";
+import { sshNeed, sshRows, type SshNeed, type SshRow, type SshState } from "../lib/accessLists";
 import { tx } from "../lib/i18n";
 import { SettingsLink } from "../components/SettingsLink";
 import { primary } from "../lib/forms";
@@ -21,7 +21,7 @@ import { primary } from "../lib/forms";
 /** What needs SSH on a machine, in words (codes from the server, access_advice.ssh_uses) */
 const USE: Record<string, string> = { backups: tx("sauvegardes"), npm: "NPM", adguard: "AdGuard", borgmatic: "borgmatic", proxmox: "Proxmox", esxi: "ESXi",
   virsh: "KVM", incus: "Incus", lxc: "LXD", vboxmanage: "VirtualBox" };
-export const useText = (codes: string[]) => codes.map((c) => USE[c] ?? c).join(", ");
+const useText = (codes: string[]) => codes.map((c) => USE[c] ?? c).join(", ");
 
 const STATE: Record<SshState, [Tone, string]> = {
   ok: ["ok", tx("lue")],
@@ -30,18 +30,33 @@ const STATE: Record<SshState, [Tone, string]> = {
   off: ["off", tx("coupée à la main")],
 };
 
-/** Whether SSH is still needed: with an agent and nothing that needs SSH, it is optional; without an agent, the agent is offered.
- *  An agent that reports (working) is a link to its page */
-function AgentAdvice({ ip, agent, working, uses }: Readonly<{ ip: string; agent: boolean; working: boolean; uses: string[] }>) {
-  if (!agent) return <a href={`#machines/${ip}/access`} className="inline-flex items-center gap-1 text-xs text-link hover:underline"><Cpu size={13} aria-hidden />{tx("Installer l'agent")} ›</a>;
-  const toAgent = (node: ReactNode) => working ? <a href={`#settings/agents/${ip}`} className="hover:underline" title={tx("L'agent envoie sa santé : ouvrir sa page")}>{node}</a> : node;
-  if (uses.length) return <span className="text-xs text-muted" title={tx("L'agent ne lit pas cela : gardez le SSH")}>{toAgent(tx("agent installé · SSH utile : {0}", useText(uses)))}</span>;
+/** The two lines of a machine that must keep its SSH: why it does, and what can still be done */
+function KeepSsh({ why, children }: Readonly<{ why: string; children?: ReactNode }>) {
   return (
-    <span className="text-xs">
-      {toAgent(<Badge tone="info">{tx("SSH facultatif : l'agent suffit")}</Badge>)}{" "}
-      <a href={`#settings/machines/ssh/${ip}`} className="text-link hover:underline">{tx("Couper le SSH")} ›</a>
+    <span className="flex flex-col items-start gap-0.5 text-xs">
+      <Badge tone="warn">{tx("SSH à garder")}</Badge>
+      <span className="text-muted">{why}</span>
+      {children}
     </span>
   );
+}
+
+function SshAdvice({ ip, need, uses, canInstall }: Readonly<{ ip: string; need: SshNeed; uses: string[]; canInstall: boolean }>) {
+  const install = <a href={`#machines/${ip}/access`} className="inline-flex items-center gap-1 text-xs text-link hover:underline"><Cpu size={13} aria-hidden />{tx("Installer l'agent")} ›</a>;
+  const agentPage = <a href={`#settings/agents/${ip}`} className="text-link hover:underline">{tx("Page de l'agent")} ›</a>;
+  switch (need) {
+    case "cut": return <Dim>-</Dim>;
+    case "offer_agent": return install;
+    case "no_agent": return <KeepSsh why={tx("Aucun agent ne s'installe sur ce système.")} />;
+    case "silent": return <KeepSsh why={tx("L'agent n'envoie plus de relevé : le SSH prend le relais.")}>{agentPage}</KeepSsh>;
+    case "uses": return <KeepSsh why={tx("L'agent ne lit pas : {0}", useText(uses))}>{canInstall && install}</KeepSsh>;
+    default: return (
+      <span className="flex flex-col items-start gap-0.5 text-xs">
+        <Badge tone="info">{tx("SSH facultatif : l'agent suffit")}</Badge>
+        <span className="flex gap-3">{agentPage}<a href={`#settings/machines/ssh/${ip}`} className="text-link hover:underline">{tx("Couper le SSH")} ›</a></span>
+      </span>
+    );
+  }
 }
 
 /** The key a machine signs in with: the app's (or its ESXi one), another key, none; refused when the read does not go through */
@@ -55,9 +70,11 @@ const KEY: Record<ReturnType<typeof keyOf>, [Tone, string]> = {
 export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; snap: Snapshot }>) {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [key, setKey] = useState<SystemState["ssh"] | null>(null);
+  const [advice, setAdvice] = useState<Record<string, Advice>>({});
   useEffect(() => {
     read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(r.agents)).catch(() => undefined);
     read<SystemState>("system").then((r) => setKey(r.ssh)).catch(() => undefined);
+    read<{ advice: Record<string, Advice> }>("machines/advice").then((r) => setAdvice(r.advice)).catch(() => undefined);
   }, []);
   const withAgent = new Set(agents.filter((a) => a.state !== "révoqué").map((a) => a.ip));
   const working = new Set(agents.filter((a) => a.state === "actif").map((a) => a.ip));
@@ -65,6 +82,10 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
   const rows = sshRows(st.machines, st.aliases, list, snap.data.connectors ?? []);
   const count = (s: SshState) => rows.filter((r) => r.state === s).length;
   const refused = count("refused");
+  const usesOf = (ip: string) => st.ssh_uses?.[ip] ?? [];
+  const needOf = (r: SshRow) => sshNeed(r.state === "off", usesOf(r.ip), withAgent.has(r.ip), working.has(r.ip), advice[r.ip]?.agent_possible);
+  const needs = rows.map(needOf);
+  const keep = needs.filter((n) => n === "uses" || n === "no_agent" || n === "silent").length;
   return (
     <div className="flex flex-col gap-4">
       <PageHead icon={Terminal} title={tx("Connexions SSH")} tags={<span className="flex flex-wrap items-center gap-1.5 text-sm"><Badge tone="info" outline>{tx("{0} connexion(s)", rows.length)}</Badge></span>}
@@ -74,16 +95,18 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
         <StatTile n={refused} label={tx("Refusées")} tone={refused ? "bad" : undefined} />
         <StatTile n={count("unread")} label={tx("Pas encore lues")} />
         <StatTile n={count("off")} label={tx("Coupées à la main")} />
+        <StatTile n={keep} label={tx("SSH à garder")} tone={keep ? "warn" : undefined} />
+        <StatTile n={needs.filter((n) => n === "optional").length} label={tx("SSH facultatif")} />
       </div>
       {key && <AppKeyBand ssh={key} />}
       <FoldPanel id="ssh-list" icon={Terminal} title={tx("Connexions SSH")} count={rows.length} pinned>
-        <InfoNote>{tx("L'agent MyServices fait les mêmes relevés de santé chaque minute, sans clé SSH sur la machine. Gardez le SSH seulement pour ce que l'agent ne lit pas : sauvegardes, Proxmox ou ESXi, NPM, AdGuard. L'icône de réglage ouvre l'accès d'une machine.")}</InfoNote>
+        <InfoNote>{tx("L'agent MyServices fait les mêmes relevés de santé et d'inventaire, sans clé SSH sur la machine. Gardez le SSH pour ce qu'il ne lit pas : sauvegardes, Proxmox ou ESXi, NPM, AdGuard. « SSH à garder » signale aussi un système sans agent possible et un agent qui n'envoie plus de relevé. Sur « SSH facultatif », vous pouvez retirer le SSH avec « Couper le SSH » : rien n'est coupé tout seul.")}</InfoNote>
         {rows.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucune machine lue par SSH pour l'instant : l'accès s'active sur la page d'une machine, onglet Accès.")}</p>}
         {rows.length > 0 && (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[760px] border-collapse text-sm">
               <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Connexion")}</th><th className="px-3 py-2">{tx("Clé")}</th><th className="px-3 py-2">{tx("État")}</th><th className="px-3 py-2">{tx("Agent")}</th><th className="px-3 py-2" />
+                <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Connexion")}</th><th className="px-3 py-2">{tx("Clé")}</th><th className="px-3 py-2">{tx("État")}</th><th className="px-3 py-2">{tx("Besoin du SSH")}</th><th className="px-3 py-2" />
               </tr></thead>
               <tbody>
                 {rows.map((r) => {
@@ -98,7 +121,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
                       <td className="px-3 py-2 font-mono text-xs">{r.access || <Dim>-</Dim>}</td>
                       <td className="px-3 py-2">{r.state === "off" || !seen?.ssh ? <Dim>-</Dim> : <Badge tone={keyTone} title={seen.ssh.key_fp ?? undefined}>{keyLabel}</Badge>}</td>
                       <td className="px-3 py-2"><Badge tone={tone} title={r.message || undefined}>{label}</Badge></td>
-                      <td className="px-3 py-2"><AgentAdvice ip={r.ip} agent={withAgent.has(r.ip)} working={working.has(r.ip)} uses={st.ssh_uses?.[r.ip] ?? []} /></td>
+                      <td className="px-3 py-2"><SshAdvice ip={r.ip} need={needOf(r)} uses={usesOf(r.ip)} canInstall={!withAgent.has(r.ip) && advice[r.ip]?.agent_possible !== false} /></td>
                       <td className="px-3 py-2 text-right"><SettingsLink href={`#settings/machines/ssh/${r.ip}`} of={r.name} /></td>
                     </tr>
                   );

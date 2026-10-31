@@ -16,6 +16,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Agents**: a new agent reports every 5 minutes instead of 15. An agent already installed keeps its rhythm until its install command is run again.
 - **Video and cameras**: the overview and the Frigate page are laid out on three columns, the detectors, GPUs and storage as compact cards.
 - **Fields**: every field has a background of its own in each theme, and the text typed in it, its example and what the browser fills in stay readable.
+- **Machines › SSH connections**: a badge tells which machines must keep SSH and why (what the agent does not read, no agent possible on the system, an agent that no longer reports), with counters; the note says how to remove SSH where it is optional.
+- **Machine alert limits**: the fields show the values in force, so their arrows no longer start from 0; emptied, a field goes back to the default.
 
 ## v0.31.9 (2026-10-31)
 

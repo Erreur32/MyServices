@@ -24,6 +24,15 @@ export function agentSummary(agents: AgentInfo[]): AgentSummary {
 export type SshState = "ok" | "refused" | "unread" | "off";
 export interface SshRow { ip: string; name: string; access: string; state: SshState; message: string }
 
+/** Whether a machine still needs its SSH: `uses` is what an agent does not read there, `agentPossible` undefined until the advice is read */
+export type SshNeed = "uses" | "no_agent" | "silent" | "optional" | "offer_agent" | "cut";
+export function sshNeed(off: boolean, uses: string[], agent: boolean, working: boolean, agentPossible?: boolean): SshNeed {
+  if (off) return "cut";
+  if (uses.length) return "uses";
+  if (agent) return working ? "optional" : "silent";
+  return agentPossible === false ? "no_agent" : "offer_agent";
+}
+
 /** « account@address:port » of an SSH access; the alias itself when it is not known */
 export function sshTarget(alias: string, aliases: SshAlias[]): string {
   const a = aliases.find((x) => x.alias === alias);

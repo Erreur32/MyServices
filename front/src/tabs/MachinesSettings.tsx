@@ -5,7 +5,7 @@
 // les appareils vus par les outils et pas suivis, les agents. La clé refusée par une machine est signalée sur la page de la clé SSH.
 import { NetworkSettings } from "./NetworkSettings";
 import { Box, Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, Gauge, ShieldCheck, Thermometer, Trash2 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -1060,26 +1060,35 @@ function StoppedOkSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
 const TEMP_MIN = 50, TEMP_MAX = 110, TEMP_DEFAULT = 85;   // °C, as machines_admin.py accepts them
 
 /** Processor temperature threshold of this machine: health warns above it once the machine stays hot (critical 10 °C higher) */
-function TempSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
-  const { v, ss, autoSave } = ctx;
-  const cur = typeof v.temp_warn_c === "number" ? v.temp_warn_c : null;
-  const [draft, setDraft] = useState(cur == null ? "" : String(cur));
-  useEffect(() => setDraft(cur == null ? "" : String(cur)), [cur]);
+/** A number with a default: the field always shows the value in force, so that its arrows start from it; emptied, it goes back to the default.
+ *  The default is not stored: the machine goes on following it. */
+function useLimit(ctx: FlagCtx, k: LimitKey | "temp_warn_c", base: number, min: number, max: number) {
+  const { v, autoSave } = ctx;
+  const cur = typeof v[k] === "number" ? v[k] : null;
+  const shown = String(cur ?? base);
+  const [draft, setDraft] = useState(shown);
+  useEffect(() => setDraft(shown), [shown]);
   const commit = () => {
-    const n = draft.trim() === "" ? null : Number(draft);
-    if (n != null && (!Number.isInteger(n) || n < TEMP_MIN || n > TEMP_MAX)) { setDraft(cur == null ? "" : String(cur)); return; }
-    if (n !== cur) void autoSave("temp_warn_c", { temp_warn_c: n ?? undefined });
+    const n = draft.trim() === "" ? base : Number(draft);
+    if (!Number.isInteger(n) || n < min || n > max) { setDraft(shown); return; }
+    setDraft(String(n));
+    const kept = n === base ? null : n;
+    if (kept !== cur) void autoSave(k, { [k]: kept ?? undefined });
   };
+  return { value: draft, onChange: (e: ChangeEvent<HTMLInputElement>) => setDraft(e.target.value), onBlur: commit, onKeyDown: (e: KeyboardEvent) => { if (e.key === "Enter") commit(); } };
+}
+
+function TempSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
+  const field = useLimit(ctx, "temp_warn_c", TEMP_DEFAULT, TEMP_MIN, TEMP_MAX);
   return (
     <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4" aria-label={tx("Seuil de température")}>
       <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Thermometer size={13} className="text-link" aria-hidden />{tx("Seuil de température")}</h4>
       <InfoNote className="mb-3">{tx("Au-dessus de ce seuil, le processeur met la machine « à surveiller » (critique 10 °C plus haut), mais seulement s'il y reste plus de dix minutes : un pic pendant une compilation ou une sauvegarde ne compte pas. Vide : {0} °C.", TEMP_DEFAULT)}</InfoNote>
       <label className="inline-flex items-center gap-2 text-sm text-muted">{tx("Avertir à partir de")}
-        <input className={`${input} w-24`} type="number" min={TEMP_MIN} max={TEMP_MAX} step={1} placeholder={String(TEMP_DEFAULT)} value={draft}
-          onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />
+        <input className={`${input} w-24`} type="number" min={TEMP_MIN} max={TEMP_MAX} step={1} {...field} />
         °C
       </label>
-      <SavedMark k="temp_warn_c" s={ss} />
+      <SavedMark k="temp_warn_c" s={ctx.ss} />
     </section>
   );
 }
@@ -1090,21 +1099,12 @@ const LIMITS: { kind: string; keys: [LimitKey, LimitKey]; defaults: [number, num
   { kind: tx("Mémoire"), keys: ["mem_warn_pct", "mem_crit_pct"], defaults: [90, 97] },
 ];   // defaults of health.py (DISK_*_PCT, MEM_*_PCT)
 
-function LimitInput({ ctx, k, label, placeholder }: Readonly<{ ctx: FlagCtx; k: LimitKey; label: string; placeholder: number }>) {
-  const { v, ss, autoSave } = ctx;
-  const cur = typeof v[k] === "number" ? v[k] : null;
-  const [draft, setDraft] = useState(cur == null ? "" : String(cur));
-  useEffect(() => setDraft(cur == null ? "" : String(cur)), [cur]);
-  const commit = () => {
-    const n = draft.trim() === "" ? null : Number(draft);
-    if (n != null && (!Number.isInteger(n) || n < 1 || n > 100)) { setDraft(cur == null ? "" : String(cur)); return; }
-    if (n !== cur) void autoSave(k, { [k]: n ?? undefined });
-  };
+function LimitInput({ ctx, k, label, base }: Readonly<{ ctx: FlagCtx; k: LimitKey; label: string; base: number }>) {
+  const field = useLimit(ctx, k, base, 1, 100);
   return (
     <label className="inline-flex items-center gap-2 text-sm text-muted">{label}
-      <input className={`${input} w-20`} type="number" min={1} max={100} step={1} placeholder={String(placeholder)} value={draft}
-        onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />
-      %<SavedMark k={k} s={ss} />
+      <input className={`${input} w-20`} type="number" min={1} max={100} step={1} {...field} />
+      %<SavedMark k={k} s={ctx.ss} />
     </label>
   );
 }
@@ -1114,13 +1114,13 @@ function LimitsSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
   return (
     <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4" aria-label={tx("Seuils d'alerte")}>
       <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Gauge size={13} className="text-link" aria-hidden />{tx("Seuils d'alerte")}</h4>
-      <InfoNote className="mb-3">{tx("Pourcentage utilisé à partir duquel la machine passe « à surveiller », puis « critique ». Un champ vide garde la valeur par défaut (affichée en gris). Le seuil critique doit rester au-dessus de l'autre.")}</InfoNote>
+      <InfoNote className="mb-3">{tx("Pourcentage utilisé à partir duquel la machine passe « à surveiller », puis « critique ». Un champ vidé revient à la valeur par défaut. Le seuil critique doit rester au-dessus de l'autre.")}</InfoNote>
       <div className="flex flex-col gap-2">
         {LIMITS.map((l) => (
           <div key={l.kind} className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <b className="w-20 text-sm">{l.kind}</b>
-            <LimitInput ctx={ctx} k={l.keys[0]} label={tx("À surveiller dès")} placeholder={l.defaults[0]} />
-            <LimitInput ctx={ctx} k={l.keys[1]} label={tx("Critique dès")} placeholder={l.defaults[1]} />
+            <LimitInput ctx={ctx} k={l.keys[0]} label={tx("À surveiller dès")} base={l.defaults[0]} />
+            <LimitInput ctx={ctx} k={l.keys[1]} label={tx("Critique dès")} base={l.defaults[1]} />
           </div>
         ))}
       </div>
