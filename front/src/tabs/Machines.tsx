@@ -1082,6 +1082,7 @@ function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unif
       <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} ha={ha} />
       {freebox?.connection && <FreeboxLineSection fb={freebox} from={from.ssh} stamp={stamp ?? ""} />}
       {freebox?.ftth && <FreeboxFibreSection fb={freebox} from={from.ssh} />}
+      <IdentitySection m={m} mac={mac} net={net} from={uniqueOrigins([...from.role, ...from.mac])} tool={freebox || unifi ? "MynetworK" : undefined} pve={pve} sheet={sheet} />
       </PageColumn>
 
       <PageColumn title={tx("Ce qui tourne dessus")}>
@@ -1091,7 +1092,6 @@ function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unif
 
       {extra?.running}
       {ha && <HaInsideSection ha={ha} from={from.services} />}
-      <IdentitySection m={m} mac={mac} net={net} from={uniqueOrigins([...from.role, ...from.mac])} tool={freebox || unifi ? "MynetworK" : undefined} pve={pve} sheet={sheet} />
       </PageColumn>
 
       <PageColumn title={tx("Accès et protection")} wide>
@@ -1906,9 +1906,9 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       <MachinesHead snap={snap} health={hb} watching={(m) => watchOf(m).some((w) => w.tone !== "info")} sel={f.sel} onSel={f.setSel} />
       <FoldPanel id="machines-all" icon={Monitor} title={tx("Toutes les machines")} count={sort.sorted.length} pinned>
       <FilterBar bare f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
-        primary={["alert"]} oneLine
+        primary={["alert", "kind"]} oneLine optionsLabel={tx("Affichage")}
         options={[
-          ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
+          ...(nOff > 0 ? [{ id: "off", label: tx("Non suivies"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
         ]}
         extra={<ViewToggle view={view} onPick={pickView} />} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (

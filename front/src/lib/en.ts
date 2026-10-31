@@ -2202,7 +2202,7 @@ export const EN: Record<string, string> = {
   "Schémas à créer": "Diagrams to create",
   "Créer ce schéma": "Create this diagram",
   "rien à montrer pour l'instant": "nothing to show yet",
-  "Désactivées": "Disabled",
+  "Non suivies": "Not followed",
   "Déplier": "Expand",
   "Ouvrir l'onglet": "Open the tab",
   "Afficher : {0}": "Show: {0}",
