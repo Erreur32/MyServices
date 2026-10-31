@@ -3309,6 +3309,7 @@ export const EN: Record<string, string> = {
   "Relevés toutes les {0} min : ce rythme date de l'installation et la mise à jour n'y touche pas. Pour passer à 5 min, utilisez « Nouvelle commande » puis lancez-la sur la machine.": "Reports every {0} min: this rhythm dates from the install and the update leaves it alone. To move to 5 min, use « New command » and run it on the machine.",
   "L'agent de cette machine est trop ancien pour lister ses services en marche.": "The agent of this machine is too old to list its running services.",
   "Mettre à jour l'agent": "Update the agent",
+  "À savoir sur cet agent": "Good to know about this agent",
   "programme": "program",
   "Programmes": "Programs",
   "maison": "custom",

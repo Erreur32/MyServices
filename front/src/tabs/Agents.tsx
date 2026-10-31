@@ -1,7 +1,7 @@
 // Gestion des agents MyServices (petit script en lecture seule, sans SSH) : le bloc d'une machine (sa page, onglet Accès) et la page
 // Machines → Agents (tous les agents avec leurs gestes, agents révoqués). Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller.
 // Gérés seulement depuis une session admin.
-import { AgentGaps, AgentNotes } from "../components/AgentGaps";
+import { AgentAbout } from "../components/AgentGaps";
 import { ArrowUpCircle, Check, KeyRound, MonitorUp, Plus, RotateCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
@@ -15,7 +15,8 @@ import { StatTile } from "../components/StatTile";
 import { HistoryTile, useAgentsHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import type { TilePoint } from "../lib/tileHistory";
-import { agentHealth, agentNotes, agentSummary } from "../lib/accessLists";
+import { agentHealth, agentSummary } from "../lib/accessLists";
+import { toHeader } from "../lib/headerNote";
 import { scoreTone } from "../lib/figureTones";
 import { dateTime } from "../lib/format";
 import type { AgentInfo, AgentsState, MachineConf } from "../types";
@@ -75,7 +76,7 @@ function HostConfirm({ a, reload, setNote }: Readonly<{ a: AgentInfo; reload: ()
  *  page (its Access block) and on its row of Machines → Agents; the new command is shown by the caller (onInstall) */
 function AgentActions({ a, kind, onChanged, onInstall }: Readonly<{ a: AgentInfo; kind: AgentKind; onChanged: () => void; onInstall: (t: InstallTarget) => void }>) {
   const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<unknown>, done: string) => { setBusy(true); const ok = await act(fn, done, setNote); setBusy(false); if (ok) onChanged(); };
+  const run = async (fn: () => Promise<unknown>, done: string) => { setBusy(true); const ok = await act(fn, done, toHeader(setNote)); setBusy(false); if (ok) onChanged(); };
   return (
     <div className="flex flex-col items-end gap-1">
         <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -129,12 +130,11 @@ export function AgentBlock({ ip, name, kind, agent, create, onChanged }: Readonl
         <b>{tx("Agent")}</b><Badge tone={tone}>{label}</Badge>
         {agent.host_pending && <Badge tone="warn" title={tx("Nom de poste différent : {0} au lieu de {1}", agent.host_pending, agent.hostname ?? "?")}>{tx("nom à confirmer")}</Badge>}
         <span className="inline-flex items-center gap-1 text-xs" title={agent.outdated ? tx("Agent v{0} : la v{1} est disponible", agent.version ?? "?", agent.latest_version ?? "?") : undefined}>
-          <AgentVersion a={agent} />
+          <AgentVersion a={agent} /><AgentAbout a={agent} />
         </span>
         <Dim>{agent.last_seen ? tx("dernier relevé {0}", dateTime(agent.last_seen * 1000)) : tx("en attente du premier relevé")} · {tx("toutes les {0} min", Math.round(agent.interval / 60))}</Dim>
         <code className="font-mono text-xs text-dim" title={tx("Jeton")}>{tx("msv_")}agent_…{agent.hint}</code>
       </div>
-      <AgentNotes a={agent} />
       {agent.host_pending && <HostConfirm a={agent} reload={onChanged} setNote={setNote} />}
       <NoteLine note={note} />
       <AgentActions a={agent} kind={kind} onChanged={onChanged} onInstall={setInstall} />
@@ -169,13 +169,11 @@ function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: M
       <td className="px-3 py-2"><a href={`#machines/${a.ip}`} className="flex items-center gap-2 text-txt no-underline hover:text-link"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></a></td>
       <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
-      <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} /></span></td>
+      <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} /><AgentAbout a={a} /></span></td>
       <td className="px-3 py-2"><HealthBar a={a} /></td>
       <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
       <td className="px-3 py-2"><AgentActions a={a} kind={a.kind ?? "windows"} onChanged={onChanged} onInstall={setInstall} /></td>
     </tr>
-    {!!a.gaps?.length && <tr><td colSpan={7} className="px-3 pb-3"><AgentGaps gaps={a.gaps} /></td></tr>}
-    {agentNotes(a).length > 0 && <tr><td colSpan={7} className="px-3 pb-3"><AgentNotes a={a} /></td></tr>}
     {install && <tr><td colSpan={7} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
     </>
   );
@@ -195,7 +193,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
   const scores = s.live.map((a) => agentHealth(a)?.score ?? 0), avg = scores.length ? Math.round(scores.reduce((t, n) => t + n, 0) / scores.length) : null;
   const updateLate = async () => {
     setBusy(true);
-    await act(() => Promise.all(s.outdated.map((a) => send("POST", `agents/${a.id}/update`))), tx("demandée pour {0} agent(s) : chacun se met à jour à son prochain relevé", s.outdated.length), setNote);
+    await act(() => Promise.all(s.outdated.map((a) => send("POST", `agents/${a.id}/update`))), tx("demandée pour {0} agent(s) : chacun se met à jour à son prochain relevé", s.outdated.length), toHeader(setNote));
     setBusy(false);
     reload();
   };
