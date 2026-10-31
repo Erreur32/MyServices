@@ -5,7 +5,7 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
-## 0.31.8 → next version
+## 0.31.8 → 0.31.9
 
 **Nothing to do.** Two things to expect:
 
