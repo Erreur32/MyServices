@@ -11,7 +11,7 @@ import { useSort } from "../lib/filter";
 import { bytes } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { usePageView } from "../lib/route";
-import { Badge, Dim, Empty, GradientFill, Pct, Td, Th } from "../components/ui";
+import { Badge, ChipButton, Dim, Empty, GradientFill, Pct, Td, Th } from "../components/ui";
 import { Dot } from "../components/marks";
 import { FoldPanel } from "../components/FoldPanel";
 import { FamilyCard, WatchPanel } from "../components/FamilyCards";
@@ -180,7 +180,7 @@ function Models({ rows, cards }: Readonly<{ rows: ModelRow[]; cards: AiCard[] }>
   const unread = cards.filter((c) => c.unread && c.role === "engine").map((c) => c.title);
   const chip = (label: string, v: ModelFilter) => {
     const on = f.kind === v.kind && f.value === v.value;
-    return <button key={`${v.kind}${v.value ?? ""}`} type="button" onClick={() => setF(v)} className={`rounded-full border px-3 py-1 text-sm ${on ? "border-link text-txt ring-2 ring-link/30" : "border-line text-muted hover:text-txt"}`}>{label}</button>;
+    return <ChipButton key={`${v.kind}${v.value ?? ""}`} on={on} label={label} onClick={() => setF(v)} />;
   };
   if (!rows.length) return <Empty>{tx("Aucun modèle lu : reliez un connecteur Ollama, llama.cpp ou « API compatible OpenAI » dans Connecteurs.")}</Empty>;
   return (

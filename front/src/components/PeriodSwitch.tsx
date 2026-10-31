@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { PERIODS, type Period } from "../lib/tileHistory";
 import { tx } from "../lib/i18n";
+import { ChipButton } from "./ui";
 
 const KEY = "ms.tiles.hours";
 
@@ -26,11 +27,10 @@ export function usePeriod(): [Period, (p: Period) => void] {
 
 export function PeriodSwitch({ value, onChange }: Readonly<{ value: Period; onChange: (p: Period) => void }>) {
   return (
-    <fieldset className="m-0 inline-flex min-w-0 overflow-hidden rounded-lg border border-line bg-card p-0 text-xs">
+    <fieldset className="m-0 inline-flex min-w-0 gap-1.5 border-0 p-0">
       <legend className="sr-only">{tx("Période des cadres")}</legend>
       {PERIODS.map((p) => (
-        <button key={p} type="button" aria-pressed={p === value} onClick={() => onChange(p)}
-          className={`px-3 py-1 ${p === value ? "bg-link/15 font-semibold text-link" : "text-muted hover:text-txt"}`}>{periodLabel(p)}</button>
+        <ChipButton key={p} on={p === value} label={periodLabel(p)} onClick={() => onChange(p)} />
       ))}
     </fieldset>
   );

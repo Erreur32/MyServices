@@ -12,7 +12,7 @@ import { Dot, Logo } from "../components/marks";
 import { appIcon, serviceIcon } from "../lib/appIcons";
 import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, openUrl, status, type Check } from "../lib/status";
 import type { Host } from "../types";
-import { Badge, Empty, FilterBar, SearchBox, type Tone } from "../components/ui";
+import { Badge, ChipButton, Empty, FilterBar, SearchBox, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
 import { RereadButton, testService } from "../components/Reread";
 import { ServiceEdit } from "../components/ServiceEdit";
@@ -416,8 +416,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   }, [focused?.key]);   // eslint-disable-line react-hooks/exhaustive-deps -- once per link, a new reading must not reopen a card closed since
   const card = (g: ServiceGroup) => <ServiceCard key={g.key} g={g} hosts={snap.data.hosts} open={opened === g.key} focus={focused?.key === g.key} focusKey={focusKey} onToggle={() => setOpened(opened === g.key ? "" : g.key)} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />;
   const viewButton = (on: boolean, label: string, Icon: typeof Layers, pick: boolean) => (
-    <button type="button" onClick={() => setByMachine(pick)} aria-pressed={on} title={label}
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-sm ${on ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
+    <ChipButton on={on} mark={<Icon size={14} aria-hidden />} label={label} onClick={() => setByMachine(pick)} />
   );
 
   const [hours, setHours] = usePeriod();
@@ -447,7 +446,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
             </select>
             <button type="button" onClick={() => sort.by(sort.key)} className="rounded-lg border border-line p-2 text-link hover:bg-link/10" title={tx("Inverser l'ordre")} aria-label={tx("Inverser l'ordre")}>{sort.asc ? <ArrowUp size={14} aria-hidden /> : <ArrowDown size={14} aria-hidden />}</button>
           </span>
-          <fieldset className="inline-flex rounded-lg border border-line bg-card p-0.5" aria-label={tx("Affichage")}>
+          <fieldset className="m-0 inline-flex gap-1.5 border-0 p-0" aria-label={tx("Affichage")}>
             {viewButton(!byMachine, tx("Par application"), Layers, false)}{viewButton(byMachine, tx("Par machine"), Server, true)}
           </fieldset></>} />
         {f.shown.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : <div className="mt-3 flex flex-col gap-4">

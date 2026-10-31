@@ -6,7 +6,7 @@ import { Activity, ArrowDown, ArrowUp, CircleOff, Radar, Timer } from "lucide-re
 import { useCallback, useState } from "react";
 import { read } from "../api";
 import { Overlay } from "../components/Overlay";
-import { Badge, Dim } from "../components/ui";
+import { Badge, ChipButton, Dim } from "../components/ui";
 import { bytes, dateTime, hm, rate } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
@@ -75,8 +75,7 @@ function ModeButtons({ mode, setMode }: Readonly<{ mode: Mode; setMode: (m: Mode
   return (
     <div className="flex flex-wrap items-center gap-1">
       {MODES.map(([m, label]) => (
-        <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}
-          className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${mode === m ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link"}`}>{label}</button>
+        <ChipButton key={m} on={mode === m} label={label} onClick={() => setMode(m)} />
       ))}
     </div>
   );
