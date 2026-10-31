@@ -514,7 +514,9 @@ class NUT(StatusConnector):
         bad = [s for s in status if s in ("OB", "LB", "RB", "OVER")]
         facts = [fact("Secteur", ", ".join(label.get(s, s) for s in status), "bad" if "LB" in status else "warn" if bad else "ok")]
         if num(v.get(BATTERY_CHARGE)) is not None:
-            facts.append(fact("Batterie", f"{num(v[BATTERY_CHARGE]):.0f} %", "bad" if num(v[BATTERY_CHARGE]) < 30 else "warn" if num(v[BATTERY_CHARGE]) < 60 else "ok"))
+            charge = num(v[BATTERY_CHARGE])
+            low = "warn" if charge < 60 else "ok"
+            facts.append(fact("Batterie", f"{charge:.0f} %", "bad" if charge < 30 else low))
         if num(v.get("battery.runtime")) is not None:
             facts.append(fact("Autonomie", duration(num(v["battery.runtime"]))))
         if num(v.get("ups.load")) is not None:

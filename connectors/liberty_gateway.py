@@ -38,7 +38,9 @@ def flag(value: object) -> bool | None:
     if isinstance(value, bool):
         return value
     word = str(value).strip().lower() if value is not None else ""
-    return True if word in ("true", "1", "yes", "up", "enabled") else False if word in ("false", "0", "no", "down", "disabled") else None
+    if word in ("true", "1", "yes", "up", "enabled"):
+        return True
+    return False if word in ("false", "0", "no", "down", "disabled") else None
 
 
 def rates(flows: object) -> tuple[int | None, int | None]:
@@ -47,7 +49,9 @@ def rates(flows: object) -> tuple[int | None, int | None]:
     for item in flows if isinstance(flows, list) else []:
         flow = as_dict(as_dict(item).get("serviceFlow")) or as_dict(item)
         cap, way = num(flow.get("maxTrafficRate")), str(flow.get("direction") or "").lower()
-        key = "down" if "down" in way else "up" if way.startswith("up") else ""
+        key = "up" if way.startswith("up") else ""
+        if "down" in way:
+            key = "down"
         if key and cap and cap > best.get(key, 0):
             best[key] = int(cap)
     return best.get("down"), best.get("up")
@@ -57,7 +61,7 @@ class LibertyGateway(StatusConnector):
     type = "liberty-gateway"
     label = "Virgin Media Hub 5 / Ziggo SmartWifi"
     fields = (
-        Field("url", "Adresse de la box", "url", required=True, default="https://192.168.0.1", help="L'adresse de son interface web : souvent https://192.168.0.1 (Virgin Media) ou https://192.168.178.1 (Ziggo)."),
+        Field("url", "Adresse de la box", "url", required=True, default="https://192.168.0.1", help="L'adresse de son interface web : souvent https://192.168.0.1 (Virgin Media) ou https://192.168.178.1 (Ziggo)."),   # NOSONAR S1313: the factory address of the box, a default the user can change
         Field("password", "Mot de passe", "password", required=True, secret=True, help="Celui de l'interface web de la box (pas de nom d'utilisateur)."),
         Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=False, help="à laisser décoché : la box a un certificat auto-signé"),
     )
@@ -125,7 +129,7 @@ class LibertyGateway(StatusConnector):
                    line_down_bps=down, line_up_bps=up, public_ip=public_address(as_dict(wan.get("ipv4")).get("address")),
                    uptime_s=int(uptime) if uptime is not None and uptime >= 0 else None, firmware=str(info.get("softwareVersion") or "") or None,
                    devices=sum(1 for h in hosts if isinstance(h, dict)) if isinstance(hosts, list) else None,
-                   wifi=any(r for r in radios) if any(r is not None for r in radios) else None)
+                   wifi=any(radios) if any(r is not None for r in radios) else None)
 
     def collect(self) -> dict:
         base = self.base_url()

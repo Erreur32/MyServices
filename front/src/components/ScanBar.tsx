@@ -30,7 +30,7 @@ function barPercent(p: Progress | undefined, net: NetworkSummary | null | undefi
 }
 
 function barLabel(main: string, p: Progress | undefined, net: NetworkSummary | null | undefined): string {
-  if (p) return `${p.label}${p.total ? ` (${p.done ?? 0}/${p.total})` : ""}`;
+  if (p) return p.total ? `${p.label} (${p.done ?? 0}/${p.total})` : p.label;
   if (net) return net.phase === "identify" ? tx("identification : {0}/{1} machines (nom, ports ouverts)", net.described, net.up)
     : tx("recherche des machines allumées : {0}/{1} adresses", net.done, net.total);
   return main === "collect" ? tx("démarrage…") : "";

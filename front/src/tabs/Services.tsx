@@ -447,9 +447,9 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
             </select>
             <button type="button" onClick={() => sort.by(sort.key)} className="rounded-lg border border-line p-2 text-link hover:bg-link/10" title={tx("Inverser l'ordre")} aria-label={tx("Inverser l'ordre")}>{sort.asc ? <ArrowUp size={14} aria-hidden /> : <ArrowDown size={14} aria-hidden />}</button>
           </span>
-          <span className="inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Affichage")}>
+          <fieldset className="inline-flex rounded-lg border border-line bg-card p-0.5" aria-label={tx("Affichage")}>
             {viewButton(!byMachine, tx("Par application"), Layers, false)}{viewButton(byMachine, tx("Par machine"), Server, true)}
-          </span></>} />
+          </fieldset></>} />
         {f.shown.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : <div className="mt-3 flex flex-col gap-4">
           {sections(shownReal, byMachine).map((s) => (
             <section key={s.title} aria-label={s.title}>

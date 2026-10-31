@@ -95,8 +95,9 @@ class Reading(Base):
 
     def test_session_expiring_mid_reading_is_said(self):
         ctx = Fake({**PAGES, "/system/info": "HTTP 401"})
+        conn = make(ctx)
         with self.assertRaises(ConnectorError) as e:
-            make(ctx).collect()
+            conn.collect()
         self.assertIn("session", str(e.exception))
         self.assertEqual(ctx.calls[-1][0], "DELETE")
 
@@ -106,52 +107,60 @@ class Reading(Base):
                 if "/system/info" in url:
                     raise RateLimited("HTTP 429")
                 return super().http(url, **kw)
+        conn = make(Limited(PAGES))
         with self.assertRaises(RateLimited):
-            make(Limited(PAGES)).collect()
+            conn.collect()
 
 
 class Login(Base):
     def test_refused_password_is_one_attempt_and_remembered(self):
         ctx = Fake(PAGES, login="HTTP 401")
+        conn = make(ctx)
         with self.assertRaises(ConnectorError) as e:
-            make(ctx).collect()
+            conn.collect()
         self.assertNotIn(PASSWORD, str(e.exception))
         self.assertEqual(len([c for c in ctx.calls if c[0] == "POST"]), 1)
         again = Fake(PAGES)
+        conn = make(again)
         with self.assertRaises(ConnectorError):
-            make(again).collect()
+            conn.collect()
         self.assertEqual(again.calls, [])
 
     def test_new_password_is_tried_again(self):
+        conn = make(Fake(PAGES, login="HTTP 401"))
         with self.assertRaises(ConnectorError):
-            make(Fake(PAGES, login="HTTP 401")).collect()
+            conn.collect()
         box = make(Fake(PAGES))
         box.conf["password"] = PASSWORD + "x"
         self.assertEqual(box.collect()["box"]["model"], "F5685LGB")
 
     def test_busy_session_is_not_a_refusal(self):
+        conn = make(Fake(PAGES, login="HTTP 503"))
         with self.assertRaises(ConnectorError) as e:
-            make(Fake(PAGES, login="HTTP 503")).collect()
+            conn.collect()
         self.assertIn("session", str(e.exception))
         self.assertEqual(lg.REFUSED_BY, {})
 
     def test_lockout_stops_before_any_attempt(self):
         ctx = Fake(PAGES, status={"loginDetails": {"lockoutTime": 120}})
+        conn = make(ctx)
         with self.assertRaises(ConnectorError) as e:
-            make(ctx).collect()
+            conn.collect()
         self.assertIn("120", str(e.exception))
         self.assertFalse([c for c in ctx.calls if c[0] == "POST"])
 
     def test_answer_without_token(self):
+        conn = make(Fake(PAGES, login={"created": {}}))
         with self.assertRaises(ConnectorError):
-            make(Fake(PAGES, login={"created": {}})).collect()
+            conn.collect()
 
     def test_unreachable(self):
         class Down(Fake):
             def http(self, url, **kw):
                 raise ConnectorError("injoignable (timed out)")
+        conn = make(Down(PAGES))
         with self.assertRaises(ConnectorError):
-            make(Down(PAGES)).collect()
+            conn.collect()
 
     def test_secret_field_and_no_username(self):
         names = {f.name: f for f in LibertyGateway.fields}

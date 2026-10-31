@@ -157,6 +157,22 @@ def alerts_on() -> bool:
         return False
 
 
+def _after_success(name: str) -> None:
+    """What a task that ended well leads to, before it is freed: the maps always follow the files they show."""
+    if name == "collect":
+        keep_availability()
+        threading.Thread(target=auto_backup_default, daemon=True, name="auto-backup").start()
+        threading.Thread(target=auto_adguard, daemon=True, name="auto-adguard").start()
+    if name in ("collect", "health", "backups"):
+        build_map()
+    if name in ("watch", "health"):
+        keep_history(name, alert=True)
+    if name == "watch":
+        schedule_recheck()
+    if name == "health":
+        keep_metrics()
+
+
 def _wait(name: str) -> None:
     t = TASKS[name]
     proc = t["proc"]
@@ -167,18 +183,8 @@ def _wait(name: str) -> None:
     code = proc.wait()
     timer.cancel()
     result = "success" if code == 0 else "timeout" if code == -9 else f"exit-code {code}"
-    if name == "collect" and code == 0:
-        keep_availability()
-        threading.Thread(target=auto_backup_default, daemon=True, name="auto-backup").start()
-        threading.Thread(target=auto_adguard, daemon=True, name="auto-adguard").start()
-    if name in ("collect", "health", "backups") and code == 0:
-        build_map()  # avant de libérer la tâche : les cartes suivent toujours les fichiers qu'elles montrent
-    if name in ("watch", "health") and code == 0:
-        keep_history(name, alert=True)
-    if name == "watch" and code == 0:
-        schedule_recheck()
-    if name == "health" and code == 0:
-        keep_metrics()
+    if code == 0:
+        _after_success(name)
     with LOCK:
         t.update(proc=None, end=time.time(), result=result)
     save_last_runs()
@@ -353,6 +359,20 @@ def pulse_loop() -> None:
 PORTS_FIRST_WAIT = 30   # s: right after a start the app's own port is not open yet, and a first sight is taken as it is
 
 
+def ports_pass(every: int) -> bool:
+    """One pass of the pulse of the services; True when a confirmed change is owed to the watcher."""
+    data = last_collection() if every > 0 else {}
+    hosts = data.get("hosts", [])
+    AGENT_PORTS.clear()
+    AGENT_PORTS.update(pulse.agent_states(hosts, agent_listening()))
+    # a row read by its agent whose report is missing is not followed at all (never probed, never announced down)
+    ports = sorted({p for r in hosts if (p := pulse.port_of(r)) and (not r.get("by_agent") or p in AGENT_PORTS)})
+    changed = bool(ports and PORTS.tick(ports))
+    if ports:
+        keep_pulse_availability(PORTS, ports_keys(hosts), every)
+    return changed
+
+
 def ports_loop() -> None:
     """Try the port of every service each `ports_every` s; a confirmed change starts the watcher at once, as for the ping of a machine."""
     owed = False
@@ -361,15 +381,7 @@ def ports_loop() -> None:
         t0, every = time.time(), CFG["ports_every"]
         PORTS.confirm = max(1, CFG["pulse_confirm"])
         try:
-            data = last_collection() if every > 0 else {}
-            hosts = data.get("hosts", [])
-            AGENT_PORTS.clear()
-            AGENT_PORTS.update(pulse.agent_states(hosts, agent_listening()))
-            # a row read by its agent whose report is missing is not followed at all (never probed, never announced down)
-            ports = sorted({p for r in hosts if (p := pulse.port_of(r)) and (not r.get("by_agent") or p in AGENT_PORTS)})
-            owed = bool(ports and PORTS.tick(ports)) or owed
-            if ports:
-                keep_pulse_availability(PORTS, ports_keys(hosts), every)
+            owed = ports_pass(every) or owed
             if owed and (not enabled("watch") or run_task("watch", "pouls des services")):
                 owed = False
         except Exception as e:  # a bug here must not stop the loop
