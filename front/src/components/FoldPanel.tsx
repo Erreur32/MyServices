@@ -8,9 +8,10 @@ import { useStoredFlag } from "../lib/storedFlag";
 import { Count } from "./ui";
 
 export function FoldPanel({ id, icon: Icon, title, count, tone = "off", extra, startFolded = false, pinned = false, children }: Readonly<{
-  id: string; icon: LucideIcon; title: string; count?: number; tone?: "off" | "warn" | "bad" | "ok"; extra?: ReactNode; startFolded?: boolean; pinned?: boolean; children: ReactNode;
+  id?: string;   // where the state is remembered; none: back to startFolded on each visit
+  icon: LucideIcon; title: string; count?: number; tone?: "off" | "warn" | "bad" | "ok"; extra?: ReactNode; startFolded?: boolean; pinned?: boolean; children: ReactNode;
 }>) {
-  const [stored, setFolded] = useStoredFlag(`myservices.panel.${id}.folded`, startFolded);
+  const [stored, setFolded] = useStoredFlag(id && `myservices.panel.${id}.folded`, startFolded);
   const folded = stored && !pinned;   // pinned: the panel is the page (a sub-page of the side menu), always open
   const Chevron = folded ? ChevronDown : ChevronUp;
   return (

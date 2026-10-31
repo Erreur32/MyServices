@@ -21,7 +21,7 @@ describe("Assistant de démarrage", () => {
 
   it("étape 1 : bienvenue, trois principes, compte, cinq étapes en haut", () => {
     const html = renderToStaticMarkup(<Assistant snap={snap} />);
-    for (const t of ["Bienvenue sur MyServices", "Il lit, il ne modifie rien", "Compte administrateur", "admin", "Étape 1 sur 5", "Cette machine", "Relier vos outils", "Continuer"]) expect(html, t).toContain(t);
+    for (const t of ["Bienvenue sur MyServices", "Il lit, il ne modifie rien", "Compte administrateur", "admin", "Étape 1 sur 5", "Cette machine", "Et maintenant ?", "Continuer"]) expect(html, t).toContain(t);
     expect(html).not.toContain("Retour");   // pas de retour depuis la première étape
     expect(html).not.toContain("Passer cette étape");   // bienvenue n'a rien à régler : seulement « Continuer »
   });
@@ -32,12 +32,14 @@ describe("Assistant de démarrage", () => {
     for (const t of ["Étape 2 sur 5", "srv", "10.0.0.2", "3 services trouvés", "Plex", "Apache", "Retour"]) expect(html, t).toContain(t);
   });
 
-  it("étape 5 : les outils, avec Continuer et Passer (plus d'étape d'alertes : elle viendra plus tard)", () => {
-    for (const [step, title] of [["tools", "Relier vos outils"]]) {
+  it("étape 5 : le mot de la fin, ajouter une machine d'abord, rien à passer", () => {
+    for (const [step, title] of [["tools", "Et maintenant ?"]]) {
       mem.set("myservices-assistant", JSON.stringify({ current: step, done: [], skipped: [] }));
       const html = renderToStaticMarkup(<Assistant snap={snap} />);
       expect(html, step).toContain(title);
-      expect(html, step).toContain("Passer");
+      expect(html, step).toContain("Ajouter une machine");
+      expect(html, step).toContain("Relier mes outils");
+      expect(html, step).not.toContain("Passer");
       expect(html, step).not.toContain("arrive bientôt");
     }
   });

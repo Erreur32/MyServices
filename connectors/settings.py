@@ -24,10 +24,11 @@ from connectors.base import EVERY_FIELD, ConnectorError, Context, tally
 SSH_TYPES = {"docker", "process"}  # découlent des machines (AdGuard : aussi déclaré par une machine, ou ici par son API ou SSH)
 ALERT_TYPES = {"discord", "telegram"}  # section Alertes
 TEST_TIMEOUT = 20
+NETWORK = "Réseau / DNS"
 # Category of a connector in the « add » picker: the one of its known app (known_apps), except the backup tools grouped apart and
 # the connectors without a known app
 BACKUP_TYPES = {"backup-folder", "backrest", "borgmatic", "urbackup", "veeam", "veeam-m365", "proxmox-backup"}
-CATEGORY = {"netatmo": "Domotique", "tapo": "Domotique", "upnp-box": "Réseau / DNS", "fritzbox": "Réseau / DNS", "sfrbox": "Réseau / DNS", "livebox": "Réseau / DNS", "vodafone-station": "Réseau / DNS", "sagemcom-fast": "Réseau / DNS", "bbox": "Réseau / DNS", "swisscom-box": "Réseau / DNS", "connect-box": "Réseau / DNS", "speedport": "Réseau / DNS", "technicolor-gateway": "Réseau / DNS", "tmobile-home-internet": "Réseau / DNS", "hitron-coda": "Réseau / DNS", "verizon-fios": "Réseau / DNS", "arris-surfboard": "Réseau / DNS", "vcenter": "Infra / virtualisation", "synology": "Fichiers / sync"}
+CATEGORY = {"cloudflare": NETWORK, "netatmo": "Domotique", "tapo": "Domotique", "upnp-box": NETWORK, "fritzbox": NETWORK, "sfrbox": NETWORK, "livebox": NETWORK, "vodafone-station": NETWORK, "sagemcom-fast": NETWORK, "bbox": NETWORK, "swisscom-box": NETWORK, "connect-box": NETWORK, "speedport": NETWORK, "technicolor-gateway": NETWORK, "tmobile-home-internet": NETWORK, "hitron-coda": NETWORK, "verizon-fios": NETWORK, "arris-surfboard": NETWORK, "vcenter": "Infra / virtualisation", "synology": "Fichiers / sync"}
 
 
 def category(type_: str) -> str:

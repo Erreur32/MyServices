@@ -5,6 +5,20 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.31.9 → 0.31.10
+
+**Nothing to do.** What to know:
+
+- Agents: only a new agent reports every 5 minutes. An agent already installed keeps its rhythm, automatic update included, because the rhythm lives in its system timer and the update only replaces the script. To move one to 5 minutes, run its install command again, with `MSV_MINUTES=5` on Linux, `-Minutes 5` on Windows.
+- Cloudflare: a new read-only connector, optional. It needs an API token created in your Cloudflare account, with read access only. It is read once an hour, about 11 calls per domain.
+- Cloudflare data: the Traffic page shows the most requested paths and the user agents seen by Cloudflare. They appear to every account of the app that can open the page; client IPs are never read.
+- Services: the separate service and edit pages are gone. A saved link to them opens the same service inside the Services list.
+- Machines: the list now hides machines powered off or no longer followed, by default. Turn off « Hide powered off and unfollowed », or click the « Off » tile, to see them.
+- Service pulse: MyServices now opens a plain TCP connection to the port of each web service every minute, and closes it, to see an outage within 2 to 3 minutes. It sends nothing and uses no account, but a web server may log it. Set it, or set it to 0 to turn it off, in Tasks and schedules: « Edit the schedules », then « Live checks ».
+- Availability: the page opens on the machines. Your filters are kept in your browser from then on.
+- Assistant: « Review the setup assistant » no longer erases what was validated; « Start over » inside the assistant does.
+- SSH page: machines that still need SSH now carry a « Keep SSH » badge and the reason. Nothing is changed for you.
+
 ## 0.31.8 → 0.31.9
 
 **Nothing to do.** Two things to expect:

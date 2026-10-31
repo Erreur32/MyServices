@@ -257,7 +257,7 @@ export function Netatmo({ snap }: Readonly<{ snap: Snapshot }>) {
   const colors = new Map(h.sensors.map((m, i) => [m.id ?? m.name, COLORS[i % COLORS.length]]));
   return (
     <div className="flex flex-col gap-5 py-4">
-      <PageHead icon={House} logo={appIcon(["netatmo"])} title="Netatmo" tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink /> : undefined} />
+      <PageHead icon={House} logo={appIcon(["netatmo"])} title="Netatmo" tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink types={["netatmo"]} /> : undefined} />
       <section>
         <h2 className="text-2xl font-extrabold leading-tight sm:text-3xl">{h.title}</h2>
         <p className="mt-1.5 text-[15px] text-muted">{h.text}</p>

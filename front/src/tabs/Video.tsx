@@ -11,7 +11,7 @@ import { tx } from "../lib/i18n";
 import { sinceText } from "../lib/last24h";
 import { usePageView } from "../lib/route";
 import { cameraPlace, type CameraPlace, SLOW_DETECTOR_MS, STORAGE_FULL, streamAlerts, streamCameras, streamCards, streamFigures, streamDetectors, streamFlows, streamHourly, streamRecent, streamStorage, type CameraRow, type FlowRow, type StreamCard, type StreamRole } from "../lib/video";
-import { Badge, Dim, Empty, GradientFill, Td, Th } from "../components/ui";
+import { Badge, Chip, Dim, Empty, GradientFill, Td, Th } from "../components/ui";
 import { Dot } from "../components/marks";
 import { FoldPanel } from "../components/FoldPanel";
 import { FamilyCard, WatchPanel } from "../components/FamilyCards";
@@ -39,7 +39,7 @@ export function Video({ snap, route }: Readonly<{ snap: Snapshot; route: string 
   const machines = new Set(cards.map((c) => c.machine).filter(Boolean)).size;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={VideoIcon} logo={view === "frigate" ? appIcon(["frigate"]) : null} title={view === "frigate" ? "Frigate" : tx("Vidéo et caméras")} tags={<HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />} actions={admin && <ConnectorsLink />} />
+      <PageHead icon={VideoIcon} logo={view === "frigate" ? appIcon(["frigate"]) : null} title={view === "frigate" ? "Frigate" : tx("Vidéo et caméras")} tags={<HeadTags counts={[tx("{0} services", cards.length), tx("{0} machines", machines)]} sources={read} others={unread} at={snap.data.generated} />} actions={admin && <ConnectorsLink {...(view === "frigate" ? { types: ["frigate"] } : { category: "Stream" })} />} />
       {!cards.length && <Empty>{tx("Aucun service vidéo pour l'instant : un service de catégorie « Stream » dans Services, ou un connecteur vidéo (Frigate, Shinobi, go2rtc, MediaMTX, Owncast), fait apparaître cette page.")}</Empty>}
       {cards.length > 0 && view === "overview" && <Overview cards={cards} cams={cams} admin={admin} at={snap.data.generated} />}
       {cards.length > 0 && view === "cameras" && <Cameras cams={cams} cards={cards} />}
@@ -50,10 +50,102 @@ export function Video({ snap, route }: Readonly<{ snap: Snapshot; route: string 
   );
 }
 
+const barColor = (n: number, peak: boolean): string => {
+  if (n === 0) return "bg-line";
+  return peak ? "bg-warn" : "bg-link";
+};
+
+function HourlyPanel({ hourly, peak, hourOf }: Readonly<{ hourly: number[]; peak: number; hourOf: (i: number) => number }>) {
+  return (
+    <Panel icon={BarChart3} title={tx("Événements des 24 dernières heures")} aside={tx("par heure")}>
+      <div className="grid h-28 grid-cols-[repeat(24,minmax(0,1fr))] items-end gap-[3px] border-b border-line" role="img" aria-label={tx("Histogramme des événements par heure")}>
+        {hourly.map((n, i) => <i key={hourOf(i)} title={tx("{0} h : {1} événement(s)", hourOf(i), n)} className={`block min-h-[2px] rounded-t-sm ${barColor(n, i === peak)}`} style={{ height: `${Math.max(2, (100 * n) / Math.max(1, hourly[peak]))}%` }} />)}
+      </div>
+      <div className="grid grid-cols-[repeat(24,minmax(0,1fr))] gap-[3px] text-center text-[10px] tabular-nums text-dim" aria-hidden>
+        {hourly.map((_, i) => <span key={hourOf(i)} className={i % 4 === 0 ? "" : "invisible"}>{hourOf(i)}</span>)}
+      </div>
+    </Panel>
+  );
+}
+
+function ObjectsPanel({ labels }: Readonly<{ labels: [string, number][] }>) {
+  const top = labels[0][1];
+  return (
+    <Panel icon={ScanEye} title={tx("Objets détectés")} aside="24 h">
+      <ul className="flex flex-col gap-2">
+        {labels.slice(0, 6).map(([k, n]) => (
+          <li key={k} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 text-sm">
+            <span className="truncate">{k}</span><span className="h-2 overflow-hidden rounded-full bg-bg2"><GradientFill pct={(100 * n) / top} /></span><span className="text-right font-mono text-xs tabular-nums">{n}</span>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+/** Whether a camera detects, in words and colour */
+function detection(c: CameraRow): [string, string] {
+  if (c.up === false) return [tx("muette"), "text-bad"];
+  return c.detect ? [tx("active"), "text-ok"] : [tx("coupée"), "text-muted"];
+}
+
+function DetectionPanel({ cams, now }: Readonly<{ cams: CameraRow[]; now: number }>) {
+  const maxEv = Math.max(1, ...cams.map((c) => c.events ?? 0));
+  return (
+    <Panel icon={Camera} title={tx("Détection par caméra")} aside={<a href="#stream/cameras" className="text-link hover:underline">{tx("Toutes les caméras")} ›</a>}>
+      <div className="overflow-x-auto"><table className="w-full border-collapse text-sm">
+        <thead><tr><Th>{tx("Caméra")}</Th><Th>{tx("Détection")}</Th><Th className="text-right">{tx("Images/s")}</Th><Th>{tx("Événements 24 h")}</Th><Th>{tx("Objets")}</Th><Th>{tx("Dernier")}</Th></tr></thead>
+        <tbody className="[&>tr]:border-b [&>tr]:border-line/60 [&>tr:nth-child(even)]:bg-bg/50">
+          {[...cams].sort((a, b) => (b.events ?? 0) - (a.events ?? 0)).map((c) => {
+            const [state, color] = detection(c);
+            return (
+              <tr key={c.key}>
+                <Td className="font-semibold"><span className="inline-flex items-center gap-1.5"><Dot tone={camTone(c)} />{c.name}</span></Td>
+                <Td className={color}>{state}</Td>
+                <Td className="text-right tabular-nums">{c.fps != null ? Math.round(c.fps * 10) / 10 : "-"}</Td>
+                <Td><span className="inline-flex items-center gap-2"><span className="h-1.5 w-[70px] overflow-hidden rounded-full bg-bg2"><GradientFill pct={(100 * (c.events ?? 0)) / maxEv} /></span><span className="tabular-nums">{c.events ?? "-"}</span></span></Td>
+                <Td>{Object.entries(c.labels ?? {}).map(([k, n]) => <Badge key={k} tone="off" outline>{k} {n}</Badge>)}{!Object.keys(c.labels ?? {}).length && <Dim>{tx("aucun")}</Dim>}</Td>
+                <Td className="whitespace-nowrap">{c.last ? sinceText(c.last * 1000, now) : "-"}</Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table></div>
+    </Panel>
+  );
+}
+
+function RecentPanel({ recent }: Readonly<{ recent: ReturnType<typeof streamRecent> }>) {
+  return (
+    <Panel icon={Clock} title={tx("Derniers événements")} aside={tx("les {0} plus récents", recent.length)}>
+      <ul className="flex flex-col gap-1.5 text-sm">
+        {recent.map((e) => <li key={`${e.t}/${e.camera}/${e.label}`} className="grid grid-cols-[3.2rem_minmax(0,1fr)] gap-2"><time className="font-mono text-xs text-dim">{hm(e.t * 1000)}</time><span className="truncate">{e.label} · <b>{e.camera}</b></span></li>)}
+      </ul>
+      <Dim>{tx("Les images ne sont pas gardées : seuls l'objet, la caméra et l'heure sont montrés.")}</Dim>
+    </Panel>
+  );
+}
+
+function DetectorsPanel({ detectors, frigate }: Readonly<{ detectors: ReturnType<typeof streamDetectors>; frigate: boolean }>) {
+  return (
+    <Panel icon={Cpu} title={tx("Détecteurs")} aside={frigate ? <a href="#stream/frigate" className="text-link hover:underline">{tx("Page Frigate")} ›</a> : undefined}>
+      <ul className="flex flex-col gap-2">
+        {detectors.map((d) => (
+          <li key={`${d.by}/${d.name}`}>
+            <div className="flex items-baseline justify-between gap-3"><b>{d.name}</b><span className={`font-mono text-lg font-bold ${(d.ms ?? 0) > SLOW_DETECTOR_MS ? "text-warn" : ""}`}>{d.ms == null ? "-" : `${d.ms.toFixed(0)} ms`}</span></div>
+            {d.cpu != null && <div className="text-sm text-muted">{tx("processeur {0} %", d.cpu.toFixed(1))}</div>}
+          </li>
+        ))}
+      </ul>
+      <Dim>{tx("Alerte au-dessus de {0} ms de temps d'inférence.", SLOW_DETECTOR_MS)}</Dim>
+    </Panel>
+  );
+}
+
 function Overview({ cards, cams, admin, at }: Readonly<{ cards: StreamCard[]; cams: CameraRow[]; admin: boolean; at: string }>) {
   const f = streamFigures(cards, cams);
   const hourly = streamHourly(cards), recent = streamRecent(cards), detectors = streamDetectors(cards);
-  const labels = Object.entries(f.labels).sort((a, b) => b[1] - a[1]), top = labels[0]?.[1] ?? 1;
+  const labels = Object.entries(f.labels).sort((a, b) => b[1] - a[1]);
   const silent = f.cameras - f.filming;
   const slowest = Math.max(0, ...cards.map((c) => c.conn?.stream?.detector_ms ?? 0));
   const peak = hourly ? hourly.indexOf(Math.max(...hourly)) : -1;
@@ -62,7 +154,7 @@ function Overview({ cards, cams, admin, at }: Readonly<{ cards: StreamCard[]; ca
   const last = recent[0];
   const now = Date.now();
   const watched = cams.filter((c) => c.detect || (c.events ?? 0) > 0);
-  const maxEv = Math.max(1, ...watched.map((c) => c.events ?? 0));
+  const side = labels.length > 0 || recent.length > 0 || detectors.length > 0;   // nothing to its right: the main column takes the whole width
   return (
     <>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
@@ -70,71 +162,22 @@ function Overview({ cards, cams, admin, at }: Readonly<{ cards: StreamCard[]; ca
         <StatTile n={f.detecting} label={tx("En détection")} sub={slowest ? tx("détecteur {0} ms", Math.round(slowest)) : tx("{0} enregistrent", f.recording)} tone={slowest > SLOW_DETECTOR_MS ? "warn" : undefined} />
         <StatTile n={f.events ?? "-"} label={tx("Événements 24 h")} sub={hourly && peak >= 0 && hourly[peak] > 0 ? tx("pic à {0} h : {1}", hourOf(peak), hourly[peak]) : tx("aucun lu")} />
         <StatTile n={last ? sinceText(last.t * 1000, now) : "-"} label={tx("Dernier événement")} sub={last ? `${last.label} · ${last.camera}` : tx("aucun lu")} />
-        <StatTile n={f.fullest ? `${f.fullest.pct} %` : "-"} label={tx("Stockage des enregistrements")} tone={f.fullest && f.fullest.pct >= STORAGE_FULL ? "warn" : undefined} sub={f.fullest ? f.fullest.card.title : tx("non lu")} />
+        <StatTile n={f.fullest ? `${f.fullest.pct} %` : "-"} label={tx("Stockage")} tone={f.fullest && f.fullest.pct >= STORAGE_FULL ? "warn" : undefined} sub={f.fullest ? f.fullest.card.title : tx("non lu")} />
       </div>
       <WatchPanel id="stream-watch" lines={streamAlerts(cards)} admin={admin} />
-      {(hourly || labels.length > 0) && (
-        <div className="grid gap-3 lg:grid-cols-3">
-          {hourly && <Panel icon={BarChart3} title={tx("Événements des 24 dernières heures")} aside={tx("par heure")} className="lg:col-span-2">
-            <div className="grid h-28 grid-cols-[repeat(24,minmax(0,1fr))] items-end gap-[3px] border-b border-line" role="img" aria-label={tx("Histogramme des événements par heure")}>
-              {hourly.map((n, i) => <i key={i} title={tx("{0} h : {1} événement(s)", hourOf(i), n)} className={`block min-h-[2px] rounded-t-sm ${i === peak && n > 0 ? "bg-warn" : n === 0 ? "bg-line" : "bg-link"}`} style={{ height: `${Math.max(2, (100 * n) / Math.max(1, hourly[peak]))}%` }} />)}
-            </div>
-            <div className="grid grid-cols-[repeat(24,minmax(0,1fr))] gap-[3px] text-center text-[10px] tabular-nums text-dim" aria-hidden>
-              {hourly.map((_, i) => <span key={i} className={i % 4 === 0 ? "" : "invisible"}>{hourOf(i)}</span>)}
-            </div>
-          </Panel>}
-          {labels.length > 0 && <Panel icon={ScanEye} title={tx("Objets détectés")} aside="24 h">
-            <ul className="flex flex-col gap-2">
-              {labels.slice(0, 6).map(([k, n]) => (
-                <li key={k} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 text-sm">
-                  <span className="truncate">{k}</span><span className="h-2 overflow-hidden rounded-full bg-bg2"><GradientFill pct={(100 * n) / top} /></span><span className="text-right font-mono text-xs tabular-nums">{n}</span>
-                </li>
-              ))}
-            </ul>
-          </Panel>}
+      <div className="grid items-start gap-3 xl:grid-cols-3">
+        <div className={`flex min-w-0 flex-col gap-3 ${side ? "xl:col-span-2" : "xl:col-span-3"}`}>
+          {hourly && <HourlyPanel hourly={hourly} peak={peak} hourOf={hourOf} />}
+          {watched.length > 0 && <DetectionPanel cams={watched} now={now} />}
+          <div className={`grid gap-3 md:grid-cols-2 ${side ? "" : "xl:grid-cols-3"}`}>
+            {cards.map((c) => <ServiceCard key={c.key} c={c} admin={admin} wide={cards.length === 1} />)}
+          </div>
         </div>
-      )}
-      {watched.length > 0 && <Panel icon={Camera} title={tx("Détection par caméra")} aside={<a href="#stream/cameras" className="text-link hover:underline">{tx("Toutes les caméras")} ›</a>}>
-        <div className="overflow-x-auto"><table className="w-full border-collapse text-sm">
-          <thead><tr><Th>{tx("Caméra")}</Th><Th>{tx("Détection")}</Th><Th className="text-right">{tx("Images/s")}</Th><Th>{tx("Événements 24 h")}</Th><Th>{tx("Objets")}</Th><Th>{tx("Dernier")}</Th></tr></thead>
-          <tbody className="[&>tr]:border-b [&>tr]:border-line/60 [&>tr:nth-child(even)]:bg-bg/50">
-            {[...watched].sort((a, b) => (b.events ?? 0) - (a.events ?? 0)).map((c) => (
-              <tr key={c.key}>
-                <Td className="font-semibold"><span className="inline-flex items-center gap-1.5"><Dot tone={camTone(c)} />{c.name}</span></Td>
-                <Td className={c.up === false ? "text-bad" : c.detect ? "text-ok" : "text-muted"}>{c.up === false ? tx("muette") : c.detect ? tx("active") : tx("coupée")}</Td>
-                <Td className="text-right tabular-nums">{c.fps != null ? Math.round(c.fps * 10) / 10 : "-"}</Td>
-                <Td><span className="inline-flex items-center gap-2"><span className="h-1.5 w-[70px] overflow-hidden rounded-full bg-bg2"><GradientFill pct={(100 * (c.events ?? 0)) / maxEv} /></span><span className="tabular-nums">{c.events ?? "-"}</span></span></Td>
-                <Td>{Object.entries(c.labels ?? {}).map(([k, n]) => <Badge key={k} tone="off" outline>{k} {n}</Badge>)}{!Object.keys(c.labels ?? {}).length && <Dim>{tx("aucun")}</Dim>}</Td>
-                <Td className="whitespace-nowrap">{c.last ? sinceText(c.last * 1000, now) : "-"}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
-      </Panel>}
-      {(recent.length > 0 || detectors.length > 0) && (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {recent.length > 0 && <Panel icon={Clock} title={tx("Derniers événements")} aside={tx("les {0} plus récents", recent.length)}>
-            <ul className="flex flex-col gap-1.5 text-sm">
-              {recent.map((e, i) => <li key={i} className="grid grid-cols-[3.2rem_minmax(0,1fr)] gap-2"><time className="font-mono text-xs text-dim">{hm(e.t * 1000)}</time><span className="truncate">{e.label} · <b>{e.camera}</b></span></li>)}
-            </ul>
-            <Dim>{tx("Les images ne sont pas gardées : seuls l'objet, la caméra et l'heure sont montrés.")}</Dim>
-          </Panel>}
-          {detectors.length > 0 && <Panel icon={Cpu} title={tx("Détecteurs")} aside={cards.some((c) => c.conn?.frigate) ? <a href="#stream/frigate" className="text-link hover:underline">{tx("Page Frigate")} ›</a> : undefined}>
-            <div className="flex flex-wrap gap-2.5">
-              {detectors.map((d) => (
-                <div key={`${d.by}/${d.name}`} className="min-w-[8.5rem] flex-1 rounded-xl border border-line px-3 py-2">
-                  <div className="text-xs text-dim">{d.name}</div>
-                  <b className={`font-mono text-base ${(d.ms ?? 0) > SLOW_DETECTOR_MS ? "text-warn" : ""}`}>{d.ms == null ? "-" : `${d.ms.toFixed(0)} ms`}</b>
-                  {d.cpu != null && <div className="text-xs text-dim">{tx("processeur {0} %", d.cpu.toFixed(1))}</div>}
-                </div>
-              ))}
-            </div>
-            <Dim>{tx("Alerte au-dessus de {0} ms de temps d'inférence.", SLOW_DETECTOR_MS)}</Dim>
-          </Panel>}
-        </div>
-      )}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {cards.map((c) => <ServiceCard key={c.key} c={c} admin={admin} />)}
+        {side && <div className="flex min-w-0 flex-col gap-3">
+          {labels.length > 0 && <ObjectsPanel labels={labels} />}
+          {recent.length > 0 && <RecentPanel recent={recent} />}
+          {detectors.length > 0 && <DetectorsPanel detectors={detectors} frigate={cards.some((c) => c.conn?.frigate)} />}
+        </div>}
       </div>
       <Dim>{tx("Tri : ce qui demande un œil d'abord, puis enregistreurs, relais, directs. Bordure en pointillés : service connu de Services dont le contenu n'est pas lu.")}</Dim>
     </>
@@ -158,8 +201,8 @@ function filmingSub(cameras: number, silent: number): string {
   return cameras ? tx("toutes") : tx("aucune lue");
 }
 
-/** The figures of a card, by role: only what was read */
-function cardFacts(c: StreamCard): [string, string][] {
+/** The figures of a card, by role: only what was read, as many as its room allows */
+function cardFacts(c: StreamCard, room: number): [string, string][] {
   const s = c.conn?.stream, out: [string, string][] = [];
   if (c.machine || c.ip) out.push([tx("Machine"), [c.machine, c.ip].filter(Boolean).join(" · ")]);
   if (c.version) out.push([tx("Version"), c.version]);
@@ -179,13 +222,13 @@ function cardFacts(c: StreamCard): [string, string][] {
     );
   }
   if (s.live) out.push([tx("Direct"), s.live.online ? tx("à l'antenne, {0} spectateur(s)", s.live.viewers) : tx("hors antenne")]);
-  return out.slice(0, 5);
+  return out.slice(0, room);
 }
 
-function ServiceCard({ c, admin }: Readonly<{ c: StreamCard; admin: boolean }>) {
+function ServiceCard({ c, admin, wide }: Readonly<{ c: StreamCard; admin: boolean; wide: boolean }>) {
   const s = c.conn?.stream;
   return (
-    <FamilyCard c={c} role={ROLE[c.role]} facts={cardFacts(c)} icon={VideoIcon} admin={admin} links={<>
+    <FamilyCard c={c} role={ROLE[c.role]} facts={cardFacts(c, wide ? 8 : 5)} icon={VideoIcon} admin={admin} wide={wide} links={<>
       {!c.unread && !!s?.cameras?.length && <a href="#stream/cameras" className="text-link hover:underline">{tx("Ses caméras")} ›</a>}
       {!c.unread && (!!s?.streams?.length || !!s?.live) && <a href="#stream/flows" className="text-link hover:underline">{tx("Ses flux")} ›</a>}
     </>} />
@@ -262,10 +305,6 @@ function camShown(c: CameraRow, f: string): boolean {
 }
 
 const PLACES = { int: tx("Intérieur"), ext: tx("Extérieur"), other: tx("Autre") };
-
-function Chip({ label, on, act }: Readonly<{ label: string; on: boolean; act: () => void }>) {
-  return <button type="button" onClick={act} className={`rounded-full border px-3 py-1 text-sm ${on ? "border-link text-txt ring-2 ring-link/30" : "border-line text-muted hover:text-txt"}`}>{label}</button>;
-}
 
 function CameraTile({ c, now }: Readonly<{ c: CameraRow; now: number }>) {
   const what = camWhat(c, now);

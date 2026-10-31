@@ -73,8 +73,9 @@ export function Settings({ snap }: { snap: Snapshot }) {
     rememberSettingsSection(section);
     // The address follows the section; a deeper part already there (#settings/machines/<ip>, #settings/discovery/suggestions) is kept;
     // Machines, Notifications and Requests write their own sub-tab
+    // A section may have left Settings already (MachinesSection's redirect): the address is then not ours to rewrite
     const s = location.hash.split("/")[1];
-    if (s !== section && !(section === "machines" && s === "agents")) showInUrl(`settings/${section}`, !s);   // first opening of #settings: replaced, not one more step back
+    if (location.hash.startsWith("#settings") && s !== section && !(section === "machines" && s === "agents")) showInUrl(`settings/${section}`, !s);   // first opening of #settings: replaced, not one more step back
   }, [section]);
   useEffect(() => {   // a link to another section (#settings/connectors from Discovery…) while Settings is open: follow it
     const go = () => {

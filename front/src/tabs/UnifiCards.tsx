@@ -190,7 +190,7 @@ export function UnifiCards() {
                   <b>{d.name}</b>
                   {d.type !== "access_point" && d.ports.length > 0 && (
                     <label className="flex items-center gap-1 rounded border border-link/60 bg-bg2 px-2 py-0.5 text-xs text-muted">{tx("Uplink")}
-                      <select className={`${input} !w-auto !border-0 !bg-transparent !px-1 !py-0 text-xs`} value={uplinks[d.id] ?? ""}
+                      <select className={`${input} !w-auto !px-1 !py-0 text-xs`} value={uplinks[d.id] ?? ""}
                         onChange={(e) => setUplink(d.id, e.target.value === "" ? null : Number(e.target.value))}>
                         <option value="">{d.uplinkPort == null ? tx("auto (aucun détecté)") : tx("auto (port {0})", d.uplinkPort)}</option>
                         {[...new Set(d.ports)].map((n) => <option key={n} value={n}>{n}</option>)}{/* a port listed twice by the adapter (combo port) is one choice */}

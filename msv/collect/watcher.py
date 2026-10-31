@@ -50,6 +50,7 @@ from msv.core.config import CFG, next_timer_run
 NAME = "myservices-watcher"
 DATA = Path(CFG["web_dir"]) / "data.json"
 PULSE_FILE = DATA.with_name("pulse.json")
+PORTS_FILE = DATA.with_name("ports.json")
 EVENTS = Path(CFG["web_dir"]) / "events.json"  # même dossier que DATA, lu par la page
 STATE_DIR = Path(CFG["state_dir"])
 STATE_FILE = STATE_DIR / f"{NAME}.json"
@@ -115,15 +116,21 @@ def status(r: dict) -> str:
     return "ok"
 
 
-def snapshot(r: dict) -> dict:
+def snapshot(r: dict, ports: dict | None = None) -> dict:
+    """ports: the port pulse (ports.json), fresher than the collection. pulse: it explains the status, so it is already confirmed."""
     s = r.get("service") or {}
     state = s.get("state") or ""
+    live = (ports or {}).get(pulse.port_of(r))
+    if live:
+        r = {**r, "backend": {**r["backend"], "up": live["ping"]}}
+    st = status(r)
     return {
         "label": label(r),
         "type": r["type"],
         "machine": r.get("machine"),
         "target": f'{r.get("ip")}:{r.get("port")}' if r.get("ip") else r.get("target"),
-        "status": status(r),
+        "status": st,
+        "pulse": live is not None and (st == "bad") != live["ping"],
         "enabled": bool(r.get("enabled")),
         "no_acl": r["type"] == "proxy" and r.get("enabled") and not r.get("acl") and not r.get("acl_adv")
                   and not r.get("public_ok") and not r.get("public_ignored"),  # site public voulu, ou domaine ignoré (réglage Services)
@@ -191,7 +198,7 @@ def diff(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], dict]:
         was_bad, is_bad = p["status"] == "bad", c["status"] == "bad"
         if c["enabled"] and was_bad != is_bad:
             n = pending.get(k, 0) + 1
-            if n >= CONFIRM_RUNS:
+            if n >= (1 if c.get("pulse") else CONFIRM_RUNS):
                 add("panne" if is_bad else "retabli", k, c,
                     "injoignable ou erreur 5xx" if is_bad else "de nouveau joignable")
             else:
@@ -494,7 +501,8 @@ def main() -> int:
         print(f"✗ {DATA} illisible", file=sys.stderr)
         return 1
     state = load_json(STATE_FILE, {})
-    cur = {key(r): snapshot(r) for r in data["hosts"]}
+    ports = pulse.read(PORTS_FILE)
+    cur = {key(r): snapshot(r, ports) for r in data["hosts"]}
     # Source coupée (Réglages → Sources) : ses éléments gardent leur dernier état connu, ni « disparus » à la
     # coupure, ni « nouveaux » au retour
     src = (data.get("page") or {}).get("sources") or {}
@@ -543,15 +551,17 @@ def main() -> int:
     counts = {"services": len(cur), "en panne": sum(1 for c in cur.values() if c["status"] == "bad"),
               "désactivés": sum(1 for c in cur.values() if c["status"] == "off")}
 
-    # A run between two collections (started by the pulse) sees the same data.json as the one before: only the ping of the machines can
-    # have moved. What needs two collections to be confirmed (services, connectors, SSH...) must not count the same one twice.
+    # A run between two collections (started by the pulse) sees the same data.json as the one before: only the ping of the machines and
+    # the port of the services can have moved. What needs two collections to be confirmed (services, connectors, SSH...) must not count the same one twice.
     same_gen = state.get("gen") == data.get("generated") and "snap" in state
     if same_gen:
-        events = [e for e in events if str(e["key"]).startswith("machine:") and e["kind"] in ("hors_ligne", "en_ligne")]
+        moved = {e["key"] for e in events if e["kind"] in OUTAGE and (cur.get(e["key"]) or {}).get("pulse")}
+        events = [e for e in events if e["key"] in moved or (str(e["key"]).startswith("machine:") and e["kind"] in ("hors_ligne", "en_ligne"))]
         for k, c in mcur.items():
             c["ssh"] = ((state.get("machines") or {}).get(k) or c).get("ssh", c["ssh"])
         mpending = {**state.get("mpending", {}), **{k: v for k, v in mpending.items() if not k.endswith(":ping")}}
-        cur, pending, ccur, cpending = state["snap"], state.get("pending", {}), state.get("connectors", ccur), state.get("cpending", {})
+        cur = {**state["snap"], **{k: cur[k] for k in moved}}
+        pending, ccur, cpending = state.get("pending", {}), state.get("connectors", ccur), state.get("cpending", {})
         dcur, vcur, vpending = state.get("dns", dcur), state.get("virt", vcur), state.get("vpending", {})
         tcur, xcur, ncur = state.get("threats", tcur), state.get("nextcloud", xcur), state.get("network", ncur)
         icur, jcur = state.get("images", icur), state.get("jails_up", jcur)

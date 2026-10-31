@@ -7,6 +7,7 @@ import { read, type Snapshot } from "../api";
 import { FollowAsk, FollowButton, NotFollowedBanner } from "../components/MachineFollow";
 import { DetailMore, DetailSection } from "../components/DetailSection";
 import { MachineIcon } from "../components/MachineIcon";
+import { recheckMachine, RereadButton } from "../components/Reread";
 import { dateTime } from "../lib/format";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
@@ -218,6 +219,7 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
   const right = <>
     {m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} className={quiet}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>}
     {admin && <FollowButton m={m} onAsk={() => setAsking(!asking)} />}
+    {admin && !m.disabled && <RereadButton label={tx("Relire")} tip={tx("Relire la santé de cette machine maintenant, sans lancer de collecte")} run={recheckMachine(m.ip)} />}
     {admin && <a href={`#machines/${m.ip}/settings`} className={`${quiet} no-underline`}><SlidersHorizontal size={14} aria-hidden />{tx("Réglages")} ›</a>}
   </>;
   return (

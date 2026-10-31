@@ -6,6 +6,7 @@ import type { Chip, Facet } from "../lib/filter";
 import { LEVEL, type Tone } from "../lib/level";
 import { tx } from "../lib/i18n";
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
+import { fieldFrame, fieldText } from "../lib/forms";
 
 export type { Tone };
 
@@ -21,10 +22,10 @@ const TONE: Record<Tone, string> = {
 export function SearchBox({ value, onChange, placeholder, count, className = "" }: Readonly<{ value: string; onChange: (q: string) => void; placeholder: string; count?: [number, number]; className?: string }>) {
   return (
     <>
-      <label className={`flex min-w-[220px] max-w-sm flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 focus-within:border-link ${className}`}>
-        <Search size={16} className="text-dim" aria-hidden />
+      <label className={`flex min-w-[220px] max-w-sm flex-1 items-center gap-2 px-3 py-1.5 ${fieldFrame} ${className}`}>
+        <Search size={16} className="text-field-txt/75" aria-hidden />
         <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder} type="search"
-          className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
+          className={`w-full bg-transparent ${fieldText}`} />
       </label>
       {count && <span className="whitespace-nowrap text-sm text-muted" title={tx("Lignes affichées sur le total, après la recherche et les filtres")}><b className="text-txt">{count[0]}</b> {tx("sur")} {count[1]}</span>}
     </>
@@ -54,9 +55,9 @@ const BUBBLE: Record<CardTone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", wa
 
 /** Card with a coloured header strip (title, count in a round bubble) over a table with fixed columns and headers. Nothing is shown without a row,
  *  unless `empty` (the "all good" message) is given. `footer` goes under the table. */
-export function TableCard({ title, tone, count, cols, rows, note, empty, footer, className = "", zebra = false, foldable = false, folded = false }: {
-  title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string }[]; rows: ReactNode[][]; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string; zebra?: boolean; foldable?: boolean; folded?: boolean;   // zebra: every other row darker; foldable: the header strip folds the frame, `folded` is its starting state
-}) {
+export function TableCard({ title, tone, count, cols, rows, sort, note, empty, footer, className = "", zebra = false, foldable = false, folded = false }: Readonly<{
+  title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string; k?: string }[]; rows: ReactNode[][]; sort?: ColumnSort; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string; zebra?: boolean; foldable?: boolean; folded?: boolean;   // zebra: every other row darker; foldable: the header strip folds the frame, `folded` is its starting state
+}>) {
   const [shut, setShut] = useState(foldable && folded);
   const n = count ?? rows.length;
   const clickable = foldable ? FOLD_HEADER + " hover:bg-bg2/40" : "";
@@ -73,7 +74,7 @@ export function TableCard({ title, tone, count, cols, rows, note, empty, footer,
           <table className="w-full min-w-[420px] table-fixed border-collapse text-sm">
             <thead>
               <tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                {cols.map((c) => <th key={c.label} className={`px-4 py-2 ${c.className ?? ""}`}>{c.label}</th>)}
+                {cols.map((c) => <th key={c.label} className={`px-4 py-2 ${c.className ?? ""}`}>{c.k && sort ? <SortLabel k={c.k} sort={sort}>{c.label}</SortLabel> : c.label}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
@@ -134,7 +135,7 @@ function chipTone(on: boolean, count: number): string {
   return count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60";
 }
 
-function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: boolean; count: number; mark?: ReactNode; label: string; onClick: () => void }>) {
+export function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: boolean; count: number; mark?: ReactNode; label: string; onClick: () => void }>) {
   return (
     <button type="button" onClick={onClick} aria-pressed={on}
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${chipTone(on, count)}`}>
@@ -279,17 +280,27 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
 }
 
 /** En-tête de colonne triable */
+export function Chip({ label, on, act }: Readonly<{ label: string; on: boolean; act: () => void }>) {
+  return <button type="button" onClick={act} aria-pressed={on} className={`rounded-full border px-3 py-1 text-sm ${on ? "border-link text-txt ring-2 ring-link/30" : "border-line text-muted hover:text-txt"}`}>{label}</button>;
+}
+
+type ColumnSort = { key: string; asc: boolean; by: (k: string) => void };
+
+function SortLabel({ k, sort, children }: Readonly<{ k: string; sort: ColumnSort; children?: ReactNode }>) {
+  const on = sort.key === k;
+  return (
+    <button type="button" onClick={() => sort.by(k)} className={`inline-flex items-center gap-1 uppercase hover:text-txt ${on ? "text-txt" : ""}`}>
+      {children}{on && (sort.asc ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+    </button>
+  );
+}
+
 export function Th({ k, sort, children, className = "", title }: {
-  title?: string; k?: string; sort?: { key: string; asc: boolean; by: (k: string) => void }; children?: ReactNode; className?: string;
+  title?: string; k?: string; sort?: ColumnSort; children?: ReactNode; className?: string;
 }) {
-  const on = k && sort?.key === k;
   return (
     <th title={title} className={`sticky top-0 z-10 whitespace-nowrap border-b border-line bg-bg2 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim ${className}`}>
-      {k && sort ? (
-        <button type="button" onClick={() => sort.by(k)} className={`inline-flex items-center gap-1 uppercase hover:text-txt ${on ? "text-txt" : ""}`}>
-          {children}{on && (sort.asc ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
-        </button>
-      ) : children}
+      {k && sort ? <SortLabel k={k} sort={sort}>{children}</SortLabel> : children}
     </th>
   );
 }

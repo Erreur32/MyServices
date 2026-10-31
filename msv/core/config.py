@@ -41,6 +41,7 @@ DEFAULTS = {
     "confirm_runs": 2,                   # passages consécutifs avant d'annoncer une panne / un rétablissement
     "retention_days": 90,                # historique du watcher
     "pulse_every": 30,                   # s, pouls : ping de chaque machine suivie, état en ligne en direct ; 0 = coupé
+    "ports_every": 60,                   # s, pouls des services : essai du port de chaque service, panne vue sans attendre deux collectes ; 0 = coupé
     "fast_every": 300,                   # s, lecteurs de connecteurs (readers.py) : période par défaut, chaque connecteur peut avoir la sienne ; 0 = coupé
     "pulse_confirm": 2,                  # pouls consécutifs avant d'annoncer qu'une machine est tombée ou revenue
     "update_check": True,                # Réglages → À propos : lit la dernière version publiée sur GitHub (une requête anonyme, gardée 6 h) ; false = jamais

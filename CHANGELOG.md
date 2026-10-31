@@ -11,6 +11,37 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.10 (2026-10-31)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- **Cloudflare**: a read-only connector and its own page: what to improve and why, domains side by side, and each proxied name checked against NPM, Apache or nginx, in a sortable table. The traffic page reads 24 hours, 7 and 30 days for one domain or all, with the trend against the period before, server errors, the names in error, countries, content types, encryption and browsers.
+- **Read now**: a button reads one connector, tests one service or reads the health of one machine, without waiting for its period or a whole pass.
+
+### Changed
+
+- **Agents**: a new agent reports every 5 minutes instead of 15. An agent already installed keeps its rhythm until its install command is run again.
+- **Video and cameras**: the overview and the Frigate page are laid out on three columns, the detectors, GPUs and storage as compact cards.
+- **Fields**: every field has a background of its own in each theme, and the text typed in it, its example and what the browser fills in stay readable.
+- **Connectors**: the connector button of a page opens its connector for editing, or lists the connectors of the page when there are several.
+- **Assistant**: reopened once finished, it starts over at the first step and keeps what was validated; unfinished, it stays on the waiting step.
+- **Header**: the step of a running collection is shown in full.
+- **Agents**: an « Install the agent » link opens the agent's frame of that machine directly.
+- **Services**: one service, one place: its sheet now opens inside its card, under the table, and its pencil edits it there. The separate service and edit pages are gone; their old addresses open the card on the right row.
+- **Assistant**: the last step is a short message with one main button, « Add a machine », and a link to connect your tools. Adding a machine now offers the agent first.
+- **Services**: « Ignored domains » shows its list in the title and always starts folded.
+- **Assistant**: « Finish » always ends it and brings the summary into view.
+- **Services**: a closed port no longer waits for two collections. A light pulse tries the port of every web service each minute, confirmed twice: the status changes and the alert leaves within 2 to 3 minutes, instead of 20 to 35. Ports without a web page (SSH, mail, SMB, databases), 5xx errors and public sites stay read by the collection. Set or turned off in Tasks and schedules, « Live checks ».
+- **Availability**: redesigned, with machines, services, domains, machine, domain and state always in sight, and cells that line up from row to row. It opens on the machines and keeps your filters.
+- **Machines**: a visible filter, on by default, hides the machines powered off or no longer followed.
+- **Cloudflare**: new pages Security, Server and cache, and DNS; Traffic gains visits, page views, most requested pages, bots and clients, methods. Two more calls per domain each hour.
+- **Cloudflare**: small curves in the figure tiles of the overview and of Traffic, read in the same query, with no extra call.
+- **Services**: the pencil opens the settings of a service inside its card, without leaving the list, and the row buttons are easier to see.
+- **Machines › SSH connections**: a badge tells which machines must keep SSH and why (what the agent does not read, no agent possible on the system, an agent that no longer reports), with counters; the note says how to remove SSH where it is optional.
+- **Machine alert limits**: the fields show the values in force, so their arrows no longer start from 0; emptied, a field goes back to the default.
+
 ## v0.31.9 (2026-10-31)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

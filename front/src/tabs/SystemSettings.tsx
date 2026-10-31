@@ -263,10 +263,11 @@ function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number
 }
 
 interface LiveCfg { values: Record<LiveKey, number>; defaults: Record<LiveKey, number>; limits: Record<LiveKey, [number, number]>; off_allowed: LiveKey[] }
-type LiveKey = "pulse_every" | "pulse_confirm" | "fast_every";
+type LiveKey = "pulse_every" | "pulse_confirm" | "ports_every" | "fast_every";
 const LIVE_FIELDS: { key: LiveKey; label: string; unit: string; hint: string }[] = [
   { key: "pulse_every", label: tx("Pouls (ping des machines)"), unit: "s", hint: tx("Un ping de chaque machine suivie : l'état en ligne ou hors ligne est vivant. 0 = coupé.") },
   { key: "pulse_confirm", label: tx("Pouls à confirmer"), unit: "×", hint: tx("Nombre de pouls de suite avant d'annoncer qu'une machine est tombée ou revenue (un paquet perdu ne compte pas).") },
+  { key: "ports_every", label: tx("Pouls (port des services)"), unit: "s", hint: tx("Une connexion au port de chaque service web : une panne se voit sans attendre deux collectes. Les erreurs 5xx et les sites publics restent vus à la collecte. 0 = coupé.") },
   { key: "fast_every", label: tx("Lecture des connecteurs"), unit: "s", hint: tx("Le serveur lit chaque connecteur à cette période, sauf ceux qui ont la leur (Réglages → Connecteurs, « Lecture toutes les »). La collecte, la santé et la page réutilisent ce relevé. 0 = coupé : chaque tâche lit elle-même.") },
 ];
 
@@ -280,14 +281,14 @@ function LiveChecksRow() {
   const okValue = (k: LiveKey) => { const v = Number(valueOf(k)), [lo, hi] = cfg.limits[k]; return valueOf(k) !== "" && Number.isInteger(v) && ((v >= lo && v <= hi) || (v === 0 && cfg.off_allowed.includes(k))); };
   const changed = LIVE_FIELDS.filter((f) => Number(valueOf(f.key)) !== cfg.values[f.key]);
   const valid = LIVE_FIELDS.every((f) => okValue(f.key));
-  const live = cfg.values.pulse_every > 0 || cfg.values.fast_every > 0;
+  const live = cfg.values.pulse_every > 0 || cfg.values.ports_every > 0 || cfg.values.fast_every > 0;
   const save = (body: Partial<Record<LiveKey, number>>) => void act(() => send("PUT", "system/live-checks", body), tx("enregistré"), setNote).then((ok) => { if (ok) load(); });
   return (
     <li className={rowClass(live ? "ok" : "disabled")}>
       <TaskHead name="pulse" title={tx("Vérifications en direct")} state={live ? "ok" : "disabled"} note={note}
         badge={<Badge tone={live ? "ok" : "off"}>{live ? <Check size={12} aria-hidden /> : <Pause size={12} aria-hidden />}{live ? tx("actif") : tx("coupée")}</Badge>}
-        about={<span>{tx("Ping de chaque machine et lectures légères des connecteurs, entre deux collectes : les changements se voient en quelques secondes.")}</span>} />
-      <form className="mt-3 grid gap-3 rounded-lg bg-bg2/50 p-3 md:ml-11 md:grid-cols-3" onSubmit={(e) => { e.preventDefault(); if (valid && changed.length) save(Object.fromEntries(changed.map((f) => [f.key, Number(valueOf(f.key))]))); }}>
+        about={<span>{tx("Ping de chaque machine, port de chaque service et lectures légères des connecteurs, entre deux collectes : les changements se voient en quelques minutes au plus.")}</span>} />
+      <form className="mt-3 grid gap-3 rounded-lg bg-bg2/50 p-3 md:ml-11 md:grid-cols-4" onSubmit={(e) => { e.preventDefault(); if (valid && changed.length) save(Object.fromEntries(changed.map((f) => [f.key, Number(valueOf(f.key))]))); }}>
         {LIVE_FIELDS.map((f) => (
           <label key={f.key} className="flex flex-col gap-1 text-xs font-semibold text-muted">{f.label}
             <span className="flex items-center gap-1.5">

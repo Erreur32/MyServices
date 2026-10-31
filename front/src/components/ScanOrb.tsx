@@ -22,9 +22,9 @@ export function ScanOrb() {
   return (
     <div className="pointer-events-none hidden items-center justify-center gap-3 md:flex" role="status" aria-live="polite" aria-label={`${title} : ${step}`}>
       <Suspense fallback={<span className="block h-16 w-16" aria-hidden />}><Orb state="searching" size={64} theme="auto" /></Suspense>
-      <span className="flex min-w-0 max-w-[16rem] flex-col text-xs leading-tight">
+      <span className="flex flex-col whitespace-nowrap text-xs leading-tight">
         <b className="text-sm text-txt">{title}</b>
-        <span className="truncate text-dim">{step}</span>
+        <span className="text-dim">{step}</span>
       </span>
     </div>
   );

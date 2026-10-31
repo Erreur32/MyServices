@@ -1,10 +1,11 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, Bot, Boxes, Camera, Film, Gauge, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Video, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, Bot, Boxes, Camera, Cloud, Film, Gauge, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Video, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
 import { hasNetwork } from "./network";
 import { aiCards, aiGpus, aiModels, hasAi } from "./ai";
+import { hasCloudflare } from "./cloudflare";
 import { hasDomotique } from "./domotique";
 import { hasTapo } from "./tapo";
 import { hasStream, streamCameras, streamCards, streamFlows } from "./video";
@@ -44,7 +45,7 @@ export const NAV: NavGroup[] = [
       sub("machines-ssh", "settings/machines/ssh", "settings", KeyRound, tx("Connexions SSH")),
     ] },
     { id: "services", hash: "services", tab: "services", icon: Globe, label: tx("Services"), subs: [
-      { ...sub("services-all", "services/all", "services", Layers, tx("Tous les services")), also: ["services/item", "services/edit", "services/manual"] },
+      { ...sub("services-all", "services/all", "services", Layers, tx("Tous les services")), also: ["services/manual"] },
       sub("services-fresh", "services/fresh", "services", Sparkles, tx("Nouveaux services"), (s) => s.me.role === "admin"),   // found these 7 days, to keep or pause
       sub("services-new", "services/new", "settings", PenLine, tx("Déclarer un service")),
     ] },
@@ -60,6 +61,15 @@ export const NAV: NavGroup[] = [
     { id: "dns", hash: "dns", tab: "dns", icon: Network, label: tx("DNS"), subs: [
       sub("dns-servers", "dns/servers", "dns", Server, tx("Serveurs")),
       sub("dns-all", "dns/all", "dns", Layers, tx("Détails")),
+    ] },
+    { id: "cloudflare", hash: "cloudflare/overview", tab: "cloudflare", icon: Cloud, label: "Cloudflare", subs: [
+      sub("cloudflare-overview", "cloudflare/overview", "cloudflare", LayoutDashboard, tx("Vue d'ensemble")),
+      sub("cloudflare-traffic", "cloudflare/traffic", "cloudflare", Activity, tx("Trafic")),
+      sub("cloudflare-compare", "cloudflare/compare", "cloudflare", Layers, tx("Comparer les domaines")),
+      sub("cloudflare-security", "cloudflare/security", "cloudflare", Shield, tx("Sécurité")),
+      sub("cloudflare-origin", "cloudflare/origin", "cloudflare", Server, tx("Serveur et cache")),
+      sub("cloudflare-dns", "cloudflare/dns", "cloudflare", Network, tx("DNS")),
+      sub("cloudflare-checks", "cloudflare/checks", "cloudflare", ListChecks, tx("Vérification")),
     ] },
     { id: "virtualization", hash: "virtualization", tab: "virtualization", icon: Server, label: tx("Virtualisation") },
     { id: "stream", hash: "stream", tab: "stream", icon: Video, label: tx("Vidéo et caméras"), subs: [
@@ -149,6 +159,7 @@ export function visible(id: TabId, s: Snapshot): boolean {
   if (UNRELEASED.includes(id) && !isDevBuild(s)) return false;
   switch (id) {
     case "ai": return hasAi(s);   // an AI service in Services, an AI connector or GpuViewR
+    case "cloudflare": return hasCloudflare(s);
     case "domotique": return hasDomotique(s) || hasTapo(s);
     case "stream": return hasStream(s);   // a « Stream » service in Services or a video connector
     case "backups": return !!s.backups;

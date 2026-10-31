@@ -64,6 +64,7 @@ export interface Host {
   http2?: boolean;
   websocket?: boolean;
   cloudflare?: boolean;
+  lan_only?: boolean | null;
   block_exploits?: boolean;
   nginx_err?: string;
   created?: string;
@@ -219,6 +220,27 @@ export interface NetScan {
 }
 
 /** État d'un service lu par son API (connecteur « status » : Home Assistant) */
+export interface CloudflareRecord { name: string; type: string; proxied: boolean }
+export interface CloudflareZone {
+  name: string; status: string; paused: boolean; plan?: string | null;
+  settings: Record<string, string | boolean | null>;
+  dns: { total: number; proxied: number; records: CloudflareRecord[] } | null;
+  traffic: { requests: number; cached: number; bytes: number; threats: number; page_views: number; visitors: number; days: { date: string; requests: number }[]; periods?: Record<CloudflarePeriodKey, CloudflarePeriod> } | null;
+}
+
+export type CloudflarePeriodKey = "24h" | "7d" | "30d";
+export interface CloudflareTotals { requests: number; cached: number; bytes: number; cached_bytes: number; threats: number; errors: number; visitors: number }
+export interface CloudflareLine { name: string; requests: number; threats?: number; bytes?: number }
+export interface CloudflarePoint extends CloudflareTotals { at: string }
+export interface CloudflareSecurity { events: number; points: { at: string; events: number }[]; sample: number; actions: CloudflareLine[]; sources: CloudflareLine[]; targets: CloudflareLine[]; countries: CloudflareLine[] }
+export interface CloudflareDnsQueries { total: number; names: CloudflareLine[]; types: CloudflareLine[]; codes: CloudflareLine[] }
+export interface CloudflareDetail { visits: number; page_views: number; paths: CloudflareLine[]; agents: CloudflareLine[]; methods: CloudflareLine[]; cache: CloudflareLine[]; origin: CloudflareLine[]; security: CloudflareSecurity; dns: CloudflareDnsQueries }
+/** The details are missing from a reading made before them */
+export interface CloudflarePeriod extends CloudflareTotals, Partial<CloudflareDetail> {
+  previous: CloudflareTotals; points: CloudflarePoint[]; status: { code: number; requests: number }[];
+  countries: CloudflareLine[]; content: CloudflareLine[]; tls: CloudflareLine[]; http: CloudflareLine[]; browsers: CloudflareLine[]; hosts: { name: string; code: number; requests: number }[];
+}
+
 export interface ServiceStatus {
   connector: string;
   name: string;
@@ -231,6 +253,7 @@ export interface ServiceStatus {
   entities?: number;
   facts?: { label: string; value: string; tone?: "ok" | "warn" | "bad" }[];  // connecteurs « état d'un service » : chiffres clés
   problems?: string[];                                                       // et ce qui est à regarder
+  cloudflare?: { days: number; zones: CloudflareZone[] };
   box?: BoxReading | null;               // Internet box connectors: what the box tells
   modules?: NetatmoModule[];             // Netatmo only: every device of the account
   rooms?: { name: string; temperature: number | null; setpoint: number | null }[];   // Netatmo only: the heated rooms

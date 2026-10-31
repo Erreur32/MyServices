@@ -499,7 +499,7 @@ export interface Origin { label: string; ok?: boolean; tip?: string; href?: stri
 /** Where the OS of the machine was read: SSH, the MyServices agent or the network search */
 function osOrigins(m: Machine, here: string, scanned: boolean): Origin[] {
   if (m.info?.os && m.info.via !== "agent") return [{ label: "SSH", href: here }];
-  if (m.info?.os || m.agent) return [{ label: tx("agent MyServices"), href: `#settings/agents/${m.ip}` }];
+  if (m.info?.os || m.agent) return [{ label: tx("agent MyServices"), href: `#machines/${m.ip}/agent` }];
   return scanned ? [{ label: tx("recherche réseau"), href: "#settings/machines/devices" }] : [];
 }
 
@@ -509,7 +509,7 @@ function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanne
     .map((c) => ({ label: c.type === "docker" ? "Docker (SSH)" : c.type === "process" ? tx("Ports (SSH)") : "AdGuard Home", ok: c.ok, tip: `${c.name} : ${c.message}`, href: `#settings/machines/${m.ip}` }));
   const here = `#settings/machines/${m.ip}`, connectors = "#settings/connectors";
   const health: Origin[] = (h?.sources ?? []).map((x) => ({ label: x === "ssh" ? "SSH" : x === "agent" ? tx("agent MyServices") : x === "beszel" ? "Beszel" : x === "ha" ? "Home Assistant" : x,
-    href: x === "agent" ? `#settings/agents/${m.ip}` : x === "beszel" || x === "ha" ? connectors : here }));
+    href: x === "agent" ? `#machines/${m.ip}/agent` : x === "beszel" || x === "ha" ? connectors : here }));
   return {
     role: [{ label: tx("Réglages → Machines"), href: here }] as Origin[],
     mac: seen ? [{ label: "MynetworK", href: connectors }] : [],
@@ -1786,6 +1786,8 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, onOpe
   );
 }
 
+const asleep = (m: Machine) => ["off", "disabled"].includes(mState(m));
+
 export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapshot; onMachine: (ip: string) => void; onFilter?: (sel: Selected) => void; initial?: Selected }) {
   // Health by IP: the health check's, completed by UniFi (through MynetworK) for the devices read no other way (the gateway…)
   const devices = useMemo(() => unifiDevices(snap.data.network), [snap.data.network]);
@@ -1839,10 +1841,10 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const text = useCallback((m: Machine) => [m.name, m.ip, m.role, stateBadge(m)[1], m.ssh?.alias, m.ssh?.user, m.info?.os].join(" "), []);
   // « Ne plus suivre » : l'icône de chaque ligne (admin), la fiche ou l'interrupteur « Machine suivie » des réglages ; ici, les machines non suivies restent masquées d'office.
   const isOff = (m: Machine) => !!m.disabled;
-  // Machines non suivies : masquées d'office, un bouton les ramène (grisées)
-  const [showOff, setShowOff] = useState(false);
-  const nOff = snap.data.machine_list.filter(isOff).length;
-  const items = useMemo(() => (showOff ? snap.data.machine_list : snap.data.machine_list.filter((m) => !isOff(m))), [snap.data.machine_list, showOff, isOff]);
+  // Machines éteintes ou non suivies : un filtre visible, actif d'office ; le chiffre « Éteintes » et un lien vers elles le lèvent
+  const [hideOff, setHideOff] = useState(!initial?.state?.includes("off"));
+  const nOff = snap.data.machine_list.filter(asleep).length;
+  const items = useMemo(() => (hideOff ? snap.data.machine_list.filter((m) => !asleep(m)) : snap.data.machine_list), [snap.data.machine_list, hideOff]);
   const f = useFilter(items, facets, text, initial);
   // Home Assistant running on this machine (its address points here): its add-ons in the unfolded detail
   const haOf = (m: Machine) => (snap.data.services_status ?? []).find((c) => c.connector === "home-assistant" && c.url && new URL(c.url).hostname === m.ip);
@@ -1906,12 +1908,15 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
         figures={machineFigures(hb.get(pageM.ip), uptimeOf(pageM, unifiOf(pageM), freeboxOf(pageM, snap.data.network), haOf(pageM)) ?? null, watchOf(pageM).find((w) => w.tone !== "info")?.text)}
         onMachine={onMachine} focusTab={target?.tab} onBack={() => { location.hash = "machines"; }} />
     ) : <div className="flex flex-col gap-4 py-1">
-      <MachinesHead snap={snap} health={hb} watching={(m) => watchOf(m).some((w) => w.tone !== "info")} sel={f.sel} onSel={f.setSel} />
+      <MachinesHead snap={snap} health={hb} watching={(m) => watchOf(m).some((w) => w.tone !== "info")} sel={f.sel} onSel={(sel) => {
+        if (sel.state?.includes("off")) setHideOff(false);
+        f.setSel(sel);
+      }} />
       <FoldPanel id="machines-all" icon={Monitor} title={tx("Toutes les machines")} count={sort.sorted.length} pinned>
       <FilterBar bare f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         primary={["alert", "kind"]} oneLine optionsLabel={tx("Affichage")}
         options={[
-          ...(nOff > 0 ? [{ id: "off", label: tx("Non suivies"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
+          ...(nOff > 0 ? [{ id: "off", label: tx("Masquer éteintes et non suivies"), on: hideOff, toggle: () => setHideOff(!hideOff), mark: hideOff ? <EyeOff size={12} aria-hidden /> : <Eye size={12} aria-hidden />, count: nOff }] : []),
         ]}
         extra={<ViewToggle view={view} onPick={pickView} />} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (

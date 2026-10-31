@@ -105,12 +105,12 @@ def _update_config(core, change, secret: bool = False) -> None:
 
 
 # Live checks: (lowest, highest) of each setting; 0 = off is also accepted where listed in LIVE_OFF
-LIVE_LIMITS = {"pulse_every": (10, 600), "pulse_confirm": (1, 5), "fast_every": (60, 3600)}
-LIVE_OFF = ("pulse_every", "fast_every")
+LIVE_LIMITS = {"pulse_every": (10, 600), "pulse_confirm": (1, 5), "ports_every": (30, 600), "fast_every": (60, 3600)}
+LIVE_OFF = ("pulse_every", "ports_every", "fast_every")
 
 
 def live_settings(core) -> dict:
-    """Pulse (ping of every machine), its confirmation and the fast connector reads: current values, defaults and limits."""
+    """Pulse (ping of every machine, port of every service), its confirmation and the fast connector reads: current values, defaults and limits."""
     from msv.core.config import DEFAULTS
     return {"values": {k: core.CFG[k] for k in LIVE_LIMITS}, "defaults": {k: DEFAULTS[k] for k in LIVE_LIMITS},
             "limits": {k: list(v) for k, v in LIVE_LIMITS.items()}, "off_allowed": list(LIVE_OFF)}

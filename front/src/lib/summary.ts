@@ -8,7 +8,7 @@ import { CHECK, CLEANUP, certIssue, checks, dnsDown, dnsSync, hostName, status }
 import { tx } from "./i18n";
 import { healthCauses } from "./machineWatch";
 
-export type TabId = "home" | "history" | "machines" | "services" | "domotique" | "ai" | "stream" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
+export type TabId = "home" | "history" | "machines" | "services" | "domotique" | "cloudflare" | "ai" | "stream" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
 
 /** The families the attention card is sorted into */
 export type Category = "machines" | "services" | "sante" | "dns" | "sauvegardes" | "connecteurs";

@@ -27,8 +27,8 @@ const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
 const installNote = (kind: AgentKind) => kind === "linux"
-  ? tx("L'installation crée un minuteur systemd (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur la machine relancer la commande avec MSV_UNINSTALL=1.")
-  : tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.");
+  ? tx("L'installation crée un minuteur systemd (au démarrage, puis toutes les 5 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur la machine relancer la commande avec MSV_UNINSTALL=1.")
+  : tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 5 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.");
 
 function FirstReport({ seen }: Readonly<{ seen?: AgentInfo }>) {
   if (!seen?.last_seen) return <output className="mt-3 block rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">⏳ {tx("En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.")}</output>;

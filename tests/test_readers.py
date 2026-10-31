@@ -81,6 +81,34 @@ class Tick(unittest.TestCase):
         self.assertEqual(len(got), 2)
         self.assertEqual(a.calls, 2)
 
+    def test_read_now_reads_one_whatever_its_period(self):
+        one, two = Fake("a", every=3600), Fake("b", every=3600)
+        with tempfile.TemporaryDirectory() as d, patched([one, two]):
+            path = Path(d) / "connectors.json"
+            cbase.save_state(path, {"fake/a": {"ok": True, "tried": 1000, "failures": 0, "since": None}})
+            status = readers.read_one({}, path, "fake", "a", now=2000)
+            self.assertTrue(status.ok)
+            self.assertEqual((one.calls, two.calls), (1, 0))
+            self.assertEqual(cbase.load_state(path)["fake/a"]["last"], {"items": [1, 2, 3]})
+
+    def test_read_now_is_refused_right_after_a_reading(self):
+        one = Fake("a")
+        with tempfile.TemporaryDirectory() as d, patched([one]):
+            path = Path(d) / "connectors.json"
+            cbase.save_state(path, {"fake/a": {"ok": True, "tried": 2000, "failures": 0, "since": None}})
+            with self.assertRaises(readers.TooSoon) as said:
+                readers.read_one({}, path, "fake", "a", now=2010)
+            self.assertEqual(said.exception.args[0], 21)
+            self.assertEqual(one.calls, 0)
+
+    def test_read_now_leaves_to_the_collection_what_it_reads_itself(self):
+        with tempfile.TemporaryDirectory() as d, patched([Fake("a")]):
+            self.assertIsNone(readers.read_one({}, Path(d) / "connectors.json", "npm", "NPM"))
+
+    def test_a_failed_read_now_says_so(self):
+        with tempfile.TemporaryDirectory() as d, patched([Fake("a", fail=True)]):
+            self.assertFalse(readers.read_one({}, Path(d) / "connectors.json", "fake", "a").ok)
+
     def test_merge_keeps_the_entries_of_the_other_process(self):
         cbase.save_state(self.path, {"other/x": {"ok": True, "last": 1}})
         with patched([Fake("a")]):

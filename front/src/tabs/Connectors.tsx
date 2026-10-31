@@ -8,7 +8,7 @@ import { Overlay } from "../components/Overlay";
 import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
-import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
+import { act, danger, fieldFrame, fieldText, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim, Th } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
@@ -16,7 +16,8 @@ import { useDiscoveries } from "../components/DiscoveryCard";
 import type { ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias } from "../types";
 import { cardNotice, cardsTitle, cardView, toWatch, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
 import { configFor, modeOf } from "../lib/connectorModes";
-import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
+import { readConnector, RereadButton } from "../components/Reread";
+import { pointedHits, takeFocus, takePointed, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { searchHit, useSort } from "../lib/filter";
 import { savedFor } from "../lib/savedFor";
@@ -44,7 +45,7 @@ const MINE = "settings/connectors";
 const WATCH = "*watch", OFF = "*off";   // filters of « My connectors », beside the categories
 // The page that shows what a connector reads
 const PAGE: Record<string, string> = {
-  netatmo: "domotique/netatmo", tapo: "domotique/tapo", mynetwork: "network", unifi: "network", freebox: "network", "upnp-box": "network", fritzbox: "network", sfrbox: "network", livebox: "network", "vodafone-station": "network", "sagemcom-fast": "network", bbox: "network", "swisscom-box": "network", "connect-box": "network", "speedport": "network", "technicolor-gateway": "network", "tmobile-home-internet": "network", "hitron-coda": "network", "verizon-fios": "network", "arris-surfboard": "network", logviewr: "security", wazuh: "security", npm: "services",
+  cloudflare: "cloudflare/overview", netatmo: "domotique/netatmo", tapo: "domotique/tapo", mynetwork: "network", unifi: "network", freebox: "network", "upnp-box": "network", fritzbox: "network", sfrbox: "network", livebox: "network", "vodafone-station": "network", "sagemcom-fast": "network", bbox: "network", "swisscom-box": "network", "connect-box": "network", "speedport": "network", "technicolor-gateway": "network", "tmobile-home-internet": "network", "hitron-coda": "network", "verizon-fios": "network", "arris-surfboard": "network", logviewr: "security", wazuh: "security", npm: "services",
   ollama: "ai", "open-webui": "ai", hermes: "ai", gpuviewr: "ai", frigate: "stream",
 };
 const DOT: Record<CardTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", off: "bg-dim" };
@@ -81,7 +82,8 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
-  const [edited, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
+  const [edited, setEdited] = useState(focusKey);  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
+  const [pointed] = useState(takePointed), [only, setOnly] = useState<string[]>([]), pointing = useRef(true);   // the connector button of a page: its connector opened, or its connectors alone
   const [linking, setLinking] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire prend la place de la liste
   const [saved, setSaved] = useState<string[]>([]);   // detected services just activated: hidden at once, before any reload
   const [cat, setCat] = useState(""), [query, setQuery] = useState("");   // category and search of the picker (empty: all)
@@ -90,9 +92,17 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const collect = useCollectTask();
   const reload = useCallback(() => {
     read<ConnectorsState>("connectors/settings")
-      .then((s) => { setSt(s); setError(""); })
+      .then((s) => {
+        setSt(s); setError("");
+        if (!pointing.current) return;
+        pointing.current = false;
+        const hits = pointedHits(s.instances, s.types, pointed);
+        if (hits.length === 1) setEdited(`${hits[0].type}/${hits[0].name}`);
+        else if (pointed.category) setView(pointed.category);
+        else if (hits.length > 1) setOnly(pointed.types);
+      })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
-  }, []);
+  }, [pointed]);
   useEffect(reload, [reload, snap.data.generated]);   // read again when a collection ends: states and versions up to date without F5
 
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
@@ -109,6 +119,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const typeOf = (i: ConnectorInstance) => st.types.find((t) => t.type === i.type)!;
   const watching = st.instances.filter((i) => toWatch(views.get(key(i))!)).length, stopped = st.instances.filter((i) => !i.enabled).length, failing = [...views.values()].some((v) => v.tone === "bad");
   const kept = (i: ConnectorInstance) => {
+    if (only.length && !only.includes(i.type)) return false;
     if (view === WATCH) return toWatch(views.get(key(i))!);
     if (view === OFF) return !i.enabled;
     return !view || typeOf(i).category === view;
@@ -116,6 +127,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const listed = st.instances.filter((i) => key(i) === edited || key(i) === focusKey || (kept(i) && searchHit(`${i.label} ${i.name} ${i.type}`, find)))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name));   // alphabetical, like the picker
   const mine = (<div className="mt-3 grid grid-flow-dense gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,18rem),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
+        {only.length > 0 && <button type="button" className="col-span-full justify-self-start text-sm font-semibold text-link hover:underline" onClick={() => setOnly([])}>{tx("Voir tous mes connecteurs")}</button>}
         {listed.length === 0 && <p className="col-span-full py-4 text-center text-sm text-muted">{tx("Aucun connecteur ne correspond.")}</p>}
         {listed.map((i) => (
           <InstanceCard key={`${i.type}/${i.name}`} inst={i} view={views.get(key(i))!} hosts={snap.data.hosts} collect={collect} type={typeOf(i)} reload={reload}
@@ -123,7 +135,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
               tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
             onCollect={(on) => { setSrcKey(`${i.type}/${i.name}`); setSrcNote(null); setToggling(`${i.type}/${i.name}`); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
               on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { setToggling(""); if (ok) { setChanged(true); reload(); } }); }}
-            focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
+            focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={picking || !!adding} setEdited={(on) => setEdited(on ? `${i.type}/${i.name}` : "")} />
         ))}
         {changed && (
           <div className="col-span-full flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
@@ -165,10 +177,10 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
         <h2 className="flex items-center gap-2 font-bold"><Plus size={16} />{tx("Connecteurs disponibles")}</h2>
         {form}
         {!type && (
-          <label className="mt-3 flex max-w-md items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-2 focus-within:border-link">
-            <Search size={16} className="text-dim" aria-hidden />
+          <label className={`mt-3 flex max-w-md items-center gap-2 px-3 py-2 ${fieldFrame}`}>
+            <Search size={16} className="text-field-txt/75" aria-hidden />
             <input type="search" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tx("Chercher un connecteur (nom, catégorie…)")}
-              className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
+              className={`w-full bg-transparent ${fieldText}`} />
           </label>
         )}
         {!type && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
@@ -480,8 +492,8 @@ function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: C
   );
 }
 
-function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEditing: setEdit }: Readonly<{
-  view: CardView; toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEdited: setEdit }: Readonly<{
+  view: CardView; toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEdited: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }>) {
   const [note, setNote] = useState<Note>(null);
   const url = inst.config.url as string | undefined;
@@ -502,6 +514,7 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
       <div className={`mt-auto flex items-center gap-1 border-t border-line/40 bg-bg py-1.5 pl-3 pr-2 ${edit ? "" : "rounded-b-xl"}`}>
         {notice && !edit ? <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${TEXT[notice.tone]}`} title={notice.raw ?? notice.text}>{notice.text}</span>
           : <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>}
+        {inst.enabled && <RereadButton compact label={tx("Relire {0}", inst.label)} tip={tx("Lire ce connecteur maintenant, sans attendre sa période")} run={readConnector(inst.type, inst.name)} onNote={setNote} />}
         <span className="ml-1 flex items-center" title={tx("Le connecteur est lu par le serveur à sa période (voir Modifier) ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
           <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />
         </span>
@@ -522,8 +535,8 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
 
 /** A required field stands out, and turns orange while it is empty; an optional one stays in the background */
 function fieldBox(need: boolean, empty: boolean): string {
-  if (!need) return `${input} !bg-transparent`;
-  return `${input} !bg-card ${empty ? "!border-warn" : "!border-link/70"}`;
+  if (!need) return input;
+  return `${input} ${empty ? "!border-warn" : "!border-link/70"}`;
 }
 
 function Required({ text }: Readonly<{ text: string }>) {

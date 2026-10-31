@@ -316,6 +316,7 @@ def services_watch_hide(body: ServiceHide, request: Request):
 class LiveChecks(BaseModel):
     pulse_every: int | None = None
     pulse_confirm: int | None = None
+    ports_every: int | None = None
     fast_every: int | None = None
 
 
@@ -414,6 +415,16 @@ def machines_patch(ip: str, body: MachinePatch, request: Request):
 @router.post(API + "/machines/settings/{ip}/check", tags=["machines"], summary="Vérifier une machine (SSH, Docker, AdGuard, santé) (admin)")
 def machines_check(ip: str, request: Request):
     return machine_call(request, "", "", lambda m: m.check(ip))
+
+
+@router.post(API + "/machines/settings/{ip}/recheck", tags=["machines"], summary="Relire la santé d'une seule machine, sans passage de collecte (admin)")
+def machines_recheck(ip: str, request: Request):
+    def go(m):
+        nonlocal ip
+        ip = m.resolve(ip)
+        started = core.enabled("health") and core.run_task("health", f"relecture de {ip} (page de la machine)", ("--only", ip))
+        return {"ok": True, "started": started, "busy": not started}
+    return machine_call(request, "santé relue", ip, go)
 
 
 @router.post(API + "/machines/settings/{ip}/refresh", tags=["machines"], summary="Relire une seule machine : collecte (SSH, Docker) et santé (admin)")

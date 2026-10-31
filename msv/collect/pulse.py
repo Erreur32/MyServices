@@ -2,18 +2,21 @@
 
 The collector (every 15 min) and the watcher (right after it) stay in charge of the heavy reading; the pulse only answers
 « does it ping? ». A state change is confirmed after `confirm` pulses in a row (a lost packet is not an outage), then written to
-<web_dir>/pulse.json: the page overlays it on data.json and the watcher takes its machine events from it.
+<web_dir>/pulse.json: the page overlays it on data.json and the watcher takes its machine events from it. The same logic follows
+the port of each service in <web_dir>/ports.json: a port that closes or opens no longer waits for two collections.
 """
 from __future__ import annotations
 
 import json
 import re
+import socket
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 TIME = re.compile(r"time[=<]([\d.]+) ?ms")
+PORT_TIMEOUT = 3   # s
 
 
 def ping(ip: str) -> tuple[bool, float | None]:
@@ -24,6 +27,27 @@ def ping(ip: str) -> tuple[bool, float | None]:
         return False, None
     m = TIME.search(r.stdout)
     return r.returncode == 0, float(m.group(1)) if m else None
+
+
+def port_open(target: str) -> tuple[bool, float | None]:
+    """(open, connection time in ms) of one « ip:port », a plain TCP connection closed at once."""
+    host, _, port = target.rpartition(":")
+    t = time.monotonic()
+    try:
+        with socket.create_connection((host, int(port)), timeout=PORT_TIMEOUT):
+            return True, round((time.monotonic() - t) * 1000, 1)
+    except OSError:
+        return False, None
+
+
+def port_of(r: dict) -> str | None:
+    """The « ip:port » the port pulse follows for a row of data.json: one the collection probed itself. Same rule in the page (withPulse).
+    A port that answers without a web page (SSH, mail, SMB, a database) is left out: a silent connection every minute fills its logs and
+    can get MyServices banned by Fail2ban. It stays read at the collection."""
+    b = r.get("backend") or {}
+    if not r.get("enabled") or r.get("paused") or r.get("machine_off") or r.get("stopped") or b.get("internal") or (b.get("up") and r.get("web") == "none"):
+        return None
+    return f'{r["ip"]}:{r["port"]}' if r.get("ip") and r.get("port") and isinstance(b.get("up"), bool) else None
 
 
 class Pulse:

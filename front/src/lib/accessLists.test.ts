@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentHealth, agentSummary, sshRows, sshTarget } from "./accessLists";
+import { agentHealth, agentSummary, sshNeed, sshRows, sshTarget } from "./accessLists";
 import type { AgentInfo, Connector, Machine, MachineConf, SshAlias } from "../types";
 
 const agent = (id: number, name: string, state: AgentInfo["state"], more: Partial<AgentInfo> = {}): AgentInfo => ({
@@ -64,4 +64,21 @@ describe("sshRows", () => {
     expect(rows[0].message).toBe("Permission denied (publickey)");
     expect(rows[2].message).toBe("");
   });
+});
+
+describe("sshNeed", () => {
+  it("keeps SSH for what the agent does not read, agent or not", () => {
+    expect(sshNeed(false, ["backups"], true, true)).toBe("uses");
+    expect(sshNeed(false, ["npm"], false, false, true)).toBe("uses");
+  });
+  it("never calls SSH optional while the agent does not report", () => {
+    expect(sshNeed(false, [], true, false)).toBe("silent");
+    expect(sshNeed(false, [], true, true)).toBe("optional");
+  });
+  it("offers the agent only where one can be installed", () => {
+    expect(sshNeed(false, [], false, false, false)).toBe("no_agent");
+    expect(sshNeed(false, [], false, false, true)).toBe("offer_agent");
+    expect(sshNeed(false, [], false, false)).toBe("offer_agent");
+  });
+  it("has nothing to say on an access already cut", () => expect(sshNeed(true, ["npm"], true, true)).toBe("cut"));
 });

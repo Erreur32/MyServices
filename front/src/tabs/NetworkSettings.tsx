@@ -139,7 +139,7 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
           </div>
         </div>
         <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-line/60 pt-3">
-          <button type="button" className={quiet} onClick={reopenAssistant} title={tx("Rouvre l'assistant depuis le début")}><ListChecks size={14} aria-hidden />{tx("Revoir l'assistant de démarrage")}</button>
+          <button type="button" className={quiet} onClick={reopenAssistant} title={tx("Rouvre l'assistant : au début s'il est fini, sinon sur l'étape en attente")}><ListChecks size={14} aria-hidden />{tx("Revoir l'assistant de démarrage")}</button>
         </div>
         <NoteLine note={note} />
       </section>

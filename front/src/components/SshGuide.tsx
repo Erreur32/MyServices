@@ -69,7 +69,7 @@ export function SshGuide({ ip, user: knownUser, guess, port, onReady, onCancel }
             <b className="text-txt">{tx("PC Windows")}</b> {tx(": pas de SSH. Un petit agent PowerShell, en lecture seule, envoie lui-même la santé du PC à MyServices. Il s'installe en collant une commande dans PowerShell (administrateur), une fois.")}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <a className={primary} href={`#settings/agents/${ip}`}>{tx("Installer l'agent")}</a>
+            <a className={primary} href={`#machines/${ip}/agent`}>{tx("Installer l'agent")}</a>
             <button type="button" className={quiet} onClick={onCancel}>{tx("Fermer")}</button>
           </div>
         </>

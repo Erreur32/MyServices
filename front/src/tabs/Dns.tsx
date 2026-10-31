@@ -216,7 +216,7 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
   </div></Anchor>;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={NetworkIcon} title={tx("DNS")} tags={<HeadTags counts={[tx("{0} domaine(s) contrôlé(s)", fig.domains), machines.length > 0 ? tx("{0} nom(s) de machine", machines.length) : ""]} sources={[tools]} at={snap.data.generated} />} actions={<>{snap.me.role === "admin" && <ConnectorsLink />}<PeriodSwitch value={hours} onChange={setHours} /></>} />
+      <PageHead icon={NetworkIcon} title={tx("DNS")} tags={<HeadTags counts={[tx("{0} domaine(s) contrôlé(s)", fig.domains), machines.length > 0 ? tx("{0} nom(s) de machine", machines.length) : ""]} sources={[tools]} at={snap.data.generated} />} actions={<>{snap.me.role === "admin" && <ConnectorsLink types={["adguard", "pihole", "technitium"]} />}<PeriodSwitch value={hours} onChange={setHours} /></>} />
       <Figures g={g} fig={fig} st={st} last={last} stamp={String(at ?? "")} hours={hours} />
       {view === "servers" && servers}
       {(view === "all" || view === "watch") && <>

@@ -1,6 +1,5 @@
 // Assistant de démarrage : les étapes et ce que l'utilisateur en a fait (faite, passée), gardé par le navigateur.
 // Hors du composant : le rechargement à chaud de Vite ne marche que sur un fichier qui n'exporte que des composants.
-import { send } from "../api";
 import { REOPEN_EVENT, forgetChoices } from "./firstSteps";
 import { tx } from "./i18n";
 import type { Machine } from "../types";
@@ -13,7 +12,7 @@ export const STEPS: { id: AssistantStep; title: string; ready: boolean }[] = [
   { id: "machine", title: tx("Cette machine"), ready: true },
   { id: "network", title: tx("Le réseau"), ready: true },
   { id: "access", title: tx("Lire chaque machine"), ready: true },
-  { id: "tools", title: tx("Relier vos outils"), ready: true },
+  { id: "tools", title: tx("Et maintenant ?"), ready: true },
 ];
 
 export interface AssistantProgress { current: AssistantStep; done: AssistantStep[]; skipped: AssistantStep[]; host: string; accepted: string[] }   // accepted : machines gardées avec leur méthode actuelle
@@ -53,12 +52,14 @@ export function thisMachine(machines: Machine[], hostname: string, chosen = ""):
 
 const BANNER_OFF = "myservices-assistant-banner-off", LANDED = "myservices-assistant-landed";
 
-/** Menu du compte, Réglages -> Découverte : l'assistant repart du début, même s'il était fini ou fermé (choix « passés » de la recherche réseau effacés aussi) */
+/** Où rouvrir l'assistant : fini, au début pour refaire le tour de ce qui est validé ; en cours, sur l'étape en attente */
+export const reopened = (p: AssistantProgress): AssistantProgress => (isFinished(p) ? { ...p, current: "welcome" } : p);
+
+/** Menu du compte, Réglages -> Découverte : l'assistant se rouvre même s'il était fini ou fermé (choix « passés » de la recherche réseau effacés) ;
+ *  ce qui est validé reste, « Recommencer » dans l'assistant efface tout. La progression du serveur est relue à l'ouverture. */
 export function reopenAssistant(): void {
-  resetProgress();
   try { localStorage.removeItem(BANNER_OFF); } catch { /* navigation privée : tant pis */ }
   forgetChoices();
-  void send("PUT", "assistant", EMPTY).catch(() => undefined);
   location.hash = "assistant";
   dispatchEvent(new Event(REOPEN_EVENT));
 }
@@ -88,6 +89,12 @@ export function previousStep(id: AssistantStep): AssistantStep {
 
 /** Toutes les étapes faites ou passées */
 export const isFinished = (p: Pick<AssistantProgress, "done" | "skipped"> | null): boolean => !!p && STEPS.every((s) => p.done.includes(s.id) || p.skipped.includes(s.id));
+
+/** Fin de l'assistant : l'étape en cours est faite, celles restées en attente sont passées ; on peut y revenir */
+export function finish(p: AssistantProgress): AssistantProgress {
+  const done = [...new Set([...p.done, p.current])];
+  return { ...p, done, skipped: STEPS.map((s) => s.id).filter((id) => !done.includes(id)) };
+}
 
 /** Marque l'étape faite (ou passée) et avance */
 export function advance(p: AssistantProgress, how: "done" | "skipped"): AssistantProgress {

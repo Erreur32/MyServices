@@ -236,15 +236,19 @@ def auto_backup_default() -> None:
 
 
 PULSE = pulse.Pulse(WEB / "pulse.json", CFG["pulse_confirm"])
+PORTS = pulse.Pulse(WEB / "ports.json", CFG["pulse_confirm"], pulse.port_open)   # same confirmed state, keyed by « ip:port »
+
+
+def last_collection() -> dict:
+    try:
+        return json.loads((WEB / "data.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def pulse_ips() -> list[str]:
     """Followed machines of the last collection, minus the ones switched off in Settings (no ping for them)."""
-    try:
-        data = json.loads((WEB / "data.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    return [m["ip"] for m in data.get("machine_list", []) if m.get("ip") and not m.get("disabled")]
+    return [m["ip"] for m in last_collection().get("machine_list", []) if m.get("ip") and not m.get("disabled")]
 
 
 HEALTH_TRIED: dict = {}
@@ -279,6 +283,27 @@ def pulse_loop() -> None:
                         enabled("watch"), enabled("health"))
         except Exception as e:  # a bug here must not stop the pulse
             log(f"⚠ pouls : {e}")
+        time.sleep(max(1.0, (every or 5) - (time.time() - t0)))
+
+
+PORTS_FIRST_WAIT = 30   # s: right after a start the app's own port is not open yet, and a first sight is taken as it is
+
+
+def ports_loop() -> None:
+    """Try the port of every service each `ports_every` s; a confirmed change starts the watcher at once, as for the ping of a machine."""
+    owed = False
+    time.sleep(PORTS_FIRST_WAIT)
+    while True:
+        t0, every = time.time(), CFG["ports_every"]
+        PORTS.confirm = max(1, CFG["pulse_confirm"])
+        try:
+            data = last_collection() if every > 0 else {}
+            ports = sorted({p for r in data.get("hosts", []) if (p := pulse.port_of(r))})
+            owed = bool(ports and PORTS.tick(ports)) or owed
+            if owed and (not enabled("watch") or run_task("watch", "pouls des services")):
+                owed = False
+        except Exception as e:  # a bug here must not stop the loop
+            log(f"⚠ pouls des services : {e}")
         time.sleep(max(1.0, (every or 5) - (time.time() - t0)))
 
 
@@ -832,6 +857,7 @@ def start() -> None:
         keep_history(name)
     threading.Thread(target=scheduler, daemon=True).start()
     threading.Thread(target=pulse_loop, daemon=True, name="pulse").start()
+    threading.Thread(target=ports_loop, daemon=True, name="ports").start()
     threading.Thread(target=fast_loop, daemon=True, name="fast").start()
     threading.Thread(target=bandwidth_loop, daemon=True, name="bandwidth").start()
     threading.Thread(target=tiles_live_loop, daemon=True, name="tiles-live").start()
