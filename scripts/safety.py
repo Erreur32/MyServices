@@ -73,7 +73,7 @@ SECRETS = [
 ]
 # nom = "valeur" écrit en dur
 ASSIGN = re.compile(
-    r"""(?ix)\b([\w.-]*(?:password|passwd|passphrase|secret|token|api[_-]?key|private[_-]?key)[\w.-]*)
+    r"""(?ix)\b([\w.-]*(?:password|passwd|passphrase|secret|token|api[_-]?key|apikey|private[_-]?key)[\w.-]*)
         ["']?\s*[:=]\s*["']([^"'\s$<{}\[\]()]{8,})["']""")
 PLACEHOLDER = re.compile(
     r"(?i)^(?:[/~.][\w./~-]*|x+|\*+|\.+|change[-_]?me|example|exemple|secret|password|motdepasse|mot-de-passe|none|null|true|false|"

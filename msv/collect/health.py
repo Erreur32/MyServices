@@ -2184,7 +2184,7 @@ def merge_only(previous: list[dict], previous_asleep: list[dict], hosts: list[di
             asleep + [a for a in previous_asleep if a["id"] not in fresh and a.get("ip") != only])
 
 
-def main() -> None:
+def main() -> int:
     dry = "--dry-run" in sys.argv
     ts = datetime.now(timezone.utc).isoformat()
 
@@ -2198,7 +2198,7 @@ def main() -> None:
     ssh_first = [hc for hc in candidates if hc["ip"] == only and hc["target"] and source_order(hc, agents.get(only))[0] == "ssh"] if only and "--agent" in sys.argv else []
     if ssh_first:
         print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire" + (" (un point pour les courbes)" if agent_figures(ssh_first[0], agents.get(only), ts) else ""))
-        return
+        return 0
     previous, previous_asleep, previous_connectors = [], [], []
     if only:
         try:
@@ -2253,7 +2253,7 @@ def main() -> None:
 
     if dry:
         print(json.dumps(stats, indent=2, ensure_ascii=False, default=str)[:6000])
-        return
+        return 0
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     record_events(hosts, prev_levels, ts)
@@ -2284,9 +2284,10 @@ def main() -> None:
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"last_run": ts, "overall_level": overall,
                                       "levels": {h["id"]: h["level"] for h in hosts}, "hot": hot_since_of(hosts), "since": check_since}, indent=2), encoding="utf-8")
+    return 0
 
 
 if __name__ == "__main__":
     from msv.core import app_user
     app_user.drop_root()   # docker compose exec : root -> compte 10001 (sa config SSH, fichiers de /data restés à lui)
-    main()
+    sys.exit(main())
