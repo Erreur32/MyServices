@@ -9,6 +9,7 @@
 **What's new?**
 - **Running services**: the Software and services table of a machine lists its systemd services. Those you added by hand are marked « custom », those of the system stay under the System filter, and programs listening on a port get their row.
 - **Open ports**: the card no longer stops at six ports. It opens on your applications, shows its count in a badge, and the All and System filters are one click away.
+- **Agents**: an outdated agent shows both versions and what its update brings, and the page tells which agents keep an older rhythm.
 - **Filters**: every filter and view choice now looks the same, as a pill.
 - **UniFi cards**: a resized card zooms its ports and pictures, keeps its texts and always reaches the edges of its frame.
 - **Copy buttons**: each copy confirms, or says when it failed.

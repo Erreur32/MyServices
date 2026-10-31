@@ -17,6 +17,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 - **Running services of a machine**: the Software and services table lists the systemd services that run there, over SSH and with Linux agent 5. A service added by hand is marked « custom », the services of packages without a port wait under the System filter, and programs listening on a port get their row under Programs. Older agents keep working, without this list.
+- **Agents page**: an outdated agent shows both versions and what the update brings, and an agent on an older rhythm says that only a new command changes it. The machine page asks for the update when its agent is too old to list its services.
 - **Agent install**: a box adds the three exact read-only sudo rules to the Linux command, instead of typing `MSV_SUDO=1` by hand. It is off by default.
 - **Agent install over the internet**: both installers refuse plain http beyond the local network or a VPN, as the agent token would travel unencrypted. `MSV_ALLOW_HTTP=1` accepts it on purpose. Agents already installed keep working.
 - **Agent on a machine outside your network**: the install frame shows the address field and warns when the machine cannot reach this address, or when its token would cross the internet unencrypted. A VPN address (Tailscale, WireGuard) or https is the way to go.

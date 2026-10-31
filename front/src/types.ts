@@ -139,7 +139,7 @@ export interface Machine {
   agent?: { os: string; kernel?: string | null; uptime_s?: number | null; hardware?: AgentHardware | null; docker?: number | null; apps?: { key: string; label: string }[]; via: "agent" } | null;  // système lu par l'agent (PC Windows)
   info?: {
     via?: "agent";   // read by the Linux agent (absent: over SSH)
-    units?: { name: string; own: boolean }[];   // running systemd services, own = not from a package
+    units?: { name: string; own: boolean }[] | null;   // running systemd services, own = not from a package; null: agent too old to send them
     os?: string; kernel?: string; uptime_s?: number; gpus?: string[]; apache?: boolean; nginx?: boolean; docker?: number; docker_installed?: boolean;
     sshd?: { permitrootlogin?: string; passwordauthentication?: string };
     vhosts?: unknown[]; vhosts_unreadable?: string[];

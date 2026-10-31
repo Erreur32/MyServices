@@ -246,7 +246,7 @@ class LinuxAgentScripts(unittest.TestCase):
         remote = "##OS Debian\n##UP 1\n"
         inv = agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote], hostinfo.UNITS_SH: [0, out]}}})
         self.assertEqual(inv["info"]["units"], hostinfo.parse_units(out))
-        self.assertEqual(agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote]}}})["info"]["units"], [])   # agent 4: nothing, still served
+        self.assertEqual(agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote]}}})["info"]["units"], None)   # agent 4: still served, the page asks for its update
 
     def test_v4_inventaire_lu_comme_par_ssh(self):
         from msv.collect import hostinfo
@@ -258,7 +258,7 @@ class LinuxAgentScripts(unittest.TestCase):
         report = {"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote], docker_ssh.DOCKER_SH: [0, ps],
                                                       docker_ssh.NET_SH: [0, "_host=192.168.1.61/24\n"], process.LISTEN_SH: [0, ss]}}}
         inv = agents.linux_inventory(report)
-        self.assertEqual(inv["info"], {**hostinfo.parse_host_info(remote), "via": "agent"})
+        self.assertEqual(inv["info"], {**hostinfo.parse_host_info(remote), "via": "agent", "units": None})
         self.assertEqual((inv["info"]["os"], inv["info"]["apache"]), ("Debian GNU/Linux 12 (bookworm)", True))
         self.assertEqual(inv["containers"], docker_ssh.parse_containers(ps))
         self.assertEqual((inv["containers"][0]["ports"], inv["containers"][0]["local_ports"]), ([(8080, 80)], [3011]))

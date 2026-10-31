@@ -88,6 +88,7 @@ export function SoftwareTable({ m, hosts, npmIps }: Readonly<{ m: Machine; hosts
         {FILTERS.filter(([f]) => count(f) > 0).map(([f, label]) => <ChipButton key={f} on={filter === f} count={count(f)} label={label} onClick={() => setFilter(f)} />)}
         {boxes.length > 0 && <span className="ml-auto text-xs text-dim">{[tx("{0} en cours", up), boxes.length - up ? tx("{0} arrêté(s)", boxes.length - up) : "", alone ? tx("{0} sans service", alone) : ""].filter(Boolean).join(" · ")}</span>}
       </div>
+      {m.info?.via === "agent" && m.info.units === null && <p className="px-3 pb-2 text-xs text-muted">{tx("L'agent de cette machine est trop ancien pour lister ses services en marche.")} <a href="#settings/machines/agents" className="text-link hover:underline">{tx("Mettre à jour l'agent")}</a></p>}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[56rem] table-fixed border-collapse text-sm">
           <thead><tr>

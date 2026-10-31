@@ -305,7 +305,8 @@ def linux_inventory(report: dict | None) -> dict | None:
     info = hostinfo.parse_host_info(got(hostinfo.REMOTE)[1])
     if info:
         info["via"] = "agent"   # the page says where it was read
-        info["units"] = hostinfo.parse_units(got(hostinfo.UNITS_SH)[1])
+        rc_units, out_units = got(hostinfo.UNITS_SH)
+        info["units"] = None if rc_units is None else hostinfo.parse_units(out_units)   # None: an agent too old to send them, the page says so
     rc, out = got(docker_ssh.DOCKER_SH)
     if rc == 0:
         containers = docker_ssh.parse_containers(out)
