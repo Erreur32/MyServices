@@ -256,11 +256,20 @@ function DomainTable({ zones, period }: Readonly<{ zones: CloudflareZone[]; peri
   );
 }
 
+/** A choice kept by this browser, the same on every Cloudflare page */
+function useKept(key: string, fallback: string): [string, (v: string) => void] {
+  const [kept, setKept] = useState(() => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } });
+  const keep = (v: string) => { setKept(v); try { localStorage.setItem(key, v); } catch { /* storage refused: the choice lasts this visit */ } };
+  return [kept, keep];
+}
+
 /** The domain and the period a page shows, with its head and their chips */
 function useScope(zones: CloudflareZone[], title: string, snap: Snapshot) {
-  const [period, setPeriod] = useState<CloudflarePeriodKey>("24h");
-  const [domain, setDomain] = useState("");
-  const picked = domain ? zones.filter((z) => z.name === domain) : zones, chosen = PERIODS.find((x) => x.key === period)!;
+  const [keptPeriod, setPeriod] = useKept("ms.cloudflare.period", "24h");
+  const [keptDomain, setDomain] = useKept("ms.cloudflare.domain", "");
+  const domain = zones.some((z) => z.name === keptDomain) ? keptDomain : "";   // a domain since removed from the account: back to all of them
+  const chosen = PERIODS.find((x) => x.key === keptPeriod) ?? PERIODS[0], period = chosen.key;
+  const picked = domain ? zones.filter((z) => z.name === domain) : zones;
   const head = (
     <>
       <Head title={title} snap={snap} />
