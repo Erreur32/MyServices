@@ -5,6 +5,14 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.31.9 → 0.31.10
+
+**Nothing to do.** Three things to know:
+
+- Agents: only a new agent reports every 5 minutes. An agent already installed keeps its rhythm, automatic update included, because the rhythm lives in its system timer and the update only replaces the script. To move one to 5 minutes, run its install command again, with `MSV_MINUTES=5` on Linux, `-Minutes 5` on Windows.
+- Cloudflare: a new read-only connector, optional. It needs an API token created in your Cloudflare account, with read access only.
+- SSH page: machines that still need SSH now carry a « Keep SSH » badge and the reason. Nothing is changed for you.
+
 ## 0.31.8 → 0.31.9
 
 **Nothing to do.** Two things to expect:

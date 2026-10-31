@@ -108,7 +108,7 @@ One menu on the left holds every page, in four groups; the views of a page are i
 | Group | Pages |
 |---|---|
 | **Overview** | **Home** (dashboard: what needs your attention, then counters that open the page already filtered; then the history: events of the last 24 h to one year as dots, bars, curve or heat map, and availability; statistics) |
-| **Inventory** | **Machines** (every machine, each with its own page and settings; devices seen by your tools but not followed; agents; SSH connections and the app's SSH key), **Services** (NPM hosts and local services, each with its page, read and edited in place; new services; declare a service), **Network** (UniFi, Freebox, scan, devices, diagnostic), **DNS** (AdGuard Home: servers, details), **Virtualization**, **AI and agents** (overview, models, agents and MCP, GPU; shown once an AI service or connector exists), **Video and cameras** (overview, cameras, streams, recordings; shown once a Stream service or a video connector exists), **Diagrams** |
+| **Inventory** | **Machines** (every machine, each with its own page and settings; devices seen by your tools but not followed; agents; SSH connections and the app's SSH key), **Services** (NPM hosts and local services, each with its page, read and edited in place; new services; declare a service), **Network** (UniFi, Freebox, scan, devices, diagnostic), **DNS** (AdGuard Home: servers, details), **Cloudflare** (what to improve and why, traffic, domains side by side, each proxied name checked against NPM, Apache or nginx), **Virtualization**, **AI and agents** (overview, models, agents and MCP, GPU; shown once an AI service or connector exists), **Video and cameras** (overview, cameras, streams, recordings; shown once a Stream service or a video connector exists), **Diagrams** |
 | **Protection** | **Security** (overview, exposed sites, SSH access, network ports, certificates, Fail2ban, Wazuh), **Backups** (by machine, sets, add backups, to link, copies elsewhere, paths searched) |
 | **Collection** | **Connectors** (mine, available, found to link, already read over SSH or by an agent), **Discovery** (automatic mode, what to do, other suggestions), **Tasks and schedules** |
 | **Administration** | **Notifications** (channels, alert rules, my notifications, examples, last sent), **Accounts and access** (accounts and sessions, API and MCP tokens), **Application** (updates, e-mail, export and import, requests, audit log, logs, information) |
@@ -198,7 +198,7 @@ A connector lets MyServices read a tool through its API, **read-only**: give it 
 |---|---|
 | **Web and proxies** | **Nginx Proxy Manager**, **Web-Check** |
 | **Apps** | **Home Assistant**, Netatmo, Tapo, Nextcloud, Jellyfin, Tautulli, Overseerr / Jellyseerr, Sonarr / Radarr / Prowlarr…, Bazarr, qBittorrent, Transmission |
-| **DNS** | **AdGuard Home**, Pi-hole, Technitium DNS |
+| **DNS** | **AdGuard Home**, Cloudflare, Pi-hole, Technitium DNS |
 | **Monitoring** | **Beszel**, **Uptime Kuma**, **Dozzle**, **Glances**, **LogviewR**, Prometheus, Healthchecks, Netdata, Pulse, Speedtest Tracker, Webmin, Umami, Rybbit |
 | **Network** | **MynetworK** (UniFi and Freebox through it), UniFi Network (direct), Tailscale / Headscale, OPNsense, NetAlertX, Internet box (UPnP IGD), FRITZ!Box, SFR Box, Livebox, Vodafone Station, Sagemcom F@st, Bbox, Swisscom Internet-Box, Compal Connect Box, Telekom Speedport, Technicolor Homeware, T-Mobile Home Internet, Hitron CODA, Verizon Fios, Arris SURFboard |
 | **Security** | **Wazuh**, CrowdSec |
