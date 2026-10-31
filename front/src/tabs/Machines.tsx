@@ -38,7 +38,7 @@ import { BandwidthTile } from "../components/BandwidthTile";
 import { PageHead } from "../components/PageHead";
 import type { TilePoint } from "../lib/tileHistory";
 import { DetailMore, DetailRow, DetailSection } from "../components/DetailSection";
-import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
+import { SoftwareTable, modeLabel } from "../components/WebServers";
 import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
 import { primary, quiet } from "../lib/forms";
 import { copyText } from "../lib/clipboard";
@@ -1050,11 +1050,11 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
 /** One of the three columns of the machine page, always the same subjects at the same place; wide: across the two columns of a smaller screen */
-function PageColumn({ title, wide = false, children }: Readonly<{ title: string; wide?: boolean; children: React.ReactNode }>) {
+function PageColumn({ title, wide = false, full = false, className = "", children }: Readonly<{ title: string; wide?: boolean; full?: boolean; className?: string; children: React.ReactNode }>) {
   return (
-    <div className={`min-w-0 ${wide ? "lg:col-span-2 xl:col-span-1" : ""}`}>
-      <h2 className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-dim">{title}</h2>
-      <div className={wide ? "gap-3 lg:columns-2 xl:columns-1" : ""}>{children}</div>
+    <div className={`min-w-0 ${wide ? "lg:col-span-2" : ""} ${wide && !full ? "xl:col-span-1" : ""} ${full ? "xl:col-span-2" : ""} ${className}`}>
+      <h2 className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-dim">{title || "\u00a0"}</h2>
+      <div className={wide ? `gap-3 lg:columns-2 ${full ? "" : "xl:columns-1"}` : ""}>{children}</div>
     </div>
   );
 }
@@ -1064,11 +1064,13 @@ function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unif
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
   const i = m.info, hw = hardwareRows(m.agent?.hardware);
+  const middle = !!extra?.running || !!ha || !!freebox || unifiOnly;   // nothing here: the access cards take its place
+  const software = !(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly);   // a Freebox or a device read through UniFi has its own card
   return (
     <div ref={root} className="flex flex-col gap-3">
       <WatchSummary items={watch} onShow={(kind) => showWatch(root.current, kind)} />
-      <div className="grid items-start gap-3 lg:grid-cols-2 xl:grid-cols-3">
-      <PageColumn title={tx("État de la machine")}>
+      <div className="grid items-start gap-3 lg:grid-cols-2 xl:grid-cols-[1fr_1.35fr_1fr] xl:grid-rows-[auto_1fr]">
+      <PageColumn title={tx("État de la machine")} className="xl:row-span-2">
       <HealthSection h={h} from={from.health} />
       <SystemSection h={h} from={uniqueOrigins([...from.os, ...from.health])}>
         <Row k={tx("Système")}>{i?.os || m.agent?.os || haSystemName(ha) || undefined}</Row>
@@ -1084,18 +1086,23 @@ function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unif
       {freebox?.connection && <FreeboxLineSection fb={freebox} from={from.ssh} stamp={stamp ?? ""} />}
       {freebox?.ftth && <FreeboxFibreSection fb={freebox} from={from.ssh} />}
       <IdentitySection m={m} mac={mac} net={net} from={uniqueOrigins([...from.role, ...from.mac])} tool={freebox || unifi ? "MynetworK" : undefined} pve={pve} sheet={sheet} />
+      {extra?.state}
       </PageColumn>
 
-      <PageColumn title={tx("Ce qui tourne dessus")}>
+      {software && (
+        <PageColumn title={tx("Ce qui tourne dessus")} className="lg:order-first lg:col-span-2 xl:order-none">
+          <SoftwareSection m={m} down={watch.find((w) => w.kind === "services")?.detail} hosts={hosts ?? []} npmIps={npmIps} ha={ha} from={from.services} onFilter={onFilter} />
+        </PageColumn>
+      )}
+
+      {middle && <PageColumn title={software ? "" : tx("Ce qui tourne dessus")}>
       {freebox && (freebox.vms || freebox.vm_system) && <FreeboxVmSection fb={freebox} from={from.services} />}
       {!freebox && unifiOnly && <UnifiNetworkSection d={unifi} sys={unifiSys} net={unifiNet} from={from.services} />}
-      {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} down={watch.find((w) => w.kind === "services")?.detail} hosts={hosts ?? []} npmIps={npmIps} ha={ha} from={from.services} onFilter={onFilter} />}
-
       {extra?.running}
       {ha && <HaInsideSection ha={ha} from={from.services} />}
-      </PageColumn>
+      </PageColumn>}
 
-      <PageColumn title={tx("Accès et protection")} wide>
+      <PageColumn title={tx("Accès et protection")} wide full={!middle}>
       <MachineBackupsSection m={m} backups={backups} />
       <SharedBackupsSection m={m} backups={backups} from={from.services} />
       {ha && <HaBackupsSection ha={ha} from={from.services} />}
@@ -1509,14 +1516,12 @@ function SoftwareSection({ m, down, hosts, npmIps, ha, from, onFilter }: Readonl
       <Section sec="services" icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from}>
         <Row k={tx("Services")}><ServicesValue m={m} down={down} onFilter={onFilter} /></Row>
         {down?.map((d) => <Row key={d} k=""><span className="text-[11px] text-bad">• {d}</span></Row>)}
-        <WebServersTable m={m} hosts={hosts} npmIps={npmIps} />
-        {!m.containers?.length && <Row k="Docker">{dockerValue(m)}</Row>}
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
         {ha?.addons?.length ? <div className="py-1"><HaAddons s={ha} /></div> : null}
         <Row k={tx("Applis")}>{m.agent?.apps?.length ? <span className="flex flex-wrap gap-1">{m.agent.apps.map((a) => <Badge key={a.key} tone="info" title={tx("Vue par les services Windows du PC")}>{a.label}</Badge>)}</span> : undefined}</Row>
         {noSoftware(m) && <Dim>-</Dim>}
-        {!!m.containers?.length && <ContainerList m={m} hosts={hosts} />}
-        <SitePaths m={m} hosts={hosts} />
+        {!m.containers?.length && <Row k="Docker">{dockerValue(m)}</Row>}
+        <SoftwareTable m={m} hosts={hosts} npmIps={npmIps} />
       </Section>
   );
 }
