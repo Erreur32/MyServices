@@ -1727,7 +1727,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, onOpe
         <SystemLine m={m} os={os} ha={ha} unifi={unifi} freebox={freeboxOf(m, snap.data.network)} />
         {up ? <span className="shrink-0 text-dim">· {tx("up")} {dur(up)}</span> : null}
         <UpdatesChip h={h} />
-        {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim lg:max-2xl:hidden" title={m.role}>{t}</span>)}
+        {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim lg:max-[1900px]:hidden" title={m.role}>{t}</span>)}
       </div>
       <ResStrip h={h} first={<Stat label={tx("Services")}><b><ServiceCount m={m} snap={snap} /></b></Stat>} />
       <div className="flex min-h-7 items-center justify-between gap-2">
@@ -1736,10 +1736,10 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, onOpe
       </div>
       <div className={`-mx-3 -mb-3 flex flex-wrap items-center gap-2 border-t border-line/60 px-3 py-2 text-xs ${look.foot}`}>
         {m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} aria-label={tx("Voir ses services")} title={tx("Voir ses services")} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-2.5 py-1 font-semibold text-txt shadow-sm hover:border-link hover:text-link">
-          <Boxes size={14} aria-hidden /><span className="lg:max-2xl:hidden">{tx("Services")}</span><ChevronRight size={14} aria-hidden />
+          <Boxes size={14} aria-hidden /><span className="lg:max-[1900px]:hidden">{tx("Services")}</span><ChevronRight size={14} aria-hidden />
         </button>}
         {state}
-        {look.label() && <span title={look.label()} className={`ml-auto inline-flex items-center gap-1.5 font-semibold ${look.text}`}><span className="size-2 rounded-full bg-current" aria-hidden /><span className="lg:max-2xl:sr-only">{look.label()}</span></span>}
+        {look.label() && <span title={look.label()} className={`ml-auto inline-flex items-center gap-1.5 font-semibold ${look.text}`}><span className="size-2 rounded-full bg-current" aria-hidden /><span className="lg:max-[2200px]:sr-only">{look.label()}</span></span>}
       </div>
     </div>
   );

@@ -308,7 +308,7 @@ export function Table({ head, children, fit = false, fixed = false }: Readonly<{
 /** Version mobile d'un tableau : une fiche par ligne */
 export function Cards({ children, always = false, dense = false }: { children: ReactNode; always?: boolean; dense?: boolean }) {  // always : aussi sur grand écran (choix « Cartes ») ; dense : cartes compactes, une colonne de plus
   if (!always) return <div className="flex flex-col gap-2.5 md:hidden">{children}</div>;
-  return <div className={`grid gap-2.5 md:grid-cols-2 ${dense ? "lg:grid-cols-3 xl:grid-cols-4" : "xl:grid-cols-3"}`}>{children}</div>;
+  return <div className={`grid gap-2.5 md:grid-cols-2 ${dense ? "lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" : "xl:grid-cols-3"}`}>{children}</div>;
 }
 
 export function Empty({ children }: { children: ReactNode }) {

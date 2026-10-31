@@ -17,7 +17,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 
-- **Machines**: the cards fit four per line from 1280 px, the name keeps its room and the source badges move to the foot. Clicking a card or its title opens the machine page, and the link at the bottom opens its services, filtered on it.
+- **Machines**: the cards fit four per line from 1280 px and five from 1536 px, the name keeps its room and the source badges move to the foot. Clicking a card or its title opens the machine page, and the link at the bottom opens its services, filtered on it.
 - **Machines**: the « Alerts » filter stays on the search line, the other filters go behind the button, and API, manual SSH and « via a connector » no longer have a filter of their own (the tiles and links that use them keep working).
 
 ### Fixed
