@@ -14,7 +14,7 @@ Keep a copy of `config/` and `data/` before any update.
 - Cloudflare data: the Traffic page shows the most requested paths and the user agents seen by Cloudflare. They appear to every account of the app that can open the page; client IPs are never read.
 - Services: the separate service and edit pages are gone. A saved link to them opens the same service inside the Services list.
 - Machines: the list now hides machines powered off or no longer followed, by default. Turn off « Hide powered off and unfollowed », or click the « Off » tile, to see them.
-- Service pulse: MyServices now opens a plain TCP connection to the port of each web service every minute, and closes it, to see an outage within 2 to 3 minutes. It sends nothing and uses no account, but a web server may log it. Set it, or set it to 0 to turn it off, in Tasks and schedules: « Edit schedules », then « Live checks ».
+- Service pulse: MyServices now opens a plain TCP connection to the port of each web service every minute, and closes it, to see an outage within 2 to 3 minutes. It sends nothing and uses no account, but a web server may log it. Set it, or set it to 0 to turn it off, in Tasks and schedules: « Edit the schedules », then « Live checks ».
 - Availability: the page opens on the machines. Your filters are kept in your browser from then on.
 - Assistant: « Review the setup assistant » no longer erases what was validated; « Start over » inside the assistant does.
 - SSH page: machines that still need SSH now carry a « Keep SSH » badge and the reason. Nothing is changed for you.

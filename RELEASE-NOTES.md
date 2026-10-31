@@ -1,8 +1,8 @@
-# Release notes: MyServices 0.31.9
+# Release notes: MyServices 0.31.10
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.31.9** (31 October 2026) adds **Cloudflare**, a read-only connector with its own pages, and tidies what you use every day: **Services** keeps a service's sheet inside its card, **Availability** is redrawn, and the **setup assistant** ends on one clear next step.
+**0.31.10** (31 October 2026) adds **Cloudflare**, a read-only connector with its own pages, and tidies what you use every day: **Services** keeps a service's sheet inside its card, **Availability** is redrawn, and the **setup assistant** ends on one clear next step.
 
 ## For everyone
 
@@ -31,7 +31,7 @@
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.31.9` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **Image**: `ghcr.io/erreur32/myservices:0.31.10` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
 - **API and storage**: the Cloudflare figures join `data.json`. The pages `#services/item` and `#services/edit` are gone and redirect to `#services/all/<key>`.
 - **Service pulse**: a new `ports.json` beside `pulse.json`, and a new `ports_every` setting (60 s by default, 0 = off).
 - **Cloudflare**: read once an hour, about 11 calls per domain, no new right beyond read access. Paths and user agents are stored, client IPs never are.

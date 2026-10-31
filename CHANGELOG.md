@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.10 (2026-10-31)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - **Cloudflare**: a read-only connector and its own page: what to improve and why, domains side by side, and each proxied name checked against NPM, Apache or nginx, in a sortable table. The traffic page reads 24 hours, 7 and 30 days for one domain or all, with the trend against the period before, server errors, the names in error, countries, content types, encryption and browsers.
