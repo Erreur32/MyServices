@@ -36,7 +36,6 @@ const THEME_VARS: Record<string, string> = {
   "--udc-accent": "rgb(var(--link))",
   "--udc-green": "rgb(var(--ok))",
   "--udc-orange": "rgb(var(--warn))",
-  "--udc-port-size": "26px",   // smaller than the 36 px default: several cards side by side
   "--udc-ap-scale": "0.45",
 };
 
@@ -45,7 +44,7 @@ const TYPE_ICON: Record<MnDevice["type"], [LucideIcon, string]> = { gateway: [Ro
 type CardElement = HTMLElement & { setConfig: (c: Record<string, unknown>) => void; hass: unknown };
 
 /** One card. With a chosen height it keeps its natural layout and is reduced proportionally to fit (never enlarged, no deformation). */
-function DeviceCard({ deviceId, hass, showPanel, height, uplinkPort, markPort }: Readonly<{ deviceId: string; hass: unknown; showPanel: boolean; height?: number; uplinkPort?: number; markPort?: number }>) {
+function DeviceCard({ deviceId, hass, showPanel, height, uplinkPort, markPort, fit }: Readonly<{ deviceId: string; hass: unknown; showPanel: boolean; height?: number; uplinkPort?: number; markPort?: number; fit?: boolean }>) {
   const hostRef = useRef<HTMLDivElement>(null), cardRef = useRef<CardElement | null>(null);
   const [naturalHeight, setNaturalHeight] = useState(0);
 
@@ -59,12 +58,13 @@ function DeviceCard({ deviceId, hass, showPanel, height, uplinkPort, markPort }:
       default_uplink_port: "auto",   // without a detected uplink, open on a connected special port (SFP+, 10G)
       ...(uplinkPort == null ? {} : { uplink_port: uplinkPort }),
       ...(markPort == null ? {} : { mark_port: markPort }),   // framed on the front panel
+      ...(fit ? { port_size_fit: true } : {}),   // the ports follow the width of the card
       port_led_blink: true, port_led_blink_speed_rj45: 1, port_led_blink_speed_sfp: 1, port_led_traffic_blink_speed: 0.5,   // up: slow blink, traffic: faster
     });
     host.appendChild(el);
     cardRef.current = el;
     return () => { el.remove(); cardRef.current = null; };
-  }, [deviceId, showPanel, uplinkPort, markPort]);
+  }, [deviceId, showPanel, uplinkPort, markPort, fit]);
 
   useEffect(() => { if (cardRef.current) cardRef.current.hass = hass; });
 
@@ -205,7 +205,7 @@ export function UnifiCards() {
                   <Badge tone="off">{tx("{0} port(s)", d.portCount)}</Badge>
                 </div>
                 <div className="px-3 pb-4">
-                  {cardReady && <DeviceCard deviceId={d.id} hass={hass} showPanel={showPanel} height={heights[d.id]} uplinkPort={uplinks[d.id]} />}
+                  {cardReady && <DeviceCard deviceId={d.id} hass={hass} showPanel={showPanel} height={heights[d.id]} uplinkPort={uplinks[d.id]} fit />}
                 </div>
                 <div title={tx("Tirer pour changer la hauteur ; double-clic : taille d'origine")} className="absolute bottom-0 left-0 h-2 w-full cursor-ns-resize rounded-b-xl hover:bg-link/30"
                   onPointerDown={(e) => resize(e, d.id, "height")} onDoubleClick={() => setHeight(d.id, null)} />
