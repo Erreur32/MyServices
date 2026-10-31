@@ -1,5 +1,5 @@
 // « Relire » : a machine, a connector or a service read right now, on its own, without waiting for its period or for a whole pass.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { LOGIN, LoginRequired, send } from "../api";
 import { quiet, type Note } from "../lib/forms";
@@ -8,6 +8,7 @@ import { pokeScan } from "../lib/scan";
 import { serverText } from "../lib/serverText";
 
 type Run = () => Promise<Note>;
+const NOTE_MS = 15000;   // the answer stays that long in the tooltip and on the colour of the icon
 export interface TryResult { up: boolean; ms: number | null; code: number | null; error: string | null }
 
 export const readConnector = (type: string, name: string): Run => async () => {
@@ -35,6 +36,11 @@ export const testService = (ip: string, port: number, scheme: string | undefined
 export function RereadButton({ label, tip, run, compact = false, onNote, className }: Readonly<{ label: string; tip: string; run: Run; compact?: boolean; onNote?: (n: Note) => void; className?: string }>) {
   const [busy, setBusy] = useState(false), [own, setOwn] = useState<Note>(null);
   const say = onNote ?? setOwn;
+  useEffect(() => {
+    if (!own) return undefined;
+    const t = setTimeout(() => setOwn(null), NOTE_MS);
+    return () => clearTimeout(t);
+  }, [own]);
   const go = async () => {
     setBusy(true); say(null);
     try { say(await run()); pokeScan(); }
@@ -42,13 +48,14 @@ export function RereadButton({ label, tip, run, compact = false, onNote, classNa
     setBusy(false);
   };
   const Icon = busy ? Loader2 : RefreshCw;
+  const tint = own?.ok ? "text-ok" : "text-bad";
   return (
     <>
-      <button type="button" disabled={busy} title={tip} aria-label={label} onClick={(e) => { e.stopPropagation(); void go(); }}
+      <button type="button" disabled={busy} title={own?.text ?? tip} aria-label={label} onClick={(e) => { e.stopPropagation(); void go(); }}
         className={className ?? (compact ? "shrink-0 rounded-md p-1 text-muted hover:bg-link/10 hover:text-link" : quiet)}>
-        <Icon size={14} className={busy ? "animate-spin" : ""} aria-hidden />{!compact && label}
+        <Icon size={14} className={`${busy ? "animate-spin" : ""} ${own ? tint : ""}`} aria-hidden />{!compact && label}
       </button>
-      {own && <output className={`text-xs ${own.ok ? "text-ok" : "text-bad"}`}>{own.text}</output>}
+      {own && <output className="sr-only">{own.text}</output>}
     </>
   );
 }
