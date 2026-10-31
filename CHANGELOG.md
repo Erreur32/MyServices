@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.32.0 (2026-10-31)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - **Availability to the minute**: machines and services keep their outages from the pulses, and the 24 hour view shows 96 quarter-hour cells. A new `avail_runs` table holds them, created by itself.
