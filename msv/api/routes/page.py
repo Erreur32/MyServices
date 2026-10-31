@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import mimetypes
+import os
 import re
 from urllib.parse import quote
 
@@ -17,6 +18,7 @@ router = APIRouter()
 HASHED_ASSET = re.compile(r"^assets/[\w.-]+-[\w-]{8}\.(?:js|css|woff2?|png|jpe?g|svg|webp)$")
 IMMUTABLE = "public, max-age=31536000, immutable"
 REVALIDATE = "no-cache, must-revalidate"
+DEV_FRONT = os.environ.get("MYSERVICES_DEV_FRONT", "").rstrip("/")   # dev only: the address of the hot-reload front, the one page to look at
 
 
 def not_found() -> HTMLResponse:
@@ -30,6 +32,8 @@ def files(rel: str, request: Request):
         return RedirectResponse("/" + quote(rel[3:].lstrip("/")), status_code=302)
     if rel.startswith(("api/", "mcp", "agent/")):        # unknown API route: JSON, not the HTML « page not found »
         return deny(404, "introuvable")
+    if rel == "" and DEV_FRONT:                          # /index.html stays served: the way in when that front is down
+        return RedirectResponse(DEV_FRONT + "/", status_code=307)
     if rel in ("", "index.html"):                        # the React front (an old index.html left in the volume must not shadow it)
         f = core.STATIC / "v2" / "index.html"
         f = f if f.is_file() else None

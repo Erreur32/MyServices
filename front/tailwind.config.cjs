@@ -1,9 +1,10 @@
 /** @type {import('tailwindcss').Config} */
+// .cjs on purpose: a running Vite never reads an ES module config again, even after a page reload (Node keeps it in its module cache).
 // Couleurs de la page actuelle (web/index.html) en variables CSS (src/index.css) : thème sombre par défaut,
 // thème clair par la classe « light » sur <html>, autres thèmes sombres par « theme-<id> ».
 const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
 
-export default {
+module.exports = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {

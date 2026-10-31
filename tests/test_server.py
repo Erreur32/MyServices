@@ -117,6 +117,13 @@ class Http(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
+    def test_dev_front(self):
+        from msv.api.routes import page
+        with mock.patch.object(page, "DEV_FRONT", "http://10.0.0.5:5180"):
+            r = self.c.get("/", follow_redirects=False)
+            self.assertEqual((r.status_code, r.headers["location"]), (307, "http://10.0.0.5:5180/"))
+            self.assertEqual(self.c.get("/index.html").status_code, 200)   # the way in when that front is down
+
     def test_page(self):
         r = self.c.get("/myservices/", follow_redirects=False)  # the old address leads to the root, where the front now lives
         self.assertEqual((r.status_code, r.headers["location"]), (302, "/"))

@@ -69,4 +69,5 @@ settings.local.json
 
 # Local herdr helpers (personal terminal setup)
 scripts/dev-panes.sh
+scripts/dev-reload.py
 scripts/dev-stop.sh
