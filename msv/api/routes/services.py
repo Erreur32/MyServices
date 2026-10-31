@@ -34,7 +34,7 @@ def services_new(request: Request):
     if denied := admin_only(request):
         return denied
     events = history.query(db_path(core.CFG), since=time.time() - new_services.WINDOW_DAYS * 86400, kind="nouveau", limit=5000)
-    return {"items": new_services.pending(read_produced("data.json") or {}, events, core.CFG["state_dir"], _connector_endpoints())}
+    return {"items": new_services.pending(read_produced(core.DATA_FILE) or {}, events, core.CFG["state_dir"], _connector_endpoints())}
 
 
 def _connector_endpoints() -> list[tuple[dict, tuple[str, ...]]]:
@@ -128,7 +128,7 @@ def services_new_ignore(body: ServiceKeys, request: Request):
     from msv.machines import setup
     if denied := admin_write(request):
         return denied
-    data, done = read_produced("data.json") or {}, []
+    data, done = read_produced(core.DATA_FILE) or {}, []
     for k in body.keys:
         try:
             done.append(new_services.ignore(k, data, setup.META, core.WEB, core.CFG["state_dir"]))
@@ -161,7 +161,7 @@ def services_meta_read(type: str, id: str, request: Request):
     from msv.machines import setup
     if denied := admin_only(request):
         return denied
-    data = read_produced("data.json") or {}
+    data = read_produced(core.DATA_FILE) or {}
     row = next((r for r in data.get("hosts") or [] if (r.get("type"), str(r.get("id"))) == (type, id)), None)
     if not row:
         return deny(404, "service introuvable (déjà disparu ?)")
@@ -177,7 +177,7 @@ def services_meta_edit(body: ServiceMeta, request: Request):
     from msv.machines import setup
     if denied := admin_write(request):
         return denied
-    data = read_produced("data.json") or {}
+    data = read_produced(core.DATA_FILE) or {}
     row = next((r for r in data.get("hosts") or [] if (r.get("type"), str(r.get("id"))) == (body.type, body.id)), None)
     if not row:
         return deny(404, "service introuvable (déjà disparu ?)")
@@ -203,7 +203,7 @@ def services_meta_edit(body: ServiceMeta, request: Request):
 
 def _stream_camera_known(connector: str, name: str, camera: str) -> bool:
     """The camera (or stream) was seen at the last collection, on a connector that offers pictures."""
-    data = read_produced("data.json") or {}
+    data = read_produced(core.DATA_FILE) or {}
     status = next((c for c in data.get("services_status") or [] if c.get("connector") == connector and (c.get("instance") or c.get("name")) == name), None)
     block = (status or {}).get("stream") or {}
     known = {c.get("name") for c in block.get("cameras") or []} | {x.get("name") for x in block.get("streams") or []}
@@ -237,7 +237,7 @@ def stream_snapshot(connector: str, name: str, camera: str, request: Request):
 @router.get(API + "/domotique/curves", tags=["services"], summary="Courbes 24 h d'un capteur de la maison, lues à la demande (tout utilisateur connecté)")
 def domotique_curves(connector: str, name: str, module: str):
     import connectors
-    status = next((c for c in (read_produced("data.json") or {}).get("services_status") or [] if c.get("connector") == connector and c.get("instance") == name), None) or {}
+    status = next((c for c in (read_produced(core.DATA_FILE) or {}).get("services_status") or [] if c.get("connector") == connector and c.get("instance") == name), None) or {}
     known = [*(status.get("modules") or []), *(status.get("netatmo") or {}).get("modules", []), *(status.get("home") or {}).get("modules", [])]
     m = next((x for x in known if x.get("id") == module), None)
     if m is None:
@@ -310,7 +310,7 @@ def services_public(body: ServicePublic, request: Request):
     from msv.machines import setup
     if denied := admin_write(request):
         return denied
-    data = read_produced("data.json") or {}
+    data = read_produced(core.DATA_FILE) or {}
     if not any(body.domain in (r.get("domains") or []) for r in data.get("hosts") or [] if r.get("type") == "proxy"):
         return deny(404, "aucun hôte NPM ne porte ce domaine")
     new_services.set_public(setup.META, core.WEB, body.domain, body.public)
@@ -412,7 +412,7 @@ def last_statuses() -> list[dict]:
     """Connector states of the last collection; an instance saved (or switched on) since then is marked « pending »: the page says it is
     being read again instead of showing the error of the old settings."""
     try:
-        data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
+        data = json.loads((core.WEB / core.DATA_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     try:
@@ -505,7 +505,7 @@ def connectors_settings(request: Request):
     # Read over SSH without a connector (Proxmox by pvesh, ESXi, KVM, Incus, VirtualBox): listed with the others, nothing to add for them
     virt = [{"type": v.get("connector"), "name": v.get("name"), "label": v.get("label"), "ok": v.get("ok"), "stale": v.get("stale"),
              "message": v.get("message"), "version": v.get("version"), "ip": v.get("ip"), "via": "ssh"}
-            for v in (read_produced("data.json") or {}).get("virtualization") or [] if v.get("via") == "ssh"]
+            for v in (read_produced(core.DATA_FILE) or {}).get("virtualization") or [] if v.get("via") == "ssh"]
     return {"types": settings.schema(), "instances": items,
             "others": [s for s in statuses if (s.get("type"), s.get("name")) not in shown] + virt}
 

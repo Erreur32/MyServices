@@ -76,7 +76,7 @@ def backups_follow(body: BackupFollow, request: Request):
     def go(b):
         out = b.follow([i.model_dump() for i in body.items])
         if not core.CFG.get("backups_url"):  # onglet Sauvegardes activé par le premier jeu
-            system.set_backups_url(core, "backups.json")
+            system.set_backups_url(core, core.BACKUPS_FILE)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
         return {"ok": True, **out}
     return backups_call(request, "sauvegardes suivies", f"{len(body.items)} dossier(s)", go)
@@ -123,7 +123,7 @@ def backups_veeam_follow(body: VeeamFollow, request: Request):
     def go(b):
         out = b.veeam_follow(body.model_dump(exclude={"jobs"}), [j.model_dump() for j in body.jobs])
         if not core.CFG.get("backups_url"):
-            system.set_backups_url(core, "backups.json")
+            system.set_backups_url(core, core.BACKUPS_FILE)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Veeam)")
         return {"ok": True, **out}
     return backups_call(request, "jobs Veeam suivis", f"{body.url} : {len(body.jobs)} job(s)", go)
@@ -167,7 +167,7 @@ def backups_remote_follow(body: RemoteFollow, request: Request):
     def go(b):
         out = b.remote_follow(body.model_dump(exclude={"path", "label", "max_age_days", "copy_of"}), body.path, body.label, body.max_age_days, body.copy_of)
         if not core.CFG.get("backups_url"):
-            system.set_backups_url(core, "backups.json")
+            system.set_backups_url(core, core.BACKUPS_FILE)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (dossier distant)")
         return {"ok": True, **out}
     return backups_call(request, "dossier distant suivi", f"{body.host} : {body.path}", go)
@@ -213,7 +213,7 @@ def backups_synology_follow(body: SynologyFollow, request: Request):
     def go(b):
         out = b.synology_follow(body.connector, [t.model_dump() for t in body.tasks])
         if not core.CFG.get("backups_url"):
-            system.set_backups_url(core, "backups.json")
+            system.set_backups_url(core, core.BACKUPS_FILE)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Synology)")
         return {"ok": True, **out}
     return backups_call(request, "tâches Hyper Backup suivies", f"{body.connector} : {len(body.tasks)} tâche(s)", go)
@@ -231,7 +231,7 @@ def backups_pbs_follow(body: PbsFollow, request: Request):
     def go(b):
         out = b.pbs_follow(body.connector, [g.model_dump() for g in body.groups])
         if not core.CFG.get("backups_url"):
-            system.set_backups_url(core, "backups.json")
+            system.set_backups_url(core, core.BACKUPS_FILE)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Proxmox Backup)")
         return {"ok": True, **out}
     return backups_call(request, "groupes Proxmox Backup suivis", f"{body.connector} : {len(body.groups)} groupe(s)", go)
@@ -260,7 +260,7 @@ def backups_agents_follow(body: AgentBackupsFollow, request: Request):
     def go(b):
         out = b.agent_backups_follow([r.model_dump() for r in body.runs])
         if not core.CFG.get("backups_url"):
-            system.set_backups_url(core, "backups.json")
+            system.set_backups_url(core, core.BACKUPS_FILE)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (agents Windows)")
         return {"ok": True, **out}
     return backups_call(request, "sauvegardes des agents Windows suivies", f"{len(body.runs)} sauvegarde(s)", go)
@@ -292,7 +292,7 @@ def backups_vzdump_follow(body: VzdumpFollow, request: Request):
     def go(b):
         out = b.vzdump_follow([g.model_dump() for g in body.groups])
         if not core.CFG.get("backups_url"):
-            system.set_backups_url(core, "backups.json")
+            system.set_backups_url(core, core.BACKUPS_FILE)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (vzdump)")
         return {"ok": True, **out}
     return backups_call(request, "sauvegardes vzdump suivies", f"{len(body.groups)} machine(s) invitée(s)", go)
@@ -310,7 +310,7 @@ def backups_ha_follow(body: HaFollow, request: Request):
     def go(b):
         out = b.ha_follow(body.connector, body.label, body.max_age_days)
         if not core.CFG.get("backups_url"):
-            system.set_backups_url(core, "backups.json")
+            system.set_backups_url(core, core.BACKUPS_FILE)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Home Assistant)")
         return {"ok": True, **out}
     return backups_call(request, "sauvegarde Home Assistant suivie", body.connector, go)

@@ -18,6 +18,8 @@ import urllib.request
 from connectors.base import ConnectorError, Field, Result
 from connectors.status_kit import StatusConnector, container_env, fact, num, post_form, raw_tcp, rows, size, duration
 
+BATTERY_CHARGE = "battery.charge"
+
 VERIFY = Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé")
 
 
@@ -511,8 +513,8 @@ class NUT(StatusConnector):
         label = {"OL": "sur secteur", "OB": "sur batterie", "LB": "batterie faible", "RB": "batterie à remplacer", "CHRG": "en charge", "OVER": "surcharge"}
         bad = [s for s in status if s in ("OB", "LB", "RB", "OVER")]
         facts = [fact("Secteur", ", ".join(label.get(s, s) for s in status), "bad" if "LB" in status else "warn" if bad else "ok")]
-        if num(v.get("battery.charge")) is not None:
-            facts.append(fact("Batterie", f"{num(v['battery.charge']):.0f} %", "bad" if num(v["battery.charge"]) < 30 else "warn" if num(v["battery.charge"]) < 60 else "ok"))
+        if num(v.get(BATTERY_CHARGE)) is not None:
+            facts.append(fact("Batterie", f"{num(v[BATTERY_CHARGE]):.0f} %", "bad" if num(v[BATTERY_CHARGE]) < 30 else "warn" if num(v[BATTERY_CHARGE]) < 60 else "ok"))
         if num(v.get("battery.runtime")) is not None:
             facts.append(fact("Autonomie", duration(num(v["battery.runtime"]))))
         if num(v.get("ups.load")) is not None:

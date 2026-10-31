@@ -25,6 +25,8 @@ from connectors.ha_mcp import HaMcp
 from connectors.homelab_infra import Synology
 from connectors.proxmox import ProxmoxBackup
 
+BEARER = "Bearer "
+
 
 def read_secrets(path: str) -> dict:
     """Fichier CLÉ=valeur (mode 600) : identifiants jamais écrits dans backups-meta.json."""
@@ -156,7 +158,7 @@ class Veeam(Connector):
         return missing
 
     def _call(self, path: str, data: bytes | None = None, token: str | None = None) -> dict:
-        hd = {"x-api-version": self.conf.get("api_version") or "1.1-rev0", **({"Authorization": "Bearer " + token} if token else {})}
+        hd = {"x-api-version": self.conf.get("api_version") or "1.1-rev0", **({"Authorization": BEARER + token} if token else {})}
         req = urllib.request.Request(self.conf["url"].rstrip("/") + path, data=data, headers=hd)
         ctx = ssl._create_unverified_context()  # NOSONAR S5527 ; certificat auto-signé de Veeam (LAN), comme la console
         with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
@@ -262,13 +264,13 @@ class HomeAssistant(Connector):
         return read_secrets(self.conf["secrets"])
 
     def _states(self, env: dict) -> list:
-        req = urllib.request.Request(env["HA_URL"].rstrip("/") + "/api/states", headers={"Authorization": "Bearer " + env["HA_TOKEN"]})
+        req = urllib.request.Request(env["HA_URL"].rstrip("/") + "/api/states", headers={"Authorization": BEARER + env["HA_TOKEN"]})
         with urllib.request.urlopen(req, timeout=20) as r:
             return json.load(r)
 
     def version(self) -> str | None:
         env = self._env()
-        req = urllib.request.Request(env["HA_URL"].rstrip("/") + "/api/config", headers={"Authorization": "Bearer " + env["HA_TOKEN"]})
+        req = urllib.request.Request(env["HA_URL"].rstrip("/") + "/api/config", headers={"Authorization": BEARER + env["HA_TOKEN"]})
         try:
             with urllib.request.urlopen(req, timeout=20) as r:
                 return json.load(r).get("version")

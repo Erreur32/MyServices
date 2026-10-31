@@ -162,7 +162,7 @@ def diagrams(request: Request):
     from msv.diagram.diagram_nav import optional
     data = None
     try:
-        data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
+        data = json.loads((core.WEB / core.DATA_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pass
     asked = set(core.CFG.get("diagrams_extra") or [])
@@ -193,7 +193,7 @@ def diagram_set(key: str, body: DiagramAsk, request: Request):
     if body.enabled and not (core.ARCHIFY and Path(core.ARCHIFY).exists()):
         return deny(409, "Archify n'est pas installé dans cette image")
     try:
-        data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
+        data = json.loads((core.WEB / core.DATA_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         data = None
     if body.enabled and not archify_extra.available(key, data):
@@ -251,7 +251,7 @@ def discoveries(request: Request):
         except (OSError, ValueError, AttributeError):
             return None
     try:
-        data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
+        data = json.loads((core.WEB / core.DATA_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         data = {}
     col, bk = core.TASKS["collect"], core.TASKS["backups"]

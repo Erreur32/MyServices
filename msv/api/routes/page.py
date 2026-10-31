@@ -12,6 +12,8 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from msv.api import server as core
 from msv.api.common import deny, find
 
+INDEX_HTML = "index.html"
+
 router = APIRouter()
 
 # Files Vite names after their content (assets/index-BmiUWhOT.js): a new build is a new name, so a browser may keep them for good
@@ -34,12 +36,12 @@ def files(rel: str, request: Request):
         return deny(404, "introuvable")
     if rel == "" and DEV_FRONT:                          # /index.html stays served: the way in when that front is down
         return RedirectResponse(DEV_FRONT + "/", status_code=307)
-    if rel in ("", "index.html"):                        # the React front (an old index.html left in the volume must not shadow it)
-        f = core.STATIC / "v2" / "index.html"
+    if rel in ("", INDEX_HTML):                        # the React front (an old index.html left in the volume must not shadow it)
+        f = core.STATIC / "v2" / INDEX_HTML
         f = f if f.is_file() else None
     else:
         if rel.endswith("/"):
-            rel += "index.html"
+            rel += INDEX_HTML
         f = find(rel)
         if f is None and find(rel + "/index.html"):      # folder typed without the final « / »
             return RedirectResponse("/" + quote(rel.strip("/")) + "/", status_code=302)   # NOSONAR S5146 ; always on this site, never another one

@@ -20,6 +20,11 @@ from datetime import datetime, timezone
 from connectors.base import ConnectorError, Field, Result
 from connectors.status_kit import StatusConnector, container_env, duration, fact, host_port, num, rows, size
 
+VULN_SEVERITY = "vulnerability.severity"
+HTTP_401 = "HTTP 401"
+HTTP_403 = "HTTP 403"
+HTTP_404 = "HTTP 404"
+
 VERIFY = Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé")
 DAY_MS = 86_400_000
 
@@ -269,7 +274,7 @@ class Glances(StatusConnector):
         try:
             st = self.get(f"{api}/status", h)
         except ConnectorError as e:
-            if not str(e).startswith("HTTP 404"):
+            if not str(e).startswith(HTTP_404):
                 raise
             api, st = "/api/3", None   # Glances 3: no /status route
         ql = self.get(f"{api}/quicklook", h)
@@ -283,7 +288,7 @@ class Glances(StatusConnector):
             try:
                 return self.get(f"{api}/{plugin}", h)
             except ConnectorError as e:
-                if not str(e).startswith(("HTTP 404", "HTTP 400")):
+                if not str(e).startswith((HTTP_404, "HTTP 400")):
                     raise
                 _glances_off[off] = time.time() + GLANCES_OFF_RETRY
                 return None
@@ -366,7 +371,7 @@ class GpuViewR(StatusConnector):
         try:
             health = self.get("/api/v1/health", h)
         except ConnectorError as e:
-            if str(e).startswith("HTTP 403") or "accès refusé" in str(e):
+            if str(e).startswith(HTTP_403) or "accès refusé" in str(e):
                 raise ConnectorError("accès refusé : API désactivée dans GpuViewR (Réglages → API) ou jeton à vérifier") from None
             raise
         if not isinstance(health, dict) or "hosts_total" not in health:
@@ -453,7 +458,7 @@ class SpeedtestTracker(StatusConnector):
         try:
             r = _data(self.get("/api/v1/results/latest", {"Authorization": f"Bearer {self.conf.get('token', '')}"}))
         except ConnectorError as e:
-            if str(e).startswith("HTTP 404"):
+            if str(e).startswith(HTTP_404):
                 return self.out(None, [fact("Dernier test", "aucun")], ["aucun test enregistré"])
             raise
         if not isinstance(r, dict) or "status" not in r:
@@ -595,9 +600,9 @@ class Wazuh(StatusConnector):
                                  verify_tls=self.tls())
         except ConnectorError as e:
             msg = str(e)
-            if msg.startswith(("HTTP 401", "HTTP 403")):
+            if msg.startswith((HTTP_401, HTTP_403)):
                 raise ConnectorError("accès refusé : utilisateur ou mot de passe de l'API Wazuh") from None
-            if msg.startswith("HTTP 404"):   # the dashboard (what NPM usually publishes) answers, not the API
+            if msg.startswith(HTTP_404):   # the dashboard (what NPM usually publishes) answers, not the API
                 raise ConnectorError("pas d'API Wazuh à cette adresse (le tableau de bord ?) : l'API répond sur le port 55000, https://<IP>:55000") from None
             if "closed connection" in msg and self.base_url().startswith("http:"):
                 raise ConnectorError("l'API Wazuh ne répond qu'en https : https://<IP>:55000") from None
@@ -676,9 +681,9 @@ class Wazuh(StatusConnector):
         """Vulnerabilities by severity and the worst CVE (critical, then high) of each machine, kept VULNS_TTL s; nothing on an error
         (the alerts above already tell an indexer that does not answer)."""
         body = {"size": 0, "aggs": {"agents": {"terms": {"field": "agent.id", "size": 500}, "aggs": {
-            "sev": {"terms": {"field": "vulnerability.severity", "size": 5}},
-            "worst": {"filter": {"terms": {"vulnerability.severity": ["Critical", "High"]}}, "aggs": {"cve": {"terms": {"field": "vulnerability.id", "size": 5}, "aggs": {
-                "sev": {"terms": {"field": "vulnerability.severity", "size": 1}}, "pkg": {"terms": {"field": "package.name", "size": 1}}}}}}}}}}
+            "sev": {"terms": {"field": VULN_SEVERITY, "size": 5}},
+            "worst": {"filter": {"terms": {VULN_SEVERITY: ["Critical", "High"]}}, "aggs": {"cve": {"terms": {"field": "vulnerability.id", "size": 5}, "aggs": {
+                "sev": {"terms": {"field": VULN_SEVERITY, "size": 1}}, "pkg": {"terms": {"field": "package.name", "size": 1}}}}}}}}}}
         try:
             got = self.ctx.cached(f"wazuh-vulns-{self.conf.get('indexer_url')}", self.VULNS_TTL,
                                   lambda: self.indexer("/wazuh-states-vulnerabilities-*/_search", body))
@@ -710,7 +715,7 @@ class Wazuh(StatusConnector):
         try:
             got = self.indexer("/wazuh-alerts-*/_search", body)
         except ConnectorError as e:
-            why = "accès refusé (utilisateur de l'indexeur)" if str(e).startswith(("HTTP 401", "HTTP 403")) else str(e)
+            why = "accès refusé (utilisateur de l'indexeur)" if str(e).startswith((HTTP_401, HTTP_403)) else str(e)
             facts.append(fact("Alertes 24 h", "illisibles", "warn"))
             problems.append(f"alertes Wazuh illisibles : {why}")
             return None
@@ -770,7 +775,7 @@ class Umami(_Analytics):
             login = self.ctx.http(self.base_url() + "/api/auth/login", method="POST", verify_tls=self.tls(),
                                   body={"username": self.conf.get("username", ""), "password": self.conf.get("password", "")})
         except ConnectorError as e:
-            if str(e).startswith(("HTTP 401", "HTTP 403")):
+            if str(e).startswith((HTTP_401, HTTP_403)):
                 raise ConnectorError("accès refusé : utilisateur ou mot de passe d'Umami") from None
             raise
         token = login.get("token") if isinstance(login, dict) else None

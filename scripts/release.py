@@ -23,6 +23,11 @@ import re
 import sys
 from pathlib import Path
 
+PACKAGE_JSON = "front/package.json"
+PACKAGE_LOCK = "front/package-lock.json"
+CHANGELOG = "CHANGELOG.md"
+RELEASE_NOTES = "RELEASE-NOTES.md"
+
 ROOT = Path(__file__).resolve().parent.parent
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
@@ -49,7 +54,7 @@ def read(root: Path, rel: str) -> str:
 
 
 def current(root: Path = ROOT) -> str:
-    v = json.loads(read(root, "front/package.json")).get("version", "")
+    v = json.loads(read(root, PACKAGE_JSON)).get("version", "")
     if not SEMVER.match(v):
         raise ReleaseError(f"front/package.json : version « {v} » invalide (attendu X.Y.Z)")
     return v
@@ -60,17 +65,17 @@ def current(root: Path = ROOT) -> str:
 def seen(root: Path = ROOT) -> dict[str, str | None]:
     """Version annoncée par chaque fichier (None = introuvable)."""
     out: dict[str, str | None] = {}
-    out["front/package.json"] = json.loads(read(root, "front/package.json")).get("version")
-    lock = json.loads(read(root, "front/package-lock.json"))
-    out["front/package-lock.json"] = lock.get("version")
+    out[PACKAGE_JSON] = json.loads(read(root, PACKAGE_JSON)).get("version")
+    lock = json.loads(read(root, PACKAGE_LOCK))
+    out[PACKAGE_LOCK] = lock.get("version")
     out["front/package-lock.json (packages)"] = (lock.get("packages", {}).get("") or {}).get("version")
     for rel in ("README.md", "README.fr.md"):
         m = re.search(r"`:(\d+\.\d+\.\d+)`", read(root, rel))
         out[rel] = m.group(1) if m else None
-    m = re.search(r"^## v(\d+\.\d+\.\d+) \(", read(root, "CHANGELOG.md"), re.M)
+    m = re.search(r"^## v(\d+\.\d+\.\d+) \(", read(root, CHANGELOG), re.M)
     out["CHANGELOG.md (dernière version publiée)"] = m.group(1) if m else None
-    m = re.search(r"^# Release notes: MyServices (\d+\.\d+\.\d+)", read(root, "RELEASE-NOTES.md"), re.M)
-    out["RELEASE-NOTES.md"] = m.group(1) if m else None
+    m = re.search(r"^# Release notes: MyServices (\d+\.\d+\.\d+)", read(root, RELEASE_NOTES), re.M)
+    out[RELEASE_NOTES] = m.group(1) if m else None
     return out
 
 
@@ -98,13 +103,13 @@ def apply(root: Path, new: str, date: dt.date) -> dict[str, str]:
             raise ReleaseError(f"{rel} : {what} introuvable")
         return out
 
-    pkg = read(root, "front/package.json")
-    files["front/package.json"] = sub("front/package.json", pkg, r'("version"\s*:\s*")[^"]+(")', rf"\g<1>{new}\g<2>", "« version »")
-    lock = read(root, "front/package-lock.json")
-    lock = sub("front/package-lock.json", lock, r'("version"\s*:\s*")[^"]+(")', rf"\g<1>{new}\g<2>", "« version » racine")
+    pkg = read(root, PACKAGE_JSON)
+    files[PACKAGE_JSON] = sub(PACKAGE_JSON, pkg, r'("version"\s*:\s*")[^"]+(")', rf"\g<1>{new}\g<2>", "« version »")
+    lock = read(root, PACKAGE_LOCK)
+    lock = sub(PACKAGE_LOCK, lock, r'("version"\s*:\s*")[^"]+(")', rf"\g<1>{new}\g<2>", "« version » racine")
     # 2e occurrence : packages[""] (le projet lui-même), juste après le premier "name"
-    lock = sub("front/package-lock.json", lock, r'("packages"\s*:\s*\{\s*""\s*:\s*\{[^}]*?"version"\s*:\s*")[^"]+(")', rf"\g<1>{new}\g<2>", "« packages » racine", re.S)
-    files["front/package-lock.json"] = lock
+    lock = sub(PACKAGE_LOCK, lock, r'("packages"\s*:\s*\{\s*""\s*:\s*\{[^}]*?"version"\s*:\s*")[^"]+(")', rf"\g<1>{new}\g<2>", "« packages » racine", re.S)
+    files[PACKAGE_LOCK] = lock
 
     for rel in ("README.md", "README.fr.md"):
         t = read(root, rel)
@@ -112,16 +117,16 @@ def apply(root: Path, new: str, date: dt.date) -> dict[str, str]:
         t = sub(rel, t, r"\(`\d+\.\d+\.\d+`, `\d+\.\d+\.\d+`…\)", f"(`{new}`, `{nxt}`…)", "exemple de numéros")
         files[rel] = t
 
-    ch = read(root, "CHANGELOG.md")
-    ch = sub("CHANGELOG.md", ch, r"^## Unreleased[^\n]*\n", f"## v{new} ({date.isoformat()})\n", "section « Unreleased » à publier", re.M)
+    ch = read(root, CHANGELOG)
+    ch = sub(CHANGELOG, ch, r"^## Unreleased[^\n]*\n", f"## v{new} ({date.isoformat()})\n", "section « Unreleased » à publier", re.M)
     head = "## Unreleased (next version, not tagged yet)\n\n> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**\n\n"
-    files["CHANGELOG.md"] = ch.replace(f"## v{new} ({date.isoformat()})\n", head + f"## v{new} ({date.isoformat()})\n", 1)
+    files[CHANGELOG] = ch.replace(f"## v{new} ({date.isoformat()})\n", head + f"## v{new} ({date.isoformat()})\n", 1)
 
-    rn = read(root, "RELEASE-NOTES.md")
-    rn = sub("RELEASE-NOTES.md", rn, r"^(# Release notes: MyServices )\d+\.\d+\.\d+", rf"\g<1>{new}", "titre", re.M)
-    rn = sub("RELEASE-NOTES.md", rn, r"\*\*\d+\.\d+\.\d+\*\* \([^)]*\)", f"**{new}** ({english_date(date)})", "ligne de version", re.M)
-    rn = sub("RELEASE-NOTES.md", rn, r"(myservices:)\d+\.\d+\.\d+", rf"\g<1>{new}", "étiquette d'image", re.M)
-    files["RELEASE-NOTES.md"] = rn
+    rn = read(root, RELEASE_NOTES)
+    rn = sub(RELEASE_NOTES, rn, r"^(# Release notes: MyServices )\d+\.\d+\.\d+", rf"\g<1>{new}", "titre", re.M)
+    rn = sub(RELEASE_NOTES, rn, r"\*\*\d+\.\d+\.\d+\*\* \([^)]*\)", f"**{new}** ({english_date(date)})", "ligne de version", re.M)
+    rn = sub(RELEASE_NOTES, rn, r"(myservices:)\d+\.\d+\.\d+", rf"\g<1>{new}", "étiquette d'image", re.M)
+    files[RELEASE_NOTES] = rn
     return files
 
 
