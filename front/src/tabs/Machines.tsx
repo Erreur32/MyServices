@@ -1706,40 +1706,40 @@ function ServiceCount({ m, snap, onOpen }: Readonly<{ m: Machine; snap: Snapshot
 
 /** Compact machine card: who, state, system, figures, servers and what to watch; « Details » unfolds the same detail as the table,
  *  the card then taking the whole row. A Home Assistant machine shows its add-on icons. */
-function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown, onToggle, onMachine, detail }: Readonly<{
+function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, onOpen, onMachine }: Readonly<{
   m: Machine; h?: HealthHost; snap: Snapshot; scan?: { os?: string; apps: string[]; ssh?: boolean }; os: OsKind | null; watch: WatchItem[]; ha?: ServiceStatus; unifi?: UnifiDevice;
-  off: boolean; state: React.ReactNode; shown: boolean; onToggle: () => void; onMachine: (ip: string) => void; detail: React.ReactNode;
+  off: boolean; state: React.ReactNode; onOpen: () => void; onMachine: (ip: string) => void;
 }>) {
   const up = uptimeOf(m, unifi, freeboxOf(m, snap.data.network), ha);
   const w = worst(watch), tone = w ? TONE_OF_RANK[w] : null, lvl = levelKey(h);   // the colour follows the dot of the icon (the notices) as much as the health level
   const look = cardLook(lvl, tone);
   return (
-    <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] ${look.frame} bg-card p-3 transition-colors hover:border-link/50 ${look.edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
+    <div role="presentation" onClick={(e) => { if (!(e.target as Element).closest("button, a, [role=button]")) onOpen(); }}
+      className={`flex cursor-pointer flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] ${look.frame} bg-card p-3 transition-colors hover:border-link/50 ${look.edge} ${off ? "opacity-50" : ""}`}>{/* the whole card opens the machine page, except its buttons and links; keyboard: its title */}
       <div className={`-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 px-3 py-2.5 ${look.head}`}>
         <AlertDot items={watch}><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifi) }} scan={scan} reserve /></AlertDot>
-        <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tipAction(tx("Clic : liste des services de {0}", m.name))}>
+        <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left" title={tx("Détails de {0}", m.name)}>
           <b className="flex items-center gap-1.5 truncate font-semibold hover:text-link"><VmMark m={m} h={h} /><span className={`truncate ${vmName(m, h)}`}>{m.name}</span></b>
           <span className="block truncate font-mono text-[11px] text-dim">{m.ip}</span>
         </button>
-        {state}
       </div>
-      <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted">
         <SystemLine m={m} os={os} ha={ha} unifi={unifi} freebox={freeboxOf(m, snap.data.network)} />
         {up ? <span className="shrink-0 text-dim">· {tx("up")} {dur(up)}</span> : null}
         <UpdatesChip h={h} />
-        {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim" title={m.role}>{t}</span>)}
+        {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim lg:max-2xl:hidden" title={m.role}>{t}</span>)}
       </div>
       <ResStrip h={h} first={<Stat label={tx("Services")}><b><ServiceCount m={m} snap={snap} /></b></Stat>} />
       <div className="flex min-h-7 items-center justify-between gap-2">
         {ha?.addons?.length ? <AddonStrip s={ha} max={6} /> : <Servers m={m} snap={snap} max={4} />}{/* Home Assistant: its add-ons stand for the servers */}
         <WatchList ip={m.ip} items={watch} />
       </div>
-      {shown && <div className="-mx-3 border-t border-line/60 bg-bg2/40">{detail}</div>}
-      <div className={`-mx-3 -mb-3 flex items-center justify-between gap-2 border-t border-line/60 px-3 py-2 text-xs ${look.foot}`}>
-        <button type="button" onClick={onToggle} aria-expanded={shown} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-2.5 py-1 font-semibold text-txt shadow-sm hover:border-link hover:text-link">
-          <ChevronRight size={14} className={`transition-transform ${shown ? "rotate-90" : ""}`} aria-hidden />{shown ? tx("Replier") : tx("Détails")}
-        </button>
-        {look.label() && <span className={`inline-flex items-center gap-1.5 font-semibold ${look.text}`}><span className="size-2 rounded-full bg-current" aria-hidden />{look.label()}</span>}
+      <div className={`-mx-3 -mb-3 flex flex-wrap items-center gap-2 border-t border-line/60 px-3 py-2 text-xs ${look.foot}`}>
+        {m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} aria-label={tx("Voir ses services")} title={tx("Voir ses services")} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-2.5 py-1 font-semibold text-txt shadow-sm hover:border-link hover:text-link">
+          <Boxes size={14} aria-hidden /><span className="lg:max-2xl:hidden">{tx("Services")}</span><ChevronRight size={14} aria-hidden />
+        </button>}
+        {state}
+        {look.label() && <span title={look.label()} className={`ml-auto inline-flex items-center gap-1.5 font-semibold ${look.text}`}><span className="size-2 rounded-full bg-current" aria-hidden /><span className="lg:max-2xl:sr-only">{look.label()}</span></span>}
       </div>
     </div>
   );
@@ -1780,7 +1780,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
     return h && ignored[h.id] === kernelSig(h.kernel?.samples) ? items.filter((i) => i.kind !== "kernel") : items;   // set aside by the viewer, until a newer message
   }, [hb, snap.data.connectors, snap.data.network, snap.data.hosts, unifiOf, ignored, hiddenSvc]);
   const facets = useMemo((): Facet<Machine>[] => [
-    { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, mark: (v) => <Dot tone={MSTATE[v as MState][0]} /> },
+    { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, quiet: ["api", "network", "manual"], mark: (v) => <Dot tone={MSTATE[v as MState][0]} /> },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },
       name: (v) => ({ ok: "OK", warn: tx("à surveiller"), crit: "critique", down: "injoignable" } as Record<string, string>)[v] || v, order: ["ok", "warn", "crit", "down"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
     { key: "alert", label: tx("Alertes"), get: (m) => { const w = worst(watchOf(m)); return w ? TONE_OF_RANK[w] : ""; },
@@ -1842,7 +1842,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
     <Cards always={always} dense>
       {list.map((m) => (
         <MachineCard key={m.ip} m={m} h={hb.get(m.ip)} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} unifi={unifiOf(m)} off={isOff(m)}
-          state={st(m, false)} shown={false} onToggle={() => openPage(m.ip)} onMachine={onMachine} detail={null} />
+          state={st(m, false)} onOpen={() => openPage(m.ip)} onMachine={onMachine} />
       ))}
     </Cards>
   );
@@ -1868,7 +1868,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       <MachinesHead snap={snap} health={hb} watching={(m) => watchOf(m).some((w) => w.tone !== "info")} sel={f.sel} onSel={f.setSel} />
       <FoldPanel id="machines-all" icon={Monitor} title={tx("Toutes les machines")} count={sort.sorted.length} pinned>
       <FilterBar bare f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
-        primary={["state", "alert", "kind"]} oneLine
+        primary={["alert"]} oneLine
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
         ]}

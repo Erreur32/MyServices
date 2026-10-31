@@ -158,7 +158,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
   const [open, setOpen] = useState(false);
-  const shownGroups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
+  const shownGroups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on) || (g.chips.length > 0 && primaryProp.includes(g.facet.key)));
   // Une seule ligne : si les pastilles demandées sont trop nombreuses (plus de 10) ou ne tiennent pas, elles vont derrière le bouton « Filtres »
   const wanted = shownGroups.filter((g) => primaryProp.includes(g.facet.key));
   const rowRef = useRef<HTMLDivElement>(null);
@@ -308,7 +308,7 @@ export function Table({ head, children, fit = false, fixed = false }: Readonly<{
 /** Version mobile d'un tableau : une fiche par ligne */
 export function Cards({ children, always = false, dense = false }: { children: ReactNode; always?: boolean; dense?: boolean }) {  // always : aussi sur grand écran (choix « Cartes ») ; dense : cartes compactes, une colonne de plus
   if (!always) return <div className="flex flex-col gap-2.5 md:hidden">{children}</div>;
-  return <div className={`grid gap-2.5 md:grid-cols-2 ${dense ? "lg:grid-cols-3 2xl:grid-cols-4" : "xl:grid-cols-3"}`}>{children}</div>;
+  return <div className={`grid gap-2.5 md:grid-cols-2 ${dense ? "lg:grid-cols-3 xl:grid-cols-4" : "xl:grid-cols-3"}`}>{children}</div>;
 }
 
 export function Empty({ children }: { children: ReactNode }) {

@@ -14,6 +14,8 @@ export interface Facet<T> {
   name?: (v: string) => string;
   /** Ordre fixe des valeurs ; sinon par nombre décroissant */
   order?: string[];
+  /** Values without a chip of their own: tiles and links still filter on them, and a chip shows while selected */
+  quiet?: string[];
   /** Repère visuel devant la pastille d'une valeur : point de couleur, logo ou icône du service */
   mark?: (v: string) => ReactNode;
 }
@@ -30,6 +32,12 @@ export type Selected = Record<string, string[]>;
 function values<T>(f: Facet<T>, item: T): string[] {
   const v = f.get(item);
   return (Array.isArray(v) ? v : [v]).filter(Boolean);
+}
+
+/** The values of a facet that get a chip, in their order: a quiet one only while it is selected */
+export function chipKeys<T>(f: Facet<T>, counts: Map<string, number>, selected: string[]): string[] {
+  const keys = f.order ? f.order.filter((v) => counts.has(v)) : [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)!);
+  return keys.filter((v) => !f.quiet?.includes(v) || selected.includes(v));
 }
 
 function matches<T>(item: T, facets: Facet<T>[], sel: Selected, skip?: string): boolean {
@@ -55,7 +63,7 @@ export function useFilter<T>(items: T[], facets: Facet<T>[], text: (item: T) => 
     const counts = new Map<string, number>();
     for (const it of found) if (matches(it, facets, sel, f.key)) for (const v of values(f, it)) counts.set(v, (counts.get(v) || 0) + 1);
     for (const v of sel[f.key] || []) if (!counts.has(v)) counts.set(v, 0);  // pastille active gardée même à 0
-    const keys = f.order ? f.order.filter((v) => counts.has(v)) : [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)!);
+    const keys = chipKeys(f, counts, sel[f.key] ?? []);
     return { facet: f, chips: keys.map((v): Chip => ({ value: v, label: f.name ? f.name(v) : v, count: counts.get(v)!, on: !!sel[f.key]?.includes(v) })) };
   }), [found, facets, sel]);
 
