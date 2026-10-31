@@ -114,7 +114,7 @@ export function RequestsSettings() {
         <Activity size={16} className="text-link" aria-hidden />
         <h2 className="font-bold">{tx("Requêtes")}</h2>
         {doc && doc.watch.length > 0 && <Badge tone="warn">{doc.watch.length} {tx("à surveiller")}</Badge>}
-        {doc && <Dim>{tx("relevé à {0}", dateTime(doc.at))}</Dim>}
+        {doc && <Dim>{tx("relevé à {0}", dateTime(doc.at * 1000))}</Dim>}
         <button type="button" className={`${quiet} ml-auto flex items-center gap-1.5`} disabled={!doc} onClick={() => void copy()} title={tx("Copie le relevé complet (JSON) : à coller pour analyse")}>
           <Copy size={14} aria-hidden />{tx("Copier le relevé")}
         </button>

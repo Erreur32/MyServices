@@ -733,6 +733,7 @@ class Wazuh(StatusConnector):
 
 class _Analytics(StatusConnector):
     """Shared by web analytics connectors: one line per site over the last 24 h, a site without any visit is worth a look (tracking script lost)."""
+    every = 900   # counts over 24 h, one call per site: 15 minutes are enough
 
     def sites_out(self, sites: list[tuple[str, float, float]], version=None) -> dict:
         visitors, views = sum(v for _, v, _ in sites), sum(p for _, _, p in sites)
