@@ -23,7 +23,7 @@ from msv.machines.agent_reports import DEFAULT_INTERVAL, FRESH_MULT, fresh_repor
 from msv.machines.winname import windows_name
 
 VERSION = "9"                # Windows agent (agent.ps1)
-LINUX_VERSION = "4"          # Linux agent (agent.py)
+LINUX_VERSION = "5"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
 PS_AGENT = "agent.ps1"       # script de l'agent Windows
 SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}
@@ -279,17 +279,17 @@ def docker_of(report: dict | None) -> list[dict] | None:
 
 
 def inventory_commands() -> list[str]:
-    """Commands of the SSH inventory the Linux agent runs too (version 4): machine info, Docker containers and networks, listening ports."""
+    """Commands of the SSH inventory the Linux agent runs too (version 4, running services from version 5): machine info, Docker containers and networks, listening ports."""
     from msv.collect import hostinfo
     from connectors.docker_ssh import DOCKER_SH, NET_SH
     from connectors.process import LISTEN_SH
-    return [hostinfo.REMOTE, DOCKER_SH, NET_SH, LISTEN_SH]
+    return [hostinfo.REMOTE, hostinfo.UNITS_SH, DOCKER_SH, NET_SH, LISTEN_SH]
 
 
 def inventory_cache() -> dict[str, int]:
     """Machine info changes seldom: the agent sends its last output again for an hour (the SSH inventory is kept 2 h)."""
     from msv.collect import hostinfo
-    return {hostinfo.REMOTE: 3600}
+    return {hostinfo.REMOTE: 3600, hostinfo.UNITS_SH: 3600}
 
 
 def linux_inventory(report: dict | None) -> dict | None:
@@ -305,6 +305,7 @@ def linux_inventory(report: dict | None) -> dict | None:
     info = hostinfo.parse_host_info(got(hostinfo.REMOTE)[1])
     if info:
         info["via"] = "agent"   # the page says where it was read
+        info["units"] = hostinfo.parse_units(got(hostinfo.UNITS_SH)[1])
     rc, out = got(docker_ssh.DOCKER_SH)
     if rc == 0:
         containers = docker_ssh.parse_containers(out)

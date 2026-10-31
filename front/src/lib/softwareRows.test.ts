@@ -35,4 +35,32 @@ describe("lignes de Logiciels et services", () => {
   it("une machine sans rien ne donne aucune ligne", () => {
     expect(softwareRows({ ip: "10.0.0.9" } as Machine, hosts)).toEqual([]);
   });
+
+  describe("programmes et services systemd", () => {
+    const proc = (name: string, port: number) => ({ type: "host", ip: "10.0.0.2", port, domains: [], service: { kind: "process", name } }) as unknown as Host;
+    const units = [{ name: "apache2", own: false }, { name: "ssh", own: false }, { name: "backup-job", own: true }, { name: "cron", own: false }, { name: "tool", own: true }];
+    const got = softwareRows({ ...machine, info: { units } } as Machine, [...hosts, proc("sshd", 22), proc("tool", 9100), proc("tool", 9101), proc("python", 8000)]);
+    const line = (name: string) => got.find((r) => r.name === name);
+
+    it("un process et son service font une ligne, sshd rejoint ssh", () => {
+      expect(line("sshd")).toMatchObject({ mode: "service", ports: [22], system: false });
+      expect(line("ssh")).toBeUndefined();
+      expect(line("tool")).toMatchObject({ mode: "service", ports: [9100, 9101], own: true });
+    });
+
+    it("un process sans service connu reste un programme", () => {
+      expect(line("python")).toMatchObject({ mode: "process", ports: [8000] });
+    });
+
+    it("un serveur web déjà listé n'a pas de seconde ligne", () => {
+      expect(got.filter((r) => /apache/i.test(r.name)).map((r) => r.name)).toEqual(["Apache"]);
+    });
+
+    it("les services de paquet sans port sont rangés à part, les services maison restent visibles", () => {
+      const names = (f: "all" | "program" | "system") => got.filter((r) => matchesFilter(r, f)).map((r) => r.name);
+      expect(names("system")).toEqual(["cron"]);
+      expect(names("all")).not.toContain("cron");
+      expect(names("program")).toEqual(["backup-job", "python", "sshd", "tool"]);
+    });
+  });
 });

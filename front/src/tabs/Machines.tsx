@@ -1507,7 +1507,7 @@ function ServicesValue({ m, down, onFilter }: Readonly<{ m: Machine; down?: stri
 
 /** Nothing at all to show in « Software and services » */
 const noSoftware = (m: Machine): boolean =>
-  !m.services && !m.web?.length && !m.containers?.length && !m.info?.docker && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length;
+  !m.services && !m.web?.length && !m.containers?.length && !m.info?.docker && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && !m.info?.units?.length;
 
 /** Detail, « Software and services »: services, web servers (Docker, service or binary), path of each site, every container, linked APIs,
  *  Home Assistant add-ons and Windows apps */

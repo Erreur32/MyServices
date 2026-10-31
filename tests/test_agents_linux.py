@@ -238,6 +238,16 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertIn(') -tlnpH"', text)
         self.assertNotIn("ALL=(root) NOPASSWD: ALL", text)
 
+    def test_v5_services_en_marche(self):
+        from msv.collect import hostinfo
+        out = "##UNITS /lib/systemd/system/cron.service /etc/systemd/system/backup-job.service /usr/lib/systemd/system/getty@.service /usr/local/lib/systemd/system/tool.service\n"
+        self.assertEqual(hostinfo.parse_units(out), [{"name": "backup-job", "own": True}, {"name": "cron", "own": False}, {"name": "getty", "own": False}, {"name": "tool", "own": True}])
+        self.assertEqual(hostinfo.parse_units("##OS Debian\n"), [])
+        remote = "##OS Debian\n##UP 1\n"
+        inv = agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote], hostinfo.UNITS_SH: [0, out]}}})
+        self.assertEqual(inv["info"]["units"], hostinfo.parse_units(out))
+        self.assertEqual(agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote]}}})["info"]["units"], [])   # agent 4: nothing, still served
+
     def test_v4_inventaire_lu_comme_par_ssh(self):
         from msv.collect import hostinfo
         from connectors import docker_ssh, process
@@ -290,6 +300,7 @@ class LinuxAgentScripts(unittest.TestCase):
         ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
         exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
         self.assertEqual(ns["CACHED"][hostinfo.REMOTE], 3600)
+        self.assertIn(hostinfo.UNITS_SH, ns["COMMANDS"])
         self.assertTrue(all(len(c) <= agents.MAX_LINUX_CMD for c in ns["COMMANDS"]))   # every command fits the server limit
 
     def test_commande_d_installation(self):

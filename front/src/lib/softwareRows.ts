@@ -1,11 +1,13 @@
 // « Software and services » of a machine: one row per software, from its web servers, its containers and the sites NPM sends to it.
 import type { Host, Machine, WebServer } from "../types";
 
-export type SoftwareFilter = "all" | "web" | "docker" | "alone";
+export type SoftwareFilter = "all" | "web" | "docker" | "program" | "system" | "alone";
+export type SoftwareMode = WebServer["mode"] | "process";
 
 export interface SoftwareRow {
-  key: string; order: number; name: string; mode: WebServer["mode"]; box: string; image?: string; status?: string; up: boolean; hostNet: boolean;
+  key: string; order: number; name: string; mode: SoftwareMode; box: string; image?: string; status?: string; up: boolean; hostNet: boolean;
   ports: number[]; localPorts: number[]; domains: string[]; paths: string[]; web?: WebServer; alone: boolean;
+  program?: boolean; own?: boolean; system?: boolean;   // a process or a systemd service; own: not from a package; system: from a package, on no port
 }
 
 const pathOf = (r: Host): string => {
@@ -38,12 +40,29 @@ export function softwareRows(m: Machine, hosts: Host[]): SoftwareRow[] {
   });
   const siteRows = [...new Set([...left].filter((r) => r.type === "proxy" && r.domains.length).map((r) => r.service!.name!))].map((name): SoftwareRow => (
     { key: `site/${name}`, order: 0, name, mode: "service", box: name, up: true, hostNet: false, ports: [], localPorts: [], ...reached(take(name)), alone: false }));
+  const units = new Map((m.info?.units ?? []).map((u) => [u.name, u.own]));
+  const unitOf = (name: string) => [name, name.replace(/d$/, "")].find((n) => units.has(n));   // the process sshd is the unit ssh
+  [...web.map((w) => w.name), ...siteRows.map((r) => r.name)].forEach((name) => units.delete(unitOf(name) ?? ""));
+  const program = (name: string, ports: number[], mode: SoftwareMode, own?: boolean): SoftwareRow => (
+    { key: `program/${name}`, order: 0, name, mode, box: name, up: true, hostNet: false, ports, localPorts: [], domains: [], paths: [], alone: false, program: true, own,
+      system: !own && !ports.length }
+  );
+  const processRows = [...new Set([...left].filter((r) => r.service!.kind === "process").map((r) => r.service!.name!))].map((name) => {
+    const ports = [...new Set(take(name).flatMap((r) => r.port ?? []))].sort((a, b) => a - b), unit = unitOf(name) ?? "", own = units.get(unit);
+    units.delete(unit);
+    return program(name, ports, unit ? "service" : "process", own);
+  });
+  const programs = [...processRows, ...[...units].map(([name, own]) => program(name, [], "service", own))];
   const rank = (r: SoftwareRow) => Number(r.alone) + Number(!r.up);
-  return [...webRows, ...[...boxRows, ...siteRows].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))].map((r, order) => ({ ...r, order }));
+  const byName = (a: SoftwareRow, b: SoftwareRow) => a.name.localeCompare(b.name);
+  return [...webRows, ...[...boxRows, ...siteRows].sort((a, b) => rank(a) - rank(b) || byName(a, b)),
+    ...programs.sort((a, b) => Number(a.system) - Number(b.system) || byName(a, b))].map((r, order) => ({ ...r, order }));
 }
 
 export function matchesFilter(r: SoftwareRow, filter: SoftwareFilter): boolean {
   if (filter === "web") return !!r.web;
   if (filter === "docker") return r.mode === "docker";
-  return filter === "all" || r.alone;
+  if (filter === "program") return !!r.program && !r.system;
+  if (filter === "system") return !!r.system;
+  return filter === "all" ? !r.system : r.alone;
 }

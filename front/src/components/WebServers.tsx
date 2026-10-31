@@ -5,14 +5,15 @@ import type { Host, Machine, WebServer } from "../types";
 import { appIcon, appIconByText } from "../lib/appIcons";
 import { useSort } from "../lib/filter";
 import { tx } from "../lib/i18n";
-import { matchesFilter, softwareRows, type SoftwareFilter, type SoftwareRow } from "../lib/softwareRows";
+import { matchesFilter, softwareRows, type SoftwareFilter, type SoftwareMode, type SoftwareRow } from "../lib/softwareRows";
 import { Dot } from "./marks";
-import { Dim, Td, Th } from "./ui";
+import { ChipButton, Dim, Td, Th } from "./ui";
 
-const MODE: Record<WebServer["mode"], [string, string, string]> = {   // label, colours, tooltip
+const MODE: Record<SoftwareMode, [string, string, string]> = {   // label, colours, tooltip
   docker: ["Docker", "border-link/45 text-link", tx("Tourne dans un conteneur Docker")],
   service: [tx("service"), "border-ok/45 text-ok", tx("Service systemd actif sur la machine")],
   binary: [tx("binaire"), "border-warn/55 text-warn", tx("Process qui écoute sans service systemd ni conteneur : lancé à la main ou par un script, à vérifier")],
+  process: [tx("programme"), "border-line text-muted", tx("Programme qui écoute sur un port, lancé par un service ou à la main")],
 };
 /** Short label of how a web server runs (also used in the tooltips of the Machines table) */
 export const modeLabel = (mode: WebServer["mode"]) => MODE[mode][0];
@@ -55,7 +56,7 @@ function SoftwareLine({ r, proxies }: Readonly<{ r: SoftwareRow; proxies: number
   const open = portList(r.ports.slice(0, PORTS_SHOWN)), hidden = r.ports.length - PORTS_SHOWN;
   return (
     <tr className={`even:bg-bg/50 ${r.up ? "" : "opacity-55"}`} title={r.status}>
-      <Td><span className="flex min-w-0 items-center gap-2"><Dot tone={r.up ? "ok" : "off"} /><Icon src={r.web ? appIcon([r.web.label]) : appIconByText(r.name, r.image ?? "")} /><b className="truncate font-medium" title={r.name}>{r.name}</b></span></Td>
+      <Td><span className="flex min-w-0 items-center gap-2"><Dot tone={r.up ? "ok" : "off"} /><Icon src={r.web ? appIcon([r.web.label]) : appIconByText(r.name, r.image ?? "")} /><b className="truncate font-medium" title={r.name}>{r.name}</b>{r.own && <span className="shrink-0 rounded border border-dashed border-line px-1 text-[11px] text-dim" title={tx("Service ajouté à la main : il ne vient d'aucun paquet du système")}>{tx("maison")}</span>}</span></Td>
       <Td className="whitespace-nowrap"><span className={`rounded border px-1.5 text-xs ${cls}`} title={tip}>{mode}</span></Td>
       <Td className="truncate font-mono text-xs text-muted"><span title={r.image ?? r.box}>{r.box}</span></Td>
       <Td><Firsts items={r.domains} className="text-link" /></Td>
@@ -80,14 +81,11 @@ export function SoftwareTable({ m, hosts, npmIps }: Readonly<{ m: Machine; hosts
   const proxies = hosts.filter((r) => r.type === "proxy" && r.npm && mine.has(r.npm)).length;
   const boxes = m.containers ?? [], up = boxes.filter((c) => c.up).length, alone = rows.filter((r) => r.alone).length;
   const count = (f: SoftwareFilter) => rows.filter((r) => matchesFilter(r, f)).length;
-  const FILTERS: [SoftwareFilter, string][] = [["all", tx("Tout")], ["web", tx("Serveurs web")], ["docker", tx("Conteneurs")], ["alone", tx("Sans service")]];
+  const FILTERS: [SoftwareFilter, string][] = [["all", tx("Tout")], ["web", tx("Serveurs web")], ["docker", tx("Conteneurs")], ["program", tx("Programmes")], ["alone", tx("Sans service")], ["system", tx("Système")]];
   return (
     <div className="-mx-3 -mb-3 mt-1 border-t border-line/60">
       <div className="flex flex-wrap items-center gap-1.5 px-3 py-2">
-        {FILTERS.filter(([f]) => count(f) > 0).map(([f, label]) => (
-          <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}
-            className={`rounded-md border px-2 py-0.5 text-xs font-medium ${filter === f ? "border-link text-link" : "border-line text-muted hover:border-link hover:text-txt"}`}>{label} <span className="tabular-nums">{count(f)}</span></button>
-        ))}
+        {FILTERS.filter(([f]) => count(f) > 0).map(([f, label]) => <ChipButton key={f} on={filter === f} count={count(f)} label={label} onClick={() => setFilter(f)} />)}
         {boxes.length > 0 && <span className="ml-auto text-xs text-dim">{[tx("{0} en cours", up), boxes.length - up ? tx("{0} arrêté(s)", boxes.length - up) : "", alone ? tx("{0} sans service", alone) : ""].filter(Boolean).join(" · ")}</span>}
       </div>
       <div className="overflow-x-auto">

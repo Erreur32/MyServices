@@ -135,9 +135,9 @@ function chipTone(on: boolean, count: number): string {
   return count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60";
 }
 
-export function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: boolean; count: number; mark?: ReactNode; label: string; onClick: () => void }>) {
+export function ChipButton({ on, count, mark, label, title, onClick }: Readonly<{ on: boolean; count: number; mark?: ReactNode; label: string; title?: string; onClick: () => void }>) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on}
+    <button type="button" onClick={onClick} aria-pressed={on} title={title}
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${chipTone(on, count)}`}>
       {mark}{label}<span className="font-mono text-[11px] text-dim">{count}</span>
     </button>
