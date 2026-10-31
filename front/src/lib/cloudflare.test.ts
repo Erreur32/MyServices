@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CloudflarePeriod, CloudflareZone, Host } from "../types";
-import { advice, answerLines, bestZone, cloudflareChecks, countryName, dnsOnly, niceMax, trafficOf, trendOf } from "./cloudflare";
+import { advice, answerLines, bestZone, cloudflareChecks, countryName, dnsOnly, niceMax, originLine, pathLine, trafficOf, trendOf } from "./cloudflare";
 
 const zone = (name: string, settings: Partial<CloudflareZone["settings"]> = {}, records: [string, boolean][] = [[`www.${name}`, true]]): CloudflareZone => ({
   name, status: "active", paused: false, plan: "Free Website",
@@ -87,6 +87,24 @@ describe("traffic periods", () => {
   const period = (o: Partial<CloudflarePeriod> = {}): CloudflarePeriod => ({ ...totals, previous: { ...totals, requests: 50 }, points: [{ ...totals, at: "2026-10-30", requests: 7, errors: 2, visitors: 2 }],
     status: [{ code: 200, requests: 70 }, { code: 525, requests: 30 }], countries: [{ name: "FR", requests: 9, threats: 1 }], content: [], tls: [], http: [], browsers: [], hosts: [{ name: "a.example", code: 525, requests: 30 }], ...o });
   const withPeriod = (name: string, p: CloudflarePeriod) => ({ ...zone(name), traffic: { requests: 0, cached: 0, bytes: 0, threats: 0, page_views: 0, visitors: 0, days: [], periods: { "24h": p, "7d": p, "30d": p } } });
+
+  it("gives each server answer its meaning, 0 being no answer", () => {
+    expect(originLine({ name: "0", requests: 5 })).toMatchObject({ name: "Aucune réponse", tone: "warn" });
+    expect(originLine({ name: "200", requests: 5 })).toMatchObject({ name: "200 réussie", tone: "ok" });
+    expect(originLine({ name: "404", requests: 5 }).tone).toBe("warn");
+    expect(originLine({ name: "503", requests: 5 }).tone).toBe("bad");
+  });
+
+  it("marks only what scanners ask for", () => {
+    for (const path of ["/wp-login.php", "/.env", "/blog/.git/config"]) expect(pathLine({ name: path, requests: 1 }).tone, path).toBe("warn");
+    for (const path of ["/", "/articles/env", "/wp-loginx"]) expect(pathLine({ name: path, requests: 1 }).tone, path).toBeUndefined();
+  });
+
+  it("adds the details up, even from a reading made before them", () => {
+    const security = { events: 3, points: [{ at: "2026-10-30", events: 3 }], sample: 2, actions: [{ name: "block", requests: 2 }], sources: [], targets: [], countries: [] };
+    const got = trafficOf([withPeriod("a.example", period({ visits: 4, security, paths: [{ name: "/", requests: 2 }] })), withPeriod("b.example", period({ visits: 1, security, paths: [{ name: "/", requests: 3 }] })), withPeriod("c.example", period())], "7d");
+    expect(got).toMatchObject({ visits: 5, paths: [{ name: "/", requests: 5 }], security: { events: 6, sample: 4, points: [{ at: "2026-10-30", events: 6 }], actions: [{ name: "block", requests: 4 }] }, dns: { total: 0, names: [] } });
+  });
 
   it("adds the domains up, line by line", () => {
     const got = trafficOf([withPeriod("a.example", period()), withPeriod("b.example", period({ countries: [{ name: "FR", requests: 1, threats: 2 }, { name: "NL", requests: 20, threats: 0 }], hosts: [{ name: "b.example", code: 520, requests: 40 }] }))], "24h");

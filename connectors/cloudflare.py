@@ -1,11 +1,14 @@
-"""Cloudflare: the domains of an account side by side, read only: six settings, DNS record counts and the traffic over 24 hours, 7 and 30 days.
+"""Cloudflare: the domains of an account side by side, read only: six settings, DNS record counts, and over 24 hours, 7 and 30 days the traffic,
+the firewall, the server behind and the DNS queries.
 
 Routes read: GET /zones, GET /zones/{id}/settings/{setting} (one by one, the global read is deprecated), GET /zones/{id}/dns_records and POST /graphql
 (Analytics: queries only). DNS: only the name, type and proxied state of the web records are kept, never their content: origin addresses are not stored.
+Firewall events: the client's address is never asked for. Paths and user agents are written by whoever sends the request: cut to MAX_NAME, shown as text.
 A token without one of the optional rights (DNS, Zone Settings, Analytics) still lists its domains: what it cannot read is named in the problems.
 """
 from __future__ import annotations
 
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 
@@ -19,8 +22,10 @@ HOURS = 24
 TOP = 12   # lines kept in each breakdown: a domain sees about 100 countries
 ERROR_HOSTS = 10
 MAX_NAME = 120   # the host of a request is written by whoever sends it
+DETAIL_LINES = 8   # lines kept in each detail of a period
+SAMPLE = 100   # events of the firewall read one by one: on the free plan Cloudflare does not group them
 STAMP = "%Y-%m-%dT%H:00:00Z"
-MAX_ZONES = 20   # 9 calls per domain at about 0.5 s each, read by READERS at a time to stay in the 60 s of a pass; above that a problem says how many were left out
+MAX_ZONES = 20   # 11 calls per domain at about 0.5 s each, read by READERS at a time to stay in the 60 s of a pass; above that a problem says how many were left out
 READERS = 4
 MAX_RECORDS = 1000   # shortcut: one page of records, a zone beyond it shows its first 1000 in the checks; follow result_info if a user ever gets there
 WEB_RECORDS = ("A", "AAAA", "CNAME")
@@ -49,12 +54,41 @@ TRAFFIC = ("{viewer{zones(filter:{zoneTag:$zone}){"
            + f"hours:httpRequests1hGroups(limit:{HOURS},orderBy:[datetime_ASC],filter:{{{HOUR_WINDOW.format('day', 'hour')}}}){{dimensions{{datetime}} sum{{{TOTALS}}} uniq{{uniques}}}} "
            + f"days:httpRequests1dGroups(limit:{MONTH},orderBy:[date_ASC],filter:{{{DAY_WINDOW.format('month', 'today')}}}){{dimensions{{date}} sum{{{TOTALS}}} uniq{{uniques}}}}"
            + "}}}")
+WINDOWS = (("day", "day", "hour"), ("week", "week_at", "today_at"), ("month", "month_at", "today_at"))   # the table of each period reaches back 30 days: no period before them
+PERIOD_KEYS = (("24h", "day"), ("7d", "week"), ("30d", "month"))
+
+
+def _ranked(alias: str, table: str, window: str, dimension: str, limit: int = DETAIL_LINES, also: str = "") -> str:
+    return f"{alias}:{table}(limit:{limit},orderBy:[count_DESC],filter:{{{window}}}){{count {also}dimensions{{{dimension}}}}}"
+
+
+def _http_parts(a: str, window: str) -> str:
+    table = "httpRequestsAdaptiveGroups"
+    return " ".join((_ranked(f"{a}_paths", table, window, "clientRequestPath"), _ranked(f"{a}_agents", table, window, "userAgent"),
+                     _ranked(f"{a}_methods", table, window, "clientRequestHTTPMethodName"), _ranked(f"{a}_cache", table, window, "cacheStatus", also="sum{edgeResponseBytes} "),
+                     _ranked(f"{a}_origin", table, window, "originResponseStatus"), f"{a}_visits:httpRequestsOverviewAdaptiveGroups(limit:1,filter:{{{window}}}){{sum{{visits pageViews}}}}"))
+
+
+def _edge_parts(a: str, window: str) -> str:
+    dns, stamp, points = "dnsAnalyticsAdaptiveGroups", *(("datetimeHour", HOURS) if a == "day" else ("date", MONTH))
+    return " ".join((f"{a}_events:firewallEventsAdaptiveByTimeGroups(limit:{points},orderBy:[{stamp}_ASC],filter:{{{window}}}){{count dimensions{{{stamp}}}}}",
+                     f"{a}_sample:firewallEventsAdaptive(limit:{SAMPLE},orderBy:[datetime_DESC],filter:{{{window}}}){{action source clientCountryName clientRequestHTTPHost}}",
+                     f"{a}_dns:{dns}(limit:1,filter:{{{window}}}){{count}}", _ranked(f"{a}_names", dns, window, "queryName"), _ranked(f"{a}_types", dns, window, "queryType"),
+                     _ranked(f"{a}_codes", dns, window, "responseCode")))
+
+
+def _each_period(parts) -> str:
+    return "{viewer{zones(filter:{zoneTag:$zone}){" + " ".join(parts(a, f"datetime_geq:${since},datetime_lt:${until}") for a, since, until in WINDOWS) + "}}}"
+
+
+# Two queries, whatever the number of figures: the second reads the tables a plan can refuse, and the first must survive that
+HTTP_DETAIL, EDGE_DETAIL = _each_period(_http_parts), _each_period(_edge_parts)
 # A query of its own: this table is the one a plan can refuse, and the rest must survive that
 _ERRORS_FILTER = "edgeResponseStatus_geq:500,edgeResponseStatus_lt:600"
 ERROR_NAMES = ("{viewer{zones(filter:{zoneTag:$zone}){"
                + " ".join(f"{alias}:httpRequestsAdaptiveGroups(limit:{ERROR_HOSTS},orderBy:[count_DESC],filter:{{datetime_geq:${since},datetime_lt:${until},{_ERRORS_FILTER}}})"
                           "{count dimensions{clientRequestHTTPHost edgeResponseStatus}}"
-                          for alias, since, until in (("day", "day", "hour"), ("week", "week_at", "today_at"), ("month", "month_at", "today_at")))
+                          for alias, since, until in WINDOWS)
                + "}}}")
 
 
@@ -91,6 +125,37 @@ def _points(rows: list | None, dimension: str, stamps: list[str]) -> list[dict]:
     """One point for each stamp, with the figures of the period: a quiet hour or day has no group."""
     by_stamp = {(r.get("dimensions") or {}).get(dimension): r for r in rows or []}
     return [{"at": at, **_totals(by_stamp.get(at, {}))} for at in stamps]
+
+
+def _lines(rows: list | None, dimension: str) -> list[dict]:
+    """One line for each group; a value can be 0 (no answer from the server)."""
+    def name(r: dict) -> str:
+        value = (r.get("dimensions") or {}).get(dimension)
+        return "?" if value is None else str(value)[:MAX_NAME]
+
+    return [{"name": name(r), "requests": _count(r, "count"), **({"bytes": _count(r["sum"], "edgeResponseBytes")} if r.get("sum") else {})} for r in rows or []]
+
+
+def _tally(events: list, key: str) -> list[dict]:
+    seen = Counter(str(e.get(key) or "?")[:MAX_NAME] for e in events)
+    return [{"name": name, "requests": n} for name, n in seen.most_common(DETAIL_LINES)]
+
+
+def _http_detail(found: dict, a: str) -> dict:
+    visits = ((found.get(f"{a}_visits") or [{}])[0].get("sum") or {})
+    return {"visits": _count(visits, "visits"), "page_views": _count(visits, "pageViews"), "paths": _lines(found.get(f"{a}_paths"), "clientRequestPath"),
+            "agents": _lines(found.get(f"{a}_agents"), "userAgent"), "methods": _lines(found.get(f"{a}_methods"), "clientRequestHTTPMethodName"),
+            "cache": _lines(found.get(f"{a}_cache"), "cacheStatus"), "origin": _lines(found.get(f"{a}_origin"), "originResponseStatus")}
+
+
+def _edge_detail(found: dict, a: str, stamps: list[str]) -> dict:
+    stamp = "datetimeHour" if a == "day" else "date"
+    by_stamp = {(r.get("dimensions") or {}).get(stamp): _count(r, "count") for r in found.get(f"{a}_events") or []}
+    events = [e for e in found.get(f"{a}_sample") or [] if isinstance(e, dict)]
+    return {"security": {"events": sum(by_stamp.values()), "points": [{"at": at, "events": by_stamp.get(at, 0)} for at in stamps], "sample": len(events), "actions": _tally(events, "action"),
+                         "sources": _tally(events, "source"), "targets": _tally(events, "clientRequestHTTPHost"), "countries": _tally(events, "clientCountryName")},
+            "dns": {"total": _count((found.get(f"{a}_dns") or [{}])[0], "count"), "names": _lines(found.get(f"{a}_names"), "queryName"),
+                    "types": _lines(found.get(f"{a}_types"), "queryType"), "codes": _lines(found.get(f"{a}_codes"), "responseCode")}}
 
 
 def _period(group: dict, before: dict, points: list[dict]) -> dict:
@@ -178,7 +243,9 @@ class Cloudflare(StatusConnector):
 
         periods = {"24h": _period(group("day"), group("day_before"), hours), "7d": _period(group("week"), group("week_before"), days[-DAYS:]), "30d": _period(group("month"), group("month_before"), days)}
         names = self._graphql(ERROR_NAMES, {"zone": zone, **w}) or {}
-        for key, alias in (("24h", "day"), ("7d", "week"), ("30d", "month")):
+        http, edge = self._graphql(HTTP_DETAIL, {"zone": zone, **w}) or {}, self._graphql(EDGE_DETAIL, {"zone": zone, **w}) or {}
+        for key, alias in PERIOD_KEYS:
+            periods[key] |= _http_detail(http, alias) | _edge_detail(edge, alias, [p["at"] for p in periods[key]["points"]])
             periods[key]["hosts"] = [{"name": str((r.get("dimensions") or {}).get("clientRequestHTTPHost") or "?")[:MAX_NAME], "code": _count(r.get("dimensions") or {}, "edgeResponseStatus"), "requests": _count(r, "count")}
                                      for r in names.get(alias) or []]
         week = periods["7d"]

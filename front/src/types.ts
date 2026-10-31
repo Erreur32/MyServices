@@ -232,7 +232,11 @@ export type CloudflarePeriodKey = "24h" | "7d" | "30d";
 export interface CloudflareTotals { requests: number; cached: number; bytes: number; cached_bytes: number; threats: number; errors: number; visitors: number }
 export interface CloudflareLine { name: string; requests: number; threats?: number; bytes?: number }
 export interface CloudflarePoint extends CloudflareTotals { at: string }
-export interface CloudflarePeriod extends CloudflareTotals {
+export interface CloudflareSecurity { events: number; points: { at: string; events: number }[]; sample: number; actions: CloudflareLine[]; sources: CloudflareLine[]; targets: CloudflareLine[]; countries: CloudflareLine[] }
+export interface CloudflareDnsQueries { total: number; names: CloudflareLine[]; types: CloudflareLine[]; codes: CloudflareLine[] }
+export interface CloudflareDetail { visits: number; page_views: number; paths: CloudflareLine[]; agents: CloudflareLine[]; methods: CloudflareLine[]; cache: CloudflareLine[]; origin: CloudflareLine[]; security: CloudflareSecurity; dns: CloudflareDnsQueries }
+/** The details are missing from a reading made before them */
+export interface CloudflarePeriod extends CloudflareTotals, Partial<CloudflareDetail> {
   previous: CloudflareTotals; points: CloudflarePoint[]; status: { code: number; requests: number }[];
   countries: CloudflareLine[]; content: CloudflareLine[]; tls: CloudflareLine[]; http: CloudflareLine[]; browsers: CloudflareLine[]; hosts: { name: string; code: number; requests: number }[];
 }

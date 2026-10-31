@@ -1,4 +1,5 @@
-// « Cloudflare »: what to improve, the domains side by side, their traffic, and each name checked against the reverse proxy that serves it.
+// « Cloudflare »: what to improve, the domains side by side, their traffic, what the firewall did, what the server behind answered, the DNS queries,
+// and each name checked against the reverse proxy that serves it.
 import { useState } from "react";
 import { Plug } from "lucide-react";
 import type { Snapshot } from "../api";
@@ -8,14 +9,14 @@ import { readConnector, RereadButton } from "../components/Reread";
 import { StatTile } from "../components/StatTile";
 import { Badge, Chip, Empty, TableCard } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
-import { advice, answerLines, bestZone, CHECK_ORDER, cloudflareChecks, cloudflareZones, countryName, dnsOnly, isTrouble, LINES, niceMax, settingText, SETTINGS, trafficOf, trendOf, type AnswerLine, type Check } from "../lib/cloudflare";
+import { actionLine, advice, answerLines, bestZone, cacheLine, CHECK_ORDER, cloudflareChecks, cloudflareZones, countryName, dnsOnly, isTrouble, LINES, niceMax, originLine, pathLine, queryTypeName, settingText, SETTINGS, sourceName, trafficOf, trendOf, type AnswerLine, type Check } from "../lib/cloudflare";
 import { useSort } from "../lib/filter";
 import { bytes } from "../lib/format";
 import { LOCALE, tx } from "../lib/i18n";
 import { usePageView } from "../lib/route";
 import type { CloudflareLine, CloudflarePeriod, CloudflarePoint, CloudflarePeriodKey, CloudflareZone } from "../types";
 
-const VIEWS = ["overview", "compare", "traffic", "checks"] as const;
+const VIEWS = ["overview", "compare", "traffic", "security", "origin", "dns", "checks"] as const;
 const FRAME = "overflow-hidden rounded-2xl border border-line bg-card shadow-sm";
 const STRIP = "flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line bg-bg px-4 py-3";
 const fmt = (n: number) => n.toLocaleString(LOCALE);
@@ -35,7 +36,7 @@ function Head({ title, snap }: Readonly<{ title: string; snap: Snapshot }>) {
 }
 
 /** A tile's small curve: its figure over the points of the period, nothing when it never left zero */
-function Spark({ points, of, tone = "text-link" }: Readonly<{ points: CloudflarePoint[]; of: (p: CloudflarePoint) => number; tone?: string }>) {
+function Spark<T>({ points, of, tone = "text-link" }: Readonly<{ points: T[]; of: (p: T) => number; tone?: string }>) {
   const W = 120, H = 34, values = points.map(of), top = Math.max(0, ...values);
   if (values.length < 2 || !top) return null;
   const at = values.map((v, i) => `${((i * W) / (values.length - 1)).toFixed(1)} ${(H - 2 - (v / top) * (H - 4)).toFixed(1)}`), line = `M${at.join("L")}`;
@@ -138,7 +139,10 @@ const PERIODS: { key: CloudflarePeriodKey; label: string; of: string }[] = [
 const WORRYING_ERRORS = 0.05;
 const pointLabel = (at: string) => (at.length > 10 ? `${new Date(at).getHours().toString().padStart(2, "0")}h` : `${at.slice(8)}/${at.slice(5, 7)}`);
 
-function TrafficBars({ points, title }: Readonly<{ points: CloudflarePeriod["points"]; title: string }>) {
+type Bar = Pick<CloudflarePoint, "at" | "requests" | "errors">;
+const REQUESTS_TIP = (p: Bar) => `${fmt(p.requests)}, ${tx("{0} erreurs serveur", fmt(p.errors))}`;
+
+function TrafficBars({ points, title, fill = "fill-link", tip = REQUESTS_TIP }: Readonly<{ points: Bar[]; title: string; fill?: string; tip?: (p: Bar) => string }>) {
   const W = 1000, H = 130, BOTTOM = 22, TOP = 8, LEFT = 52, top = niceMax(Math.max(...points.map((p) => p.requests), 1));
   const y = (v: number) => H - BOTTOM - (v / top) * (H - BOTTOM - TOP), bar = (W - LEFT) / points.length, every = points.length > 7 ? Math.ceil(points.length / 8) : 1;
   return (
@@ -148,8 +152,8 @@ function TrafficBars({ points, title }: Readonly<{ points: CloudflarePeriod["poi
         const x = LEFT + i * bar + bar * 0.16, width = bar * 0.68, good = p.requests - p.errors;
         return (
           <g key={p.at}>
-            <title>{`${pointLabel(p.at)} : ${fmt(p.requests)}, ${tx("{0} erreurs serveur", fmt(p.errors))}`}</title>
-            <rect x={x} y={y(good)} width={width} height={H - BOTTOM - y(good)} className="fill-link" />
+            <title>{`${pointLabel(p.at)} : ${tip(p)}`}</title>
+            <rect x={x} y={y(good)} width={width} height={H - BOTTOM - y(good)} className={fill} />
             <rect x={x} y={y(p.requests)} width={width} height={y(good) - y(p.requests)} className="fill-bad" />
             {i % every === 0 && <text x={LEFT + i * bar + bar / 2} y={H - 6} textAnchor="middle" fontSize={12} className="fill-muted">{pointLabel(p.at)}</text>}
           </g>
@@ -192,7 +196,9 @@ function Bars({ title, sub, lines }: Readonly<{ title: string; sub?: string; lin
   );
 }
 
-function TrafficDetails({ p }: Readonly<{ p: CloudflarePeriod }>) {
+type Reading = NonNullable<ReturnType<typeof trafficOf>>;
+
+function TrafficDetails({ p }: Readonly<{ p: Reading }>) {
   const ofAll = (l: CloudflareLine) => share(l.requests, p.requests);
   const reach = (list: CloudflareLine[], name: (l: CloudflareLine) => string = (l) => l.name) => list.slice(0, LINES).map((l) => ({ name: name(l), requests: l.requests, shown: ofAll(l) }));
   const protocols = [...p.tls.map((l): BarLine => ({ name: l.name === "none" ? tx("Sans chiffrement") : l.name.replace("TLSv", "TLS "), requests: l.requests, shown: ofAll(l), tone: l.name === "none" ? "warn" : undefined })), ...reach(p.http)];
@@ -203,16 +209,21 @@ function TrafficDetails({ p }: Readonly<{ p: CloudflarePeriod }>) {
       <Bars title={tx("Pays")} sub={tx("Requêtes, et menaces")} lines={p.countries.slice(0, LINES).map((c) => ({ name: countryName(c.name), requests: c.requests, shown: c.threats ? `${fmt(c.requests)} · ${tx("{0} menaces", fmt(c.threats))}` : undefined, tone: (c.threats ?? 0) * 10 > c.requests ? "warn" : undefined }))} />
       <Bars title={tx("Types de contenu")} lines={p.content.slice(0, LINES).map((c) => ({ name: c.name, requests: c.requests, shown: `${ofAll(c)} · ${bytes(c.bytes ?? 0)}` }))} />
       <Bars title={tx("Chiffrement et protocole")} lines={protocols} />
+      <Bars title={tx("Pages les plus demandées")} sub={tx("Sans les paramètres d'adresse")} lines={p.paths.slice(0, LINES).map(pathLine)} />
+      <Bars title={tx("Robots et clients")} sub={tx("Les plus actifs")} lines={p.agents.slice(0, LINES).map((l) => ({ name: l.name || tx("Sans nom"), requests: l.requests }))} />
+      <Bars title={tx("Méthodes")} lines={p.methods.slice(0, LINES)} />
       <Bars title={tx("Visiteurs par navigateur")} sub={tx("Pages vues")} lines={p.browsers.slice(0, LINES).map((b) => ({ name: b.name === "Unknown" ? tx("Robots et inconnus") : b.name.replace(/([a-z])([A-Z])/g, "$1 $2"), requests: b.requests }))} />
     </div>
   );
 }
 
-function TrafficFigures({ p }: Readonly<{ p: CloudflarePeriod }>) {
+function TrafficFigures({ p }: Readonly<{ p: Reading }>) {
   const was = p.previous;
   return (
     <div className="flex flex-wrap gap-2.5">
       <StatTile n={fmt(p.visitors)} label={tx("visiteurs uniques")}><Trend now={p.visitors} before={was.visitors} rising="good" /><Spark points={p.points} of={(x) => x.visitors} /></StatTile>
+      <StatTile n={fmt(p.visits)} label={tx("visites")} sub={tx("une personne, une arrivée sur le site")} />
+      <StatTile n={fmt(p.page_views)} label={tx("pages vues")} sub={tx("réponses HTML")} />
       <StatTile n={fmt(p.requests)} label={tx("requêtes")}><Trend now={p.requests} before={was.requests} rising="good" /><Spark points={p.points} of={(x) => x.requests} /></StatTile>
       <StatTile n={share(p.cached, p.requests)} label={tx("servi par le cache")}><Trend now={p.requests ? p.cached / p.requests : 0} before={was.requests ? was.cached / was.requests : 0} rising="good" /><Spark points={p.points} of={(x) => (x.requests ? x.cached / x.requests : 0)} /></StatTile>
       <StatTile n={bytes(p.bytes)} label={tx("données traitées")}><Trend now={p.bytes} before={was.bytes} rising="good" /><Spark points={p.points} of={(x) => x.bytes} /></StatTile>
@@ -245,13 +256,14 @@ function DomainTable({ zones, period }: Readonly<{ zones: CloudflareZone[]; peri
   );
 }
 
-function Traffic({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZone[] }>) {
+/** The domain and the period a page shows, with its head and their chips */
+function useScope(zones: CloudflareZone[], title: string, snap: Snapshot) {
   const [period, setPeriod] = useState<CloudflarePeriodKey>("24h");
   const [domain, setDomain] = useState("");
-  const picked = domain ? zones.filter((z) => z.name === domain) : zones, p = trafficOf(picked, period), chosen = PERIODS.find((x) => x.key === period)!;
+  const picked = domain ? zones.filter((z) => z.name === domain) : zones, chosen = PERIODS.find((x) => x.key === period)!;
   const head = (
     <>
-      <Head title={tx("Trafic")} snap={snap} />
+      <Head title={title} snap={snap} />
       <div className="flex flex-wrap items-center gap-2">
         <Chip label={tx("Tous")} on={!domain} act={() => setDomain("")} />
         {zones.map((z) => <Chip key={z.name} label={z.name} on={domain === z.name} act={() => setDomain(z.name)} />)}
@@ -260,7 +272,16 @@ function Traffic({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZo
       </div>
     </>
   );
-  if (!p) return <>{head}<Empty>{tx("Statistiques à venir : elles arrivent à la prochaine lecture de Cloudflare.")}</Empty></>;
+  return { head, domain, period, picked, chosen, p: trafficOf(picked, period) };
+}
+
+const NoReading = () => <Empty>{tx("Statistiques à venir : elles arrivent à la prochaine lecture de Cloudflare.")}</Empty>;
+const count = (lines: CloudflareLine[], name: string) => lines.find((l) => l.name === name)?.requests ?? 0;
+const total = (lines: CloudflareLine[]) => lines.reduce((a, l) => a + l.requests, 0);
+
+function Traffic({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZone[] }>) {
+  const { head, domain, period, picked, chosen, p } = useScope(zones, tx("Trafic"), snap);
+  if (!p) return <>{head}<NoReading /></>;
   return (
     <>
       {head}
@@ -277,6 +298,80 @@ function Traffic({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZo
       <DomainTable zones={picked} period={period} />
       {!domain && <InfoNote tone="warn" open>{tx("Les visiteurs sont comptés pour chaque domaine. Leur total est une somme : une même personne venue sur deux domaines compte deux fois.")}</InfoNote>}
       <InfoNote>{tx("Workers, temps CPU et minutes de construction ne sont pas repris : le jeton ne les lit pas.")}</InfoNote>
+    </>
+  );
+}
+
+function Security({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZone[] }>) {
+  const { head, domain, p } = useScope(zones, tx("Sécurité"), snap);
+  if (!p) return <>{head}<NoReading /></>;
+  const s = p.security, sampled = tx("dans le dernier échantillon"), title = tx("Événements par période");
+  const lines = (list: CloudflareLine[], name: (n: string) => string = (n) => n) => list.slice(0, LINES).map((l) => ({ name: name(l.name), requests: l.requests }));
+  return (
+    <>
+      {head}
+      <div className="flex flex-wrap gap-2.5">
+        <StatTile n={fmt(s.events)} label={tx("événements")} tone={s.events ? "warn" : "ok"}><Spark points={s.points} of={(e) => e.events} tone="text-warn" /></StatTile>
+        <StatTile n={fmt(count(s.actions, "block"))} label={tx("bloqués")} sub={sampled} />
+        <StatTile n={fmt(count(s.actions, "link_maze_injected"))} label={tx("pièges à robots")} sub={sampled} />
+      </div>
+      <section className={FRAME}>
+        <div className={STRIP}><h3 className="font-bold">{title}</h3><span className="text-xs text-muted">{domain || tx("Tous les domaines")}</span></div>
+        <div className="overflow-x-auto p-3"><TrafficBars points={s.points.map((e) => ({ at: e.at, requests: e.events, errors: 0 }))} title={title} fill="fill-warn" tip={(e) => tx("{0} événements", fmt(e.requests))} /></div>
+      </section>
+      <InfoNote tone="warn" open>{tx("Le détail vient des 100 derniers événements de chaque domaine : c'est un échantillon. Les comptes par période, eux, sont complets. Cloudflare ne regroupe pas le détail sur l'offre gratuite.")}</InfoNote>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Bars title={tx("Ce que Cloudflare a fait")} sub={tx("Échantillon")} lines={s.actions.slice(0, LINES).map(actionLine)} />
+        <Bars title={tx("Qui l'a décidé")} sub={tx("Échantillon")} lines={lines(s.sources, sourceName)} />
+        <Bars title={tx("Noms visés")} sub={tx("Échantillon")} lines={lines(s.targets)} />
+        <Bars title={tx("Pays")} sub={tx("Échantillon")} lines={lines(s.countries, countryName)} />
+      </div>
+    </>
+  );
+}
+
+function Origin({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZone[] }>) {
+  const { head, p } = useScope(zones, tx("Serveur et cache"), snap);
+  if (!p) return <>{head}<NoReading /></>;
+  const read = total(p.origin), silent = count(p.origin, "0"), through = total(p.cache), worrying = read > 0 && silent / read >= WORRYING_ERRORS;
+  return (
+    <>
+      {head}
+      <div className="flex flex-wrap gap-2.5">
+        <StatTile n={share(silent, read)} label={tx("sans réponse du serveur")} sub={tx("{0} requêtes", fmt(silent))} tone={worrying ? "warn" : "ok"} />
+        <StatTile n={fmt(read - silent)} label={tx("réponses du serveur")} />
+        <StatTile n={share(p.cached, p.requests)} label={tx("servi par le cache")} />
+        <StatTile n={share(count(p.cache, "dynamic"), through)} label={tx("passé par le serveur")} sub={tx("pages dynamiques")} />
+      </div>
+      {worrying && <InfoNote tone="warn" open>{tx("{0} des requêtes n'ont pas eu de réponse du serveur : arrêtées avant lui, servies par le cache, ou serveur muet. Les erreurs 520 et 525 de la page Trafic disent si le serveur est en cause.", share(silent, read))}</InfoNote>}
+      <div className="grid gap-3 md:grid-cols-2">
+        <Bars title={tx("Réponses de ton serveur")} sub={tx("Vues par Cloudflare")} lines={p.origin.slice(0, LINES).map(originLine)} />
+        <Bars title={tx("Ce que fait le cache")} sub={tx("Requêtes, et données")} lines={p.cache.slice(0, LINES).map((l) => ({ ...cacheLine(l), shown: `${fmt(l.requests)} · ${bytes(l.bytes ?? 0)}` }))} />
+      </div>
+      <InfoNote>{tx("Ces comptes viennent d'un échantillon de Cloudflare : les chiffres sont arrondis.")}</InfoNote>
+    </>
+  );
+}
+
+function Dns({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZone[] }>) {
+  const { head, p } = useScope(zones, tx("DNS"), snap);
+  if (!p) return <>{head}<NoReading /></>;
+  const d = p.dns, missing = count(d.codes, "NXDOMAIN"), fine = count(d.codes, "NOERROR");
+  return (
+    <>
+      {head}
+      <div className="flex flex-wrap gap-2.5">
+        <StatTile n={fmt(d.total)} label={tx("requêtes DNS")} />
+        <StatTile n={share(missing, d.total)} label={tx("noms inexistants")} sub={tx("{0} requêtes", fmt(missing))} tone={missing ? "warn" : "ok"} />
+        <StatTile n={share(fine, d.total)} label={tx("réponses correctes")} />
+      </div>
+      <InfoNote>{tx("Cloudflare compte ces requêtes sur un échantillon : les chiffres sont arrondis. Un nom inexistant très demandé peut être un ancien sous-domaine encore utilisé, ou un robot.")}</InfoNote>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <Bars title={tx("Noms les plus demandés")} lines={d.names.slice(0, LINES)} />
+        <Bars title={tx("Types demandés")} lines={d.types.slice(0, LINES).map((l) => ({ name: queryTypeName(l.name), requests: l.requests }))} />
+        <Bars title={tx("Réponses")} lines={d.codes.map((l) => ({ name: l.name === "NXDOMAIN" ? tx("Nom inexistant") : l.name, requests: l.requests, tone: l.name === "NXDOMAIN" ? "warn" : undefined }))} />
+      </div>
+      <InfoNote>{tx("Temps de réponse et sites d'origine des visiteurs : refusés sur l'offre gratuite. Mesures côté navigateur : demandent un droit de compte en plus et Web Analytics activé.")}</InfoNote>
     </>
   );
 }
@@ -324,6 +419,9 @@ export function Cloudflare({ snap, route }: Readonly<{ snap: Snapshot; route: st
       {view === "overview" && <Overview snap={snap} zones={zones} />}
       {view === "compare" && <Compare snap={snap} zones={zones} />}
       {view === "traffic" && <Traffic snap={snap} zones={zones} />}
+      {view === "security" && <Security snap={snap} zones={zones} />}
+      {view === "origin" && <Origin snap={snap} zones={zones} />}
+      {view === "dns" && <Dns snap={snap} zones={zones} />}
       {view === "checks" && <Checks snap={snap} zones={zones} />}
     </div>
   );

@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import connectors  # noqa: E402
 from connectors.base import ConnectorError, RateLimited  # noqa: E402
-from connectors.cloudflare import API, ERROR_NAMES, STAMP, TRAFFIC, Cloudflare  # noqa: E402
+from connectors.cloudflare import API, EDGE_DETAIL, ERROR_NAMES, HTTP_DETAIL, STAMP, TRAFFIC, Cloudflare  # noqa: E402
 
 TOKEN = "cf-" + "t" * 12   # built at run time: the safety check refuses tokens written as such
 TRAFFIC_OK = {"data": {"viewer": {"zones": [{
@@ -27,7 +27,8 @@ SSL = {"z1": "strict", "z2": "flexible"}
 class Fake:
     """Answers like Cloudflare; `refuse` holds the bits of URL answered 403."""
 
-    def __init__(self, zones=None, refuse=(), traffic=None, total=None, proxied=3, names=None):
+    def __init__(self, zones=None, refuse=(), traffic=None, total=None, proxied=3, names=None, http=None, edge=None):
+        self.details = {HTTP_DETAIL: http, EDGE_DETAIL: edge}
         self.calls, self.refuse, self.proxied, self.names = [], refuse, proxied, names or {"data": None, "errors": [{"message": "no access"}]}
         self.zones, self.traffic = zones if zones is not None else [zone("z1", "exemple.fr"), zone("z2", "example.org")], traffic or TRAFFIC_OK
         self.total = total
@@ -40,6 +41,8 @@ class Fake:
         if path.startswith("/zones?"):
             return {"success": True, "result": self.zones, "result_info": {"total_count": self.total or len(self.zones)}}
         if path == "/graphql":
+            if body["query"] in self.details:
+                return self.details[body["query"]] or {"data": None, "errors": [{"message": "no access"}]}
             return self.names if body["query"] == ERROR_NAMES else self.traffic
         if "/dns_records" in path:
             records = [{"name": f"r{i}.exemple.fr", "type": "A", "proxied": i < self.proxied, "content": "192.0.2.1"} for i in range(9)]
@@ -84,7 +87,7 @@ class CloudflareRead(unittest.TestCase):
         conn(ctx).collect()
         self.assertEqual({m for m, *_ in ctx.calls}, {"GET", "POST"})
         self.assertEqual({u for m, u, *_ in ctx.calls if m == "POST"}, {API + "/graphql"})   # the POST is the analytics query, nothing else
-        self.assertNotIn("mutation", TRAFFIC + ERROR_NAMES)
+        self.assertNotIn("mutation", TRAFFIC + ERROR_NAMES + HTTP_DETAIL + EDGE_DETAIL)
         self.assertTrue(all(h["Authorization"] == f"Bearer {TOKEN}" and TOKEN not in u for _, u, h, _ in ctx.calls))   # token in a header, never in the address
 
     def test_the_content_of_a_dns_record_is_never_kept(self):
@@ -126,6 +129,30 @@ class CloudflareRead(unittest.TestCase):
         got = conn(Fake()).collect()["cloudflare"]["zones"][0]["traffic"]
         self.assertEqual(got["requests"], 2000)
         self.assertEqual(got["periods"]["7d"]["hosts"], [])
+
+    def test_the_details_of_a_period(self):
+        today = datetime.now(timezone.utc).date()
+        http = {"data": {"viewer": {"zones": [{"week_visits": [{"sum": {"visits": 9, "pageViews": 12}}], "week_paths": [{"count": 5, "dimensions": {"clientRequestPath": "/" + "a" * 500}}],
+                                               "week_origin": [{"count": 3, "dimensions": {"originResponseStatus": 0}}], "week_cache": [{"count": 2, "sum": {"edgeResponseBytes": 700}, "dimensions": {"cacheStatus": "dynamic"}}]}]}}}
+        sample = [{"action": "block", "source": "waf", "clientCountryName": "NL", "clientRequestHTTPHost": "exemple.fr"}] * 2 + [{"action": "skip", "source": "waf", "clientCountryName": "FR", "clientRequestHTTPHost": "exemple.fr"}]
+        edge = {"data": {"viewer": {"zones": [{"week_events": [{"count": 40, "dimensions": {"date": (today - timedelta(days=2)).isoformat()}}], "week_sample": sample, "week_dns": [{"count": 80}],
+                                               "week_codes": [{"count": 2, "dimensions": {"responseCode": "NXDOMAIN"}}]}]}}}
+        week = conn(Fake(http=http, edge=edge)).collect()["cloudflare"]["zones"][0]["traffic"]["periods"]["7d"]
+        self.assertEqual((week["visits"], week["page_views"]), (9, 12))
+        self.assertEqual(len(week["paths"][0]["name"]), 120)   # written by whoever sends the request
+        self.assertEqual(week["origin"], [{"name": "0", "requests": 3}])   # 0: no answer from the server, not a missing value
+        self.assertEqual(week["cache"], [{"name": "dynamic", "requests": 2, "bytes": 700}])
+        self.assertEqual((week["security"]["events"], week["security"]["sample"], len(week["security"]["points"])), (40, 3, 7))
+        self.assertEqual(week["security"]["points"][-2]["events"], 40)
+        self.assertEqual(week["security"]["actions"], [{"name": "block", "requests": 2}, {"name": "skip", "requests": 1}])
+        self.assertEqual((week["dns"]["total"], week["dns"]["codes"]), (80, [{"name": "NXDOMAIN", "requests": 2}]))
+
+    def test_the_address_of_a_client_is_never_asked(self):
+        self.assertNotIn("clientIP", HTTP_DETAIL + EDGE_DETAIL + TRAFFIC + ERROR_NAMES)
+
+    def test_refused_details_leave_the_traffic_readable(self):
+        week = conn(Fake()).collect()["cloudflare"]["zones"][0]["traffic"]["periods"]["7d"]
+        self.assertEqual((week["requests"], week["paths"], week["security"]["events"], week["dns"]["total"]), (2000, [], 0, 0))
 
     def test_a_long_host_written_by_a_client_is_cut(self):
         names = {"data": {"viewer": {"zones": [{"week": [{"count": 1, "dimensions": {"clientRequestHTTPHost": "x" * 5000, "edgeResponseStatus": 520}}]}]}}}

@@ -1,6 +1,6 @@
 // The Cloudflare pages: domains read by the connector, what to improve on them, and the check of each name against the reverse proxy that really serves it.
 import type { Snapshot } from "../api";
-import type { CloudflareLine, CloudflarePeriod, CloudflarePeriodKey, CloudflarePoint, CloudflareRecord, CloudflareTotals, CloudflareZone, Host } from "../types";
+import type { CloudflareDetail, CloudflareLine, CloudflarePeriod, CloudflarePeriodKey, CloudflarePoint, CloudflareRecord, CloudflareTotals, CloudflareZone, Host } from "../types";
 import { LOCALE, tx } from "./i18n";
 
 export const SETTINGS: { key: string; label: string }[] = [
@@ -148,6 +148,17 @@ const TOTALS: (keyof CloudflareTotals)[] = ["requests", "cached", "bytes", "cach
 export const LINES = 6;   // lines of each breakdown of the traffic page
 const addTotals = (list: CloudflareTotals[]) => Object.fromEntries(TOTALS.map((k) => [k, list.reduce((a, t) => a + (t[k] ?? 0), 0)])) as unknown as CloudflareTotals;
 
+function addDetails(read: CloudflarePeriod[]): CloudflareDetail {
+  const count = (pick: (p: CloudflarePeriod) => number | undefined) => read.reduce((a, p) => a + (pick(p) ?? 0), 0);
+  const lines = (pick: (p: CloudflarePeriod) => CloudflareLine[] | undefined) => addLines(read.map((p) => pick(p) ?? []));
+  const events = new Map<string, number>();
+  for (const e of read.flatMap((p) => p.security?.points ?? [])) events.set(e.at, (events.get(e.at) ?? 0) + e.events);
+  return { visits: count((p) => p.visits), page_views: count((p) => p.page_views), paths: lines((p) => p.paths), agents: lines((p) => p.agents), methods: lines((p) => p.methods), cache: lines((p) => p.cache), origin: lines((p) => p.origin),
+           security: { events: count((p) => p.security?.events), points: [...events].map(([at, n]) => ({ at, events: n })).sort((a, b) => a.at.localeCompare(b.at)), sample: count((p) => p.security?.sample),
+                       actions: lines((p) => p.security?.actions), sources: lines((p) => p.security?.sources), targets: lines((p) => p.security?.targets), countries: lines((p) => p.security?.countries) },
+           dns: { total: count((p) => p.dns?.total), names: lines((p) => p.dns?.names), types: lines((p) => p.dns?.types), codes: lines((p) => p.dns?.codes) } };
+}
+
 function addLines(lists: CloudflareLine[][]): CloudflareLine[] {
   const all = new Map<string, CloudflareLine>();
   for (const line of lists.flat()) {
@@ -158,7 +169,7 @@ function addLines(lists: CloudflareLine[][]): CloudflareLine[] {
 }
 
 /** A period over the domains given, or null before the first read of the 24 hours and 30 days */
-export function trafficOf(zones: CloudflareZone[], key: CloudflarePeriodKey): CloudflarePeriod | null {
+export function trafficOf(zones: CloudflareZone[], key: CloudflarePeriodKey): (CloudflarePeriod & CloudflareDetail) | null {
   const read = zones.flatMap((z) => z.traffic?.periods?.[key] ?? []);
   if (!read.length) return null;
   const points = new Map<string, CloudflarePoint>();
@@ -171,7 +182,7 @@ export function trafficOf(zones: CloudflareZone[], key: CloudflarePeriodKey): Cl
   const lines = (pick: (p: CloudflarePeriod) => CloudflareLine[]) => addLines(read.map(pick));
   return { ...addTotals(read), previous: addTotals(read.map((r) => r.previous)), points: [...points.values()].sort((a, b) => a.at.localeCompare(b.at)),
            status: [...status].map(([code, requests]) => ({ code, requests })), countries: lines((p) => p.countries), content: lines((p) => p.content), tls: lines((p) => p.tls), http: lines((p) => p.http),
-           browsers: lines((p) => p.browsers), hosts: read.flatMap((r) => r.hosts).sort((a, b) => b.requests - a.requests) };
+           browsers: lines((p) => p.browsers), hosts: read.flatMap((r) => r.hosts).sort((a, b) => b.requests - a.requests), ...addDetails(read) };
 }
 
 /** Percent of change against the period before, null when there is nothing to compare with */
@@ -192,6 +203,46 @@ export function answerLines(p: CloudflarePeriod): AnswerLine[] {
   const errors = p.status.filter((s) => s.code >= 500 && s.code < 600).sort((a, b) => b.requests - a.requests).slice(0, LINES)
     .map((s): AnswerLine => ({ name: `${s.code} ${SERVER_ERRORS[s.code] ?? tx("erreur du serveur")}`, requests: s.requests, tone: "bad", why: CERTIFICATE.has(s.code) ? tx("Vérifie le certificat du serveur ou du proxy.") : undefined }));
   return [...groups.filter((g) => g.requests), ...errors];
+}
+
+const ACTIONS: Record<string, [string, string?]> = {
+  block: [tx("Bloqué")], link_maze_injected: [tx("Piège à robots injecté"), tx("Le robot reçoit de fausses pages plutôt que le site.")], skip: [tx("Laissé passer par une règle")],
+  managed_challenge: [tx("Vérification adaptée")], challenge: [tx("Vérification demandée")], js_challenge: [tx("Vérification JavaScript")], log: [tx("Noté seulement")],
+};
+const SOURCES: Record<string, string> = { linkMaze: tx("Piège à robots IA"), firewallManaged: tx("Règles gérées par Cloudflare"), firewallCustom: tx("Tes règles"), botFight: tx("Protection contre les robots"), securityLevel: tx("Niveau de sécurité"), ratelimit: tx("Limite de requêtes"), waf: tx("Pare-feu applicatif") };
+const CACHE: Record<string, [string, string?, AnswerLine["tone"]?]> = {
+  dynamic: [tx("Dynamique"), tx("Cloudflare ne garde pas ces pages : souvent du HTML.")], none: [tx("Sans cache"), tx("Réponse d'erreur ou requête bloquée.")], hit: [tx("Trouvé en cache"), undefined, "ok"],
+  miss: [tx("Absent du cache")], bypass: [tx("Contourné")], expired: [tx("Expiré")], revalidated: [tx("Revalidé")], updating: [tx("En cours de mise à jour")], stale: [tx("Périmé, servi quand même")],
+};
+const ORIGIN: Record<number, string> = { 200: tx("réussie"), 301: tx("redirection"), 302: tx("redirection"), 304: tx("inchangée"), 401: tx("connexion demandée"), 403: tx("refusée"), 404: tx("introuvable"), 500: tx("erreur du serveur"), 502: tx("passerelle en erreur"), 503: tx("service indisponible") };
+const QUERY_TYPES: Record<string, string> = { A: tx("A (adresse IPv4)"), AAAA: tx("AAAA (adresse IPv6)"), DNSKEY: tx("DNSKEY (signature)"), MX: tx("MX (e-mail)") };
+const PROBE = /(^|\/)(wp-login\.php|xmlrpc\.php|wp-admin|\.env|\.git|phpmyadmin|admin\.php)(\/|$)/i;   // what scanners ask for on any site
+
+/** What the firewall did, in words */
+export function actionLine(l: CloudflareLine): AnswerLine {
+  const [name, why] = ACTIONS[l.name] ?? [l.name];
+  return { name, why, requests: l.requests, tone: l.name === "block" ? "bad" : undefined };
+}
+export const sourceName = (name: string) => SOURCES[name] ?? name;
+export function cacheLine(l: CloudflareLine): AnswerLine {
+  const [name, why, tone] = CACHE[l.name] ?? [l.name];
+  return { name, why, tone, requests: l.requests };
+}
+function originTone(code: number): AnswerLine["tone"] {
+  if (code >= 500) return "bad";
+  if (code >= 400) return "warn";
+  return code < 300 ? "ok" : undefined;
+}
+/** What the server answered, as Cloudflare saw it; 0: it was not reached, or kept silent */
+export function originLine(l: CloudflareLine): AnswerLine {
+  const code = Number(l.name);
+  if (code === 0) return { name: tx("Aucune réponse"), requests: l.requests, tone: "warn", why: tx("Requête arrêtée avant le serveur, servie par le cache, ou serveur muet.") };
+  return { name: `${code} ${ORIGIN[code] ?? ""}`.trim(), requests: l.requests, tone: originTone(code) };
+}
+export const queryTypeName = (name: string) => QUERY_TYPES[name] ?? name;
+/** A path a scanner asks for stands out: it says nothing of the site, only that robots are looking for a flaw */
+export function pathLine(l: CloudflareLine): AnswerLine {
+  return PROBE.test(l.name) ? { name: l.name, requests: l.requests, tone: "warn", why: tx("Souvent un robot qui cherche une faille.") } : { name: l.name, requests: l.requests };
 }
 
 /** A country from its two letter code; Cloudflare also sends T1 for Tor and XX for unknown, kept as they are */
