@@ -31,6 +31,7 @@ from pathlib import Path
 from msv.collect import fast
 from msv.collect import netscan
 from msv.collect import pulse
+from msv.collect import recheck
 from msv.core.config import CFG
 
 HERE = Path(__file__).resolve().parents[2]   # the project folder (msv/api/server.py -> ../..)
@@ -171,6 +172,8 @@ def _wait(name: str) -> None:
         build_map()  # avant de libérer la tâche : les cartes suivent toujours les fichiers qu'elles montrent
     if name in ("watch", "health") and code == 0:
         keep_history(name, alert=True)
+    if name == "watch" and code == 0:
+        schedule_recheck()
     if name == "health" and code == 0:
         keep_metrics()
     with LOCK:
@@ -246,9 +249,45 @@ def last_collection() -> dict:
         return {}
 
 
-def pulse_ips() -> list[str]:
+def pulse_machines() -> list[dict]:
     """Followed machines of the last collection, minus the ones switched off in Settings (no ping for them)."""
-    return [m["ip"] for m in last_collection().get("machine_list", []) if m.get("ip") and not m.get("disabled")]
+    return [m for m in last_collection().get("machine_list", []) if m.get("ip") and not m.get("disabled")]
+
+
+def pulse_ips() -> list[str]:
+    return [m["ip"] for m in pulse_machines()]
+
+
+def keep_pulse_availability(p: pulse.Pulse, keys: dict[str, list[tuple[str, str | None]]], every: float) -> None:
+    """What a pulse just saw goes to the availability runs (no request of its own). keys: {target: [(availability key, ip of its machine)]}; a
+    service that is down while its machine does not ping is left to the machine's own line, as in availability.points."""
+    from msv.collect import availability
+    from msv.core.auth import db_path
+    states = {}
+    for target, ks in keys.items():
+        s = p.state.get(target)
+        for key, ip in (ks if s else []):
+            if s["ping"] or (PULSE.state.get(ip) or {}).get("ping") is not False:
+                states[key] = (s["ping"], s.get("began"))
+    try:
+        availability.record(db_path(CFG), states, time.time(), max(120.0, 3 * every))
+    except Exception as e:  # base unavailable: only the minute detail misses a point
+        log(f"⚠ disponibilité (pouls) : {e}")
+
+
+def ports_keys(hosts: list[dict]) -> dict[str, list[tuple[str, str | None]]]:
+    """{« ip:port » followed by the port pulse: [(availability key of each service behind it, ip of its machine)]}."""
+    out: dict[str, list[tuple[str, str | None]]] = {}
+    for r in hosts:
+        if (p := pulse.port_of(r)) and r.get("type") not in ("redirect", "dead"):
+            out.setdefault(p, []).append((f'svc:{r["type"]}:{r["id"]}', r.get("host_ip") or r.get("ip")))
+    return out
+
+
+def pulse_cost() -> list[dict]:
+    """What the pulses cost, for Settings > Requests: one connection (a ping, a TCP connection) per target and pass."""
+    return [{"name": name, "targets": len(p.state), "every": every, "per_min": round(len(p.state) * 60 / every, 1) if every > 0 else 0}
+            for name, p, every in (("machines", PULSE, CFG["pulse_every"]), ("ports", PORTS, CFG["ports_every"]))]
 
 
 HEALTH_TRIED: dict = {}
@@ -274,9 +313,11 @@ def pulse_loop() -> None:
         t0, every = time.time(), CFG["pulse_every"]   # read again at every pass: a change in the settings applies at once
         PULSE.confirm = max(1, CFG["pulse_confirm"])
         try:
-            ips = pulse_ips() if every > 0 else []
+            machines = pulse_machines() if every > 0 else []
+            ips = [m["ip"] for m in machines]
             if ips:
                 owed.add(PULSE.tick(ips))
+                keep_pulse_availability(PULSE, {m["ip"]: [(f'machine:{m["ip"]}', None)] for m in machines if not m.get("off")}, every)
                 owed.health += [ip for ip in pulse_stale_health() if ip not in owed.health]
             # the machine that moved also gets its health read again at once (not at the next 6 h pass), alone
             owed.settle(lambda: run_task("watch", "pouls"), lambda ip: run_task("health", f"ping de {ip} changé (pouls)", ("--only", ip)),
@@ -298,13 +339,48 @@ def ports_loop() -> None:
         PORTS.confirm = max(1, CFG["pulse_confirm"])
         try:
             data = last_collection() if every > 0 else {}
+            by_port = ports_keys(data.get("hosts", []))
             ports = sorted({p for r in data.get("hosts", []) if (p := pulse.port_of(r))})
             owed = bool(ports and PORTS.tick(ports)) or owed
+            if ports:
+                keep_pulse_availability(PORTS, by_port, every)
             if owed and (not enabled("watch") or run_task("watch", "pouls des services")):
                 owed = False
         except Exception as e:  # a bug here must not stop the loop
             log(f"⚠ pouls des services : {e}")
         time.sleep(max(1.0, (every or 5) - (time.time() - t0)))
+
+
+RECHECKED = {"gen": None}
+
+
+def schedule_recheck() -> None:
+    """Once per collection, after the watcher run that made some services wait for their confirmation: the ones bad on a 5xx are tried
+    again alone DELAY s later (recheck.py) instead of waiting for the next collection."""
+    gen = last_collection().get("generated")
+    if gen and gen != RECHECKED["gen"]:
+        RECHECKED["gen"] = gen   # the watcher runs the pulse starts on the same collection do not schedule another one
+        timer = threading.Timer(recheck.DELAY, quick_recheck, args=(gen,))
+        timer.daemon = True
+        timer.start()
+
+
+def quick_recheck(gen: str) -> None:
+    from msv.collect import myservices, watcher
+    try:
+        data = last_collection()
+        pending = json.loads(watcher.STATE_FILE.read_text(encoding="utf-8")).get("pending") or {} if data.get("generated") == gen else {}
+        todo = recheck.pick(data, pending)
+        if not todo:
+            return
+        got = recheck.run(todo, myservices.probe_https)
+        recheck.save(watcher.RECHECK_FILE, gen, got)
+        still = recheck.confirmed(todo, got)
+        log(f"contrôle rapide : {len(todo)} service(s) réessayé(s), {len(still)} toujours en panne")
+        if still and enabled("watch"):
+            run_chain(["watch"], "contrôle rapide")
+    except Exception as e:  # a convenience: the next collection confirms as before
+        log(f"⚠ contrôle rapide : {e}")
 
 
 BANDWIDTH_EVERY = 60   # s, between two readings of the Internet rate (the tiles want it almost live; the sources are shared readings)

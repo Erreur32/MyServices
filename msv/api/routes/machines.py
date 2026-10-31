@@ -226,7 +226,7 @@ def connectors_requests(request: Request):
     """Settings > Requests: calls per route over the last minute and hour, durations, HTTP codes, 429s and what is to watch (reqstats),
     measured in real conditions on any build."""
     from connectors import reqstats
-    return admin_only(request) or dict(reqstats.snapshot(), version=os.environ.get("MYSERVICES_VERSION", "dev"))
+    return admin_only(request) or dict(reqstats.snapshot(), version=os.environ.get("MYSERVICES_VERSION", "dev"), pulses=core.pulse_cost())
 
 
 @router.post(API + "/connectors/requests/reset", tags=["connecteurs"], summary="Request counters back to zero (admin)")
