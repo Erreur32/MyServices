@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Routers**: four read-only connectors shown with the Internet boxes. None was tried on a real router: the answers come from the documentation or from client libraries, so please tell us how they behave.
+  - **OpenWrt**: through ubus, model, firmware, state and address of the Internet connection. A dedicated read-only account is explained in the guide.
+  - **MikroTik RouterOS**: through the REST API of RouterOS 7.1 or later, with the Internet side read from the PPPoE or DHCP client. RouterOS 6 has no REST API.
+  - **Asus router** (AsusWRT and Merlin): one login at a time, so it reads every 15 minutes by default. Models with a nonce login are not covered.
+  - **TP-Link Archer**: only the encrypted LuCI firmwares, from a single source. Each reading closes the owner's open web session, so it reads every 15 minutes by default. Other generations are refused with a message.
+
 ## v0.32.1 (2026-10-31)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
