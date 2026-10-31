@@ -1263,7 +1263,7 @@ def agent_fresh(agent: dict | None) -> bool:
 
 def source_order(hc: dict, agent: dict | None = None) -> list[str]:
     """Priorité de lecture de la santé d'une machine : « health_sources » de services-meta, puis l'ordre par défaut pour
-    les sources non citées. Par défaut SSH, agent, Beszel ; agent d'abord quand il a un relevé frais (il relit la machine chaque minute,
+    les sources non citées. Par défaut SSH, agent, Beszel ; agent d'abord quand il a un relevé frais (il relit la machine à chaque relevé,
     sans clé SSH : le SSH n'est plus ouvert que s'il se tait) et toujours pour Windows (c'est son accès recommandé)."""
     first_agent = hc.get("os") == "windows" or agent_fresh(agent)
     default = ["agent", "ssh", "beszel", "ha"] if first_agent else ["ssh", "agent", "beszel", "ha"]

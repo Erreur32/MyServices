@@ -10,7 +10,7 @@
 param(
   [string]$Url = $env:MSV_URL,
   [string]$Token = $env:MSV_TOKEN,
-  [int]$Minutes = 15,
+  [int]$Minutes = 5,
   [switch]$Uninstall
 )
 $ErrorActionPreference = 'Stop'

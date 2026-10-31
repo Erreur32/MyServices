@@ -6,7 +6,7 @@
 #   curl -fsSL "$MSV_URL/agent/install.sh" | sudo env MSV_URL="$MSV_URL" MSV_TOKEN="$MSV_TOKEN" bash
 #
 # Options (environment variables, add them to the sudo env list):
-#   MSV_MINUTES=15     interval between two reports (1 to 1440)
+#   MSV_MINUTES=5      interval between two reports (1 to 1440)
 #   MSV_DOCKER=1       also put the agent user in the docker group (read Docker containers). Warning: the docker group is root-equivalent
 #   MSV_SMART=1        allow `sudo -n smartctl -H /dev/*` for the agent user (SMART health of the disks)
 #   MSV_SUDO=1         allow the three read-only commands that need root, each alone (exact sudo rules): services to restart after an
@@ -41,7 +41,7 @@ fi
 
 URL=${MSV_URL:-}
 TOKEN=${MSV_TOKEN:-}
-MINUTES=${MSV_MINUTES:-15}
+MINUTES=${MSV_MINUTES:-5}
 # Plain http is deliberate for a MyServices on the local network (the token never leaves it); https is used when the server has a certificate
 URL_OK=0
 [[ "$URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] && URL_OK=1  # NOSONAR S5332: local network, see above
