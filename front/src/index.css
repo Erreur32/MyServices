@@ -124,8 +124,8 @@ body {
 @keyframes row-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .row-in { animation: none; } }
 
-/* « Lancer » d'une tâche jamais passée : halo qui pulse pour qu'on y pense */
-@keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--link) / .55); } 60% { box-shadow: 0 0 0 7px rgb(var(--link) / 0); } }
+/* An action waiting for the reader: a halo that pulses so it is not missed */
+@keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--link) / .8); } 60% { box-shadow: 0 0 0 11px rgb(var(--link) / 0); } }
 .nudge { animation: nudge 1.8s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .nudge { animation: none; box-shadow: 0 0 0 2px rgb(var(--link) / .6); } }
 

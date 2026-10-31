@@ -60,15 +60,9 @@ export function sshRows(machines: Record<string, MachineConf>, aliases: SshAlias
   return rows.sort((a, b) => rank[a.state] - rank[b.state] || byName(a, b));
 }
 
-const AGENT_RHYTHM_S = 300;   // what a new agent is installed with
-
-/** What only a word can tell about an agent that works: what its update brings, and a rhythm the update leaves alone (it lives in the system timer) */
-export function agentNotes(a: AgentInfo): string[] {
-  const notes = [];
-  if (a.kind === "linux" && a.outdated && Number(a.version) < 5) notes.push(tx("La version 5 ajoute la liste des services en marche : mise à jour depuis cette page, rien à lancer sur la machine."));
-  if (a.interval > AGENT_RHYTHM_S) notes.push(tx("Relevés toutes les {0} min : ce rythme date de l'installation et la mise à jour n'y touche pas. Pour passer à 5 min, utilisez « Nouvelle commande » puis lancez-la sur la machine.", Math.round(a.interval / 60)));
-  return notes;
-}
+/** What the update of an agent brings, for its version mark */
+export const agentNews = (a: AgentInfo): string | undefined =>
+  a.kind === "linux" && a.outdated && Number(a.version) < 5 ? tx("La version 5 ajoute la liste des services en marche : mise à jour depuis cette page, rien à lancer sur la machine.") : undefined;
 
 /** Health of an agent out of 100, in three parts (the same rule as the server's tile_history.agent_health): 50 answering in time, 30 script up to
  *  date, 20 machine recognized. `why` names what is missing; null for a revoked agent. */

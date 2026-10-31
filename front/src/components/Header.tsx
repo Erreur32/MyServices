@@ -13,6 +13,7 @@ import { usePoll } from "../lib/polling";
 import { reopenAssistant } from "../lib/assistant";
 import { GITHUB } from "../lib/links";
 import { announcedTag, dismissTag, dismissedTag, markAnnounced, noticesOn, onCheck, onNotices, type UpdateNews } from "../lib/updateNotice";
+import { onHeaderNote } from "../lib/headerNote";
 import { ScanOrb } from "./ScanOrb";
 
 function ago(iso: string, now: number): string {
@@ -120,6 +121,18 @@ function UpdateToast({ news, version, onClose }: Readonly<{ news: UpdateNews; ve
   );
 }
 
+/** A short confirmation sent by a page (headerNote) */
+function HeaderNote() {
+  const [text, setText] = useState("");
+  useEffect(() => onHeaderNote(setText), []);
+  useEffect(() => {
+    if (!text) return undefined;
+    const t = setTimeout(() => setText(""), 6000);
+    return () => clearTimeout(t);
+  }, [text]);
+  return text ? <span role="status" aria-live="polite" className="max-w-[26rem] rounded-full border border-ok/50 bg-ok/10 px-3 py-1 text-xs text-ok motion-safe:animate-[ms-toast_.4s_cubic-bezier(.2,.9,.3,1.2)]">{text}</span> : null;
+}
+
 /** The header's update notices: the pill (from the snapshot, or from a check just made) and the notice; none when switched off */
 function useUpdateNotices(update?: UpdateNews | null) {
   const [checked, setChecked] = useState<UpdateNews | null>(null), [toast, setToast] = useState<UpdateNews | null>(null), [on, setOn] = useState(noticesOn());
@@ -163,6 +176,7 @@ export function Header({ snap, now, onMenu }: Readonly<{ snap: Snapshot; now: nu
       <div className="flex h-0 items-center justify-center gap-6">{/* the middle: a pass running, an update notice; no height of its own, the 64 px orb spills into the header's padding instead of making it taller */}
         <ScanOrb />
         {updates.toast && <UpdateToast news={updates.toast} version={version} onClose={updates.close} />}
+        <HeaderNote />
       </div>
       <div className="col-start-3 flex items-center justify-end gap-3">
         <UpdatePill update={updates.pill} />

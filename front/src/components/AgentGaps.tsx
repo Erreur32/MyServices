@@ -1,5 +1,5 @@
 // What a working agent cannot read yet: said in words, because the machine keeps going through SSH and nothing looks wrong otherwise.
-import { agentNotes } from "../lib/accessLists";
+import { TriangleAlert } from "lucide-react";
 import { tx } from "../lib/i18n";
 import type { AgentInfo } from "../types";
 
@@ -9,9 +9,11 @@ const GAP: Record<string, () => string> = {
   info: () => tx("Le relevé de l'agent ne contient pas les informations de la machine : mettez l'agent à jour."),
 };
 
-export function AgentNotes({ a }: Readonly<{ a: AgentInfo }>) {
-  const notes = agentNotes(a);
-  return notes.length > 0 && <span className="flex flex-col gap-0.5 text-xs text-muted">{notes.map((n) => <span key={n}>{n}</span>)}</span>;
+/** Shown only when something is to be done: what the agent cannot read, on a machine with no SSH to read it instead */
+export function AgentTodo({ a, ssh }: Readonly<{ a: AgentInfo; ssh: boolean }>) {
+  if (ssh || !a.gaps?.length) return null;
+  const label = tx("À faire sur cet agent"), lines = a.gaps.map((g) => GAP[g]?.() ?? g);
+  return <span title={[label, ...lines, tx("Cette machine n'a pas de SSH pour le lire à la place.")].join("\n")} className="inline-flex text-warn"><TriangleAlert size={14} aria-label={label} /></span>;
 }
 
 export function AgentGaps({ gaps }: Readonly<{ gaps: string[] }>) {

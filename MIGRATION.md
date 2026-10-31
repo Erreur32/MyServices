@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.33.2 → 0.33.3
+
+**Nothing to do.** No setting, volume, agent or database change. The Agents page shows a mark only when something is to be done.
+
 ## 0.33.1 → 0.33.2
 
 **Nothing to do.** No setting, volume, agent or database change. Cards of labels and values have a new look.
@@ -14,7 +18,7 @@ Keep a copy of `config/` and `data/` before any update.
 **Nothing to do** for the Docker part: no setting, volume or database change. What to know:
 
 - **Linux agent 5**: it adds the list of running systemd services. An agent with automatic update takes it by itself. Otherwise press « Update now » on the Agents page. An agent left on version 4 keeps its whole inventory and only misses that list.
-- **Rhythm**: an update never changes how often an agent reports. An agent installed before 0.31.10 keeps its 15 minutes, the Agents page says so. To move it to 5 minutes, create a new command and run it on the machine.
+- **Rhythm**: an update never changes how often an agent reports. An agent installed before 0.31.10 keeps its 15 minutes, as shown on the page of its machine. To move it to 5 minutes, create a new command and run it on the machine.
 - **Running services** appear over SSH or by agent within two hours after the update, when the machine inventory is read again.
 - **Agent install over the internet**: `install.sh` and `install.ps1` now refuse plain http beyond the local network or a VPN, as the agent token would travel unencrypted. Use https, or set `MSV_ALLOW_HTTP=1` to accept it on purpose. Agents already installed are not affected, only a new install or a reinstall.
 - **Open ports** starts on the Applications filter: the ports of the machine's own programs are under System or All.
