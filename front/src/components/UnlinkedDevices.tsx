@@ -1,75 +1,91 @@
-// Devices seen by a tool (MynetworK, Proxmox, Dockhand, Beszel…) but not followed here, with « Suivre » to add one as a machine.
-// Shown in Settings → Machines (where machines are added), folded by default.
-import { Plus, Radar } from "lucide-react";
+// Machines › Untracked devices: one list of what the network search and the tools see, with « Follow » and « Hide ».
 import { useMemo, useState } from "react";
-import { LOGIN, LoginRequired, send, type Snapshot } from "../api";
+import type { Device, DeviceGroup } from "../lib/devices";
 import { ipNum } from "../lib/format";
-import { quiet } from "../lib/forms";
+import { useSort } from "../lib/filter";
+import { primary, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
-import { rereadMachines } from "../lib/scan";
-import type { Unlinked } from "../types";
-import { InfoNote } from "./InfoNote";
-import { Badge, Card, Count, Dim } from "./ui";
+import { tagsOf } from "../lib/netScan";
+import { Badge, Cards, Count, Dim, Table, Th } from "./ui";
 
-/** The matching layer's list (all tools), or MynetworK's inventory alone for an older data.json */
-export function unlinkedOf(snap: Snapshot): Unlinked[] {
-  if (snap.data.unlinked) return snap.data.unlinked;
-  const followed = new Set(snap.data.machine_list.map((m) => m.ip));
-  return (snap.data.network ?? []).flatMap((c) => c.devices ?? []).filter((d) => !followed.has(d.ip))
-    .map((d) => ({ source: "mynetwork", label: "MynetworK", instance: "", ip: d.ip, mac: d.mac ?? undefined, name: d.hostname || d.vendor || undefined, online: d.status === "online" }));
+const FILTER = "inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 text-sm font-semibold text-link hover:border-link aria-pressed:border-link aria-pressed:bg-link/15 aria-pressed:text-txt";
+const SMALL = "px-2 py-0.5 text-xs";
+
+const groups = (): [DeviceGroup, string][] => [["look", tx("À regarder")], ["plain", tx("Objets simples")], ["off", tx("Hors ligne")], ["hidden", tx("Cachés")]];
+
+function keyOf(d: Device, key: string): string | number {
+  if (key === "name") return d.name.toLowerCase();
+  if (key === "state") return Number(!d.online);
+  if (key === "seen") return d.seen.join();
+  return d.ip ? ipNum(d.ip) : Number.MAX_SAFE_INTEGER;
 }
 
-export function UnlinkedDevices({ snap, onFollowed }: Readonly<{ snap: Snapshot; onFollowed?: () => void }>) {
-  const untracked = useMemo(() => unlinkedOf(snap), [snap]);
-  const bySource = useMemo(() => {
-    const g = new Map<string, Unlinked[]>();
-    for (const u of untracked) g.set(u.label, [...(g.get(u.label) ?? []), u]);
-    for (const l of g.values()) l.sort((a, b) => (a.ip && b.ip ? ipNum(a.ip) - ipNum(b.ip) : (a.name ?? "").localeCompare(b.name ?? "")));
-    return [...g.entries()];
-  }, [untracked]);
-  // « Suivre » an untracked device: added like a machine found by the network search, then read and checked (admin only)
-  const [following, setFollowing] = useState<Record<string, string>>({});   // "busy", "done" or the refusal text
-  const follow = async (d: Unlinked) => {
-    if (!d.ip) return;
-    const ip = d.ip;
-    setFollowing((f) => ({ ...f, [ip]: "busy" }));
-    try {
-      await send("PUT", `machines/settings/${ip}`, { machine: { name: (d.name || ip).slice(0, 60), role: "" }, extra: [] });
-      setFollowing((f) => ({ ...f, [ip]: "done" }));
-      onFollowed?.();
-      await rereadMachines([ip]).catch(() => undefined);
-    } catch (e) {
-      if (e instanceof LoginRequired) location.replace(LOGIN);
-      else setFollowing((f) => ({ ...f, [ip]: (e as Error).message }));
-    }
-  };
+interface Actions { busy: string | null; onFollow: (d: Device) => void; onHide: (d: Device) => void; onBring: (d: Device) => void }
+
+function Offers({ d, fresh }: Readonly<{ d: Device; fresh?: Set<string> }>) {
+  const tags = tagsOf(d.host).map((t) => t.label);
+  if (d.detail) tags.push(d.detail);
   return (
-    <Card>
-      <h2 className="flex flex-wrap items-center gap-2 font-bold">
-        <Radar size={16} aria-hidden />{tx("Vus par vos outils, pas suivis ici")} <Count n={untracked.length} />
-        <span className="font-normal text-muted">{tx("« Suivre » en fait une machine")}</span>
-      </h2>
-      {untracked.length === 0 && <Dim>{tx("Aucun appareil vu par vos outils en dehors des machines suivies.")}</Dim>}
-      {bySource.map(([label, list]) => (
-        <div key={label} className="mt-2 text-sm">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{label} <span className="font-normal">({list.length})</span></h4>
-          <ul className="mt-1 grid gap-x-6 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
-            {list.slice(0, 120).map((d, n) => (
-              <li key={`${d.ip ?? d.name}-${n}`} className="flex min-w-0 items-baseline gap-2 whitespace-nowrap" title={[d.ip, d.name, d.mac].filter(Boolean).join(" · ")}>
-                {d.online != null && <Badge tone={d.online ? "ok" : "off"}>{d.online ? tx("en ligne") : tx("hors ligne")}</Badge>}
-                {d.ip && <span className="shrink-0 font-mono text-xs">{d.ip}</span>}<span className="min-w-0 truncate">{d.name ?? ""}</span>
-                {d.vmid != null && <Dim>{d.type === "lxc" ? "LXC" : "VM"} {d.vmid}{d.node ? ` · ${d.node}` : ""}</Dim>}
-                {d.mac && <span className="hidden shrink-0 font-mono text-[11px] text-dim 2xl:inline">{d.mac}</span>}
-                {d.ip && (following[d.ip] === "done" ? <Badge tone="ok">{tx("suivie")}</Badge>
-                  : <button type="button" className={`${quiet} ml-auto shrink-0 px-2 py-0.5 text-xs`} disabled={following[d.ip] === "busy"} onClick={() => void follow(d)}
-                      title={following[d.ip] && following[d.ip] !== "busy" ? following[d.ip] : tx("Ajouter aux machines suivies (relevé et santé lancés)")}>
-                      <Plus size={12} aria-hidden />{following[d.ip] && following[d.ip] !== "busy" ? <span className="text-bad">{tx("refusé")}</span> : tx("Suivre")}</button>)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      <InfoNote className="mt-2">{tx("« Suivre » l'ajoute aux machines (son accès SSH se règle ensuite dans sa carte).")}</InfoNote>
-    </Card>
+    <span className="flex flex-wrap items-center gap-1">
+      {tags.map((t) => <Badge key={t} tone="off">{t}</Badge>)}
+      {tags.length === 0 && <Dim>{tx("Rien d'ouvert")}</Dim>}
+      {!!d.ip && fresh?.has(d.ip) && <Badge tone="warn">{tx("nouvelle")}</Badge>}
+    </span>
+  );
+}
+
+function RowActions({ d, busy, onFollow, onHide, onBring }: Readonly<{ d: Device } & Actions>) {
+  if (!d.ip) return null;
+  const off = busy === d.ip;
+  if (d.group === "hidden") return <button type="button" className={`${quiet} ${SMALL}`} disabled={off} onClick={() => onBring(d)}>{tx("Reprendre")}</button>;
+  return (
+    <span className="flex justify-end gap-1.5">
+      <button type="button" className={`${primary} ${SMALL}`} disabled={off} title={tx("Ajouter aux machines suivies (relevé et santé lancés)")} onClick={() => onFollow(d)}>{tx("Suivre")}</button>
+      <button type="button" className={`${quiet} ${SMALL}`} disabled={off} title={tx("Ne plus le proposer, ni dans la cloche")} onClick={() => onHide(d)}>{tx("Cacher")}</button>
+    </span>
+  );
+}
+
+const State = ({ d }: Readonly<{ d: Device }>) => <Badge tone={d.online ? "ok" : "off"}>{d.online ? tx("en ligne") : tx("hors ligne")}</Badge>;
+const Name = ({ d }: Readonly<{ d: Device }>) => (d.name ? <b className="text-txt">{d.name}</b> : <i className="text-dim">{tx("sans nom")}</i>);
+
+export function UnlinkedDevices({ devices, fresh, ...actions }: Readonly<{ devices: Device[]; fresh?: Set<string> } & Actions>) {
+  const [group, setGroup] = useState<DeviceGroup>("look");
+  const shown = useMemo(() => devices.filter((d) => d.group === group), [devices, group]);
+  const sort = useSort(shown, keyOf, "ip");
+  return (
+    <>
+      <fieldset className="flex flex-wrap gap-1.5">
+        <legend className="sr-only">{tx("Filtrer les appareils")}</legend>
+        {groups().map(([id, label]) => <button key={id} type="button" className={FILTER} aria-pressed={group === id} onClick={() => setGroup(id)}>{label}<Count n={devices.filter((d) => d.group === id).length} /></button>)}
+      </fieldset>
+      {shown.length === 0 ? <Dim>{tx("Aucun appareil ici.")}</Dim> : <>
+        <Table head={<>
+          <Th k="state" sort={sort}>{tx("État")}</Th><Th k="name" sort={sort}>{tx("Appareil")}</Th><Th k="ip" sort={sort}>IP</Th>
+          <Th>{tx("Ce qu'il propose")}</Th><Th k="seen" sort={sort}>{tx("Vu par")}</Th><Th><span className="sr-only">{tx("Actions")}</span></Th>
+        </>}>
+          {sort.sorted.map((d) => (
+            <tr key={d.key} className="even:bg-bg/50">
+              <td className="px-3 py-1.5"><State d={d} /></td>
+              <td className="px-3 py-1.5"><Name d={d} /></td>
+              <td className="px-3 py-1.5 font-mono text-xs text-muted">{d.ip}</td>
+              <td className="px-3 py-1.5"><Offers d={d} fresh={fresh} /></td>
+              <td className="px-3 py-1.5 text-muted">{d.seen.join(", ")}</td>
+              <td className="px-3 py-1.5 text-right"><RowActions d={d} {...actions} /></td>
+            </tr>
+          ))}
+        </Table>
+        <Cards>
+          {sort.sorted.map((d) => (
+            <div key={d.key} className="flex flex-col gap-1.5 rounded-xl border border-line bg-card p-3 text-sm">
+              <span className="flex flex-wrap items-center gap-2"><State d={d} /><Name d={d} /><span className="font-mono text-xs text-muted">{d.ip}</span></span>
+              <Offers d={d} fresh={fresh} />
+              <RowActions d={d} {...actions} />
+            </div>
+          ))}
+        </Cards>
+      </>}
+      <p className="text-xs text-dim">{tx("Un appareil caché n'est plus proposé, ni dans la cloche ; « Reprendre » le ramène.")}</p>
+    </>
   );
 }

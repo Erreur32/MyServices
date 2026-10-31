@@ -14,7 +14,7 @@ import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import type { ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias } from "../types";
-import { cardsTitle, cardView, toWatch, type CardTone, type CardView } from "../lib/connectorCards";
+import { cardNotice, cardsTitle, cardView, toWatch, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
@@ -115,7 +115,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   };
   const listed = st.instances.filter((i) => key(i) === edited || key(i) === focusKey || (kept(i) && searchHit(`${i.label} ${i.name} ${i.type}`, find)))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name));   // alphabetical, like the picker
-  const mine = (<div className="mt-3 grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,18rem),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
+  const mine = (<div className="mt-3 grid grid-flow-dense gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,18rem),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
         {listed.length === 0 && <p className="col-span-full py-4 text-center text-sm text-muted">{tx("Aucun connecteur ne correspond.")}</p>}
         {listed.map((i) => (
           <InstanceCard key={`${i.type}/${i.name}`} inst={i} view={views.get(key(i))!} hosts={snap.data.hosts} collect={collect} type={typeOf(i)} reload={reload}
@@ -417,7 +417,7 @@ function CardHead({ inst, category, view, open }: Readonly<{ inst: ConnectorInst
   const s = inst.status, icon = appIcon([inst.label]);
   const sub = [inst.name === inst.type ? "" : inst.name, category ? catName(category) : ""].filter(Boolean).join(" · ");
   return (
-    <span className="flex items-center gap-2.5 rounded-t-xl border-b border-line/40 bg-card px-3 py-2.5">
+    <span className="flex items-center gap-2.5 rounded-t-xl border-b border-line/40 bg-bg px-3 py-2.5">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">
         {icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}
       </span>
@@ -442,24 +442,41 @@ function CardWhere({ inst, url }: Readonly<{ inst: ConnectorInstance; url?: stri
   );
 }
 
-/** What an opened card shows above its form: what the connector reads, and the problems beside it */
-function CardDetail({ view, page }: Readonly<{ view: CardView; page?: string }>) {
+/** A connector that fails or reads old data: what it means, what still holds, what to check first; the words of the tool stay folded */
+function CardFix({ notice, kept }: Readonly<{ notice: CardNotice; kept: boolean }>) {
+  const { advice, raw } = notice, bad = notice.tone === "bad";
+  if (!advice) return null;
   return (
-    <div className={`mb-3 mt-1 grid gap-x-6 gap-y-3 rounded-xl border border-line/60 p-4 ${view.problems.length ? "lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""}`}>
-      <div>
+    <section className={`rounded-lg border px-3 py-2 text-sm ${bad ? "border-bad/40 bg-bad/10" : "border-warn/40 bg-warn/10"}`}>
+      <h4 className={`flex items-center gap-1.5 font-bold ${TEXT[notice.tone]}`}><AlertTriangle size={14} aria-hidden />{advice.short}</h4>
+      <p className="mt-1">{advice.meaning}</p>
+      {kept && <p className="mt-1"><b>{tx("Ce qui reste valable")} :</b> {tx("Les chiffres affichés viennent du dernier relevé réussi. Le service lui-même n'est pas forcément en panne.")}</p>}
+      <p className="mt-1"><b>{tx("À vérifier d'abord")} :</b> {advice.tip}</p>
+      <details className="mt-1.5 text-xs text-muted"><summary className="cursor-pointer">{tx("Message technique")}</summary><p className="mt-1 break-words font-mono">{raw}</p></details>
+    </section>
+  );
+}
+
+/** The right column of an opened card: its troubles first, then what the connector reads */
+function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: CardNotice | null; page?: string }>) {
+  const problems = notice && !notice.advice && !view.problems.includes(notice.text) ? [notice.text, ...view.problems] : view.problems;
+  return (
+    <>
+      {view.facts.length > 0 && <div>
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
           <h4 className="text-xs font-bold uppercase tracking-wide text-muted">{tx("Ce que le connecteur lit")}</h4>
           {page && <a href={`#${page}`} className="text-xs font-semibold text-link hover:underline">{tx("Ouvrir la page")}</a>}
         </div>
-        <dl className="grid overflow-hidden rounded-lg border border-line bg-card [grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr))]">{/* the negative margins hide the separators on the outer edge */}
+        <dl className="grid overflow-hidden rounded-lg border border-line bg-bg2 [grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr))]">{/* the negative margins hide the separators on the outer edge */}
           {view.facts.map((f) => <div key={f.label} className="-mb-px -mr-px min-w-0 border-b border-r border-line px-3 py-2"><dd className={`break-words text-sm font-semibold ${f.tone ? TEXT[f.tone] : ""}`}>{f.value}</dd><dt className="text-xs text-muted">{f.label}</dt></div>)}
         </dl>
-      </div>
-      {view.problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
-        <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
-        <ul className="divide-y divide-warn/20 text-sm">{view.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
       </div>}
-    </div>
+      {notice?.advice && <CardFix notice={notice} kept={view.figures.length > 0} />}
+      {problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+        <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
+        <ul className="divide-y divide-warn/20 text-sm">{problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
+      </div>}
+    </>
   );
 }
 
@@ -473,18 +490,18 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
   useEffect(() => { if (focus) box.current?.scrollIntoView({ block: "center" }); }, [focus]);
   useEffect(() => { if (edit) box.current?.scrollIntoView({ block: "nearest" }); }, [edit]);
   const s = inst.status;
-  const detail = view.facts.length > 0 || view.problems.length > 0;
+  const notice = cardNotice(inst, view);
   return (
-    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`min-w-0 scroll-mt-24 ${edit || focus ? "col-span-full" : ""}`}><div className={`flex h-full flex-col rounded-xl border bg-bg2 ${cardRing(!!(edit || focus), view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
+    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`min-w-0 scroll-mt-24 ${edit || focus ? "col-span-full" : ""}`}><div className={`flex h-full flex-col rounded-xl border bg-card ${cardRing(!!(edit || focus), view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
       {/* the whole top of the card opens it: state, what it reads, its settings and its test, in one place */}
       <button type="button" className="group rounded-t-xl text-left hover:bg-link/10 disabled:cursor-default disabled:hover:bg-transparent" disabled={locked} aria-expanded={edit}
         title={openTip(locked, edit)} onClick={() => setEdit(!edit)}>
         <CardHead inst={inst} category={type.category} view={view} open={edit} />
-        {edit && detail ? <span className="block h-2" /> : <span className="grid grid-cols-3 gap-2 px-3 pb-2 pt-2.5">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
+        {edit ? <span className="block h-2" /> : <span className="grid min-h-16 grid-cols-3 gap-2 px-3 pb-2 pt-2.5">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
       </button>
-      {inst.enabled && (!s || s.pending || !s.ok || s.stale || s.warning) && <div className="px-3 pb-2 text-sm"><StatusLine s={s && { ...s, found: [] }} collect={collect} /></div>}
-      <div className={`mt-auto flex items-center gap-1 border-t border-line/40 bg-card py-1.5 pl-3 pr-2 ${edit ? "" : "rounded-b-xl"}`}>
-        <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>
+      <div className={`mt-auto flex items-center gap-1 border-t border-line/40 bg-bg py-1.5 pl-3 pr-2 ${edit ? "" : "rounded-b-xl"}`}>
+        {notice && !edit ? <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${TEXT[notice.tone]}`} title={notice.raw ?? notice.text}>{notice.text}</span>
+          : <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>}
         <span className="ml-1 flex items-center" title={tx("Le connecteur est lu par le serveur à sa période (voir Modifier) ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
           <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />
         </span>
@@ -492,8 +509,10 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
       <div className="px-3 empty:hidden">
         {toggling && <output className="inline-flex items-center gap-1.5 pb-2 text-xs text-warn"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</output>}
         <ToggleNote note={toggleNote ?? null} onForce={onForce} />
-        {edit && detail && <CardDetail view={view} page={PAGE[inst.type]} />}
-        {edit && <ConnectorForm type={type} inst={inst} hosts={hosts} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)}
+        {edit && <ConnectorForm type={type} inst={inst} hosts={hosts} aside={<>
+          {inst.enabled && (!s || s.pending) && <p className="text-sm"><StatusLine s={s && { ...s, found: [] }} collect={collect} /></p>}
+          <CardDetail view={view} notice={notice} page={PAGE[inst.type]} />
+        </>} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)}
           onDelete={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => { if (ok) { setEdit(false); reload(); } })} />}
         <NoteLine note={note} />
       </div>
@@ -511,8 +530,8 @@ function Required({ text }: Readonly<{ text: string }>) {
   return <span className="font-semibold text-txt">{text}<b className="ml-0.5 text-bad" title={tx("requis")} aria-label={tx("requis")}>*</b></span>;
 }
 
-function FieldGroup({ title, children }: Readonly<{ title: string; children: ReactNode }>) {
-  return <section><h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">{title}</h4><div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">{children}</div></section>;
+function FieldGroup({ title, stacked, children }: Readonly<{ title: string; stacked: boolean; children: ReactNode }>) {
+  return <section><h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">{title}</h4><div className={`grid gap-x-4 gap-y-3 ${stacked ? "" : "sm:grid-cols-2"}`}>{children}</div></section>;
 }
 
 function Figure({ f }: Readonly<{ f: CardView["figures"][number] }>) {
@@ -539,6 +558,16 @@ function iconOption(c: string) {
   return { value: c, label: c.charAt(0).toUpperCase() + c.slice(1), icon: src ? <img src={src} alt="" className="h-7 w-7" /> : <Package size={24} className="text-muted" aria-hidden /> };
 }
 
+/** A field with choices: icon buttons when its values have a logo, else a list */
+function ChoiceInput({ f, v, box, put }: Readonly<{ f: ConnectorField; v?: ConfValue; box: string; put: (x: ConfValue) => void }>) {
+  if (f.choices.some((c) => appIcon([c]))) return <IconChoice label={tx(f.label)} value={String(v ?? f.default ?? "")} onPick={put} options={f.choices.map(iconOption)} />;
+  return (
+    <select className={box} value={String(v ?? "")} onChange={(e) => put(e.target.value)}>
+      {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+    </select>
+  );
+}
+
 /** The input of a field, by its kind; `put` gives its new value */
 function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }: Readonly<{
   f: ConnectorField; v?: ConfValue; box: string; need: boolean; kept: boolean; inst?: ConnectorInstance; picksMachine: boolean; aliases: SshAlias[]; put: (x: ConfValue) => void;
@@ -551,16 +580,14 @@ function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }:
       {aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias}{aliasTail(a)}</option>)}
     </select>
   );
-  if (f.choices.some((c) => appIcon([c]))) return <IconChoice label={tx(f.label)} value={String(v ?? f.default ?? "")} onPick={put} options={f.choices.map(iconOption)} />;
-  if (f.choices.length) return (
-    <select className={box} value={text} onChange={(e) => put(e.target.value)}>
-      {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}
-    </select>
-  );
+  if (f.choices.length) return <ChoiceInput f={f} v={v} box={box} put={put} />;
   if (f.secret) return (
     <SecretInput value={text} onChange={put} kept={kept} className={box}
       placeholder={kept ? tx("déjà renseigné : laisser vide pour garder") : ""}
       reveal={inst ? (password) => send<{ value: string }>("POST", `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}/reveal`, { field: f.name, password }).then((r) => r.value) : undefined} />
+  );
+  if (f.name === "every") return (   // minutes, within what connectors/base.py period() keeps
+    <span className="flex items-center gap-2"><input className={`${box} !w-28`} type="number" inputMode="numeric" min={1} max={1440} step={1} value={text} placeholder={tx("défaut")} onChange={(e) => put(e.target.value)} /><span className="text-sm text-muted">{tx("minutes")}</span></span>
   );
   return (
     <input className={box} type={f.kind === "number" ? "number" : "text"} autoComplete="off"
@@ -569,11 +596,14 @@ function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }:
   );
 }
 
-export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = false, onSaved, onDone, onCancel, onDelete }: Readonly<{ onDelete?: () => void; type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; found?: Service; hosts?: Host[]; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }>) {
+export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = false, aside, onSaved, onDone, onCancel, onDelete }: Readonly<{ aside?: ReactNode; onDelete?: () => void; type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; found?: Service; hosts?: Host[]; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }>) {
   const [name, setName] = useState(inst?.name || prefill?.name || type.type);
   const [conf, setConf] = useState<Conf>(() => {
     const init: Conf = {};
-    for (const f of type.fields) if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.name === "url" ? prefill?.url : undefined) ?? (f.default as ConfValue | null) ?? "";
+    for (const f of type.fields) {
+      const start = f.name === "verify_tls" && !inst ? false : f.default as ConfValue | null;   // a new connector does not assume a valid certificate
+      if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.name === "url" ? prefill?.url : undefined) ?? start ?? "";
+    }
     return init;
   });  // the install is known (found by the scan, or the app at the address typed): its exact command comes first in the help
   const setup = setupCommand(type.type, found ?? serviceAt(conf.url, hosts ?? [], type.type));
@@ -583,7 +613,8 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
   // Façon de relier le service (NPM : API directe, par SSH, script) : décide des champs montrés, requis et envoyés
   const [mode, setMode] = useState(() => modeOf(type, inst?.config));
   const modeDef: ConnectorMode | undefined = (type.modes ?? []).find((m) => m.id === mode);
-  const shown = modeDef ? type.fields.filter((f) => modeDef.fields.includes(f.name)) : type.fields;
+  const noCertificate = !!conf.url && !/^https:/i.test(String(conf.url));   // nothing to verify on a plain address
+  const shown = (modeDef ? type.fields.filter((f) => modeDef.fields.includes(f.name)) : type.fields).filter((f) => f.name !== "verify_tls" || !noCertificate);
   const [aliases, setAliases] = useState<MachinesSettings["aliases"]>([]);
   useEffect(() => { if (type.modes?.length) read<MachinesSettings>("machines/settings").then((m) => setAliases(m.aliases)).catch(() => undefined); }, [type.modes]);
   const pickMode = (id: string) => {
@@ -620,24 +651,12 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
     const kept = inst && f.secret && inst.set[f.name];
     const v = conf[f.name];
     const need = needed(f), box = fieldBox(need, !kept && (v === undefined || v === ""));
-    return (
-      <Field key={f.name} label={need ? <Required text={tx(f.label)} /> : tx(f.label)}>
-        <FieldInput f={f} v={v} box={box} need={need} kept={!!kept} inst={inst} picksMachine={!!modeDef} aliases={aliases} put={(x) => setConf({ ...conf, [f.name]: x })} />
-        {f.help && <span className="text-xs text-dim">{tx(f.help)}</span>}
-      </Field>
-    );
+    const input = <FieldInput f={f} v={v} box={box} need={need} kept={!!kept} inst={inst} picksMachine={!!modeDef} aliases={aliases} put={(x) => setConf({ ...conf, [f.name]: x })} />;
+    const help = f.help && <span className="text-xs text-dim">{tx(f.help)}</span>;
+    if (f.kind === "bool") return <div key={f.name} className="flex flex-col gap-1"><label className="flex items-center gap-2 text-sm text-muted">{input}{tx(f.label)}</label>{help}</div>;
+    return <Field key={f.name} label={need ? <Required text={tx(f.label)} /> : tx(f.label)}>{input}{help}</Field>;
   };
-  return (
-    // Editing happens inside the instance card (already outlined in blue, with its logo and title): no inner frame nor header there
-    <form onSubmit={submit} className={`mb-3 flex flex-col gap-4 ${inst ? "rounded-xl border border-line/60 p-4" : "mt-3 rounded-xl border-2 border-link bg-link/5 p-4"}`}>
-      {!inst && (
-        <div className="flex items-center gap-3 border-b border-line/60 pb-2">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
-            {appIcon([type.label]) ? <img src={appIcon([type.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
-          </span>
-          <div className="min-w-0"><b className="block truncate">{type.label}</b><span className="text-xs text-dim">{tx("Nouveau connecteur")}</span></div>
-        </div>
-      )}
+  const fields = <>
       {modeDef && (
         <div className="flex flex-col gap-1.5">
           <span className="text-sm text-muted">{tx("Comment MyServices lit ce service")}</span>
@@ -650,32 +669,36 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
           <InfoNote>{tx(modeDef.help)}</InfoNote>
         </div>
       )}
-      <FieldGroup title={tx("Obligatoire")}>
+      <FieldGroup title={tx("Obligatoire")} stacked={!!inst}>
         <Field label={<Required text={tx("Nom de l'instance (unique pour ce type)")} />}>
           <input className={fieldBox(true, !name)} required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
         {shown.filter(needed).map(renderField)}
       </FieldGroup>
-      {shown.some((f) => !needed(f)) && <FieldGroup title={tx("Facultatif")}>{shown.filter((f) => !needed(f)).map(renderField)}</FieldGroup>}
+      {shown.some((f) => !needed(f)) && <FieldGroup title={tx("Facultatif")} stacked={!!inst}>{shown.filter((f) => !needed(f)).map(renderField)}</FieldGroup>}
       {type.type === "npm" && mode === "script" && <NpmScript conf={conf} setConf={setConf} />}
       {type.tested.length > 0 && <p className="text-xs text-dim">{tx("Versions testées :")} {type.tested.join(", ")}</p>}
-      <div className="flex flex-wrap gap-2">
+  </>;
+  const buttons = (
+      <div className={`flex flex-wrap gap-2 ${inst ? "mt-auto justify-end" : ""}`}>
         <button type="button" className={quiet} disabled={busy} onClick={() => void tryIt()}>{tx("Tester")}</button>
         <button type="submit" className={primary} disabled={busy}><Plus size={14} />{inst ? tx("Enregistrer") : tx("Ajouter")}</button>
         <button type="button" className={quiet} disabled={busy} title={tx("Service arrêté ou pas encore prêt : réglages gardés, sans test ni collecte ; l'allumer plus tard")}
           onClick={() => void save(false)}>{tx("Enregistrer sans collecte")}</button>
         <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
-        {onDelete && <span className="ml-auto flex flex-wrap gap-1.5">{confirm ? <>
+        {onDelete && <span className={`flex flex-wrap gap-1.5 ${inst ? "" : "ml-auto"}`}>{confirm ? <>
           <button type="button" className={danger} onClick={onDelete}>{tx("Confirmer")}</button>
           <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
         </> : <button type="button" className={danger} onClick={() => setConfirm(true)} title={tx("Supprimer : retire ce connecteur et ses réglages (une confirmation est demandée)")}><Trash2 size={15} aria-hidden />{tx("Supprimer")}</button>}</span>}
         {type.guide && type.guide.length > 0 && (
-          <button type="button" className={`${quiet} ml-auto`} aria-expanded={help} onClick={() => setHelp(!help)}>
+          <button type="button" className={`${quiet} ${inst ? "" : "ml-auto"}`} aria-expanded={help} onClick={() => setHelp(!help)}>
             <HelpCircle size={14} aria-hidden />{tx("Besoin d'aide pour obtenir ces accès ?")}
           </button>
         )}
         {busy && <span className="self-center text-sm text-dim">…</span>}
       </div>
+  );
+  const extras = <>
       {help && type.guide && (setup ? (
         <div className="flex flex-col gap-2 rounded-lg border border-line/70 bg-bg2/60 p-3 text-sm text-muted">
           <p><b className="text-txt">{tx("Pour votre installation détectée")}</b> <Dim>({setup.title})</Dim> : {tx("lancez cette commande sur la machine, puis copiez le jeton affiché dans le champ ci-dessus.")}</p>
@@ -689,6 +712,24 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
       ))}
       {report && <TestReport r={report} onClose={() => setReport(null)} />}
       <NoteLine note={note} />
+  </>;
+  return (
+    // Editing happens inside the instance card (already outlined in blue, with its logo and title): no inner frame nor header there
+    <form onSubmit={submit} className={`mb-3 flex flex-col gap-4 ${inst ? "rounded-xl border border-line/60 p-4" : "mt-3 rounded-xl border-2 border-link bg-link/5 p-4"}`}>
+      {!inst && (
+        <div className="flex items-center gap-3 border-b border-line/60 pb-2">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
+            {appIcon([type.label]) ? <img src={appIcon([type.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
+          </span>
+          <div className="min-w-0"><b className="block truncate">{type.label}</b><span className="text-xs text-dim">{tx("Nouveau connecteur")}</span></div>
+        </div>
+      )}
+      {inst ? (
+        <div className="grid gap-x-6 gap-y-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-4">{fields}</div>
+          <div className="flex min-w-0 flex-col gap-3">{aside}{extras}{buttons}</div>
+        </div>
+      ) : <>{fields}{buttons}{extras}</>}
     </form>
   );
 }

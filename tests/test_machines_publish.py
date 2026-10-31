@@ -22,6 +22,13 @@ class Publish(unittest.TestCase):
         p.start()
         self.addCleanup(p.stop)
 
+    def test_non_suivie_publiee_tout_de_suite(self):
+        self.data.write_text(json.dumps({"machine_list": [{"ip": "10.0.0.2", "name": "srv", "disabled": False}]}), encoding="utf-8")
+        machines_admin.publish("10.0.0.2", {"name": "srv", "disabled": True})
+        self.assertIs(json.loads(self.data.read_text(encoding="utf-8"))["machine_list"][0]["disabled"], True)
+        machines_admin.publish("10.0.0.2", {"name": "srv"})   # followed again: the flag is gone from the settings
+        self.assertIs(json.loads(self.data.read_text(encoding="utf-8"))["machine_list"][0]["disabled"], False)
+
     def test_role_et_nom_publies(self):
         self.data.write_text(json.dumps({"machine_list": [{"ip": "10.0.0.2", "name": "srv", "role": "Docker"}, {"ip": "10.0.0.3", "name": "pc", "role": ""}],
                                          "machines": {"10.0.0.2": {"name": "srv", "role": "Docker"}}}), encoding="utf-8")

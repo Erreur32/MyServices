@@ -1,7 +1,8 @@
 // A connector card tells its state in one word and keeps its figures short; the long values wait for the open card.
 import { describe, expect, it } from "vitest";
 import type { ConnectorInstance, ServiceStatus } from "../types";
-import { cardsTitle, cardView, toWatch } from "./connectorCards";
+import { connectorAdvice } from "./connectorAdvice";
+import { cardNotice, cardsTitle, cardView, toWatch } from "./connectorCards";
 
 const inst = (status: Partial<NonNullable<ConnectorInstance["status"]>> | null, enabled = true) => ({
   type: "x", label: "X", name: "x", config: {}, set: {}, enabled,
@@ -43,5 +44,34 @@ describe("connector cards", () => {
     const ok = cardView(inst({})), bad = cardView(inst({ ok: false })), warn = cardView(inst({ stale: true }));
     expect(cardsTitle([ok, ok])).toBe("2 connecteurs, aucun en échec.");
     expect(cardsTitle([ok, bad, warn])).toBe("3 connecteurs, 1 en échec. 1 à vérifier.");
+  });
+});
+
+describe("the trouble of a connector", () => {
+  const short = (m: string) => connectorAdvice(m).short;
+  it("says the cause in plain words, whatever the tool wrote", () => {
+    expect(short("NPM a (http://127.0.0.1:81/api/tokens via ssh b) : curl: (22) The requested URL returned error: 502")).toBe("Le service ne répond pas (502)");
+    expect(short("HTTP 403")).toBe("Accès refusé");
+    expect(short("identifiants refusés")).toBe("Accès refusé");
+    expect(short("HTTP 404")).toBe("Adresse de l'API introuvable");
+    expect(short("<urlopen error [Errno 111] Connection refused>")).toBe("Rien n'écoute sur ce port");
+    expect(short("délai dépassé (120 s)")).toBe("Pas de réponse à temps");
+    expect(short("curl: (6) Could not resolve host: x")).toBe("Nom de machine inconnu");
+    expect(short("certificate verify failed")).toBe("Certificat refusé");
+    expect(short("ssh: root@x: Permission denied (publickey)")).toBe("Connexion SSH refusée");
+    expect(short("quelque chose d'imprévu")).toBe("Lecture impossible");
+  });
+  it("a port number in an address is not an HTTP code", () => {
+    expect(short("http://10.0.0.1:502 : réponse illisible")).toBe("Lecture impossible");
+  });
+  it("gives one line to a failure, an old reading, a warning or a point, none to a healthy or switched off card", () => {
+    const notice = (status: Parameters<typeof inst>[0], enabled = true, c?: ServiceStatus) => { const i = inst(status, enabled); return cardNotice(i, cardView(i, c)); };
+    expect(notice({ ok: false, message: "HTTP 502" })).toMatchObject({ tone: "bad", text: "Le service ne répond pas (502)", raw: "HTTP 502" });
+    expect(notice({ stale: true, message: "HTTP 502" })?.tone).toBe("warn");
+    expect(notice({ warning: "lecture partielle" })).toEqual({ text: "lecture partielle", tone: "warn" });
+    expect(notice({}, true, card({ problems: ["a", "b"] }))).toEqual({ text: "a", tone: "warn" });
+    expect(notice({})).toBeNull();
+    expect(notice({ ok: false, message: "x" }, false)).toBeNull();
+    expect(notice({ pending: true, ok: false, message: "x" })).toBeNull();
   });
 });

@@ -5,9 +5,13 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
-## 0.31.8 → next version
+## 0.31.8 → 0.31.9
 
-**Nothing required yet.**
+**Nothing to do.** Two things to expect:
+
+- The Services tiles and curves now count one service per machine, whatever its ports. The curves step down once at the update: earlier points counted each port.
+- Tapo: a new optional field, « Camera accounts », gives a picture to cameras without a recorder.
+- A connector with a wrong setting is skipped and flagged, the others keep being read. Connectors already saved keep their « Verify HTTPS certificate » setting.
 
 ## 0.31.7 → 0.31.8
 

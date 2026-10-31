@@ -4,6 +4,8 @@
 import { ArrowRight, Boxes, EthernetPort, Globe, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
+import { FollowAsk, FollowButton, NotFollowedBanner } from "../components/MachineFollow";
+import { DetailMore, DetailSection } from "../components/DetailSection";
 import { MachineIcon } from "../components/MachineIcon";
 import { dateTime } from "../lib/format";
 import { quiet } from "../lib/forms";
@@ -66,39 +68,42 @@ function AvailabilityTile({ item }: Readonly<{ item: Item | null | undefined }>)
   );
 }
 
+/** The cards only this page adds, each in the column of its subject */
+export interface PageCards { running: ReactNode; protection: ReactNode }
+
+const PORTS_SHOWN = 6, DOMAINS_SHOWN = 2;
+
+/** One open port: its state, service and port on a line, then where it is reached from */
+function PortLine({ r, scanned }: Readonly<{ r: PortRow; scanned: boolean }>) {
+  const unseen = scanned && !r.listening && !!r.host, st = r.host ? status(r.host) : null;
+  const cls: StatusClass = st?.[0] ?? "warn", label = st?.[1] ?? tx("port inconnu");
+  const below = unseen || r.domains.length > 0;
+  return (
+    <li className={`grid grid-cols-[auto_minmax(0,1fr)_auto_3.25rem] items-center gap-x-2 gap-y-1 border-t border-line/40 py-1 first:border-t-0 ${unseen ? "opacity-55" : ""}`}>
+      <span title={unseen ? tx("pas vu ouvert au dernier scan") : label}><Dot tone={unseen ? "off" : cls} /></span>
+      <PortService r={r} />
+      <span>{!below && <PortExposure r={r} unseen={unseen} />}</span>
+      <span className="text-right font-mono text-xs tabular-nums text-muted" title={r.seen.length ? tx("Vu par : {0}", r.seen.map((x) => SEEN_BY[x]).join(", ")) : undefined}>:{r.port}</span>
+      {below && <span className="col-span-full pl-4"><PortExposure r={r} unseen={unseen} /></span>}
+    </li>
+  );
+}
+
 /** The open ports of the machine, each matched to its service (its icon, kind and state) and to the NPM domains that expose it; an unknown port is told so,
- *  with what usually listens there. A port of a known service not seen open by the last scan is faded. */
-function PortsCard({ snap, m, onMachine }: Readonly<{ snap: Snapshot; m: Machine; onMachine: (ip: string) => void }>) {
+ *  with what usually listens there. A port of a known service not seen open by the last scan is faded. What outsiders reach or nobody knows comes first. */
+function PortsCard({ snap, m }: Readonly<{ snap: Snapshot; m: Machine }>) {
   const net = (snap.data.network ?? []).flatMap((c) => c.devices ?? []).find((d) => d.ip === m.ip);
   const wz = wazuhOf(snap.data.services_status, m.ip, m.name, new Set(snap.data.machine_list.map((x) => x.ip)));
   const sheet = snap.data.sheets?.[m.ip], rows = portRows(m, snap.data.hosts, sheet, { mynetwork: net?.ports, wazuh: wz?.m.ports });
   if (!rows.length) return null;
-  const hasWeb = m.services > 0 || (m.web?.length ?? 0) > 0;   // a service seen on this machine (NPM, Docker, web server): else the button leads nowhere
   const scanned = !!sheet?.scan, at = sheet?.scan?.ports_at ?? net?.ports_at;
+  const later = (r: PortRow) => Number(!r.domains.length && (!!(r.host && r.name) || !!r.process));
+  const sorted = [...rows].sort((a, b) => later(a) - later(b)), more = sorted.slice(PORTS_SHOWN);
   return (
-    <section className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Ports ouverts")}>
-      <div className="-mx-4 -mt-4 mb-2 flex flex-wrap items-center gap-2 border-b border-line/60 bg-bg px-4 py-2">
-        <h2 className="flex items-center gap-2 font-bold"><EthernetPort size={16} aria-hidden />{tx("Ports ouverts")} <span className="text-sm font-normal text-dim">{rows.length}{at && ` · ${tx("scannés le {0}", dateTime(at))}`}</span></h2>
-        <button type="button" onClick={() => onMachine(m.ip)} disabled={!hasWeb} title={hasWeb ? undefined : tx("Aucun service web actif sur cette machine")} className={`${quiet} ml-auto disabled:cursor-not-allowed disabled:opacity-50`}>{tx("Services Web")}<ArrowRight size={14} aria-hidden /></button>
-      </div>
-      <table className="mt-2 w-full text-sm">
-        <thead><tr className="text-left text-xs text-muted"><th className="w-4 py-1 pr-2" aria-label={tx("État")} /><th className="py-1 pr-3 font-semibold">{tx("Service")}</th><th className="py-1 pr-3 font-semibold">{tx("Port")}</th><th className="py-1 font-semibold">{tx("Exposé")}</th></tr></thead>
-        <tbody>
-          {rows.map((r) => {
-            const unseen = scanned && !r.listening && !!r.host, st = r.host ? status(r.host) : null;
-            const cls: StatusClass = st?.[0] ?? "warn", label = st?.[1] ?? tx("port inconnu");
-            return (
-              <tr key={r.port} className={`border-t border-line/60 even:bg-bg/50 ${unseen ? "opacity-55" : ""}`}>
-                <td className="py-1.5 pr-2" title={unseen ? tx("pas vu ouvert au dernier scan") : label}><Dot tone={unseen ? "off" : cls} /></td>
-                <td className="py-1.5 pr-3"><PortService r={r} /></td>
-                <td className="py-1.5 pr-3 font-mono text-xs tabular-nums text-muted" title={r.seen.length ? tx("Vu par : {0}", r.seen.map((x) => SEEN_BY[x]).join(", ")) : undefined}>:{r.port}</td>
-                <td className="py-1.5"><PortExposure r={r} unseen={unseen} /></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </section>
+    <DetailSection sec="ports" icon={EthernetPort} title={tx("Ports ouverts")} tone="link" right={<span className="text-dim" title={at ? tx("scannés le {0}", dateTime(at)) : undefined}>{rows.length}</span>}>
+      <ul className="flex flex-col">{sorted.slice(0, PORTS_SHOWN).map((r) => <PortLine key={r.port} r={r} scanned={scanned} />)}</ul>
+      {more.length > 0 && <DetailMore label={tx("Les {0} autres ports", more.length)}><ul className="flex flex-col">{more.map((r) => <PortLine key={r.port} r={r} scanned={scanned} />)}</ul></DetailMore>}
+    </DetailSection>
   );
 }
 
@@ -111,9 +116,9 @@ function PortExposure({ r, unseen }: Readonly<{ r: PortRow; unseen: boolean }>) 
   if (r.local && !r.domains.length) return <span className="rounded-md border border-line px-1.5 py-0.5 text-xs text-dim" title={tx("Écoute seulement sur 127.0.0.1 : rien ne l'atteint depuis le réseau")}>{tx("machine seule")}</span>;
   if (!r.domains.length) return <span className="rounded-md border border-line px-1.5 py-0.5 text-xs text-dim" title={tx("Joignable seulement depuis le réseau local")}>LAN</span>;
   return (
-    <span className="flex flex-wrap gap-1">{r.domains.map((d) => (
+    <span className="flex flex-wrap gap-1" title={r.domains.join("\n")}>{r.domains.slice(0, DOMAINS_SHOWN).map((d) => (
       <a key={d} href={`https://${d}`} target="_blank" rel="noreferrer" title={tx("Exposé sur Internet par NPM")} className="inline-flex items-center gap-1 rounded-md border border-link/40 bg-link/10 px-1.5 py-0.5 text-xs text-link no-underline hover:border-link"><Globe size={11} aria-hidden />{d}</a>
-    ))}</span>
+    ))}{r.domains.length > DOMAINS_SHOWN && <span className="px-1 text-xs text-dim">+{r.domains.length - DOMAINS_SHOWN}</span>}</span>
   );
 }
 
@@ -121,13 +126,13 @@ function PortExposure({ r, unseen }: Readonly<{ r: PortRow; unseen: boolean }>) 
 function PortService({ r }: Readonly<{ r: PortRow }>) {
   const box = "grid h-5 w-5 shrink-0 place-items-center rounded border";
   if ((!r.host || !r.name) && r.process) return (   // no service known here, but Wazuh names the program
-    <span className="inline-flex items-center gap-2">
+    <span className="flex min-w-0 items-center gap-2">
       <span className={`${box} border-line bg-bg2 text-dim`} aria-hidden><EthernetPort size={11} /></span>
-      <span className="font-mono text-[13px]" title={tx("Programme qui écoute, vu par Wazuh")}>{r.process}</span>
+      <span className="truncate font-mono text-xs" title={tx("Programme qui écoute, vu par Wazuh")}>{r.process}</span>
     </span>
   );
   if (!r.host || !r.name) return (
-    <span className="inline-flex items-center gap-2">
+    <span className="flex min-w-0 items-center gap-2">
       <span className={`${box} border-warn/50 text-[11px] font-bold text-warn`} aria-hidden>?</span>
       <span className="text-warn">{tx("inconnu")}</span>
       {r.guess && <span className="text-xs text-dim" title={tx("Supposition d'après le numéro de port, rien n'a été vérifié")}>{tx("souvent : {0}", r.guess)}</span>}
@@ -135,10 +140,10 @@ function PortService({ r }: Readonly<{ r: PortRow }>) {
   );
   const icon = serviceIcon(r.host), kind = r.host.service?.kind;
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="flex min-w-0 items-center gap-2">
       {icon ? <img src={icon} alt="" aria-hidden className="h-5 w-5 shrink-0 object-contain" /> : <span className={`${box} border-line bg-bg2 text-dim`} aria-hidden><EthernetPort size={11} /></span>}
-      <b className="font-semibold">{r.name}</b>
-      {kind && KIND_NAME[kind] && kind !== "inconnu" && <span className="rounded border border-line px-1 text-[10.5px] text-dim">{KIND_NAME[kind]}</span>}
+      <b className="min-w-0 truncate font-semibold" title={r.name}>{r.name}</b>
+      {kind && KIND_NAME[kind] && kind !== "inconnu" && <span className="shrink-0 rounded border border-line px-1 text-[10.5px] text-dim">{KIND_NAME[kind]}</span>}
     </span>
   );
 }
@@ -151,14 +156,10 @@ function GuestsCard({ snap, m }: Readonly<{ snap: Snapshot; m: Machine }>) {
   if (!rows.length) return null;
   const running = rows.filter((r) => r.guest.status === "running").length;
   return (
-    <section className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Machines virtuelles")}>
-      <div className="-mx-4 -mt-4 mb-2 flex flex-wrap items-center gap-2 border-b border-line/60 bg-bg px-4 py-2">
-        <h2 className="flex items-center gap-2 font-bold"><Boxes size={16} aria-hidden />{tx("Machines virtuelles")} <span className="text-sm font-normal text-dim">{tx("{0} en marche sur {1}", running, rows.length)}</span></h2>
-        <a href="#virtualization" className={`${quiet} ml-auto no-underline`}>{tx("Virtualisation")}<ArrowRight size={14} aria-hidden /></a>
-      </div>
-      <ul className="mt-2 flex flex-col divide-y divide-line/60 text-sm">
+    <DetailSection sec="guests" icon={Boxes} title={tx("Machines virtuelles")} tone="link" right={<a href="#virtualization" className="text-link hover:underline" title={tx("Virtualisation")}>{tx("{0} en marche sur {1}", running, rows.length)}</a>}>
+      <ul className="flex flex-col divide-y divide-line/40">
         {rows.map(({ guest: g, machineIp }) => (
-          <li key={`${g.node}/${g.vmid}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
+          <li key={`${g.node}/${g.vmid}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1">
             <Dot tone={g.status === "running" ? "ok" : "off"} />
             <span className="rounded-md border border-line bg-bg2 px-1.5 py-0.5 text-[11px] text-muted">{GUEST_KIND[g.type] ?? g.type} {g.vmid}</span>
             {machineIp ? <a href={`#machines/${machineIp}`} className="font-semibold text-txt hover:text-link">{g.name ?? g.vmid}</a> : <b className="font-semibold">{g.name ?? g.vmid}</b>}
@@ -168,14 +169,14 @@ function GuestsCard({ snap, m }: Readonly<{ snap: Snapshot; m: Machine }>) {
           </li>
         ))}
       </ul>
-    </section>
+    </DetailSection>
   );
 }
 
 /** The page of one machine: its information (#machines/<ip>), or its settings alone (#machines/<ip>/settings; /access opens them on the Access tab) */
 export function MachinePage({ snap, m, scan, model, state, detail, figures, onMachine, focusTab, onBack }: Readonly<{
   snap: Snapshot; m: Machine; scan?: { os?: string; apps: string[]; ssh?: boolean }; model?: string; state: ReactNode;
-  detail: (extra: ReactNode) => ReactNode; figures: MachineFigure[];   // detail: the wall of cards, `extra` the cards of this page added at its end
+  detail: (extra: PageCards) => ReactNode; figures: MachineFigure[];   // detail: the three columns of cards, `extra` the cards of this page
   onMachine: (ip: string) => void; focusTab?: "settings" | "access"; onBack: () => void;
 }>) {
   const admin = snap.me.role === "admin";
@@ -199,8 +200,9 @@ const backButton = (label: string, onClick: () => void) => <BackButton label={la
 
 /** What MyServices knows of the machine: state, health, software, backups, availability, ports, guests; its settings are one click away */
 function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, head }: Readonly<{
-  m: Machine; snap: Snapshot; detail: (extra: ReactNode) => ReactNode; figures: MachineFigure[]; admin: boolean; onMachine: (ip: string) => void; onBack: () => void; head: Head;
+  m: Machine; snap: Snapshot; detail: (extra: PageCards) => ReactNode; figures: MachineFigure[]; admin: boolean; onMachine: (ip: string) => void; onBack: () => void; head: Head;
 }>) {
+  const [asking, setAsking] = useState(false);
   const [avail, setAvail] = useState<Item | null | undefined>(undefined);
   useEffect(() => {
     read<Report>(`availability?days=${DAYS}`).then((r) => setAvail(availabilityOf(r.items, m) ?? null)).catch(() => setAvail(null));
@@ -215,11 +217,14 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
   }, [m.ip, readAt]);   // and at once after a reading of this machine
   const right = <>
     {m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} className={quiet}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>}
+    {admin && <FollowButton m={m} onAsk={() => setAsking(!asking)} />}
     {admin && <a href={`#machines/${m.ip}/settings`} className={`${quiet} no-underline`}><SlidersHorizontal size={14} aria-hidden />{tx("Réglages")} ›</a>}
   </>;
   return (
     <div className="flex flex-col gap-4 py-4">
       {head(backButton(tx("Machines"), onBack), right)}
+      {asking && <FollowAsk m={m} onClose={() => setAsking(false)} />}
+      {m.disabled && <NotFollowedBanner />}
       <div className="flex flex-wrap items-stretch gap-2">
         {figures.map((f) => (
           <StatTile key={f.key} small n={f.value} label={f.label} sub={f.sub} tone={f.tone}>
@@ -229,11 +234,10 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
         ))}
         <AvailabilityTile item={avail} />
       </div>
-      {detail(<>
-        <PortsCard snap={snap} m={m} onMachine={onMachine} />
-        <WazuhCard snap={snap} ip={m.ip} name={m.name} />
-        <GuestsCard snap={snap} m={m} />
-      </>)}
+      {detail({
+        running: <><PortsCard snap={snap} m={m} /><GuestsCard snap={snap} m={m} /></>,
+        protection: <WazuhCard snap={snap} ip={m.ip} name={m.name} />,
+      })}
     </div>
   );
 }

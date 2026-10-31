@@ -175,8 +175,16 @@ class Registry(unittest.TestCase):
                          ({"npm": [{"name": "a", "api": "/a"}, {"name": "a", "api": "/b"}]}, "unique"),
                          ({"npm": [{"name": "a", "url": "http://x"}]}, "requis")):
             with self.assertRaises(ConnectorError) as e:
-                connectors.instances(cfg)
+                connectors.instances(cfg, strict=True)
             self.assertIn(msg, str(e.exception))
+
+    def test_a_wrong_instance_is_skipped_and_reported(self):
+        cfg = {"connectors": [{"type": "zzz", "name": "a"}, {"type": "npm", "name": "bon", "api": "/a"}, {"type": "npm", "name": "sans-acces"}]}
+        self.assertEqual([c.name for c in connectors.instances(cfg)], ["bon"])
+        got = connectors.faults(cfg)
+        self.assertEqual([(t, n) for t, n, _ in got], [("zzz", "a"), ("npm", "sans-acces")])
+        self.assertIn("inconnu", got[0][2])
+        self.assertEqual(connectors.faults({"npm": [{"name": "bon", "api": "/a"}]}), [])
 
     def test_retired_type_stops_nothing(self):
         cfg = {"connectors": [{"type": "windows-admin-center", "name": "w"}, {"type": "npm", "name": "a", "api": "/a"}]}
@@ -194,7 +202,7 @@ class Registry(unittest.TestCase):
         cfg = {"npm": [{"name": "a", "api": "/a"}], "telegram_token": "t"}  # chat_id manquant
         self.assertEqual([c.type for c in connectors.instances(cfg, kind="services")], ["npm"])
         with self.assertRaises(ConnectorError):
-            connectors.instances(cfg, kind="alerts")
+            connectors.instances(cfg, kind="alerts", strict=True)
 
     def test_kind_filter(self):
         cfg = {"npm": [{"name": "a", "api": "/a"}]}
@@ -294,7 +302,7 @@ class AdGuardTests(unittest.TestCase):
 
     def test_needs_ssh_or_api(self):
         with self.assertRaises(ConnectorError):
-            connectors.instances({"connectors": [{"type": "adguard", "name": "x", "ip": "10.0.0.1"}]}, kind="dns")
+            connectors.instances({"connectors": [{"type": "adguard", "name": "x", "ip": "10.0.0.1"}]}, kind="dns", strict=True)
 
 
 BESZEL = {

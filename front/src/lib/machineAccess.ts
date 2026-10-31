@@ -10,3 +10,9 @@ export async function saveSshAlias(ip: string, alias: string): Promise<void> {
   await send("PUT", `machines/settings/${ip}`, { machine, process: !!st.process_hosts[ip], extra: [] });
   void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined);   // seule cette machine est relue, tout de suite
 }
+
+/** Follow a machine again or stop following it; reading it again removes its health line and so its alert, without waiting for the next pass */
+export async function saveFollowed(ip: string, on: boolean): Promise<void> {
+  await send("PATCH", `machines/settings/${ip}`, { fields: { disabled: on ? null : true } });
+  void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined);
+}

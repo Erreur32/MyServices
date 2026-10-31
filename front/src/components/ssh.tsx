@@ -57,7 +57,7 @@ export function SshAccess({ alias, user, ip, port, refused, noIp, noAlias }: {
 }) {
   const p = port || 22;
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
+    <span className="inline-flex max-w-full shrink-0 flex-wrap items-center gap-1 whitespace-nowrap">
       <span className="inline-flex items-center gap-1 font-mono text-xs text-txt"><img src={SSH_ICON} alt="" aria-hidden={!noAlias} title={noAlias ? alias : undefined} className="h-3.5 w-3.5" />{!noAlias && alias}</span>
       <span title={tx("Compte SSH")} className="inline-flex items-center rounded-full border border-violet-400/40 bg-violet-400/10 px-1.5 text-[10.5px] font-bold text-violet-400">👤 {user || "?"}</span>
       {!noIp && ip && <IpPill ip={ip} />}

@@ -1,7 +1,7 @@
 // The list of services: one line per application, one per site, the plumbing apart, and a state that follows the worst news.
 import { describe, expect, it } from "vitest";
 import type { Host, ServiceStatus } from "../types";
-import { groupServices, groupsTitle, sections } from "./serviceGroups";
+import { groupPorts, groupServices, groupsTitle, sections } from "./serviceGroups";
 
 const host = (o: Record<string, unknown>) => ({ type: "local", enabled: true, domains: [], ip: "10.0.0.1", port: 80, backend: { up: true }, service: { kind: "docker", name: "x" }, ...o }) as unknown as Host;
 const app = (label: string, extra = {}) => ({ key: label, label, confidence: "sure", connector: null, ...extra });
@@ -12,6 +12,30 @@ describe("service groups", () => {
     const g = groupServices([host({ app: app("Ollama"), machine: "a" }), host({ app: app("Ollama"), machine: "b" })], []);
     expect(g).toHaveLength(1);
     expect(g[0].machines).toEqual(["a", "b"]);
+  });
+
+  it("a container is one card with all its ports, even with an NPM host in front and plumbing guessed on a port", () => {
+    const npm = { kind: "docker", name: "npm" };
+    const g = groupServices([host({ app: app("Nginx Proxy Manager"), port: 443, service: npm }), host({ app: app("Nginx Proxy Manager"), port: 80, service: npm }),
+      host({ type: "proxy", domains: ["npm.lan"], port: 8090, service: npm }), host({ app: app("nginx"), port: 8089, service: npm })], []);
+    expect(g).toHaveLength(1);
+    expect(g[0].tech).toBe(false);
+    expect(g[0].name).toBe("nginx");
+    expect(groupPorts(g[0])).toEqual([80, 443, 8089, 8090]);
+  });
+
+  it("a program is one card on every machine and port, whatever its case; an interpreter stays one per address", () => {
+    const proc = (name: string, machine: string, port: number) => host({ service: { kind: "process", name }, machine, ip: machine, port });
+    const g = groupServices([proc("anydesk", "10.0.0.1", 7070), proc("AnyDesk", "10.0.0.2", 7070), proc("AnyDesk", "10.0.0.2", 27461), proc("node", "10.0.0.1", 3000), proc("node", "10.0.0.2", 3000)], []);
+    const desk = g.find((x) => x.name === "AnyDesk")!;
+    expect(g).toHaveLength(3);
+    expect(desk.machines).toEqual(["10.0.0.1", "10.0.0.2"]);
+    expect(groupPorts(desk)).toEqual([7070, 27461]);
+  });
+
+  it("what Windows listens with goes with the technical pieces", () => {
+    const g = groupServices([host({ service: { kind: "process", name: "System" }, port: 445 }), host({ service: { kind: "process", name: "System" }, port: 139 })], []);
+    expect(g.map((x) => [x.name, x.tech])).toEqual([["System", true]]);
   });
 
   it("sites behind one address stay separate services", () => {
@@ -42,7 +66,7 @@ describe("service groups", () => {
   });
 
   it("plumbing and redirects are set apart, unless plumbing serves a domain", () => {
-    const g = groupServices([host({ app: app("OpenSSH") }), host({ app: app("Dozzle (agent)", { agent_of: "dozzle" }) }), host({ type: "redirect" }), host({ app: app("nginx"), domains: ["c.lan"], type: "proxy" })], []);
+    const g = groupServices([host({ app: app("OpenSSH"), service: null }), host({ app: app("Dozzle (agent)", { agent_of: "dozzle" }), service: null }), host({ type: "redirect" }), host({ app: app("nginx"), domains: ["c.lan"], type: "proxy", service: null })], []);
     expect(g.filter((x) => x.tech)).toHaveLength(3);
     expect(g.find((x) => !x.tech)?.domains).toEqual(["c.lan"]);
   });

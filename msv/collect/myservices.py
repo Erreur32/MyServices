@@ -97,11 +97,7 @@ NPM_IPS: dict = {}  # nom d'instance NPM -> IP vue du LAN (contrôle DNS des hos
 META_RAW: dict = {}  # services-meta.json lu (connecteurs tirés des machines : docker, AdGuard)
 CONNECTOR_STATUS: list = []  # état de chaque connecteur lu pendant le passage (data.json « connectors »)
 CONNECTORS_STATE = Path(CFG["state_dir"]) / "connectors.json"  # échecs consécutifs, dernier résultat bon
-try:  # connecteurs « logs » (Dozzle) : liens vers les journaux des conteneurs ; mal réglé = pas de lien
-    LOGS = [c for c in connectors.instances(CFG, kind="logs") if hasattr(c, "link")]
-except connectors.ConnectorError as e:
-    LOGS = []
-    print(f"⚠ journaux : {e}", file=sys.stderr)
+LOGS = [c for c in connectors.instances(CFG, kind="logs") if hasattr(c, "link")]  # connecteurs « logs » (Dozzle) : liens vers les journaux des conteneurs
 ROLE_FLAGS = ("gateway", "npm")  # rôles affichés par la page (passerelle, hôte NPM), recopiés tels quels dans data.json
 
 
@@ -125,10 +121,8 @@ def _load_config():
     global META_RAW, NPM_ONLY, MACHINES_OFF, MACHINE_FLAGS, ADGUARD, ADGUARD_SYNC
     META_RAW = cfg
     MACHINE_FLAGS = {ip: {k: True for k in ROLE_FLAGS if m.get(k)} for ip, m in cfg.get("machines", {}).items()}
-    try:  # AdGuard Home : connecteurs « dns » (machine avec SSH dans services-meta, ou API dans config.json)
-        ADGUARD = {c.conf["ip"]: c for c in connectors.instances(CFG, kind="dns", meta=cfg)}
-    except connectors.ConnectorError as e:
-        sys.exit(str(e))
+    # AdGuard Home : connecteurs « dns » (machine avec SSH dans services-meta, ou API dans config.json)
+    ADGUARD = {c.conf["ip"]: c for c in connectors.instances(CFG, kind="dns", meta=cfg)}
     # adguard_sync absent = détecté dans l'inventaire docker (adguard_sync_detect), false = jamais lu
     ADGUARD_SYNC = {ip: m.get("adguard_sync") for ip, m in cfg.get("machines", {}).items()
                     if m.get("ssh") and m.get("adguard_sync") is not False}
@@ -151,11 +145,7 @@ def read_npm():
     La 1re instance garde les id NPM bruts (historique du watcher conservé quand on en ajoute
     une), les suivantes sont préfixées « nom/ ».
     """
-    try:
-        insts = connectors.instances(CFG, kind="services")
-    except connectors.ConnectorError as e:
-        sys.exit(str(e))
-    insts = [c for c in insts if c.type == "npm"]
+    insts = [c for c in connectors.instances(CFG, kind="services") if c.type == "npm"]
     if not insts:  # NPM facultatif : annuaire docker, process et services manuels seulement
         return [], [], [], []
     state = cbase.load_state(CONNECTORS_STATE)
@@ -1469,6 +1459,8 @@ def main():
     for card in (*services_status, *network, *security, *containers, *virtualization):
         if not card.get("version"):
             card["version"] = api_link.app_version(card.get("url"), rows)
+    # A wrong setting skips its instance only: reported here, on its card and by the alerts, the other connectors keep working
+    CONNECTOR_STATUS.extend(cbase.Status(kind, name, False, why) for kind, name, why in connectors.faults(CFG, META_RAW))
     for st in CONNECTOR_STATUS:
         if st.type == "dozzle" and st.ok:   # its own reading returns no figure: the containers given a « logs » link are its badge
             st.found = [{"name": "conteneurs reliés", "count": sum(1 for r in rows if (r.get("service") or {}).get("logs_url"))}]

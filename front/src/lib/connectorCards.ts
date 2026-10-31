@@ -1,5 +1,6 @@
 // Settings › Connectors: what a compact card says, from the collection's own figures, and how the list is filtered.
 import type { ConnectorInstance, ServiceStatus } from "../types";
+import { connectorAdvice, type ConnectorAdvice } from "./connectorAdvice";
 import { tx } from "./i18n";
 
 export type CardTone = "ok" | "warn" | "bad" | "off";
@@ -36,6 +37,20 @@ export function cardView(inst: ConnectorInstance, card?: ServiceStatus): CardVie
   if (s.warning) return { ...base, tone: "warn", state: tx("Partiel") };
   if (problems.length) return { ...base, tone: "warn", state: problems.length > 1 ? tx("{0} points", problems.length) : tx("1 point") };
   return { ...base, tone: "ok", state: tx("Lu") };
+}
+
+export interface CardNotice { text: string; tone: "bad" | "warn"; advice?: ConnectorAdvice; raw?: string }
+
+/** The one line a card gives to its trouble, in place of its address: the size of the card never depends on the length of a message */
+export function cardNotice(inst: ConnectorInstance, view: CardView): CardNotice | null {
+  const s = inst.status;
+  if (!inst.enabled || !s || s.pending) return null;
+  if (!s.ok || s.stale) {
+    const advice = connectorAdvice(s.message);
+    return { text: advice.short, tone: s.ok ? "warn" : "bad", advice, raw: s.message };
+  }
+  const point = s.warning || view.problems[0];
+  return point ? { text: point, tone: "warn" } : null;
 }
 
 export const toWatch = (v: CardView) => v.tone === "warn" || v.tone === "bad";

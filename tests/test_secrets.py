@@ -31,6 +31,10 @@ class Secrets(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_the_camera_accounts_of_a_connector_are_encrypted(self):
+        out, _ = secrets_store.encrypt_all({"connectors": [{"type": "tapo", "camera_accounts": "10.0.0.1 cam x"}]}, self.f)
+        self.assertTrue(secrets_store.is_encrypted(out["connectors"][0]["camera_accounts"]))
+
     def test_encrypt_then_load(self):
         out, n = secrets_store.encrypt_all(self.cfg, self.f)
         self.assertEqual(n, 3)

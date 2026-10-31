@@ -11,6 +11,32 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.31.9 (2026-10-31)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- **Machines**: stop following a machine, or follow it again, right from its line in the list and from its page (admin), with a confirmation in place. The list and the alerts follow at once, and the page of a machine no longer followed says so.
+
+### Changed
+
+- **Services**: one card per service. A container keeps all its ports, addresses and NPM hosts on one card, and a program found on several machines or ports (AnyDesk, Veeam services) is one card that lists them. Interpreters such as `node` or `java` stay one per address, and what Windows itself listens with (`System`, `svchost`) moves to the technical pieces.
+- **Services**: the tiles, their curves, the home page and the MCP count one service per machine, whatever its ports, in its worst state. The curves step down once at the update: earlier points counted each port.
+- **Tapo**: a device refused by the account is listed all the same, with its model, and a camera without a recorder can show its picture with its camera account, set per camera. The C310 works this way too.
+- **Untracked devices**: one list instead of two, each device once with who saw it, filters (To look at, Simple devices, Offline, Hidden), and « Hide » for what you do not want to follow.
+- **Connectors**: « Verify HTTPS certificate » starts unchecked on a new connector and only shows for an https address. Connectors already saved keep their setting.
+- **My connectors**: every card has the same height, with a dark title and a lighter body. A trouble takes one line at the foot of its card, so a long message no longer stretches its neighbours. The open card says what it means, what still holds and what to check first, with the technical message folded. Its fields sit in a narrower column on the left, and the troubles, what it reads, the help and the buttons on the right.
+- **Machines**: the cards fit four per line from 1280 px and five from 1536 px, the name keeps its room and the source badges move to the foot. Clicking a card or its title opens the machine page, and the link at the bottom opens its services, filtered on it.
+- **Machines**: the machine page is rebuilt on three columns, always the same subjects at the same place: the state of the machine, what runs on it, access and protection. Two columns on a smaller screen, one on a phone, cards with the same margins and long lists folded at their foot: the page is less than half as tall.
+- **Machines**: the « Alerts » and « Type » (VM, host, machine) filters and the « Not followed » switch stay on the search line, the other filters go behind the button, and API, manual SSH and « via a connector » no longer have a filter of their own (the tiles and links that use them keep working).
+
+### Fixed
+
+- **Connectors**: a wrong connector setting (unknown type, no name, missing field) no longer stops the whole collection. That instance is skipped and reported as failed, and the others keep working.
+- **Glances**: a plugin that this Glances does not have (no sensors in a container) is no longer called, which ends the HTTP 400 seen in Settings › Requests. The list of plugins is asked once an hour.
+- **Machines**: the « Updates » card stays on the machine page when a notice points to it with nothing waiting (automatic updates in error or too old, a snap to update, a service to restart). Those links used to open the page without scrolling or flashing; the automatic updates one now lands on its exact row.
+
 ## v0.31.8 (2026-10-30)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
