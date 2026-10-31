@@ -424,13 +424,13 @@ def _rewrite_data(change) -> None:
 
 
 def publish(ip: str, m: dict) -> None:
-    """Name, role tags and icon written into the published data.json at once, so the pages show them without waiting for the next
-    collection (which rewrites the whole file from services-meta.json anyway)."""
+    """Name, role tags, icon and « not followed » written into the published data.json at once, so the pages show them without waiting
+    for the next collection (which rewrites the whole file from services-meta.json anyway)."""
     def change(data: dict) -> bool:
         hit = False
         for x in data.get("machine_list") or []:
             if x.get("ip") == ip:
-                x["name"], x["role"], x["icon"], hit = m.get("name") or x.get("name"), m.get("role") or "", m.get("icon") or None, True
+                x["name"], x["role"], x["icon"], x["disabled"], hit = m.get("name") or x.get("name"), m.get("role") or "", m.get("icon") or None, bool(m.get("disabled")), True
         if ip in (data.get("machines") or {}):
             data["machines"][ip].update(name=m.get("name") or data["machines"][ip].get("name"), role=m.get("role") or "")
             hit = True

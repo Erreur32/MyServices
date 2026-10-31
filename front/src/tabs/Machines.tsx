@@ -45,6 +45,7 @@ import { primary, quiet } from "../lib/forms";
 import { flash } from "../lib/flash";
 import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
+import { FollowAsk, FollowIcon } from "../components/MachineFollow";
 import { InfoNote } from "../components/InfoNote";
 import { Badge, Cards, Count, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -1795,7 +1796,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
     { key: "user", label: tx("Compte SSH"), get: (m) => m.ssh?.user || "" },
   ], [hb, osOf, watchOf]);
   const text = useCallback((m: Machine) => [m.name, m.ip, m.role, stateBadge(m)[1], m.ssh?.alias, m.ssh?.user, m.info?.os].join(" "), []);
-  // « Ne plus suivre » se règle uniquement dans Réglages → Machines (interrupteur « Machine suivie ») ; ici, les machines non suivies restent masquées d'office.
+  // « Ne plus suivre » : l'icône de chaque ligne (admin), la fiche ou l'interrupteur « Machine suivie » des réglages ; ici, les machines non suivies restent masquées d'office.
   const isOff = (m: Machine) => !!m.disabled;
   // Machines non suivies : masquées d'office, un bouton les ramène (grisées)
   const [showOff, setShowOff] = useState(false);
@@ -1836,6 +1837,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
   const cardGroups = useMemo(() => groupByHost(sort.sorted), [sort.sorted]);   // the cards: a hypervisor node and its VMs together
+  const [asking, setAsking] = useState("");   // the line that asks « no longer follow? »
   const cards = (list: Machine[], always: boolean) => (   // « Cartes » view: on every width; table view: only the phone fallback (the table is hidden below md)
     <Cards always={always} dense>
       {list.map((m) => (
@@ -1877,7 +1879,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
             <Th className="w-14 !pl-4 !pr-2"><span className="sr-only">{tx("Icône")}</span></Th><Th k="name" sort={sort}>{tx("Machine")}</Th><Th k="ip" sort={sort}>IP</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
             <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th k="cpu" sort={sort} className="!px-1.5">{tx("CPU")}</Th><Th k="mem" sort={sort} className="!px-1.5">{tx("Mémoire")}</Th><Th k="disk" sort={sort} className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th k="gpu" sort={sort} className="!px-1.5">GPU</Th>}
             <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right" title={tx("Temps depuis le dernier démarrage de la machine")}>Uptime</Th>
-            {admin && <Th className="w-8 !px-1"><span className="sr-only">{tx("Réglages")}</span></Th>}
+            {admin && <><Th className="w-8 !px-1"><span className="sr-only">{tx("Suivi")}</span></Th><Th className="w-8 !px-1"><span className="sr-only">{tx("Réglages")}</span></Th></>}
           </>}>
             {sort.sorted.map((m) => {
               const h = hb.get(m.ip), pills = watchOf(m).filter((i) => i.kind !== "updates");
@@ -1898,9 +1900,11 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                       <WatchList ip={m.ip} quiet={!!snap.health} items={pills} /></span></Td>
                     {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m, hb.get(m.ip))} /></Td>}
                     <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
+                    {admin && <td className="w-8 px-1 py-2 align-middle"><FollowIcon m={m} onAsk={() => setAsking(asking === m.ip ? "" : m.ip)} /></td>}
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => openPage(m.ip, "settings")} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><SlidersHorizontal size={14} aria-hidden /></button></td>}
                   </tr>
+                  {asking === m.ip && <tr><td colSpan={10 + (snap.health ? 3 : 0) + (anyGpu ? 1 : 0)} className="px-4 pb-3"><FollowAsk m={m} onClose={() => setAsking("")} /></td></tr>}
                 </Fragment>
               );
             })}

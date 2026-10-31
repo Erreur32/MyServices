@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- **Machines**: stop following a machine, or follow it again, right from its line in the list and from its page (admin), with a confirmation in place. The list and the alerts follow at once, and the page of a machine no longer followed says so.
+
 ### Fixed
 
 - **Machines**: the « Updates » card stays on the machine page when a notice points to it with nothing waiting (automatic updates in error or too old, a snap to update, a service to restart). Those links used to open the page without scrolling or flashing; the automatic updates one now lands on its exact row.

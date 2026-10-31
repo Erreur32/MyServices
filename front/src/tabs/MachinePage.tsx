@@ -4,6 +4,7 @@
 import { ArrowRight, Boxes, EthernetPort, Globe, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
+import { FollowAsk, FollowButton, NotFollowedBanner } from "../components/MachineFollow";
 import { MachineIcon } from "../components/MachineIcon";
 import { dateTime } from "../lib/format";
 import { quiet } from "../lib/forms";
@@ -201,6 +202,7 @@ const backButton = (label: string, onClick: () => void) => <BackButton label={la
 function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, head }: Readonly<{
   m: Machine; snap: Snapshot; detail: (extra: ReactNode) => ReactNode; figures: MachineFigure[]; admin: boolean; onMachine: (ip: string) => void; onBack: () => void; head: Head;
 }>) {
+  const [asking, setAsking] = useState(false);
   const [avail, setAvail] = useState<Item | null | undefined>(undefined);
   useEffect(() => {
     read<Report>(`availability?days=${DAYS}`).then((r) => setAvail(availabilityOf(r.items, m) ?? null)).catch(() => setAvail(null));
@@ -215,11 +217,14 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
   }, [m.ip, readAt]);   // and at once after a reading of this machine
   const right = <>
     {m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} className={quiet}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>}
+    {admin && <FollowButton m={m} onAsk={() => setAsking(!asking)} />}
     {admin && <a href={`#machines/${m.ip}/settings`} className={`${quiet} no-underline`}><SlidersHorizontal size={14} aria-hidden />{tx("Réglages")} ›</a>}
   </>;
   return (
     <div className="flex flex-col gap-4 py-4">
       {head(backButton(tx("Machines"), onBack), right)}
+      {asking && <FollowAsk m={m} onClose={() => setAsking(false)} />}
+      {m.disabled && <NotFollowedBanner />}
       <div className="flex flex-wrap items-stretch gap-2">
         {figures.map((f) => (
           <StatTile key={f.key} small n={f.value} label={f.label} sub={f.sub} tone={f.tone}>
