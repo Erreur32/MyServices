@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.33.1 → 0.33.2
+
+**Nothing to do.** No setting, volume, agent or database change. Cards of labels and values have a new look.
+
 ## 0.33.0 → 0.33.1
 
 **Nothing to do** for the Docker part: no setting, volume or database change. What to know:
