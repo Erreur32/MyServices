@@ -595,7 +595,10 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
   const [name, setName] = useState(inst?.name || prefill?.name || type.type);
   const [conf, setConf] = useState<Conf>(() => {
     const init: Conf = {};
-    for (const f of type.fields) if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.name === "url" ? prefill?.url : undefined) ?? (f.default as ConfValue | null) ?? "";
+    for (const f of type.fields) {
+      const start = f.name === "verify_tls" && !inst ? false : f.default as ConfValue | null;   // a new connector does not assume a valid certificate
+      if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.name === "url" ? prefill?.url : undefined) ?? start ?? "";
+    }
     return init;
   });  // the install is known (found by the scan, or the app at the address typed): its exact command comes first in the help
   const setup = setupCommand(type.type, found ?? serviceAt(conf.url, hosts ?? [], type.type));
@@ -605,7 +608,8 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
   // Façon de relier le service (NPM : API directe, par SSH, script) : décide des champs montrés, requis et envoyés
   const [mode, setMode] = useState(() => modeOf(type, inst?.config));
   const modeDef: ConnectorMode | undefined = (type.modes ?? []).find((m) => m.id === mode);
-  const shown = modeDef ? type.fields.filter((f) => modeDef.fields.includes(f.name)) : type.fields;
+  const noCertificate = !!conf.url && !/^https:/i.test(String(conf.url));   // nothing to verify on a plain address
+  const shown = (modeDef ? type.fields.filter((f) => modeDef.fields.includes(f.name)) : type.fields).filter((f) => f.name !== "verify_tls" || !noCertificate);
   const [aliases, setAliases] = useState<MachinesSettings["aliases"]>([]);
   useEffect(() => { if (type.modes?.length) read<MachinesSettings>("machines/settings").then((m) => setAliases(m.aliases)).catch(() => undefined); }, [type.modes]);
   const pickMode = (id: string) => {
