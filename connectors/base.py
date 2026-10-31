@@ -46,7 +46,7 @@ from msv.remote.sshmux import SSH_MUX
 
 KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts", "status", "network", "security", "containers", "virtualization")
 MAX_BINARY = 3 * 1024 * 1024   # a camera image read for an admin, never kept
-DIGEST_HASHES = {"md5": hashlib.md5, "sha-256": hashlib.sha256}
+DIGEST_HASHES = {"md5": hashlib.md5, "sha-256": hashlib.sha256}  # NOSONAR HTTP Digest (RFC 7616) lets the device choose MD5, we only answer its challenge
 
 
 def digest_header(challenge: str, user: str, password: str, method: str, uri: str, cnonce: str | None = None) -> str | None:

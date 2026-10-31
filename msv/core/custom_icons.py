@@ -33,6 +33,8 @@ def _dir() -> Path:
 
 def _file(key: str, mime: str | None) -> Path:
     """Path of an icon file, always inside the icons folder (the key is also checked by KEY_RE)."""
+    if not KEY_RE.fullmatch(key or ""):
+        raise IconError("clé d'icône invalide")
     base = os.path.realpath(_dir())
     path = os.path.realpath(os.path.join(base, f"{key}.{EXT.get(mime, 'bin')}"))
     if not path.startswith(base + os.sep):
