@@ -52,10 +52,41 @@ class Maybe:
         return self.value
 
 
-def fake_lib(results):
+class Picture:
+    def __init__(self, picture):
+        self.picture, self.asked = picture, []
+
+    async def get_snapshot(self, user, password):
+        self.asked.append((user, password))
+        if isinstance(self.picture, Exception):
+            raise self.picture
+        return self.picture
+
+
+class Keeps:
+    """A context whose cache keeps a value and gives it back, like Context.cached"""
+    def __init__(self):
+        self.kept = {}
+
+    def cached(self, key, ttl, fn):
+        if ttl == 0 or key not in self.kept:
+            self.kept[key] = fn()
+        return self.kept[key]
+
+
+def fake_lib(results, raw=(), camera=None):
     class Client:
         def __init__(self, user, password, timeout):
             self.args = (user, password)
+
+        async def discover_devices_raw(self, target, timeout_s):
+            async def each():
+                for r in raw:
+                    yield Maybe(r)
+            return each()
+
+        async def c225(self, ip):
+            return camera
 
         async def discover_devices(self, target, timeout_s):   # like the library: awaited first, then iterated
             async def each():
@@ -70,6 +101,46 @@ def conn(results):
     tapo._series.clear()
     c = tapo.Tapo({"name": "t", "username": "me@example.com", "password": PW, "targets": "192.0.2.255"}, None)
     return c, mock.patch.object(tapo, "_lib", return_value=fake_lib(results))
+
+
+class CameraPicture(unittest.TestCase):
+    def setUp(self):
+        tapo._refused.clear()
+        self.conf = {"name": "t", "username": "me@example.com", "password": PW, "targets": "192.0.2.255", "camera_accounts": f"192.0.2.9 cam {PW} two; broken entry"}
+
+    def conn(self, picture):
+        c, self.cam = tapo.Tapo(self.conf, Keeps()), Picture(picture)
+        with mock.patch.object(tapo, "_lib", return_value=fake_lib([found("C310", None, nickname="Salon", device_id="c1"), found("C320", None, nickname="Sans compte", device_id="c2", ip="192.0.2.8")], camera=self.cam)):
+            self.out = c.collect()
+        return c
+
+    def picture(self, c):
+        with mock.patch.object(tapo, "_lib", return_value=fake_lib([], camera=self.cam)):
+            return c.snapshot("Salon")
+
+    def test_only_a_camera_with_an_account_offers_its_picture_with_that_account(self):
+        c = self.conn(b"\xff\xd8\xffjpeg")
+        self.assertEqual([x["ip"] for x in self.out["stream"]["cameras"]], ["192.0.2.9"])
+        self.assertEqual(self.picture(c), b"\xff\xd8\xffjpeg")
+        self.assertEqual(self.cam.asked, [("cam", f"{PW} two")])   # a password may hold a space
+
+    def test_no_account_no_stream_block(self):
+        self.conf.pop("camera_accounts")
+        self.conn(b"")
+        self.assertNotIn("stream", self.out)
+
+    def test_a_refused_camera_is_not_asked_again_for_a_while(self):
+        c = self.conn(RuntimeError("Unauthorized"))
+        for _ in range(3):
+            with self.assertRaises(ConnectorError):
+                self.picture(c)
+        self.assertEqual(len(self.cam.asked), 1)
+
+    def test_a_camera_nobody_saw_has_no_picture(self):
+        c = self.conn(b"")
+        with self.assertRaises(ConnectorError):
+            c.snapshot("Autre")
+        self.assertEqual(self.cam.asked, [])
 
 
 class Collect(unittest.TestCase):
@@ -140,6 +211,15 @@ class Collect(unittest.TestCase):
         self.assertIn("1 appareil(s) trouvé(s) mais illisible(s) (10.0.0.11 : ", line)
         self.assertIn("connection timed out", line)
         self.assertNotIn("compte", line)
+
+    def test_a_device_refused_by_the_account_is_still_listed_from_the_discovery(self):
+        raw = Res(ip="192.0.2.11", message=Res(result=Res(device_model="C310", device_name="Cam", device_id="c9", firmware_version="1.9")))
+        seen = Res(ip="192.0.2.9", message=Res(result=Res(device_model="P110M")))
+        c = tapo.Tapo({"name": "t", "username": "me@example.com", "password": PW, "targets": "192.0.2.255"}, None)
+        with mock.patch.object(tapo, "_lib", return_value=fake_lib([found("P110M", Plug(), nickname="Prise", device_id="p1"), RuntimeError("Connection refused")], [raw, seen])):
+            d = c.collect()
+        self.assertEqual([(r["name"], r["kind"], r["ip"]) for r in d["devices"]], [("Prise", "plug", "192.0.2.9"), ("Cam", "camera", "192.0.2.11")])
+        self.assertIn("illisible", d["problems"][0])
 
     def test_a_missing_library_is_said(self):
         c = tapo.Tapo({"name": "t"}, None)

@@ -36,9 +36,10 @@ export function streamCards(snap: Snapshot): StreamCard[] {
   return sortCards(direct ? cards.filter((c) => c.conn?.connector !== "home-assistant") : cards, ROLE_ORDER);
 }
 
-/** The recorder that films the device at this address, for a page that only knows the device */
+/** The recorder that films the device at this address, for a page that only knows the device; the Tapo connector's own picture comes last, as a fallback */
 export function recorderAt(snap: Snapshot, ip?: string) {
-  for (const c of snap.data.services_status ?? []) {
+  const rows = [...(snap.data.services_status ?? [])].sort((a, b) => Number(a.connector === "tapo") - Number(b.connector === "tapo"));
+  for (const c of rows) {
     const camera = ip && c.stream?.snapshot ? c.stream.cameras?.find((x) => x.ip === ip) : undefined;
     if (camera) return { connector: c.connector ?? "", name: c.instance ?? c.name, camera: camera.name, engine: c.stream?.engine ?? "" };
   }

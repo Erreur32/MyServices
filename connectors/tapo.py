@@ -1,6 +1,7 @@
 """Tapo (TP-Link): the plugs, lights, hubs and cameras of a home, found and read over the local network with the `tapo` library (MIT, async).
 Read-only: only `get_*` calls are made, nothing is switched. The devices are found by a UDP discovery at the address given (a broadcast address
-reaches them all: the container runs in host network mode), then each is read with the Tapo account. The cameras only give their state here, no picture.
+reaches them all: the container runs in host network mode), then each is read with the Tapo account. A camera gives its state; its picture needs the
+camera account set in the Tapo app, given per camera, and is read on demand. The library has no driver for some models (C310): the C225 one opens them.
 
 The library is imported when a read starts, so the rest of MyServices runs without it.
 """
@@ -12,12 +13,16 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from connectors.base import Connector, ConnectorError, Field, Result
+from connectors.homelab_stream import camera
 from connectors.status_kit import MAX_FACTS, MAX_PROBLEMS, fact, num
 
 DISCOVERY_S = 6        # seconds a discovery waits for the devices to answer
 SERIES_TTL = 600       # the power curve of a plug is read again after this long
 AUTH_WORDS = ("credential", "auth", "password", "login", "forbidden")
+SNAPSHOT_PAUSE = 600   # a camera that refused its account is left alone this long: it locks itself after too many failed logins
+CAMERAS_TTL = 7 * 86400   # names and addresses kept for the pictures; every collection writes them again
 _series: dict[str, tuple[float, list]] = {}   # shortcut: kept in memory per process, a restart reads the curves again
+_refused: dict[str, float] = {}               # same shortcut: a restart may try a refused camera once more
 
 
 def _lib():
@@ -84,17 +89,41 @@ class Tapo(Connector):
         Field("password", "Mot de passe Tapo", "password", required=True, secret=True),
         Field("targets", "Adresse de recherche", default="255.255.255.255",
               help="Adresse de diffusion de ton réseau (par exemple 192.168.1.255) ou IP d'un appareil. Plusieurs : séparées par des virgules. Les appareils répondent sur le réseau local."),
+        Field("camera_accounts", "Comptes caméra", "password", secret=True,
+              help="Pour l'image des caméras sans enregistreur : « IP identifiant motdepasse », séparés par « ; ». C'est le compte caméra créé dans l'appli Tapo (Réglages avancés), pas le compte Tapo."),
     )
     setup_fields = ("username", "password", "targets")
     guide = ("Ouvre l'application Tapo et note l'e-mail et le mot de passe du compte qui possède tes appareils.",
              "Colle-les dans les champs ci-dessus. MyServices lit seulement : il n'allume ni n'éteint rien.",
              "Adresse de recherche : laisse 255.255.255.255, ou mets l'adresse de diffusion de ton réseau (la dernière adresse, par exemple 192.168.1.255). Pour un seul appareil, mets son IP.",
-             "Les appareils sont lus sur ton réseau local, pas par le cloud. Une caméra Tapo donne son état, pas son image, dans cette version.",
+             "Les appareils sont lus sur ton réseau local, pas par le cloud. Une caméra donne son état ; son image vient de son enregistreur, sinon du compte caméra indiqué ci-dessus.",
              "Clique sur Tester : un appareil qui ne répond pas à la recherche n'est pas listé.")
 
     def _targets(self) -> list[str]:
         raw = str(self.conf.get("targets") or "255.255.255.255")
         return [t.strip() for t in raw.split(",") if t.strip()] or ["255.255.255.255"]
+
+    def _accounts(self) -> dict[str, tuple[str, str]]:
+        """{ip: (user, password)} of the cameras; an entry that is not « ip user password » is left out."""
+        bits = [part.split(None, 2) for part in str(self.conf.get("camera_accounts") or "").split(";")]
+        return {b[0]: (b[1], b[2]) for b in bits if len(b) == 3}
+
+    async def _unread(self, lib, known: set[str]) -> list[dict]:
+        """The devices that answer the discovery but refuse the reading: it needs no account, so a camera refused by the account is still listed."""
+        client, rows = lib.ApiClient("", "", 10), []
+        for target in self._targets():
+            async for maybe in await client.discover_devices_raw(target, DISCOVERY_S):
+                try:
+                    got = _dict(maybe.get())
+                except Exception:   # noqa: BLE001 : the reason is already in the errors of the reading
+                    continue
+                ip, info = str(got.get("ip") or ""), (_dict(got.get("message")).get("result") or {})
+                model = str(info.get("device_model") or "")
+                if ip and ip not in known:
+                    known.add(ip)
+                    rows.append({"id": str(info.get("device_id") or ip), "name": info.get("device_name") or model or ip, "model": model, "kind": kind_of(model), "ip": ip,
+                                 "fw": info.get("firmware_version"), "online": True})
+        return rows
 
     async def _discover(self, lib) -> tuple[list, list[str]]:
         client = lib.ApiClient(self.conf.get("username", ""), self.conf.get("password", ""), 10)
@@ -163,18 +192,48 @@ class Tapo(Connector):
 
         async def run():
             found, errors = await self._discover(lib)
-            return found, errors, [await self._read(lib, d) for d in found]
+            groups = [await self._read(lib, d) for d in found]
+            read = [r for g in groups for r in g]
+            return errors, read, await self._unread(lib, {r.get("ip") for r in read}) if errors and read else []
 
         try:
-            _, errors, groups = asyncio.run(run())
+            errors, devices, unread = asyncio.run(run())
         except OSError as e:
             raise ConnectorError(f"recherche impossible ({e.strerror or e.__class__.__name__})") from None
-        devices = [r for g in groups for r in g]
         if not devices:
             if any(w in e.lower() for e in errors for w in AUTH_WORDS):
                 raise ConnectorError("Tapo refuse ce compte : e-mail ou mot de passe à vérifier")
             raise ConnectorError(f"aucun appareil lisible ({errors[0]})" if errors else "aucun appareil Tapo trouvé : l'adresse de recherche est-elle la bonne ?")
-        return self._summary(devices, errors)
+        out = self._summary(devices + unread, errors)
+        accounts = self._accounts()
+        cams = [d for d in out["devices"] if d["kind"] == "camera" and d.get("ip") in accounts]
+        if cams:
+            out["stream"] = {"role": "nvr", "engine": "Tapo", "cameras": [{**camera(d["name"], up=d["online"]), "ip": d["ip"]} for d in cams], "snapshot": True}
+            self.ctx.cached(self._cameras_key(), 0, lambda: {d["name"]: d["ip"] for d in cams})
+        return out
+
+    def _cameras_key(self) -> str:
+        return f"tapo-cameras-{self.name}"
+
+    def snapshot(self, cam: str) -> bytes:
+        """The picture of a camera, with its camera account. Any camera model is opened by the C225 driver: only the login and the picture are used."""
+        ip = self.ctx.cached(self._cameras_key(), CAMERAS_TTL, dict).get(cam)
+        account = self._accounts().get(ip)
+        if not account:
+            raise ConnectorError("caméra sans compte caméra")
+        if time.time() - _refused.get(ip, 0) < SNAPSHOT_PAUSE:
+            raise ConnectorError("compte caméra refusé : nouvel essai dans quelques minutes")
+        lib = _lib()
+
+        async def run():
+            handler = await lib.ApiClient(self.conf.get("username", ""), self.conf.get("password", ""), 10).c225(ip)
+            return await handler.get_snapshot(*account)
+
+        try:
+            return bytes(asyncio.run(run()))
+        except Exception as e:   # noqa: BLE001 : the library has no public error type
+            _refused[ip] = time.time()
+            raise ConnectorError(f"image refusée ({_reason(str(e))})") from None
 
     @staticmethod
     def _summary(devices: list[dict], errors: list[str]) -> dict:

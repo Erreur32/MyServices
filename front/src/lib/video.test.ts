@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
 import type { Host, ServiceStatus } from "../types";
-import { cameraPlace, hasStream, streamAlerts, streamCameras, streamCards, streamFigures, streamFlows, streamStorage } from "./video";
+import { cameraPlace, hasStream, recorderAt, streamAlerts, streamCameras, streamCards, streamFigures, streamFlows, streamStorage } from "./video";
 
 const host = (h: Partial<Host>): Host => ({ id: 1, type: "local", enabled: true, domains: [], backend: { up: true, ms: 1 }, ...h } as Host);
 const conn = (c: Partial<ServiceStatus>): ServiceStatus => ({ connector: "x", name: "x", label: "X", ok: true, stale: false, message: "OK", ...c });
@@ -81,5 +81,16 @@ describe("Video page", () => {
       ["Détecteur de Frigate lent : 140 ms par image", "#stream/cameras"],
       ["Flux « portail » sans source", "#stream/flows"],
     ]);
+  });
+});
+
+describe("the recorder of a device", () => {
+  const row = (connector: string) => ({ connector, instance: connector, name: connector, stream: { role: "nvr", engine: connector, snapshot: true, cameras: [{ name: `${connector} cam`, ip: "10.0.0.5", up: true }] } });
+  it("takes a recorder before the Tapo connector's own picture", () => {
+    const snap = { data: { services_status: [row("tapo"), row("frigate")] } } as unknown as Snapshot;
+    expect(recorderAt(snap, "10.0.0.5")?.connector).toBe("frigate");
+  });
+  it("falls back on the Tapo connector", () => {
+    expect(recorderAt({ data: { services_status: [row("tapo")] } } as unknown as Snapshot, "10.0.0.5")?.connector).toBe("tapo");
   });
 });
