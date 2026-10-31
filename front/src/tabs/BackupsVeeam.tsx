@@ -100,7 +100,7 @@ function ChoiceFields({ c, set }: Readonly<{ c: Choice; set: (c: Choice) => void
   );
 }
 
-export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () => void }) {
+export function BackupsVeeam({ state, reload }: Readonly<{ state: VeeamState; reload: () => void }>) {
   const [url, setUrl] = useState(state.url), [user, setUser] = useState(state.user), [password, setPassword] = useState("");
   const [jobs, setJobs] = useState<Job[] | null>(null), [repos, setRepos] = useState<Repo[]>([]);
   const [pick, setPick] = useState<Record<string, Choice>>({});

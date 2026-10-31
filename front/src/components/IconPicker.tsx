@@ -12,18 +12,18 @@ import { input } from "../lib/forms";
 
 const FAMILIES: [ChosenIcon["family"], string][] = [["app", tx("Applis et services")], ["system", tx("Systèmes")], ["object", tx("Objets")]];
 
-export function IconGlyph({ icon, size = 20 }: { icon: ChosenIcon; size?: number }) {
+export function IconGlyph({ icon, size = 20 }: Readonly<{ icon: ChosenIcon; size?: number }>) {
   if ("url" in icon) return <img src={icon.url} alt="" style={{ width: size, height: size, objectFit: "contain" }} />;
   return "file" in icon
     ? <img src={`${import.meta.env.BASE_URL}icons/${icon.file}.svg`} alt="" style={{ width: size, height: size }} />
     : <icon.Icon size={size - 3} className="text-muted" aria-hidden />;
 }
 
-export function IconPicker({ value, onPick, disabled, autoHint, auto }: {
+export function IconPicker({ value, onPick, disabled, autoHint, auto }: Readonly<{
   value?: string | null; onPick: (key: string | undefined) => void; disabled?: boolean; autoHint: string;
   /** aperçu de l'icône automatique (celle que la détection choisit), montré tant qu'aucune icône n'est choisie */
   auto?: React.ReactNode;
-}) {
+}>) {
   const [open, setOpen] = useState(false), [q, setQ] = useState("");
   const current = chosenIcon(value);
   const shown = useMemo(() => MACHINE_ICONS.filter((i) => searchHit(`${i.label} ${i.key}`, q)), [q]);

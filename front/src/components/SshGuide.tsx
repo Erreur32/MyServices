@@ -26,7 +26,7 @@ interface Props {
   onCancel: () => void;
 }
 
-export function SshGuide({ ip, user: knownUser, guess, port, onReady, onCancel }: Props) {
+export function SshGuide({ ip, user: knownUser, guess, port, onReady, onCancel }: Readonly<Props>) {
   const [kind, setKind] = useState<Kind>(guess);
   const win = kind === "windows";
   const [user, setUser] = useState(knownUser || "root"), [authorize, setAuthorize] = useState(""), [esxiKey, setEsxiKey] = useState<string | null>(null);

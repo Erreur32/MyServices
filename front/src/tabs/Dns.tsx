@@ -59,7 +59,7 @@ function DataCard({ id, lit, ...rest }: { id?: string; lit?: string } & Paramete
 }
 
 /** Bloc que l'accueil peut viser (clic sur un compteur) : la page défile jusqu'à lui et il s'entoure de bleu un instant */
-function Anchor({ id, lit, children }: { id?: string; lit?: string; children: ReactNode }) {
+function Anchor({ id, lit, children }: Readonly<{ id?: string; lit?: string; children: ReactNode }>) {
   return <div id={id && `dns-${id}`} className={`scroll-mt-24 rounded-2xl transition-shadow duration-500 ${id && lit === id ? "ring-2 ring-link" : ""}`}>{children}</div>;
 }
 

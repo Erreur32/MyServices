@@ -6,9 +6,9 @@ import { useState } from "react";
 import { input } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
-export function SecretInput({ value, onChange, kept, reveal, placeholder, className = input, autoComplete = "new-password" }: {
+export function SecretInput({ value, onChange, kept, reveal, placeholder, className = input, autoComplete = "new-password" }: Readonly<{
   className?: string; value: string; onChange: (v: string) => void; kept?: boolean; reveal?: (password: string) => Promise<string>; placeholder?: string; autoComplete?: string;
-}) {
+}>) {
   const [shown, setShown] = useState(false);
   const [asking, setAsking] = useState(false), [pw, setPw] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const eye = () => {

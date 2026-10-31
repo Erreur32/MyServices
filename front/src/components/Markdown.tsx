@@ -12,7 +12,7 @@ function inline(text: string): ReactNode[] {
   });
 }
 
-export function Markdown({ text }: { text: string }) {
+export function Markdown({ text }: Readonly<{ text: string }>) {
   const blocks: ReactNode[] = [];
   let list: ReactNode[] = [];
   const flush = () => { if (list.length) { blocks.push(<ul key={`u${blocks.length}`} className="my-1.5 list-disc space-y-1 pl-5">{list}</ul>); list = []; } };

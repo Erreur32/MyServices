@@ -9,7 +9,7 @@ import { Badge } from "./ui";
 export const CERT_SOON = 30;   // days
 
 /** Certificates of the services (Web-Check and Uptime Kuma), expiring first */
-export function Certificates({ snap }: { snap: Snapshot }) {
+export function Certificates({ snap }: Readonly<{ snap: Snapshot }>) {
   const certs = useMemo(() => {
     const out = new Map<string, { name: string; days: number; by: string }>();
     for (const r of snap.data.hosts) {

@@ -272,7 +272,7 @@ async function runTest(type: string, body: unknown): Promise<TestOut> {
 }
 
 /** Résultat d'un essai : cadre vert ou rouge, version, puis une pastille par type d'information lue */
-function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
+function TestReport({ r, onClose }: Readonly<{ r: TestOut; onClose: () => void }>) {
   const total = (r.found ?? []).reduce((n, f) => n + f.count, 0);
   return (
     <div role="status" className={`mt-3 rounded-xl border px-3 py-2 text-sm ${r.ok ? "border-ok/40 bg-ok/5" : "border-bad/40 bg-bad/5"}`}>

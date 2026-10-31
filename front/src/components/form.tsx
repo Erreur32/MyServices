@@ -10,7 +10,7 @@ import { tx } from "../lib/i18n";
 
 /** Message d'un enregistrement : un succès disparaît au bout de 15 s ; une erreur s'ouvre en fenêtre par-dessus la page (on la voit où que l'on soit),
  *  puis reste affichée en rouge sous le formulaire une fois fermée. */
-export function NoteLine({ note, inline = false }: { note: Note; inline?: boolean }) {   // inline : une petite ligne dans un titre, sans rien pousser en dessous
+export function NoteLine({ note, inline = false }: Readonly<{ note: Note; inline?: boolean }>) {   // inline : une petite ligne dans un titre, sans rien pousser en dessous
   const [gone, setGone] = useState<Note>(null), [closed, setClosed] = useState<Note>(null);
   useEffect(() => {
     if (!note?.ok) return;
@@ -33,7 +33,7 @@ export function NoteLine({ note, inline = false }: { note: Note; inline?: boolea
   );
 }
 
-export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {
+export function Field({ label, children }: Readonly<{ label: ReactNode; children: ReactNode }>) {
   // label in one span: its parts (text, red « * », « (optional) ») stay on one line instead of one flex row each
   return <label className="flex flex-col gap-1 text-sm text-muted"><span>{label}</span>{children}</label>;
 }
@@ -41,9 +41,9 @@ export function Field({ label, children }: { label: ReactNode; children: ReactNo
 
 /** Étiquettes à créer et à retirer, gardées en un texte « a, b, c » (le rôle d'une machine) : Entrée ou virgule ajoute, × retire,
  *  Retour arrière retire la dernière. `suggestions` : étiquettes proposées en un clic (déjà présentes, elles disparaissent). */
-export function TagInput({ value, onChange, label, suggestions = [], max = 200, placeholder }: {
+export function TagInput({ value, onChange, label, suggestions = [], max = 200, placeholder }: Readonly<{
   value: string; onChange: (v: string) => void; label: string; suggestions?: string[]; max?: number; placeholder?: string;
-}) {
+}>) {
   const tags = value.split(",").map((t) => t.trim()).filter(Boolean);
   const [draft, setDraft] = useState("");
   const set = (next: string[]) => onChange(next.join(", ").slice(0, max));
@@ -86,7 +86,7 @@ export function TagInput({ value, onChange, label, suggestions = [], max = 200, 
 }
 
 /** Interrupteur on / off (role="switch") */
-export function Switch({ on, onChange, label, disabled }: { on: boolean; onChange: (on: boolean) => void; label: string; disabled?: boolean }) {
+export function Switch({ on, onChange, label, disabled }: Readonly<{ on: boolean; onChange: (on: boolean) => void; label: string; disabled?: boolean }>) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} title={label} disabled={disabled} onClick={() => onChange(!on)}
       className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50 ${on ? "border-ok/60 bg-ok/70" : "border-line bg-bg2"}`}>
@@ -96,7 +96,7 @@ export function Switch({ on, onChange, label, disabled }: { on: boolean; onChang
 }
 
 /** Texte à copier (clé, commande) avec son bouton */
-export function Copyable({ text, oneLine = false }: { text: string; oneLine?: boolean }) {
+export function Copyable({ text, oneLine = false }: Readonly<{ text: string; oneLine?: boolean }>) {
   const [note, setNote] = useState<Note>(null);
   const copy = async () => {
     const ok = await copyText(text);

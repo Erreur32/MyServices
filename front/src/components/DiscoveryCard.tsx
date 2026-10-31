@@ -62,7 +62,7 @@ export const MODE: Record<DiscoveryItem["mode"], { label: string; hint: string; 
 };
 
 /** Titre d'une découverte : logo du système de la machine, puis « **Appli** trouvé sur **Machine** (ip) » (gras : l'appli et la machine seulement) */
-export function Title({ x, machines }: { x: DiscoveryItem; machines?: Machine[] }) {
+export function Title({ x, machines }: Readonly<{ x: DiscoveryItem; machines?: Machine[] }>) {
   const m = x.machine, live = m && machines?.find((y) => y.ip === m.ip);
   const icon = live && <MachineIcon m={{ os: live.agent ? "windows" : undefined, osName: live.info?.os ?? live.agent?.os, info: live.info, ttl: live.ttl }} />;   // pas le nom ni le rôle : le logo est celui du système
   if (x.app && m) {
@@ -75,7 +75,7 @@ export function Title({ x, machines }: { x: DiscoveryItem; machines?: Machine[] 
 export const when = (ts: number | null) => (ts ? dateTime(ts * 1000) : null);
 
 /** Forget a discovery (no bell, no home reminder, moved to « Forgotten » in Settings → Discovery) or bring it back */
-export function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
+export function MuteButton({ x, reload }: Readonly<{ x: DiscoveryItem; reload: () => void }>) {
   const [note, setNote] = useState<Note>(null);
   if (!x.mutable) return null;
   const mute = !x.muted;
@@ -92,7 +92,7 @@ export function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void
   );
 }
 
-export function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload: () => void }) {
+export function Action({ a, reload }: Readonly<{ a: NonNullable<DiscoveryItem["action"]>; reload: () => void }>) {
   const [note, setNote] = useState<Note>(null);
   const go = (href: string) => {   // déjà à cette adresse : l'adresse ne change pas, on prévient quand même la page (défilement, cadre allumé)
     if (location.hash === href) dispatchEvent(new HashChangeEvent("hashchange"));
@@ -128,7 +128,7 @@ export const GROUPS: { id: string; title: string; Icon: typeof Boxes; has: (id: 
 export const groupOf = (x: DiscoveryItem) => GROUPS.find((g) => g.has(x.id)) ?? GROUPS[1];
 
 /** Une découverte en carte : titre, mode, ce qu'elle fait, dernière / prochaine fois, puis ses boutons */
-function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => void; machines?: Machine[]; extra?: (onCount: (n: number) => void) => ReactNode }) {
+function Item({ x, reload, machines, extra }: Readonly<{ x: DiscoveryItem; reload: () => void; machines?: Machine[]; extra?: (onCount: (n: number) => void) => ReactNode }>) {
   const [picked, setPicked] = useState(0);   // machines cochées dans la liste repliée : montré sur l'en-tête du cadre
   const m = MODE[x.mode], todo = x.state === "todo", suggest = x.state === "suggest";
   const wanted = () => location.hash.split("/")[2] === x.id;   // lien #settings/discovery/<id> : le cadre s'ouvre
@@ -170,7 +170,7 @@ export const todoOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => c
 export const suggestOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => countOf(d, g, "suggest");
 
 /** Suggestion en une ligne (appli reconnue, dossiers à chercher…) : elles peuvent être nombreuses, une carte chacune noierait ce qui compte */
-function SuggestRow({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines?: Machine[] }) {
+function SuggestRow({ x, reload, machines }: Readonly<{ x: DiscoveryItem; reload: () => void; machines?: Machine[] }>) {
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 text-sm">
       <div className="min-w-[220px] flex-1" title={x.what}>
@@ -186,7 +186,7 @@ function SuggestRow({ x, reload, machines }: { x: DiscoveryItem; reload: () => v
 }
 
 /** Les découvertes d'une famille, en trois temps : ce qu'il faut faire, ce qui est proposé (facultatif), puis, replié, ce qui tourne seul */
-export function DiscoveryPanel({ d, group, reload, machines, extra }: { d: DiscoveryData | null; group: (typeof GROUPS)[number]; reload: () => void; machines?: Machine[]; extra?: (x: DiscoveryItem, onCount: (n: number) => void) => ReactNode }) {
+export function DiscoveryPanel({ d, group, reload, machines, extra }: Readonly<{ d: DiscoveryData | null; group: (typeof GROUPS)[number]; reload: () => void; machines?: Machine[]; extra?: (x: DiscoveryItem, onCount: (n: number) => void) => ReactNode }>) {
   if (!d) return null;
   const items = d.items.filter((x) => groupOf(x) === group);
   const todo = items.filter((x) => x.state === "todo"), suggest = items.filter((x) => x.state === "suggest");
@@ -228,7 +228,7 @@ const FOLD_KEY = "ms.home.discovery.folded";
 
 /** Accueil : seulement ce qui est à faire (rien d'affiché quand tout est en ordre). Un cadre « notifications » : en-tête avec un badge du nombre,
  *  puis une ligne par chose à faire (logo, « Appli trouvée sur Machine », pourquoi) avec son bouton, et « Ne plus me le rappeler » quand c'est permis. */
-export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
+export function DiscoveryReminder({ machines }: Readonly<{ machines?: Machine[] }>) {
   const [d, reload] = useDiscoveries();
   const [folded, setFolded] = useState(() => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } });
   const fold = (v: boolean) => { setFolded(v); try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
@@ -285,7 +285,7 @@ export function suggestionGroups(items: { id: string; state: string }[]): { href
 
 /** Cloche de l'en-tête (admin) : ce qu'il reste à faire, dans un panneau qui s'ouvre au clic (chaque chose avec son bouton), puis le nombre
  *  de suggestions facultatives et un lien vers Réglages → Découverte. Pastille orange = choses à faire ; cloche grise s'il n'y a que des suggestions. */
-export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
+export function DiscoveryBell({ machines }: Readonly<{ machines?: Machine[] }>) {
   const [d, reload] = useDiscoveries();
   const { open, setOpen, box } = useDropdown();
   const n = d?.todo ?? 0, sug = d?.suggest ?? 0;

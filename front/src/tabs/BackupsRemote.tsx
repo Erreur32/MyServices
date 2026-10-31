@@ -21,7 +21,7 @@ interface Listing { path: string; folders: string[]; files: { name: string; size
 
 const PORTS: Record<Proto, string> = { ftp: "21", ftps: "21", smb: "445" };
 
-export function BackupsRemote({ accounts, sets, reload }: { accounts: RemoteAccountState[]; sets: RemoteSet[]; reload: () => void }) {
+export function BackupsRemote({ accounts, sets, reload }: Readonly<{ accounts: RemoteAccountState[]; sets: RemoteSet[]; reload: () => void }>) {
   const first = accounts[0];
   const [name, setName] = useState(first?.name ?? ""), [proto, setProto] = useState<Proto>(first?.protocol ?? "ftp");
   const [host, setHost] = useState(first?.host ?? ""), [port, setPort] = useState(first?.port ? String(first.port) : "");

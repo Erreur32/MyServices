@@ -73,7 +73,7 @@ function backupOf(g: Guest, sets: BackupSet[], hostIds: Set<string>) {
   return mine.sort((a, b) => (a.locations[0].age ?? 1e9) - (b.locations[0].age ?? 1e9))[0];
 }
 
-function GuestRow({ g, m, set, backups, docker, dockhand, onMachine }: { g: Guest; m?: Machine; set?: BackupSet; backups: boolean; docker?: number; dockhand?: { containers?: number; updates: number }; onMachine: (ip: string) => void }) {
+function GuestRow({ g, m, set, backups, docker, dockhand, onMachine }: Readonly<{ g: Guest; m?: Machine; set?: BackupSet; backups: boolean; docker?: number; dockhand?: { containers?: number; updates: number }; onMachine: (ip: string) => void }>) {
   const on = g.status === "running", age = set?.locations[0].age;
   return (
     <tr className={`hover:bg-bg2/50 ${on ? "" : "bg-bg/40 text-muted opacity-50 grayscale"}`}>
@@ -117,7 +117,7 @@ function Category({ icon: Icon, title, count, children }: Readonly<{ icon: typeo
   );
 }
 
-function Host({ c, snap, onMachine, hideStopped }: { c: VirtualizationConnector; snap: Snapshot; onMachine: (ip: string) => void; hideStopped: boolean }) {
+function Host({ c, snap, onMachine, hideStopped }: Readonly<{ c: VirtualizationConnector; snap: Snapshot; onMachine: (ip: string) => void; hideStopped: boolean }>) {
   const guests = (c.guests ?? []).filter((g) => !g.template && !(hideStopped && g.status !== "running")).sort((a, b) => Number(b.status === "running") - Number(a.status === "running") || String(a.vmid).localeCompare(String(b.vmid), undefined, { numeric: true }));
   const machines = snap.data.machine_list;
   const sets = snap.backups?.sets ?? [];
@@ -202,7 +202,7 @@ function Host({ c, snap, onMachine, hideStopped }: { c: VirtualizationConnector;
 
 const HIDE_KEY = "myservices.virtualization.hideStopped";
 
-export function Virtualization({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: string) => void }) {
+export function Virtualization({ snap, onMachine }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void }>) {
   const [hideStopped, setHide] = useState(() => { try { return localStorage.getItem(HIDE_KEY) === "1"; } catch { return false; } });
   const toggleHide = () => { setHide(!hideStopped); try { localStorage.setItem(HIDE_KEY, hideStopped ? "0" : "1"); } catch { /* private window: fine */ } };
   const virt = snap.data.virtualization ?? [];

@@ -17,7 +17,7 @@ const csvCell = (v: string | number | null) => `"${String(v ?? "").replace(/"/g,
 const chip = (on: boolean) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`;
 const PERIODS: [number, string][] = [[1, tx("24 h")], [7, tx("7 jours")], [30, tx("30 jours")], [0, tx("Tout")]];
 
-function Tile({ value, label, tone }: { value: number; label: string; tone?: string }) {
+function Tile({ value, label, tone }: Readonly<{ value: number; label: string; tone?: string }>) {
   return <div className="rounded-xl bg-bg2/60 px-3 py-2"><div className={`font-mono text-xl font-bold leading-tight ${tone ?? "text-txt"}`}>{value}</div><div className="text-xs text-dim">{label}</div></div>;
 }
 

@@ -57,7 +57,7 @@ function describe(n: NotificationItem, st: NotificationsState): string {
   return [kinds, c.machine && `${tx("machine")} « ${c.machine} »`, c.match && `« ${c.match} »`, c.cooldown_min ? tx("au plus 1 fois / {0} min", c.cooldown_min) : null].filter(Boolean).join(" · ");
 }
 
-function List({ st, reload }: { st: NotificationsState; reload: () => void }) {
+function List({ st, reload }: Readonly<{ st: NotificationsState; reload: () => void }>) {
   const [editing, setEditing] = useState<NotificationItem | "new" | null>(null), [note, setNote] = useState<Note>(null), [confirm, setConfirm] = useState(0), [busy, setBusy] = useState(0);
   const chName = (id: number) => st.channels.find((c) => c.id === id)?.name;
   return (
@@ -100,7 +100,7 @@ function List({ st, reload }: { st: NotificationsState; reload: () => void }) {
   );
 }
 
-function ChannelPick({ channels, value, onChange }: { channels: AlertChannel[]; value: number[]; onChange: (v: number[]) => void }) {
+function ChannelPick({ channels, value, onChange }: Readonly<{ channels: AlertChannel[]; value: number[]; onChange: (v: number[]) => void }>) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {channels.map((c) => (
@@ -113,7 +113,7 @@ function ChannelPick({ channels, value, onChange }: { channels: AlertChannel[]; 
   );
 }
 
-function Form({ st, item, onDone, onCancel }: { st: NotificationsState; item?: NotificationItem; onDone: () => void; onCancel: () => void }) {
+function Form({ st, item, onDone, onCancel }: Readonly<{ st: NotificationsState; item?: NotificationItem; onDone: () => void; onCancel: () => void }>) {
   const [kind, setKind] = useState<"report" | "events">(item?.kind ?? "report");
   const [name, setName] = useState(item?.name ?? "");
   const [channels, setChannels] = useState<number[]>(item?.channels ?? st.channels.filter((c) => c.enabled).map((c) => c.id));
@@ -203,7 +203,7 @@ function Form({ st, item, onDone, onCancel }: { st: NotificationsState; item?: N
   );
 }
 
-function Examples({ st, reload }: { st: NotificationsState; reload: () => void }) {
+function Examples({ st, reload }: Readonly<{ st: NotificationsState; reload: () => void }>) {
   const have = new Set(st.notifications.map((n) => n.name));
   const todo = st.examples.filter((e) => !have.has(e.name));
   const [note, setNote] = useState<Note>(null);
@@ -227,7 +227,7 @@ function Examples({ st, reload }: { st: NotificationsState; reload: () => void }
   );
 }
 
-function Sent({ st }: { st: NotificationsState }) {
+function Sent({ st }: Readonly<{ st: NotificationsState }>) {
   if (!st.sent.length) return null;
   return (
     <Card>

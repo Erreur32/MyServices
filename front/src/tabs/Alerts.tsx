@@ -37,7 +37,7 @@ export const TYPES: Record<ChannelType, { label: string; fields: { k: string; la
 const HIDE_KEY = "ms.alerts.status.hidden";
 
 /** État du moteur d'alertes. Le cadre explicatif peut se masquer (choix retenu) : il reste alors une ligne d'état avec « Afficher ». */
-function Status({ active }: { active: boolean }) {
+function Status({ active }: Readonly<{ active: boolean }>) {
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(HIDE_KEY) === "1"; } catch { return false; } });
   const set = (h: boolean) => { setHidden(h); try { localStorage.setItem(HIDE_KEY, h ? "1" : "0"); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
   const badge = <Badge tone={active ? "ok" : "warn"}>{active ? tx("alertes actives") : tx("aucune règle active")}</Badge>;
@@ -88,7 +88,7 @@ export function Alerts({ part }: Readonly<{ part: "channels" | "rules" | "sent" 
 
 // ── Canaux ──
 
-function Channels({ st, reload }: { st: AlertsState; reload: () => void }) {
+function Channels({ st, reload }: Readonly<{ st: AlertsState; reload: () => void }>) {
   const [adding, setAdding] = useState(st.channels.length === 0);
   return (
     <Card>
@@ -105,7 +105,7 @@ function Channels({ st, reload }: { st: AlertsState; reload: () => void }) {
   );
 }
 
-function ChannelRow({ c, reload }: { c: AlertChannel; reload: () => void }) {
+function ChannelRow({ c, reload }: Readonly<{ c: AlertChannel; reload: () => void }>) {
   const [note, setNote] = useState<Note>(null);
   const [edit, setEdit] = useState(false), [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<unknown>, done: string, again = true) => {
@@ -143,7 +143,7 @@ function ChannelRow({ c, reload }: { c: AlertChannel; reload: () => void }) {
   );
 }
 
-export function ChannelForm({ channel, onDone, onCancel }: { channel?: AlertChannel; onDone: () => void; onCancel: () => void }) {
+export function ChannelForm({ channel, onDone, onCancel }: Readonly<{ channel?: AlertChannel; onDone: () => void; onCancel: () => void }>) {
   const [type, setType] = useState<ChannelType>(channel?.type || "discord");
   const [name, setName] = useState(channel?.name || "");
   const [conf, setConf] = useState<Record<string, string>>(channel?.config || {});
@@ -192,7 +192,7 @@ export function ChannelForm({ channel, onDone, onCancel }: { channel?: AlertChan
 
 // ── Règles ──
 
-function Rules({ st, reload }: { st: AlertsState; reload: () => void }) {
+function Rules({ st, reload }: Readonly<{ st: AlertsState; reload: () => void }>) {
   const [adding, setAdding] = useState(false), [presets, setPresets] = useState(false);
   return (
     <Card>
@@ -218,7 +218,7 @@ function Rules({ st, reload }: { st: AlertsState; reload: () => void }) {
 
 const kindLabel = (st: AlertsState, k: string) => st.kinds.find((x) => x.id === k)?.label || k;
 
-function RuleRow({ r, st, reload }: { r: AlertRule; st: AlertsState; reload: () => void }) {
+function RuleRow({ r, st, reload }: Readonly<{ r: AlertRule; st: AlertsState; reload: () => void }>) {
   const [note, setNote] = useState<Note>(null), [edit, setEdit] = useState(false), [confirm, setConfirm] = useState(false);
   const run = async (fn: () => Promise<unknown>, done: string) => { if (await act(fn, done, setNote)) reload(); };
   const names = r.channels.map((id) => st.channels.find((c) => c.id === id)?.name).filter(Boolean);
@@ -256,7 +256,7 @@ function RuleRow({ r, st, reload }: { r: AlertRule; st: AlertsState; reload: () 
 
 const COOLDOWNS: [number, string][] = [[0, tx("sans délai")], [15, tx("15 min")], [60, "1 h"], [180, "3 h"], [360, "6 h"], [720, "12 h"], [1440, "24 h"]];
 
-function RuleForm({ st, rule, onDone, onCancel }: { st: AlertsState; rule?: AlertRule; onDone: () => void; onCancel: () => void }) {
+function RuleForm({ st, rule, onDone, onCancel }: Readonly<{ st: AlertsState; rule?: AlertRule; onDone: () => void; onCancel: () => void }>) {
   const [r, setR] = useState<Omit<AlertRule, "id">>(rule || {
     name: "", kinds: [], machine: "", match: "", channels: st.channels.filter((c) => c.enabled).map((c) => c.id),
     cooldown_min: 60, resolved: true, enabled: true,
@@ -331,7 +331,7 @@ function RuleForm({ st, rule, onDone, onCancel }: { st: AlertsState; rule?: Aler
   );
 }
 
-function PresetPicker({ st, onDone }: { st: AlertsState; onDone: () => void }) {
+function PresetPicker({ st, onDone }: Readonly<{ st: AlertsState; onDone: () => void }>) {
   const have = new Set(st.rules.map((r) => r.name));
   const [picked, setPicked] = useState<string[]>([]);
   const [note, setNote] = useState<Note>(null);
@@ -357,7 +357,7 @@ function PresetPicker({ st, onDone }: { st: AlertsState; onDone: () => void }) {
 
 // ── Envois ──
 
-function Sent({ st }: { st: AlertsState }) {
+function Sent({ st }: Readonly<{ st: AlertsState }>) {
   const [open, setOpen] = useState<number | null>(null), [doc, setDoc] = useState(false);
   return (
     <Card>
