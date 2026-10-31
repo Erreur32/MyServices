@@ -5,6 +5,17 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.31.10 → next
+
+**Nothing to do.** The update does these by itself:
+
+- A new `avail_runs` table is added to the database at start. It stays small: about 2 MB estimated with 100 pulsed services, older rows are removed by themselves.
+- The 24 hour view of Availability has 96 quarter-hour cells. Older days keep their previous precision.
+- `recheck.json` appears next to `ports.json`, and the log may show "contrôle rapide" lines after the watch.
+- Machines with a fresh and complete agent report get no inventory, ports or logins SSH connection. If you only used SSH on them, nothing changes.
+- `legacy/` is gone from the repository. It played no part in the Docker image.
+- The header choices are kept in each browser, with the collection and the network search on by default.
+
 ## 0.31.9 → 0.31.10
 
 **Nothing to do.** What to know:

@@ -11,6 +11,28 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- **Availability to the minute**: machines and services keep their outages from the pulses, and the 24 hour view shows 96 quarter-hour cells. A new `avail_runs` table holds them, created by itself.
+- **Quick recheck**: a service found bad although its port answers (a 5xx, or no answer on its public site) is tried again about 90 seconds after the watch, one per domain and at most 20 per pass, so the outage is confirmed without waiting for the next collection. Only the appearance of an outage is sped up, and the log says "contrôle rapide".
+- **Pulse cost**: Settings › Requests shows what the port pulses cost.
+- **Header**: every scheduled task can appear in the header, chosen per browser in Tasks and schedules; the collection and the network search stay on by default.
+- **Internet box**: a Liberty gateway connector for Virgin Media Hub 5 and Ziggo SmartWifi, based on the liberty-global-gateway project, whose author tried it on a Ziggo F3896LG only; simulated here.
+
+### Changed
+
+- **Agent first**: a machine with a fresh and complete agent report is no longer read over SSH for its inventory, ports and logins. Ports without a web page are followed from that report.
+- **Header colours**: each task has its own gradient and title colour, made from the theme's tokens, and tasks with no percentage get a back-and-forth bar. The orb follows the theme in use instead of the system's light or dark setting.
+- **Login page**: the button text uses the page font at its proper size.
+
+### Removed
+
+- `legacy/`: the old systemd installation, unused since the Docker version.
+
+### Security
+
+- **Custom icons**: the key is checked where the file path is built.
+
 ## v0.31.10 (2026-10-31)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
