@@ -15,6 +15,20 @@ from msv.collect import pulse  # noqa: E402
 from msv.collect import watcher  # noqa: E402
 
 
+class AgentPorts(unittest.TestCase):
+    row = {"enabled": True, "ip": "10.0.0.5", "port": 22, "backend": {"up": True}, "web": "none"}
+
+    def test_silent_port_followed_only_when_read_by_the_agent(self):
+        self.assertIsNone(pulse.port_of(self.row))
+        self.assertEqual(pulse.port_of({**self.row, "by_agent": True}), "10.0.0.5:22")
+
+    def test_state_from_the_report_and_nothing_without_it(self):
+        row = {**self.row, "by_agent": True}
+        self.assertEqual(pulse.agent_states([row], {"10.0.0.5": {22, 80}}), {"10.0.0.5:22": True})
+        self.assertEqual(pulse.agent_states([row], {"10.0.0.5": {80}}), {"10.0.0.5:22": False})
+        self.assertEqual(pulse.agent_states([row], {}), {})   # agent silent or no ports section: no state, so no false outage
+
+
 class Confirm(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()

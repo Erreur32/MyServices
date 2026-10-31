@@ -45,7 +45,7 @@ const recent = (p: Pulse | null): p is Pulse => !!p && Date.now() / 1000 - p.ts 
 /** Le « ip:port » suivi par le pouls des services, même règle que pulse.port_of */
 function portOf(r: Host): string {
   const b = r.backend;
-  if (!r.enabled || r.paused || r.machine_off || r.stopped || !b || b.internal || typeof b.up !== "boolean" || (b.up && r.web === "none")) return "";
+  if (!r.enabled || r.paused || r.machine_off || r.stopped || !b || b.internal || typeof b.up !== "boolean" || (b.up && r.web === "none" && !r.by_agent)) return "";
   return r.ip && r.port ? `${r.ip}:${r.port}` : "";
 }
 

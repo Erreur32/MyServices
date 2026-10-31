@@ -53,6 +53,7 @@ function SshAdvice({ ip, need, uses, canInstall }: Readonly<{ ip: string; need: 
     default: return (
       <span className="flex flex-col items-start gap-0.5 text-xs">
         <Badge tone="info">{tx("SSH facultatif : l'agent suffit")}</Badge>
+        <span className="text-muted">{tx("Vous pouvez retirer le SSH de cette machine : « Couper le SSH » le désactive, rien n'est coupé tout seul.")}</span>
         <span className="flex gap-3">{agentPage}<a href={`#settings/machines/ssh/${ip}`} className="text-link hover:underline">{tx("Couper le SSH")} ›</a></span>
       </span>
     );

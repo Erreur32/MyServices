@@ -100,6 +100,7 @@ export interface Host {
   uptime?: { name?: string; status: string; response_ms?: number | null; cert_days?: number | null }[];
   dns?: { issues: [string, ...unknown[]][]; rewrites?: unknown[] };
   web?: string;
+  by_agent?: boolean;   // silent port (no web page) whose state comes from the agent report: followed live without any connection
   direct_ok?: boolean;
   target_changed?: string;   // ISO date: the target (ip:port) changed less than 7 days ago
   target_before?: string;    // the previous target

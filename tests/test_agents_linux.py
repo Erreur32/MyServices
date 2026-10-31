@@ -248,6 +248,21 @@ class LinuxAgentScripts(unittest.TestCase):
         missing = {docker_ssh.DOCKER_SH: [127, "sh: 1: docker: not found"]}
         self.assertEqual(agents.linux_inventory({"data": {"kind": "linux", "cmds": missing}})["containers"], [])   # no Docker here
 
+    def test_inventaire_servi_par_l_agent_seulement_complet(self):
+        from msv.collect import hostinfo
+        from connectors import docker_ssh, process
+        remote = "##OS Debian\n##KERNEL 6.1\n##UPTIME 100\n"
+        full = {hostinfo.REMOTE: [0, remote], docker_ssh.DOCKER_SH: [0, docker_ssh.ENV_MARK + "\n"], docker_ssh.NET_SH: [0, "_host=10.0.0.5/24\n"],
+                process.LISTEN_SH: [0, 'LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=1,fd=3))\n']}
+        rep = lambda cmds: {"data": {"kind": "linux", "cmds": cmds}}  # noqa: E731
+        self.assertTrue(agents.serves_inventory(rep(full)))
+        self.assertEqual(agents.listening_ports(rep(full)), {22})
+        for missing in (hostinfo.REMOTE, docker_ssh.NET_SH, process.LISTEN_SH):   # a missing section: SSH keeps reading, no port is taken for closed
+            part = {k: v for k, v in full.items() if k != missing}
+            self.assertFalse(agents.serves_inventory(rep(part)))
+        self.assertIsNone(agents.listening_ports(rep({k: v for k, v in full.items() if k != process.LISTEN_SH})))
+        self.assertFalse(agents.serves_inventory({"data": {"disks": []}}))
+
     def test_v4_info_machine_gardee_une_heure(self):
         from msv.collect import hostinfo
         ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}

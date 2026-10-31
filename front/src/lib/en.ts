@@ -2456,6 +2456,7 @@ export const EN: Record<string, string> = {
   "L'agent ne lit pas : {0}": "The agent does not read: {0}",
   "L'agent MyServices fait les mêmes relevés de santé et d'inventaire, sans clé SSH sur la machine. Gardez le SSH pour ce qu'il ne lit pas : sauvegardes, Proxmox ou ESXi, NPM, AdGuard. « SSH à garder » signale aussi un système sans agent possible et un agent qui n'envoie plus de relevé. Sur « SSH facultatif », vous pouvez retirer le SSH avec « Couper le SSH » : rien n'est coupé tout seul.": "The MyServices agent takes the same health and inventory readings, without an SSH key on the machine. Keep SSH for what it does not read: backups, Proxmox or ESXi, NPM, AdGuard. « Keep SSH » also marks a system where no agent can run and an agent that no longer reports. On « SSH optional », you can remove SSH with « Turn SSH off »: nothing is turned off by itself.",
   "Couper le SSH": "Turn SSH off",
+  "Vous pouvez retirer le SSH de cette machine : « Couper le SSH » le désactive, rien n'est coupé tout seul.": "You may remove SSH from this machine: « Turn SSH off » disables it, nothing is turned off by itself.",
   "Alertes par heure, 24 h": "Alerts per hour, 24 h",
   "graves (niveau {0} et plus)": "serious (level {0} and up)",
   "{0} alertes en 24 h, dont {1} graves": "{0} alerts in 24 h, {1} serious",
