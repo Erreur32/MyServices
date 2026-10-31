@@ -236,7 +236,27 @@ def auto_backup_default() -> None:
 
 
 PULSE = pulse.Pulse(WEB / "pulse.json", CFG["pulse_confirm"])
-PORTS = pulse.Pulse(WEB / "ports.json", CFG["pulse_confirm"], pulse.port_open)   # same confirmed state, keyed by « ip:port »
+AGENT_PORTS: dict[str, bool] = {}   # « ip:port » -> listening, from the fresh agent reports (set by ports_loop)
+
+
+def port_probe(target: str) -> tuple[bool, float | None]:
+    """A port read in an agent report is not connected to (SSH, mail, SMB, databases: a silent connection fills their logs)."""
+    return (AGENT_PORTS[target], None) if target in AGENT_PORTS else pulse.port_open(target)
+
+
+PORTS = pulse.Pulse(WEB / "ports.json", CFG["pulse_confirm"], port_probe)   # same confirmed state, keyed by « ip:port »
+
+
+def agent_listening() -> dict[str, set[int]]:
+    """{IP: listening ports} of the agents whose last report is fresh and carries them."""
+    from msv.core.auth import db_path
+    from msv.machines import agents
+    try:
+        reports = agents.Agents(db_path(CFG)).fresh_reports()
+    except Exception as e:  # no database or unreadable: the ports are tried as before
+        log(f"⚠ agents (pouls des services) : {e}")
+        return {}
+    return {ip: lp for ip, a in reports.items() if a["fresh"] and (lp := agents.listening_ports(a["report"]))}
 
 
 def last_collection() -> dict:
@@ -298,7 +318,11 @@ def ports_loop() -> None:
         PORTS.confirm = max(1, CFG["pulse_confirm"])
         try:
             data = last_collection() if every > 0 else {}
-            ports = sorted({p for r in data.get("hosts", []) if (p := pulse.port_of(r))})
+            hosts = data.get("hosts", [])
+            AGENT_PORTS.clear()
+            AGENT_PORTS.update(pulse.agent_states(hosts, agent_listening()))
+            # a row read by its agent whose report is missing is not followed at all (never probed, never announced down)
+            ports = sorted({p for r in hosts if (p := pulse.port_of(r)) and (not r.get("by_agent") or p in AGENT_PORTS)})
             owed = bool(ports and PORTS.tick(ports)) or owed
             if owed and (not enabled("watch") or run_task("watch", "pouls des services")):
                 owed = False

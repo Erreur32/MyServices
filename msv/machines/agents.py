@@ -318,6 +318,21 @@ def linux_inventory(report: dict | None) -> dict | None:
             "ports": process.parse_listening(out_ss)[0] if rc_ss == 0 else None}
 
 
+def serves_inventory(report: dict | None) -> bool:
+    """True when a Linux agent report carries the whole SSH inventory (machine info, Docker containers and networks, listening ports): the
+    collection then opens no SSH connection to that machine. Any missing field (old agent, Docker unreadable) keeps the SSH read."""
+    inv = linux_inventory(report)
+    return bool(inv and inv["info"] and inv["containers"] is not None and inv["internal"] is not None and inv["ports"])
+
+
+def listening_ports(report: dict | None) -> set[int] | None:
+    """Ports a fresh agent report says are listening (Linux: the `ss` of the inventory, Windows: its ports list); None when the report has
+    none (old agent, section missing), so that nothing is taken for a closed port."""
+    inv = linux_inventory(report)
+    found = inv["ports"] if inv else ports_of(report)
+    return set(found) or None if found is not None else None
+
+
 def services_of(report: dict | None) -> list[dict]:
     """Services Windows en marche d'un relevé d'agent : [{"name", "display"}] (300 au plus), vide pour un agent ancien."""
     out = []

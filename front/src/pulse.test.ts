@@ -21,4 +21,9 @@ describe("withPulse, port of the services", () => {
     const d = data([host({ paused: "x" }), host({ backend: { up: true, internal: true } }), host({ web: "none" })]);
     expect(withPulse(d, null, ports(false))).toBe(d);
   });
+
+  it("follows a silent port whose state comes from the agent", () => {
+    const d = data([host({ web: "none", by_agent: true })]);
+    expect(withPulse(d, null, ports(false)).hosts[0].backend?.up).toBe(false);
+  });
 });
