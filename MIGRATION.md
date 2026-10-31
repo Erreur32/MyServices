@@ -13,6 +13,7 @@ Keep a copy of `config/` and `data/` before any update.
 - The 24 hour view of Availability has 96 quarter-hour cells. Older days keep their previous precision.
 - `recheck.json` appears next to `ports.json`, and the log may show "contrôle rapide" lines after the watch.
 - Machines with a fresh and complete agent report get no inventory, ports or logins SSH connection. If you only used SSH on them, nothing changes.
+- The Agents and SSH connections pages now say when an agent cannot read everything. It is optional: run the install command again with `MSV_SUDO=1` after `sudo env` to fill it, or leave SSH doing that part.
 - `legacy/` is gone from the repository. It played no part in the Docker image.
 - The header choices are kept in each browser, with the collection and the network search on by default.
 
