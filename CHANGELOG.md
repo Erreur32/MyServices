@@ -29,6 +29,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Assistant**: the last step is a short message with one main button, « Add a machine », and a link to connect your tools. Adding a machine now offers the agent first.
 - **Services**: « Ignored domains » shows its list in the title and always starts folded.
 - **Assistant**: « Finish » always ends it and brings the summary into view.
+- **Availability**: redesigned, with machines, services, domains, machine, domain and state always in sight, and cells that line up from row to row. It opens on the machines and keeps your filters.
 - **Machines**: a visible filter, on by default, hides the machines powered off or no longer followed.
 - **Cloudflare**: new pages Security, Server and cache, and DNS; Traffic gains visits, page views, most requested pages, bots and clients, methods. Two more calls per domain each hour.
 - **Cloudflare**: small curves in the figure tiles of the overview and of Traffic, read in the same query, with no extra call.
