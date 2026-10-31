@@ -51,6 +51,9 @@ export function portRows(m: Machine, hosts: Host[], sheet?: AddressSheet, more: 
   });
 }
 
+/** A known program of the machine itself (Samba, OpenSSH, a database…): no domain, no container. An unknown port is never one: it is the one to look at */
+export const isSystemPort = (r: PortRow): boolean => !r.domains.length && r.host?.service?.kind !== "docker" && !!(r.name || r.process);
+
 export type Guest = NonNullable<VirtualizationConnector["guests"]>[number];
 export interface GuestRow { guest: Guest; connector: string; machineIp?: string }
 

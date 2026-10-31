@@ -11,6 +11,7 @@
 #   MSV_SMART=1        allow `sudo -n smartctl -H /dev/*` for the agent user (SMART health of the disks)
 #   MSV_SUDO=1         allow the three read-only commands that need root, each alone (exact sudo rules): services to restart after an
 #                      update (needrestart, list mode), Fail2ban bans, and the process names behind the listening ports (ss)
+#   MSV_ALLOW_HTTP=1   accept plain http beyond the local network or a VPN: the token then crosses the internet unencrypted
 #   MSV_UNINSTALL=1    remove the agent (revoke its token in MyServices: Settings -> Agents)
 # Re-running is safe: it downloads the agent again and renews the config and the timer.
 set -euo pipefail
@@ -47,6 +48,13 @@ URL_OK=0
 [[ "$URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] && URL_OK=1  # NOSONAR S5332: local network, see above
 [[ "$URL" =~ ^https?://\[[0-9A-Fa-f:]+\](:[0-9]{1,5})?$ ]] && URL_OK=1  # NOSONAR S5332: local network, see above
 (( URL_OK )) || die "Bad MyServices address: '$URL' (expected http://host:port, no trailing path)"  # NOSONAR S5332: message only
+# Same rule in install.ps1: beyond the local network or a VPN, the token would cross the internet unencrypted
+LOCAL_HOST='^(localhost|[^.\[]+|.*\.(lan|local|home|internal|ts\.net)|10\.[0-9.]+|127\.[0-9.]+|192\.168\.[0-9.]+|169\.254\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9.]+|\[(fc|fd|fe[89ab])[^]]*\]|\[::1\])$'
+[[ "$URL" =~ ^https?://(\[[^]]+\]|[^:/]+) ]]
+SERVER=${BASH_REMATCH[1],,}
+if [[ "$URL" == http://* && "${MSV_ALLOW_HTTP:-}" != 1 && ! "$SERVER" =~ $LOCAL_HOST ]]; then  # NOSONAR S5332: this line refuses it
+  die "Refused: plain http to $SERVER would send the agent token unencrypted across the internet. Use https or a VPN address, or add MSV_ALLOW_HTTP=1 to the sudo env list."
+fi
 [[ "$TOKEN" =~ ^msv_agent_[A-Za-z0-9_-]+$ ]] || die "Bad token: it must start with msv_agent_"
 [[ "$MINUTES" =~ ^[0-9]+$ ]] && (( MINUTES >= 1 && MINUTES <= 1440 )) || die "MSV_MINUTES must be between 1 and 1440"
 command -v python3 >/dev/null || die "python3 is required"

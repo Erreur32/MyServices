@@ -130,16 +130,16 @@ export function Card({ children, className = "", tone }: Readonly<{ children: Re
 export interface FilterOption { id: string; label: string; on: boolean; toggle: () => void; mark?: ReactNode; count?: number }
 
 /** Pastille d'un filtre : active, disponible (avec son nombre) ou vide */
-function chipTone(on: boolean, count: number): string {
+function chipTone(on: boolean, count?: number): string {
   if (on) return "border-link bg-link/15 text-txt";
-  return count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60";
+  return count !== 0 ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60";
 }
 
-export function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: boolean; count: number; mark?: ReactNode; label: string; onClick: () => void }>) {
+export function ChipButton({ on, count, mark, label, title, onClick }: Readonly<{ on: boolean; count?: number; mark?: ReactNode; label: string; title?: string; onClick: () => void }>) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on}
+    <button type="button" onClick={onClick} aria-pressed={on} title={title}
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${chipTone(on, count)}`}>
-      {mark}{label}<span className="font-mono text-[11px] text-dim">{count}</span>
+      {mark}{label}{count !== undefined && <span className="font-mono text-[11px] text-dim">{count}</span>}
     </button>
   );
 }
@@ -285,7 +285,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
 
 /** En-tête de colonne triable */
 export function Chip({ label, on, act }: Readonly<{ label: string; on: boolean; act: () => void }>) {
-  return <button type="button" onClick={act} aria-pressed={on} className={`rounded-full border px-3 py-1 text-sm ${on ? "border-link text-txt ring-2 ring-link/30" : "border-line text-muted hover:text-txt"}`}>{label}</button>;
+  return <ChipButton on={on} label={label} onClick={act} />;
 }
 
 type ColumnSort = { key: string; asc: boolean; by: (k: string) => void };

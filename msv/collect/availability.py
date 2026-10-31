@@ -22,7 +22,7 @@ import sqlite3
 import time
 from bisect import bisect_right
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 SAMPLE_DAYS = 14
@@ -172,9 +172,9 @@ def report(db_path: str | Path, days: int = 30, now: float | None = None) -> dic
             slots, width = [start + i * QUARTER for i in range(96)], QUARTER
             cell = {(r["key"], r["t"]): r for r in rows}
         else:
-            first = datetime.fromtimestamp(now - (days - 1) * 86400).strftime("%Y-%m-%d")
-            rows = db.execute("SELECT key, day, n, up, ms_sum, ms_n FROM avail_days WHERE day >= ?", (first,)).fetchall()
-            dayset = [datetime.fromtimestamp(now - (days - 1 - i) * 86400) for i in range(days)]
+            today = datetime.fromtimestamp(now).date()
+            dayset = [today - timedelta(days=days - 1 - i) for i in range(days)]   # by the calendar: a change of clock makes a day of 23 or 25 hours
+            rows = db.execute("SELECT key, day, n, up, ms_sum, ms_n FROM avail_days WHERE day >= ?", (dayset[0].isoformat(),)).fetchall()
             slots, width = [int(datetime(d.year, d.month, d.day).timestamp()) for d in dayset], 86400
             by_day = {datetime.fromtimestamp(s).strftime("%Y-%m-%d"): s for s in slots}
             cell = {(r["key"], by_day.get(r["day"])): r for r in rows}

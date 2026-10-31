@@ -100,8 +100,8 @@ export function Availability({ snap }: Readonly<{ snap: Snapshot }>) {
   const downNow = items.filter((x) => x.last && !x.last.up).length, under = items.filter((x) => x.uptime < 95).length;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={Activity} title={tx("Disponibilité")} tags={null} actions={<fieldset className="inline-flex rounded-full border border-line bg-card p-0.5" aria-label={tx("Période")}>
-        {PERIODS.map(([d, l]) => <button key={d} type="button" onClick={() => pick(d)} aria-pressed={days === d} className={`rounded-full px-3 py-1 text-sm font-semibold ${days === d ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}>{l}</button>)}
+      <PageHead icon={Activity} title={tx("Disponibilité")} tags={null} actions={<fieldset className="m-0 inline-flex gap-1.5 border-0 p-0" aria-label={tx("Période")}>
+        {PERIODS.map(([d, l]) => <ChipButton key={d} on={days === d} label={l} onClick={() => pick(d)} />)}
       </fieldset>} />
       {items.length > 0 && (
         <div className="flex gap-2.5 overflow-x-auto pb-1">

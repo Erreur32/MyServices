@@ -14,6 +14,8 @@ below are MynetworK's, copied as they are:
   are shown as bit/s, kbit/s, Mbit/s, Gbit/s; `VERSION` is a constant (no build-time define); ports with live traffic get a `has-traffic` class
   and a faster LED blink (`port_led_traffic_blink_speed`).
 - `unifi-device-card.js` (MyServices): config `mark_port: <n>` puts a `marked` class on that port (`_renderPortButton`) and a frame around it (`.port.marked` in `_styles`); used by the machine window to show the port a machine is plugged into. To redo after a refresh from upstream: those two spots only.
+- `unifi-device-card.js` (MyServices): `_measuredCardWidth` and `_measuredFrontPanelContentWidth` read the layout width first: the Network page zooms the card with a transform, which must not fold the rows.
+- `unifi-device-card.js` (MyServices): `.header`, `.detail-grid`, `.detail-title`, `.panel-label` and `.port-num` read `--udc-text-zoom`: the Network page keeps the texts at their size at any zoom of the card, only images and ports follow it.
 - `unifi-device-card.d.ts` (new, MyServices): the module only registers the `unifi-device-card` element, nothing is imported from it.
 
 Excluded from SonarCloud (`sonar.exclusions`).

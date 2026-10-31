@@ -10,7 +10,7 @@ import { dayKey, hm, longDay, splitHostName } from "../lib/format";
 import { localVia, originOf } from "../lib/eventOrigin";
 import type { StoredEvent } from "../types";
 import { AreaChart, BarsChart, HeatChart, PointsChart, heatDays, type HeatCell, type Range } from "../components/HistoryCharts";
-import { Badge, Count, Empty, FilterBar } from "../components/ui";
+import { Badge, ChipButton, Count, Empty, FilterBar } from "../components/ui";
 import { StatTile } from "../components/StatTile";
 import { periodFigures } from "../lib/historyFigures";
 import { Square } from "../components/marks";
@@ -60,12 +60,11 @@ function Toolbar({ days, onDays, style, onStyle, middle }: Readonly<{ days: numb
           className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
       ))}
       <span className="mx-auto">{middle}</span>
-      <fieldset className="m-0 inline-flex rounded-lg border border-line bg-card p-0.5" aria-label={tx("Style du graphique")}>
+      <fieldset className="m-0 inline-flex gap-1.5 border-0 p-0" aria-label={tx("Style du graphique")}>
         {STYLES.map(([k, l]) => {
           const Icon = STYLE_ICON[k];
           return (
-            <button key={k} type="button" onClick={() => onStyle(k)} aria-pressed={style === k} title={l}
-              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm ${style === k ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
+            <ChipButton key={k} on={style === k} mark={<Icon size={14} aria-hidden />} label={l} onClick={() => onStyle(k)} />
           );
         })}
       </fieldset>
@@ -180,9 +179,7 @@ function Events({ snap, middle }: Readonly<{ snap: Snapshot; middle: ReactNode }
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line/60 pt-3 text-xs">
             <span className="text-dim">{tx("Les plus actifs :")}</span>
             {busiest.map((c) => (
-              <button key={c.value} type="button" onClick={() => f.toggle("service", c.value)} aria-pressed={c.on} title={tx("Filtrer sur ce service")}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${c.on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
-                <span className="max-w-[16rem] truncate">{c.label}</span><span className="font-mono text-[11px] text-dim">{c.count}</span></button>
+              <ChipButton key={c.value} on={c.on} count={c.count} label={c.label} title={tx("Filtrer sur ce service")} onClick={() => f.toggle("service", c.value)} />
             ))}
           </div>
         )}

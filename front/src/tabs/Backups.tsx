@@ -8,7 +8,7 @@ import { type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost, BackupSet, Backups as BackupsData, Machine } from "../types";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Pct, Table, TableCard, Td, Th } from "../components/ui";
+import { Badge, Cards, ChipButton, Dim, Empty, Fill, FilterBar, Level, Pct, Table, TableCard, Td, Th } from "../components/ui";
 import { FoldPanel } from "../components/FoldPanel";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
@@ -275,18 +275,13 @@ function SetsView({ sets, b, snap, initial, alerts = false }: Readonly<{ sets: B
           {SET_FILTERS.map((x) => {
             const n = f.shown.filter(x.keep).length, on = x.id === pick;
             return (
-              <button key={x.id} type="button" aria-pressed={on} onClick={() => setPick(x.id)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
-                {x.label}<span className="font-mono text-[11px] text-dim">{n}</span>
-              </button>
+              <ChipButton key={x.id} on={on} count={n} label={x.label} onClick={() => setPick(x.id)} />
             );
           })}
         </span>
       </div>
       <div className="border-b border-line/60 px-4 py-3"><FilterBar f={f} placeholder={tx("Jeu, machine, dossier, horaire…")} primary={["machine"]} oneLine bare
-        side={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les jeux sous le nom de leur machine")}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${grouped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
-          <Monitor size={14} aria-hidden />{tx("Par machine")}</button>} /></div>
+        side={<ChipButton on={grouped} mark={<Monitor size={14} aria-hidden />} label={tx("Par machine")} title={tx("Regrouper les jeux sous le nom de leur machine")} onClick={() => setGrouped(!grouped)} />} /></div>
       {shown.length ? <SetsTable sets={shown} b={b} snap={snap} sizes grouped={grouped} /> : <p className="px-4 py-3 text-sm text-dim">{tx("Aucun jeu dans ce filtre.")}</p>}
     </section>
   );

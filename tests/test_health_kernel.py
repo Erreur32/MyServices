@@ -35,6 +35,14 @@ class KernelErrors(unittest.TestCase):
         got = health.collect_kernel_errors(lambda cmd, timeout=0: (0, "\n".join(self.NOTICE)))
         self.assertEqual(got, {"has_errors": False, "samples": []})
 
+    def test_cifs_cleanup_of_an_interrupted_request_is_not_a_kernel_error(self):
+        line = "oct. 31 20:08:54 host kernel: CIFS: VFS: \\\\10.0.0.6\\home Close unmatched open for MID:6747387"
+        self.assertFalse(health.collect_kernel_errors(lambda cmd, timeout=0: (0, line))["has_errors"])
+
+    def test_a_cifs_network_failure_stays_a_kernel_error(self):
+        line = "oct. 31 20:08:54 host kernel: CIFS: VFS: \\\\10.0.0.6 has not responded in 180 seconds. Reconnecting..."
+        self.assertTrue(health.collect_kernel_errors(lambda cmd, timeout=0: (0, line))["has_errors"])
+
     def test_a_real_error_is_kept_beside_the_notice(self):
         real = "oct. 26 13:00:00 host kernel: EXT4-fs error (device sda1): ext4_find_entry:1455: inode #2: comm ls: reading directory lblock 0"
         got = health.collect_kernel_errors(lambda cmd, timeout=0: (0, "\n".join([*self.NOTICE, real])))

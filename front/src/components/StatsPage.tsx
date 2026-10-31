@@ -1,4 +1,4 @@
-// Home page figures: a line of key figures, then the counters of each subject in a compact grid (two to four columns with the width);
+// Home page figures: a line of key figures, then the counters of each subject in a compact grid (two to six columns with the width);
 // a click on a group title opens its page, a click on a counter opens it filtered.
 import { Boxes, HardDrive, HeartPulse, Layers, Monitor, PackageCheck, Plug, ShieldCheck } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -126,7 +126,7 @@ export function Counters({ snap, go, goFilter }: Readonly<{ snap: Snapshot; go: 
         <h2 className="text-sm font-bold">{tx("Tout ton parc en chiffres")}</h2>
         <span className="text-xs text-dim">{tx("Clique sur un chiffre pour ouvrir la liste filtrée")}</span>
       </div>
-      <div className="grid items-start gap-2 p-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{Object.values(statGroups(snap, { go, goFilter })).flat()}</div>
+      <div className="grid items-start gap-2 p-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">{Object.values(statGroups(snap, { go, goFilter })).flat()}</div>
     </section>
   );
 }

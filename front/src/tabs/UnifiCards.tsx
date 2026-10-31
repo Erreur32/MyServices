@@ -2,7 +2,7 @@
 // composant unifi-device-card (MIT, copie dans src/vendor). Les données viennent de GET unifi/cards (MynetworK) ; l'agencement (ordre, largeur,
 // hauteur, port d'uplink choisi) est gardé dans ce navigateur. Lecture seule.
 import { ChevronDown, ChevronUp, GripVertical, Network, RotateCcw, Router, Wifi, type LucideIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { read } from "../api";
 import { Badge, Dim, Empty } from "../components/ui";
 import { input, quiet } from "../lib/forms";
@@ -10,7 +10,7 @@ import { appIcon, modelIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 import { useStoredFlag } from "../lib/storedFlag";
-import { applyOrder, clampSpan, DEFAULT_SPAN, GRID_COLUMNS, useCardLayout } from "../lib/cardLayout";
+import { applyOrder, cardDefaults, cardLayoutWidth, cardScale, clampSpan, GRID_COLUMNS, textZoom, TYPE_ORDER, useCardLayout } from "../lib/cardLayout";
 import { createMynetworkHass, mnDeviceId, type MnDevice } from "../vendor/unifi-device-card/mynetwork-adapter";
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
@@ -36,7 +36,6 @@ const THEME_VARS: Record<string, string> = {
   "--udc-accent": "rgb(var(--link))",
   "--udc-green": "rgb(var(--ok))",
   "--udc-orange": "rgb(var(--warn))",
-  "--udc-port-size": "26px",   // smaller than the 36 px default: several cards side by side
   "--udc-ap-scale": "0.45",
 };
 
@@ -44,10 +43,10 @@ const TYPE_ICON: Record<MnDevice["type"], [LucideIcon, string]> = { gateway: [Ro
 
 type CardElement = HTMLElement & { setConfig: (c: Record<string, unknown>) => void; hass: unknown };
 
-/** One card. With a chosen height it keeps its natural layout and is reduced proportionally to fit (never enlarged, no deformation). */
-function DeviceCard({ deviceId, hass, showPanel, height, uplinkPort, markPort }: Readonly<{ deviceId: string; hass: unknown; showPanel: boolean; height?: number; uplinkPort?: number; markPort?: number }>) {
-  const hostRef = useRef<HTMLDivElement>(null), cardRef = useRef<CardElement | null>(null);
-  const [naturalHeight, setNaturalHeight] = useState(0);
+/** One card. With `layoutWidth` it is zoomed from that width, then laid out at the width left by the zoom: it touches the edges of its box at any size. */
+function DeviceCard({ deviceId, hass, showPanel, height, uplinkPort, markPort, layoutWidth }: Readonly<{ deviceId: string; hass: unknown; showPanel: boolean; height?: number; uplinkPort?: number; markPort?: number; layoutWidth?: number }>) {
+  const boxRef = useRef<HTMLDivElement>(null), hostRef = useRef<HTMLDivElement>(null), cardRef = useRef<CardElement | null>(null);
+  const [naturalHeight, setNaturalHeight] = useState(0), [boxWidth, setBoxWidth] = useState(0);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -69,17 +68,18 @@ function DeviceCard({ deviceId, hass, showPanel, height, uplinkPort, markPort }:
   useEffect(() => { if (cardRef.current) cardRef.current.hass = hass; });
 
   useEffect(() => {   // a transform does not change the layout box: this keeps reporting the natural height
-    const host = hostRef.current;
-    if (!host) return;
-    const observer = new ResizeObserver(() => setNaturalHeight(host.offsetHeight));
+    const host = hostRef.current, box = boxRef.current;
+    if (!host || !box) return;
+    const observer = new ResizeObserver(() => { setNaturalHeight(host.offsetHeight); setBoxWidth(box.clientWidth); });
     observer.observe(host);
+    observer.observe(box);
     return () => observer.disconnect();
   }, []);
 
-  const scale = height != null && naturalHeight > 0 ? Math.min(1, height / naturalHeight) : 1;
-  return (
-    <div data-card-area className="relative" style={height == null ? undefined : { height, overflow: "hidden" }}>
-      <div ref={hostRef} style={scale < 1 ? { transform: `scale(${scale})`, transformOrigin: "top center" } : undefined} />
+  const scale = cardScale(boxWidth, layoutWidth ?? boxWidth, naturalHeight, height);
+  return layoutWidth == null ? <div data-card-area ref={boxRef} className="relative"><div ref={hostRef} /></div> : (
+    <div data-card-area ref={boxRef} className="relative overflow-hidden" style={{ height: naturalHeight * scale || height }}>
+      <div ref={hostRef} style={{ width: boxWidth / scale || layoutWidth, transform: `scale(${scale})`, transformOrigin: "top left", "--udc-text-zoom": textZoom(scale) } as CSSProperties} />
     </div>
   );
 }
@@ -132,7 +132,7 @@ export function UnifiCards() {
   const { hass, devices } = useMemo(() => createMynetworkHass(raw, pageLang()), [raw]);
   const ids = useMemo(() => devices.map((d: MnDevice) => d.id), [devices]);
   const { order, spans, heights, uplinks, move, setSpan, setHeight, setUplink, reset } = useCardLayout(ids);
-  const ordered = useMemo(() => applyOrder<MnDevice>(devices, order), [devices, order]);
+  const ordered = useMemo(() => applyOrder<MnDevice>([...devices].sort((a, b) => TYPE_ORDER[a.type] - TYPE_ORDER[b.type]), order), [devices, order]);
   const wide = useIsWide(), gridRef = useRef<HTMLDivElement>(null), [dragged, setDragged] = useState<string | null>(null);
 
   const resize = (e: ReactPointerEvent<HTMLElement>, id: string, axis: "width" | "height" | "both") => {
@@ -172,7 +172,7 @@ export function UnifiCards() {
           <div ref={gridRef} className="grid grid-cols-1 items-start gap-4 md:grid-cols-12">
             {ordered.map((d: MnDevice) => (
               <div key={d.id} className={`relative min-w-0 rounded-xl border-2 border-link/40 bg-bg shadow-lg shadow-black/20 transition-colors hover:border-link/70 ${dragged === d.id ? "opacity-50" : ""}`}
-                style={wide ? { gridColumn: `span ${clampSpan(spans[d.id] ?? DEFAULT_SPAN)}` } : undefined}
+                style={wide ? { gridColumn: `span ${clampSpan(spans[d.id] ?? cardDefaults(d.type, d.portCount).span)}` } : undefined}
                 onDragOver={(e) => { if (dragged) e.preventDefault(); }}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -205,7 +205,7 @@ export function UnifiCards() {
                   <Badge tone="off">{tx("{0} port(s)", d.portCount)}</Badge>
                 </div>
                 <div className="px-3 pb-4">
-                  {cardReady && <DeviceCard deviceId={d.id} hass={hass} showPanel={showPanel} height={heights[d.id]} uplinkPort={uplinks[d.id]} />}
+                  {cardReady && <DeviceCard deviceId={d.id} hass={hass} showPanel={showPanel} height={heights[d.id] ?? cardDefaults(d.type, d.portCount).height} uplinkPort={uplinks[d.id]} layoutWidth={cardLayoutWidth(d.portCount)} />}
                 </div>
                 <div title={tx("Tirer pour changer la hauteur ; double-clic : taille d'origine")} className="absolute bottom-0 left-0 h-2 w-full cursor-ns-resize rounded-b-xl hover:bg-link/30"
                   onPointerDown={(e) => resize(e, d.id, "height")} onDoubleClick={() => setHeight(d.id, null)} />
@@ -213,7 +213,7 @@ export function UnifiCards() {
                   <>
                     <div title={tx("Tirer pour changer la largeur")} className="absolute right-0 top-0 h-full w-2 cursor-ew-resize rounded-r-xl hover:bg-link/30" onPointerDown={(e) => resize(e, d.id, "width")} />
                     <div title={tx("Tirer pour changer la largeur et la hauteur ; double-clic : taille d'origine")} className="absolute bottom-1 right-1 z-20 h-4 w-4 cursor-nwse-resize text-dim hover:text-link"
-                      onPointerDown={(e) => resize(e, d.id, "both")} onDoubleClick={() => { setHeight(d.id, null); setSpan(d.id, DEFAULT_SPAN); }}>
+                      onPointerDown={(e) => resize(e, d.id, "both")} onDoubleClick={() => { setHeight(d.id, null); setSpan(d.id, cardDefaults(d.type, d.portCount).span); }}>
                       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M14 6 6 14M14 10l-4 4M14 2 2 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" /></svg>
                     </div>
                   </>

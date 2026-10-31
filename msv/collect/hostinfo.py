@@ -52,6 +52,11 @@ for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
 done
 """
 
+# Apart from REMOTE on purpose: the server finds an agent's outputs by the text of the command, a changed REMOTE would cost old agents their inventory
+UNITS_SH = r"""echo "##UNITS $(systemctl show -p FragmentPath $(systemctl list-units --type=service --state=running --plain --no-legend --no-pager 2>/dev/null | awk '{print $1}') 2>/dev/null | sed -n 's/^FragmentPath=//p' | tr '\n' ' ')"
+"""
+PACKAGED_UNITS = ("/lib/", "/usr/lib/", "/run/")   # unit files shipped by a package or generated; the others were added by hand
+
 
 # Emulated display adapters of virtual machines: not a real GPU, not worth a line
 VIRTUAL_GPU = re.compile(r"virtio|qxl|cirrus|bochs|vmware svga|vga adapter|hyper-v|virtualbox|microsoft corporation", re.I)
@@ -286,8 +291,9 @@ def parse_nics(raw: str) -> list[dict]:
 
 def host_info(alias: str) -> dict | None:
     """Infos d'une machine : 1 commande SSH (ou locale). None si injoignable."""
-    cmd = ["bash", "-c", REMOTE] if alias == "local" else \
-        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, REMOTE]
+    script = REMOTE + UNITS_SH
+    cmd = ["bash", "-c", script] if alias == "local" else \
+        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, script]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
     except subprocess.TimeoutExpired:
@@ -321,6 +327,14 @@ def _host_sshd(tag: dict) -> dict:
     return sshd
 
 
+def parse_units(out: str) -> list[dict]:
+    """Running systemd services from the ##UNITS line of UNITS_SH: [{"name", "own"}], own when the unit file comes from no package."""
+    units = {}
+    for path in _host_tags(out).get("UNITS", "").split():
+        units[path.rpartition("/")[2].removesuffix(".service").rstrip("@")] = not path.startswith(PACKAGED_UNITS)
+    return [{"name": name, "own": own} for name, own in sorted(units.items())]
+
+
 def parse_host_info(out: str) -> dict | None:
     """Infos d'une machine d'après la sortie de REMOTE (lue par SSH, en local ou envoyée par l'agent Linux) ; None si elle est illisible."""
     if "##OS" not in out:
@@ -337,6 +351,7 @@ def parse_host_info(out: str) -> dict | None:
         "apache": svc.get("apache2") == "active",
         "nginx": svc.get("nginx") == "active",
         "web_units": [u for u, st in svc.items() if st == "active"],  # web servers running as a systemd service (the others are binaries)
+        "units": parse_units(out),
         "docker": int(tag["DOCKER"]) if tag.get("DOCKER", "").isdigit() else 0,
         "docker_installed": tag.get("DOCKERBIN") != "no",  # False : pas de Docker sur la machine (jamais une panne d'accès)
         "virt": tag.get("VIRT") if re.fullmatch(r"[a-z0-9-]{2,20}", tag.get("VIRT", "")) and tag.get("VIRT") != "none" else None,  # kvm, vmware, lxc…

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentHealth, agentSummary, sshNeed, sshRows, sshTarget } from "./accessLists";
+import { agentHealth, agentNotes, agentSummary, sshNeed, sshRows, sshTarget } from "./accessLists";
 import type { AgentInfo, Connector, Machine, MachineConf, SshAlias } from "../types";
 
 const agent = (id: number, name: string, state: AgentInfo["state"], more: Partial<AgentInfo> = {}): AgentInfo => ({
@@ -18,6 +18,23 @@ describe("agentSummary", () => {
     const s = agentSummary([agent(1, "a", "actif"), agent(2, "z", "actif", { outdated: true }), agent(3, "y", "actif", { outdated: true, update_requested: true })]);
     expect(s.outdated.map((a) => a.name)).toEqual(["z"]);
     expect(s.live[0].name).toBe("y");
+  });
+});
+
+describe("agentNotes", () => {
+  const base = { ...agent(1, "a", "actif"), kind: "linux" as const, version: "5", interval: 300 };
+
+  it("rien à dire d'un agent à jour au rythme normal", () => {
+    expect(agentNotes(base)).toEqual([]);
+  });
+
+  it("dit ce qu'apporte la mise à jour, seulement à un agent Linux ancien", () => {
+    expect(agentNotes({ ...base, version: "4", outdated: true })[0]).toContain("version 5");
+    expect(agentNotes({ ...base, version: "8", outdated: true, kind: "windows" })).toEqual([]);
+  });
+
+  it("dit que le rythme ne vient pas de la mise à jour", () => {
+    expect(agentNotes({ ...base, interval: 900 })[0]).toContain("15 min");
   });
 });
 

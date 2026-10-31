@@ -620,7 +620,7 @@ class UnifiDeviceCard extends HTMLElement {
   }
 
   _measuredCardWidth() {
-    const hostWidth = this.getBoundingClientRect?.().width || this.offsetWidth || 0;
+    const hostWidth = this.offsetWidth || this.getBoundingClientRect?.().width || 0;   // MyServices: offsetWidth first, the page zooms the card with a transform
     if (hostWidth > 0) return hostWidth;
     const cardWidth = this.shadowRoot?.querySelector("ha-card")?.getBoundingClientRect?.().width || 0;
     if (cardWidth > 0) return cardWidth;
@@ -631,7 +631,7 @@ class UnifiDeviceCard extends HTMLElement {
     const frontPanel = this.shadowRoot?.querySelector(".frontpanel");
     if (!frontPanel) return 0;
 
-    const panelWidth = frontPanel.getBoundingClientRect?.().width || frontPanel.clientWidth || 0;
+    const panelWidth = frontPanel.clientWidth || frontPanel.getBoundingClientRect?.().width || 0;   // MyServices: same reason
     if (panelWidth <= 0) return 0;
 
     const computed = getComputedStyle(frontPanel);
@@ -2177,6 +2177,7 @@ class UnifiDeviceCard extends HTMLElement {
         flex-direction: column;
       }
 
+      .header, .detail-grid, .detail-title, .panel-label, .port-num { zoom: var(--udc-text-zoom, 1); }
       .header {
         padding: 16px 18px 13px;
         background: var(--udc-chrome-bg, linear-gradient(160deg, var(--udc-surface) 0%, var(--udc-bg) 100%));

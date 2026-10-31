@@ -210,6 +210,23 @@ class LinuxAgentScripts(unittest.TestCase):
             r = subprocess.run(["bash", "-n"], input=text.encode(), capture_output=True)
             self.assertEqual(r.returncode, 0, r.stderr.decode())
 
+    def test_http_hors_reseau_local_refuse_pareil_sur_linux_et_windows(self):
+        """Plain http would send the token in clear across the internet: same rule in both installers (`[[ =~ ]]` runs the Linux one for real)."""
+        import re
+        import shutil
+        import subprocess
+        linux = re.search(r"LOCAL_HOST='(.+)'", agents.script("install.sh"))[1]
+        self.assertEqual(linux, re.search(r"\$LocalHost = '(.+)'", agents.script("install.ps1"))[1])
+        self.assertIn('"${MSV_ALLOW_HTTP:-}" != 1', agents.script("install.sh"))
+        self.assertIn("$env:MSV_ALLOW_HTTP -ne '1'", agents.script("install.ps1"))
+        kept = ("192.168.1.10", "10.0.0.2", "172.16.0.1", "127.0.0.1", "100.100.1.1", "ms.lan", "ms.tail1234.ts.net", "myservices", "localhost", "[fd00::1]", "[::1]")
+        refused = ("203.0.113.7", "ms.example.org", "172.32.0.1", "100.128.0.1", "[2001:db8::1]")
+        for host in kept + refused:
+            self.assertEqual(bool(re.search(linux, host)), host in kept, host)
+            if shutil.which("bash"):
+                r = subprocess.run(["bash", "-c", '[[ "$1" =~ $2 ]]', "x", host, linux])
+                self.assertEqual(r.returncode == 0, host in kept, host)
+
     def test_install_sh_regles_sudo_exactes(self):
         """MSV_SUDO=1 allows exactly the commands the collection runs through sudo -n: a rule that drifts would silently stop working."""
         from connectors.process import LISTEN_SH
@@ -221,6 +238,16 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertIn(') -tlnpH"', text)
         self.assertNotIn("ALL=(root) NOPASSWD: ALL", text)
 
+    def test_v5_services_en_marche(self):
+        from msv.collect import hostinfo
+        out = "##UNITS /lib/systemd/system/cron.service /etc/systemd/system/backup-job.service /usr/lib/systemd/system/getty@.service /usr/local/lib/systemd/system/tool.service\n"
+        self.assertEqual(hostinfo.parse_units(out), [{"name": "backup-job", "own": True}, {"name": "cron", "own": False}, {"name": "getty", "own": False}, {"name": "tool", "own": True}])
+        self.assertEqual(hostinfo.parse_units("##OS Debian\n"), [])
+        remote = "##OS Debian\n##UP 1\n"
+        inv = agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote], hostinfo.UNITS_SH: [0, out]}}})
+        self.assertEqual(inv["info"]["units"], hostinfo.parse_units(out))
+        self.assertIsNone(agents.linux_inventory({"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote]}}})["info"]["units"])   # agent 4: still served, the page asks for its update
+
     def test_v4_inventaire_lu_comme_par_ssh(self):
         from msv.collect import hostinfo
         from connectors import docker_ssh, process
@@ -231,7 +258,7 @@ class LinuxAgentScripts(unittest.TestCase):
         report = {"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote], docker_ssh.DOCKER_SH: [0, ps],
                                                       docker_ssh.NET_SH: [0, "_host=192.168.1.61/24\n"], process.LISTEN_SH: [0, ss]}}}
         inv = agents.linux_inventory(report)
-        self.assertEqual(inv["info"], {**hostinfo.parse_host_info(remote), "via": "agent"})
+        self.assertEqual(inv["info"], {**hostinfo.parse_host_info(remote), "via": "agent", "units": None})
         self.assertEqual((inv["info"]["os"], inv["info"]["apache"]), ("Debian GNU/Linux 12 (bookworm)", True))
         self.assertEqual(inv["containers"], docker_ssh.parse_containers(ps))
         self.assertEqual((inv["containers"][0]["ports"], inv["containers"][0]["local_ports"]), ([(8080, 80)], [3011]))
@@ -273,6 +300,7 @@ class LinuxAgentScripts(unittest.TestCase):
         ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
         exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
         self.assertEqual(ns["CACHED"][hostinfo.REMOTE], 3600)
+        self.assertIn(hostinfo.UNITS_SH, ns["COMMANDS"])
         self.assertTrue(all(len(c) <= agents.MAX_LINUX_CMD for c in ns["COMMANDS"]))   # every command fits the server limit
 
     def test_commande_d_installation(self):

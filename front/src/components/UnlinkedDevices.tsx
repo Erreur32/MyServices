@@ -6,9 +6,8 @@ import { useSort } from "../lib/filter";
 import { primary, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { tagsOf } from "../lib/netScan";
-import { Badge, Cards, Count, Dim, Table, Th } from "./ui";
+import { Badge, Cards, ChipButton, Dim, Table, Th } from "./ui";
 
-const FILTER = "inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 text-sm font-semibold text-link hover:border-link aria-pressed:border-link aria-pressed:bg-link/15 aria-pressed:text-txt";
 const SMALL = "px-2 py-0.5 text-xs";
 
 const groups = (): [DeviceGroup, string][] => [["look", tx("À regarder")], ["plain", tx("Objets simples")], ["off", tx("Hors ligne")], ["hidden", tx("Cachés")]];
@@ -57,7 +56,7 @@ export function UnlinkedDevices({ devices, fresh, ...actions }: Readonly<{ devic
     <>
       <fieldset className="flex flex-wrap gap-1.5">
         <legend className="sr-only">{tx("Filtrer les appareils")}</legend>
-        {groups().map(([id, label]) => <button key={id} type="button" className={FILTER} aria-pressed={group === id} onClick={() => setGroup(id)}>{label}<Count n={devices.filter((d) => d.group === id).length} /></button>)}
+        {groups().map(([id, label]) => <ChipButton key={id} on={group === id} count={devices.filter((d) => d.group === id).length} label={label} onClick={() => setGroup(id)} />)}
       </fieldset>
       {shown.length === 0 ? <Dim>{tx("Aucun appareil ici.")}</Dim> : <>
         <Table head={<>

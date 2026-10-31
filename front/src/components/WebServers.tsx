@@ -1,166 +1,103 @@
-// Machine page, « Software and services »: its web servers (Docker, service or binary), the path of each site (NPM → relay → app)
-// and every container of the machine, with or without a service. Data: machine.web and machine.containers (webservers.py).
-import { ChevronDown, ChevronUp } from "lucide-react";
-import type { Host, Machine, MachineContainer, Service, WebServer } from "../types";
-import { appIcon, appIconByText, serviceIcon } from "../lib/appIcons";
-import { useStoredFlag } from "../lib/storedFlag";
+// Machine page, « Software and services »: one table of what runs there, a row per software with its container, domains, ports and path.
+// Data: machine.web and machine.containers (webservers.py), and the hosts of NPM.
+import { useMemo, useState } from "react";
+import type { Host, Machine, WebServer } from "../types";
+import { appIcon, appIconByText } from "../lib/appIcons";
+import { useSort } from "../lib/filter";
 import { tx } from "../lib/i18n";
-import { DetailMore } from "./DetailSection";
+import { matchesFilter, softwareRows, type SoftwareFilter, type SoftwareMode, type SoftwareRow } from "../lib/softwareRows";
 import { Dot } from "./marks";
-import { Dim } from "./ui";
+import { ChipButton, Dim, Td, Th } from "./ui";
 
-const MODE: Record<WebServer["mode"], [string, string, string]> = {   // label, colours, tooltip
+const MODE: Record<SoftwareMode, [string, string, string]> = {   // label, colours, tooltip
   docker: ["Docker", "border-link/45 text-link", tx("Tourne dans un conteneur Docker")],
   service: [tx("service"), "border-ok/45 text-ok", tx("Service systemd actif sur la machine")],
   binary: [tx("binaire"), "border-warn/55 text-warn", tx("Process qui écoute sans service systemd ni conteneur : lancé à la main ou par un script, à vérifier")],
+  process: [tx("programme"), "border-line text-muted", tx("Programme qui écoute sur un port, lancé par un service ou à la main")],
 };
 /** Short label of how a web server runs (also used in the tooltips of the Machines table) */
 export const modeLabel = (mode: WebServer["mode"]) => MODE[mode][0];
 
 const Icon = ({ src }: { src: string | null }) => src ? <img src={src} alt="" className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" aria-hidden />;
-const ports = (ps: number[]) => ps.length ? ps.map((p) => `:${p}`).join(" ") : "-";
 
-/** Small titled block inside the section: a header line (title, counts, optional action) and its content */
-function Sub({ title, count, action, children }: Readonly<{ title: string; count?: string; action?: React.ReactNode; children?: React.ReactNode }>) {
-  return (
-    <div className="flex flex-col gap-1.5 py-1.5">
-      <div className="flex flex-wrap items-baseline gap-x-2 text-xs">
-        <b className="font-semibold uppercase tracking-wide text-muted">{title}</b>
-        {count && <span className="text-dim">{count}</span>}
-        {action && <span className="ml-auto">{action}</span>}
-      </div>
-      {children}
-    </div>
-  );
+const PORTS_SHOWN = 3;
+const portList = (ps: number[]) => ps.map((p) => `:${p}`).join(" ");
+
+const sortKey = (r: SoftwareRow, key: string): string | number => {
+  switch (key) {
+    case "name": return r.name.toLowerCase();
+    case "mode": return r.mode;
+    case "box": return r.box.toLowerCase();
+    case "domain": return r.domains[0] ?? "~";
+    case "ports": return r.ports[0] ?? Number.MAX_SAFE_INTEGER;
+    case "path": return r.paths[0] ?? "~";
+    default: return r.order;
+  }
+};
+
+/** First value and « +N », the whole list in the tooltip */
+function Firsts({ items, className = "" }: Readonly<{ items: string[]; className?: string }>) {
+  if (!items.length) return <Dim>-</Dim>;
+  return <span className="flex min-w-0 gap-1" title={items.join("\n")}><span className={`truncate ${className}`}>{items[0]}</span>{items.length > 1 && <span className="shrink-0 text-dim">+{items.length - 1}</span>}</span>;
 }
 
-/** What a web server forwards to: the app behind a relay, the proxy hosts of an NPM, the vhosts of Apache / nginx */
-function Sends({ w, proxies }: Readonly<{ w: WebServer; proxies: number }>) {
-  if (w.behind) {
-    const b = w.behind;
-    return <span className="inline-flex items-center gap-1.5" title={w.target ?? undefined}><Icon src={appIconByText(b.name, b.image)} />{b.name ? <b className="font-medium">{b.name}</b> : null}<span className="font-mono text-[11px] text-dim">{b.addr}</span></span>;
-  }
-  if (w.key === "npm") return proxies ? <span className="text-dim">{tx("{0} hôte(s) proxy", proxies)}</span> : <Dim>-</Dim>;
-  if (w.vhosts) return <span className="text-dim">{tx("{0} vhost(s)", w.vhosts)}{w.vhosts_unreadable ? <span className="text-warn"> · {tx("{0} illisible(s)", w.vhosts_unreadable)}</span> : null}</span>;
+/** What a web server forwards to when no site of NPM says it: the hosts of an NPM, the vhosts of Apache / nginx, the app behind a relay */
+function Forwards({ r, proxies }: Readonly<{ r: SoftwareRow; proxies: number }>) {
+  const w = r.web;
+  if (w?.key === "npm" && proxies) return <span className="text-dim">{tx("{0} hôte(s) proxy", proxies)}</span>;
+  if (r.paths.length) return <Firsts items={r.paths} className="text-muted" />;
+  if (w?.vhosts) return <span className="text-dim">{tx("{0} vhost(s)", w.vhosts)}</span>;
+  if (w?.behind) return <span className="text-muted" title={w.target ?? undefined}>{w.behind.name ?? w.behind.addr}</span>;
   return <Dim>-</Dim>;
 }
 
-/** Web servers of the machine, one line each: software, how it runs, where it listens, what it forwards to */
-export function WebServersTable({ m, hosts, npmIps }: Readonly<{ m: Machine; hosts: Host[]; npmIps?: Record<string, string> }>) {
-  const web = m.web ?? [];
-  if (!web.length) return null;
+function SoftwareLine({ r, proxies }: Readonly<{ r: SoftwareRow; proxies: number }>) {
+  const [mode, cls, tip] = MODE[r.mode];
+  const open = portList(r.ports.slice(0, PORTS_SHOWN)), hidden = r.ports.length - PORTS_SHOWN;
+  return (
+    <tr className={`even:bg-bg/50 ${r.up ? "" : "opacity-55"}`} title={r.status}>
+      <Td><span className="flex min-w-0 items-center gap-2"><Dot tone={r.up ? "ok" : "off"} /><Icon src={r.web ? appIcon([r.web.label]) : appIconByText(r.name, r.image ?? "")} /><b className="truncate font-medium" title={r.name}>{r.name}</b>{r.own && <span className="shrink-0 rounded border border-dashed border-line px-1 text-[11px] text-dim" title={tx("Service ajouté à la main : il ne vient d'aucun paquet du système")}>{tx("maison")}</span>}</span></Td>
+      <Td className="whitespace-nowrap"><span className={`rounded border px-1.5 text-xs ${cls}`} title={tip}>{mode}</span></Td>
+      <Td className="truncate font-mono text-xs text-muted"><span title={r.image ?? r.box}>{r.box}</span></Td>
+      <Td><Firsts items={r.domains} className="text-link" /></Td>
+      <Td className="truncate font-mono text-xs">
+        <span title={portList(r.ports)}>{open || (r.localPorts.length ? "" : "-")}{hidden > 0 && <span className="text-dim"> +{hidden}</span>}</span>
+        {r.localPorts.length > 0 && <span className="text-dim"> {r.localPorts.map((p) => `127.0.0.1:${p}`).join(" ")}</span>}
+        {r.hostNet && <span className="ml-1.5 rounded border border-dashed border-line px-1 font-sans text-[11px] text-dim" title={tx("Réseau de l'hôte : pas de port publié, le port vient de sa configuration")}>{tx("réseau hôte")}</span>}
+      </Td>
+      <Td className="truncate text-xs"><Forwards r={r} proxies={proxies} />{!!r.web?.vhosts_unreadable && <span className="ml-1.5 text-warn">{tx("{0} illisible(s)", r.web.vhosts_unreadable)}</span>}</Td>
+    </tr>
+  );
+}
+
+/** Everything that runs on the machine in one table, filtered by kind and sorted by any column */
+export function SoftwareTable({ m, hosts, npmIps }: Readonly<{ m: Machine; hosts: Host[]; npmIps?: Record<string, string> }>) {
+  const rows = useMemo(() => softwareRows(m, hosts), [m, hosts]);
+  const [filter, setFilter] = useState<SoftwareFilter>("all");
+  const shown = useMemo(() => rows.filter((r) => matchesFilter(r, filter)), [rows, filter]);
+  const sort = useSort(shown, sortKey, "order");
+  if (!rows.length) return null;
   const mine = new Set(Object.entries(npmIps ?? {}).filter(([, ip]) => ip === m.ip).map(([n]) => n));
   const proxies = hosts.filter((r) => r.type === "proxy" && r.npm && mine.has(r.npm)).length;
+  const boxes = m.containers ?? [], up = boxes.filter((c) => c.up).length, alone = rows.filter((r) => r.alone).length;
+  const count = (f: SoftwareFilter) => rows.filter((r) => matchesFilter(r, f)).length;
+  const FILTERS: [SoftwareFilter, string][] = [["all", tx("Tout")], ["web", tx("Serveurs web")], ["docker", tx("Conteneurs")], ["program", tx("Programmes")], ["alone", tx("Sans service")], ["system", tx("Système")]];
   return (
-    <Sub title={tx("Serveurs web")} count={String(web.length)}>
-      <ul className="flex flex-col divide-y divide-line/40">
-        {web.map((w) => {
-          const [mode, cls, tip] = MODE[w.mode];
-          let tone: "bad" | "warn" | "ok" = "ok";
-          if (!w.up) tone = "bad";
-          else if (w.mode === "binary") tone = "warn";
-          return (
-            <li key={`${w.key}/${w.mode}/${w.name}`} className="flex flex-col gap-0.5 py-1">
-              <span className="flex min-w-0 items-center gap-2">
-                <Dot tone={tone} /><Icon src={appIcon([w.label])} /><b className="truncate font-medium">{w.label}</b>
-                {!w.up && <span className="text-xs text-bad">{tx("arrêté")}</span>}
-                <span className="ml-auto shrink-0 font-mono text-xs">{ports(w.ports)}</span>
-              </span>
-              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pl-4 text-xs">
-                <span className={`inline-flex min-w-0 items-center gap-1 rounded border px-1.5 ${cls}`} title={tip}>{mode} · <span className="truncate font-mono">{w.name}</span></span>
-                {w.host_net && <span className="rounded border border-dashed border-line px-1 text-[11px] text-dim" title={tx("Réseau de l'hôte : pas de port publié, le port vient de sa configuration")}>{tx("réseau hôte")}</span>}
-                <span className="ml-auto min-w-0"><Sends w={w} proxies={proxies} /></span>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </Sub>
-  );
-}
-
-const hopUp = (r: Host, s: Service) => s.kind === "docker" ? !s.state || /^(?:up|running)/i.test(s.state) : r.backend?.up !== false;
-
-function Hop({ icon, name, port, down }: Readonly<{ icon: string | null; name: string; port?: string | number; down?: boolean }>) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 ${down ? "border-bad/60 bg-bad/10 text-bad" : "border-line bg-bg2"}`}>
-      <Icon src={icon} /><span>{name}</span>{port != null && <span className="font-mono text-[11px] text-dim">{port}</span>}{down && <span className="text-[11px]">{tx("arrêté")}</span>}
-    </span>
-  );
-}
-
-/** Each site served by this machine through NPM: domain, NPM, the service it reaches (an Anubis relay…), and what runs behind it */
-export function SitePaths({ m, hosts }: Readonly<{ m: Machine; hosts: Host[] }>) {
-  const rows = hosts.filter((r) => r.type === "proxy" && r.domains.length && r.service?.name && (r.host_ip || r.ip) === m.ip)
-    .sort((a, b) => Number(!a.service?.behind) - Number(!b.service?.behind) || a.domains[0].localeCompare(b.domains[0]));
-  if (!rows.length) return null;
-  const npmIcon = appIcon(["Nginx Proxy Manager"]);
-  return (
-    <DetailMore label={tx("Chemin des {0} sites", rows.length)}>
-      <ul className="flex flex-col text-xs [&>li:nth-child(even)]:bg-bg/50">
-        {rows.map((r) => {
-          const s = r.service!, b = s.behind;
-          return (
-            <li key={String(r.id)} className="flex flex-wrap items-center gap-1.5 rounded px-2.5 py-1.5">
-              <span className="w-full font-semibold text-link">🌐 {r.domains[0]}</span>
-              <Hop icon={npmIcon} name={r.npm || "NPM"} />
-              <span className="text-dim" aria-hidden>→</span>
-              <Hop icon={serviceIcon(r)} name={s.name!} port={r.port ? `:${r.port}` : undefined} down={!hopUp(r, s)} />
-              {b && <><span className="text-dim" aria-hidden>→</span><Hop icon={appIconByText(b.name, b.image)} name={b.name ?? b.addr} port={b.name ? b.addr : undefined} /></>}
-            </li>
-          );
-        })}
-      </ul>
-    </DetailMore>
-  );
-}
-
-/** Every container of the machine, even those no service points to; folded by default (remembered in this browser) */
-export function ContainerList({ m, hosts }: Readonly<{ m: Machine; hosts: Host[] }>) {
-  const [folded, setFolded] = useStoredFlag("myservices.machine.containers.folded", true);
-  const list = m.containers ?? [];
-  if (!list.length) return null;
-  const byName = new Map<string, Set<string>>();   // container -> the domains (or ports) of the services it runs, read once
-  for (const r of hosts) {
-    if (r.service?.kind !== "docker" || !r.service.name || (r.host_ip || r.ip) !== m.ip) continue;
-    const set = byName.get(r.service.name) ?? new Set<string>();
-    set.add(r.domains[0] ?? `:${r.port}`);
-    byName.set(r.service.name, set);
-  }
-  const domains = (c: MachineContainer) => [...(byName.get(c.name) ?? [])];
-  const up = list.filter((c) => c.up).length, alone = list.filter((c) => !byName.has(c.name)).length;
-  const Chevron = folded ? ChevronDown : ChevronUp;
-  const count = [tx("{0} en cours", up), list.length - up ? tx("{0} arrêté(s)", list.length - up) : "", alone ? tx("{0} sans service", alone) : ""].filter(Boolean).join(" · ");
-  return (
-    <Sub title={tx("Conteneurs Docker")} count={count}
-      action={<button type="button" className="inline-flex items-center gap-1 text-xs font-semibold text-link hover:underline" aria-expanded={!folded} onClick={() => setFolded(!folded)}>{folded ? tx("Déplier") : tx("Replier")}<Chevron size={14} aria-hidden /></button>}>
-      {!folded && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-[11px] uppercase tracking-wide text-dim">
-              <th className="w-4 px-2 py-1" /><th className="px-2 py-1 font-semibold">{tx("Nom")}</th><th className="px-2 py-1 font-semibold">Image</th>
-              <th className="px-2 py-1 font-semibold">Ports</th><th className="px-2 py-1 font-semibold">Service</th>
-            </tr></thead>
-            <tbody className="[&>tr:nth-child(even)]:bg-bg/50">
-              {list.map((c) => {
-                const d = domains(c);
-                return (
-                  <tr key={c.name} className={c.up ? "" : "opacity-55"} title={c.status}>
-                    <td className="px-2 py-1.5"><Dot tone={c.up ? "ok" : "off"} /></td>
-                    <td className="whitespace-nowrap px-2 py-1.5"><span className="inline-flex items-center gap-2"><Icon src={appIconByText(c.name, c.image)} /><b className="font-medium">{c.name}</b></span></td>
-                    <td className="max-w-56 truncate px-2 py-1.5 font-mono text-[11px] text-dim" title={c.image}>{c.image}</td>
-                    <td className="whitespace-nowrap px-2 py-1.5 font-mono text-xs">
-                      {c.ports.length || c.local_ports.length ? <>{ports(c.ports)}{c.local_ports.length > 0 && <span className="text-dim"> {c.local_ports.map((p) => `127.0.0.1:${p}`).join(" ")}</span>}</> : <Dim>-</Dim>}
-                      {c.host_net && <span className="ml-1.5 rounded border border-dashed border-line px-1 font-sans text-[11px] text-dim">{tx("hôte")}</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-xs">{d.length ? <span title={d.join("\n")}>{d[0]}{d.length > 1 && <span className="text-dim"> +{d.length - 1}</span>}</span> : <span className="text-dim">{c.up ? tx("sans service") : c.status}</span>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Sub>
+    <div className="-mx-3 -mb-3 mt-1 border-t border-line/60">
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2">
+        {FILTERS.filter(([f]) => count(f) > 0).map(([f, label]) => <ChipButton key={f} on={filter === f} count={count(f)} label={label} onClick={() => setFilter(f)} />)}
+        {boxes.length > 0 && <span className="ml-auto text-xs text-dim">{[tx("{0} en cours", up), boxes.length - up ? tx("{0} arrêté(s)", boxes.length - up) : "", alone ? tx("{0} sans service", alone) : ""].filter(Boolean).join(" · ")}</span>}
+      </div>
+      {m.info?.via === "agent" && m.info.units === null && <p className="px-3 pb-2 text-xs text-muted">{tx("L'agent de cette machine est trop ancien pour lister ses services en marche.")} <a href="#settings/machines/agents" className="text-link hover:underline">{tx("Mettre à jour l'agent")}</a></p>}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[56rem] table-fixed border-collapse text-sm">
+          <thead><tr>
+            <Th k="name" sort={sort} className="w-[19%]">{tx("Logiciel")}</Th><Th k="mode" sort={sort} className="w-[7%]">{tx("Type")}</Th><Th k="box" sort={sort} className="w-[16%]">{tx("Conteneur")}</Th>
+            <Th k="domain" sort={sort} className="w-[19%]">{tx("Domaine")}</Th><Th k="ports" sort={sort} className="w-[17%]">{tx("Ports")}</Th><Th k="path" sort={sort}>{tx("Chemin")}</Th>
+          </tr></thead>
+          <tbody>{sort.sorted.map((r) => <SoftwareLine key={r.key} r={r} proxies={proxies} />)}</tbody>
+        </table>
+      </div>
+    </div>
   );
 }

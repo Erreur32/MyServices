@@ -5,18 +5,19 @@ import { ArrowRight, Boxes, EthernetPort, Globe, SlidersHorizontal } from "lucid
 import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
 import { FollowAsk, FollowButton, NotFollowedBanner } from "../components/MachineFollow";
-import { DetailMore, DetailSection } from "../components/DetailSection";
+import { DetailSection } from "../components/DetailSection";
 import { MachineIcon } from "../components/MachineIcon";
 import { recheckMachine, RereadButton } from "../components/Reread";
 import { dateTime } from "../lib/format";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { availabilityOf } from "../lib/machineHash";
-import { guestsOf, portRows, type PortRow, type PortSource } from "../lib/machinePage";
+import { guestsOf, isSystemPort, portRows, type PortRow, type PortSource } from "../lib/machinePage";
 import { wazuhOf } from "../lib/wazuh";
 import { serviceIcon } from "../lib/appIcons";
 import { KIND_NAME, status, type StatusClass } from "../lib/status";
 import { Dot } from "../components/marks";
+import { ChipButton, Count } from "../components/ui";
 import type { Machine } from "../types";
 import { cellColor, pct, pctTone, type Item, type Report } from "./Availability";
 import { MachineModal } from "./MachinesSettings";
@@ -70,22 +71,25 @@ function AvailabilityTile({ item }: Readonly<{ item: Item | null | undefined }>)
 }
 
 /** The cards only this page adds, each in the column of its subject */
-export interface PageCards { running: ReactNode; protection: ReactNode }
+export interface PageCards { state: ReactNode; running: ReactNode; protection: ReactNode }
 
-const PORTS_SHOWN = 6, DOMAINS_SHOWN = 2;
+const DOMAINS_SHOWN = 2;
+type PortFilter = "all" | "apps" | "system";
+
+const PORT_COLUMNS = "grid grid-cols-[auto_minmax(0,42%)_minmax(0,1fr)_3.25rem] gap-x-2";   // a share of the card: the two lists of ports line up too
 
 /** One open port: its state, service and port on a line, then where it is reached from */
 function PortLine({ r, scanned }: Readonly<{ r: PortRow; scanned: boolean }>) {
   const unseen = scanned && !r.listening && !!r.host, st = r.host ? status(r.host) : null;
   const cls: StatusClass = st?.[0] ?? "warn", label = st?.[1] ?? tx("port inconnu");
-  const below = unseen || r.domains.length > 0;
+  const domains = !unseen && r.domains.length > 0;
   return (
-    <li className={`grid grid-cols-[auto_minmax(0,1fr)_auto_3.25rem] items-center gap-x-2 gap-y-1 border-t border-line/40 py-1 first:border-t-0 ${unseen ? "opacity-55" : ""}`}>
+    <li className={`col-span-full grid grid-cols-subgrid items-center gap-y-1 border-t border-line/40 py-1 first:border-t-0 ${unseen ? "opacity-55" : ""}`}>
       <span title={unseen ? tx("pas vu ouvert au dernier scan") : label}><Dot tone={unseen ? "off" : cls} /></span>
       <PortService r={r} />
-      <span>{!below && <PortExposure r={r} unseen={unseen} />}</span>
+      <span className={`flex min-w-0 ${domains ? "" : "justify-end"}`}>{!unseen && <PortExposure r={r} unseen={false} />}</span>
       <span className="text-right font-mono text-xs tabular-nums text-muted" title={r.seen.length ? tx("Vu par : {0}", r.seen.map((x) => SEEN_BY[x]).join(", ")) : undefined}>:{r.port}</span>
-      {below && <span className="col-span-full pl-4"><PortExposure r={r} unseen={unseen} /></span>}
+      {unseen && <span className="col-span-full pl-4"><PortExposure r={r} unseen /></span>}
     </li>
   );
 }
@@ -93,17 +97,26 @@ function PortLine({ r, scanned }: Readonly<{ r: PortRow; scanned: boolean }>) {
 /** The open ports of the machine, each matched to its service (its icon, kind and state) and to the NPM domains that expose it; an unknown port is told so,
  *  with what usually listens there. A port of a known service not seen open by the last scan is faded. What outsiders reach or nobody knows comes first. */
 function PortsCard({ snap, m }: Readonly<{ snap: Snapshot; m: Machine }>) {
+  const [picked, setPicked] = useState<PortFilter>("apps");
   const net = (snap.data.network ?? []).flatMap((c) => c.devices ?? []).find((d) => d.ip === m.ip);
   const wz = wazuhOf(snap.data.services_status, m.ip, m.name, new Set(snap.data.machine_list.map((x) => x.ip)));
   const sheet = snap.data.sheets?.[m.ip], rows = portRows(m, snap.data.hosts, sheet, { mynetwork: net?.ports, wazuh: wz?.m.ports });
   if (!rows.length) return null;
   const scanned = !!sheet?.scan, at = sheet?.scan?.ports_at ?? net?.ports_at;
   const later = (r: PortRow) => Number(!r.domains.length && (!!(r.host && r.name) || !!r.process));
-  const sorted = [...rows].sort((a, b) => later(a) - later(b)), more = sorted.slice(PORTS_SHOWN);
+  const system = rows.filter(isSystemPort).length;
+  const both = system > 0 && system < rows.length, filter = both ? picked : "all";   // the filter of a machine stays out of the next one without these ports
+  const shown = rows.filter((r) => filter === "all" || isSystemPort(r) === (filter === "system")).sort((a, b) => later(a) - later(b));
   return (
-    <DetailSection sec="ports" icon={EthernetPort} title={tx("Ports ouverts")} tone="link" right={<span className="text-dim" title={at ? tx("scannés le {0}", dateTime(at)) : undefined}>{rows.length}</span>}>
-      <ul className="flex flex-col">{sorted.slice(0, PORTS_SHOWN).map((r) => <PortLine key={r.port} r={r} scanned={scanned} />)}</ul>
-      {more.length > 0 && <DetailMore label={tx("Les {0} autres ports", more.length)}><ul className="flex flex-col">{more.map((r) => <PortLine key={r.port} r={r} scanned={scanned} />)}</ul></DetailMore>}
+    <DetailSection sec="ports" icon={EthernetPort} title={tx("Ports ouverts")} tone="link" right={<span title={at ? tx("scannés le {0}", dateTime(at)) : undefined}><Count n={rows.length} /></span>}>
+      {both && (
+        <div className="mb-1 flex flex-wrap gap-1.5">
+          <ChipButton on={filter === "all"} count={rows.length} label={tx("Tout")} onClick={() => setPicked("all")} />
+          <ChipButton on={filter === "apps"} count={rows.length - system} label={tx("Applications")} onClick={() => setPicked("apps")} />
+          <ChipButton on={filter === "system"} count={system} label={tx("Système")} title={tx("Programmes de la machine elle-même : Samba, OpenSSH, bases de données…")} onClick={() => setPicked("system")} />
+        </div>
+      )}
+      <ul className={PORT_COLUMNS}>{shown.map((r) => <PortLine key={r.port} r={r} scanned={scanned} />)}</ul>
     </DetailSection>
   );
 }
@@ -143,7 +156,7 @@ function PortService({ r }: Readonly<{ r: PortRow }>) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       {icon ? <img src={icon} alt="" aria-hidden className="h-5 w-5 shrink-0 object-contain" /> : <span className={`${box} border-line bg-bg2 text-dim`} aria-hidden><EthernetPort size={11} /></span>}
-      <b className="min-w-0 truncate font-semibold" title={r.name}>{r.name}</b>
+      <b className="min-w-0 flex-1 truncate font-semibold" title={r.name}>{r.name}</b>
       {kind && KIND_NAME[kind] && kind !== "inconnu" && <span className="shrink-0 rounded border border-line px-1 text-[10.5px] text-dim">{KIND_NAME[kind]}</span>}
     </span>
   );
@@ -237,7 +250,8 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
         <AvailabilityTile item={avail} />
       </div>
       {detail({
-        running: <><PortsCard snap={snap} m={m} /><GuestsCard snap={snap} m={m} /></>,
+        state: <PortsCard snap={snap} m={m} />,
+        running: guestsOf(m, snap.data.virtualization, snap.data.machine_list).length ? <GuestsCard snap={snap} m={m} /> : null,
         protection: <WazuhCard snap={snap} ip={m.ip} name={m.name} />,
       })}
     </div>

@@ -314,9 +314,11 @@ def ports_keys(hosts: list[dict]) -> dict[str, list[tuple[str, str | None]]]:
 
 
 def pulse_cost() -> list[dict]:
-    """What the pulses cost, for Settings > Requests: one connection (a ping, a TCP connection) per target and pass."""
-    return [{"name": name, "targets": len(p.state), "every": every, "per_min": round(len(p.state) * 60 / every, 1) if every > 0 else 0}
-            for name, p, every in (("machines", PULSE, CFG["pulse_every"]), ("ports", PORTS, CFG["ports_every"]))]
+    """What the pulses cost, for Settings > Requests: one connection (a ping, a TCP connection) per target and pass.
+    A port answered from an agent report costs none."""
+    costs = (("machines", len(PULSE.state), CFG["pulse_every"]), ("ports", sum(t not in AGENT_PORTS for t in PORTS.state), CFG["ports_every"]))
+    return [{"name": name, "targets": targets, "every": every, "per_min": round(targets * 60 / every, 1) if every > 0 else 0}
+            for name, targets, every in costs]
 
 
 HEALTH_TRIED: dict = {}
@@ -576,6 +578,7 @@ def alerts_store():
 
 
 ARCHIFY = os.environ.get("MYSERVICES_ARCHIFY", "")
+MAP_FAILURES = "diagrams-failed.json"
 
 
 def refresh_nav() -> None:
@@ -637,6 +640,14 @@ def clear_stale_locks() -> None:
             shutil.rmtree(d, ignore_errors=True)
 
 
+def map_failures() -> dict:
+    """{map: time of its last failed try}, for the Diagrams page: a failed map keeps showing the previous one."""
+    try:
+        return json.loads((Path(CFG["state_dir"]) / MAP_FAILURES).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
 def _build_map() -> None:
     """Cartes de l'infra (carte.html, sauvegardes.html ; Archify) depuis les fichiers de la page. Facultatif :
     sans Archify ou en échec, la carte précédente reste, les tâches n'en dépendent pas."""
@@ -654,8 +665,10 @@ def _build_map() -> None:
     except (OSError, subprocess.SubprocessError) as e:
         log(f"⚠ carte : {e}")
         return
+    failures = map_failures()
     for spec in specs:
-        out = Path(spec).name.replace(".archify.json", ".html")
+        name = Path(spec).name.replace(".archify.json", "")
+        out = f"{name}.html"
         r = None
         try:
             r = subprocess.run(["node", ARCHIFY, "deliver", "architecture", spec, out, "--json"],
@@ -665,9 +678,21 @@ def _build_map() -> None:
             ok = False
             log(f"⚠ carte {out} : {e}")
         if ok:
+            failures.pop(name, None)
             log(f"carte : régénérée ({out})")
-        elif r is not None:
+            continue
+        failures[name] = time.time()
+        Path(spec).unlink(missing_ok=True)   # the next pass only draws what changed: without its spec, a failed map is tried again
+        if r is not None:
             log(f"⚠ carte {out} : non régénérée (Archify) : {archify_why(r.stdout, r.stderr)}")
+    if specs:
+        try:
+            f = Path(CFG["state_dir"]) / MAP_FAILURES
+            tmp = f.with_suffix(".tmp")
+            tmp.write_text(json.dumps(failures), encoding="utf-8")
+            tmp.replace(f)
+        except OSError as e:
+            log(f"⚠ cartes : état des échecs non écrit ({e})")
     refresh_nav()
 
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Host, Machine, VirtualizationConnector } from "../types";
-import { guestsOf, portRows } from "./machinePage";
+import { guestsOf, isSystemPort, portRows, type PortRow } from "./machinePage";
 
 const m: Machine = { ip: "10.0.0.20", name: "tower", ping: true, off: false, services: 3, npm: 1, down: 0 };
 const host = (h: Partial<Host>): Host => ({ id: 1, type: "local", enabled: true, domains: [], ...h });
@@ -60,5 +60,18 @@ describe("guests of a host", () => {
   });
   it("a machine that is no hypervisor: nothing", () => {
     expect(guestsOf({ ...m, ip: "10.0.0.5", name: "nas" }, [pve])).toEqual([]);
+  });
+});
+
+describe("ports système", () => {
+  const row = (r: Partial<PortRow>) => ({ name: null, domains: [], process: null, host: null, ...r }) as PortRow;
+  const docker = { service: { kind: "docker" } } as PortRow["host"];
+
+  it("un programme de la machine en est un, pas un port inconnu ni un conteneur ni un site", () => {
+    expect(isSystemPort(row({ process: "master" }))).toBe(true);
+    expect(isSystemPort(row({ name: "Samba", host: { service: { kind: "process" } } as PortRow["host"] }))).toBe(true);
+    expect(isSystemPort(row({}))).toBe(false);
+    expect(isSystemPort(row({ name: "Opengist", host: docker }))).toBe(false);
+    expect(isSystemPort(row({ name: "Apache", domains: ["a.lan"] }))).toBe(false);
   });
 });

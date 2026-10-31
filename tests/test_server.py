@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from msv.api import server  # noqa: E402
@@ -57,6 +58,24 @@ class GeneratedStamp(unittest.TestCase):   # server only: runs without FastAPI
             self.assertIsNone(server.generated_of(f))
             self.write(f, "x")
             self.assertEqual(server.generated_of(f), "x")
+
+
+class FailedMap(unittest.TestCase):   # server only: runs without FastAPI
+    def test_a_failed_map_loses_its_spec_and_is_tried_again(self):
+        with tempfile.TemporaryDirectory() as d:
+            good, bad = Path(d) / "good.archify.json", Path(d) / "bad.archify.json"
+            good.write_text("{}")
+            bad.write_text("{}")
+            runs = [SimpleNamespace(stdout=f"{good}\n{bad}\n"), SimpleNamespace(stdout='{"ok": true}', stderr=""),
+                    SimpleNamespace(stdout='{"ok": false, "error": "layout"}', stderr="")]
+            with mock.patch.object(server, "ARCHIFY", __file__), mock.patch.object(server, "WEB", Path(d)), \
+                    mock.patch.object(server, "clear_stale_locks"), mock.patch.object(server, "refresh_nav"), \
+                    mock.patch.object(server, "log"), mock.patch.object(server.subprocess, "run", side_effect=runs), \
+                    mock.patch.dict(server.CFG, {"state_dir": d, "diagrams_extra": []}):
+                server._build_map()
+                self.assertEqual(list(server.map_failures()), ["bad"])
+            self.assertTrue(good.exists())
+            self.assertFalse(bad.exists())
 
 
 class ArchifyWhy(unittest.TestCase):   # server only: runs without FastAPI

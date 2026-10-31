@@ -3,8 +3,10 @@
   python3 -m unittest discover -s tests
 """
 import json
+import os
 import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,6 +60,19 @@ class Availability(unittest.TestCase):
         week = av.report(self.db, 7, now=NOW)
         self.assertEqual(len(week["items"][0]["cells"]), 7)
         self.assertEqual({x["key"]: x["uptime"] for x in week["items"]}["kuma:kuma:Web"], 66.67)
+
+    def test_changement_d_heure_un_jour_par_case(self):
+        os.environ["TZ"] = "Europe/Paris"
+        time.tzset()
+        self.addCleanup(time.tzset)
+        self.addCleanup(os.environ.__setitem__, "TZ", os.environ.get("TZ", "UTC"))
+        for at in ("2026-10-31 23:26", "2026-03-30 23:26"):   # after the day of 25 hours, then after the day of 23 hours
+            now = datetime.strptime(at, "%Y-%m-%d %H:%M").timestamp()
+            self.put(now)
+            days = [datetime.fromtimestamp(c["t"]) for c in av.report(self.db, 30, now=now)["items"][0]["cells"]]
+            self.assertEqual(len({d.date() for d in days}), 30)
+            self.assertEqual(days[-1].date(), datetime.fromtimestamp(now).date())
+            self.assertTrue(all(d.hour == 0 for d in days))
 
     def test_purge(self):
         self.put(NOW - 20 * 86400)

@@ -56,6 +56,7 @@ class Extra(unittest.TestCase):
 
     def test_reseau_appareils_sous_leur_switch_ou_borne(self):
         spec = ax.build_reseau(DATA)
+        self.assertFalse([c for c in spec["connections"] if c["from"] == "hub" and "label" in c])   # one could land on a group title
         labels = {c["label"]: c for c in spec["components"]}
         self.assertEqual(spec["components"][0]["label"], "GW")
         self.assertLessEqual({"Switch", "AP"}, set(labels))

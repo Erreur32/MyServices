@@ -91,6 +91,14 @@ class Backups(unittest.TestCase):
         self.assertEqual(len(cells), len(set(cells)))
         self.assertEqual((ids["b_srv"]["row"], ids["b_nas"]["row"]), (0, 2))  # producteurs en haut, stockages dessous
 
+    def test_a_copy_inside_a_row_goes_under_it(self):
+        hosts = [{"id": k, "label": k, "sets": ["a"], "level": "ok", "copies": [{"host": t, "sets": 1, "age": 1, "level": "ok"}]}
+                 for k, t in (("a", "c"), ("b", "store"), ("c", "store"))] + [{"id": "store", "label": "store", "sets": [], "level": "ok", "copies": []}]
+        links = {(c["from"], c["to"]): c for c in archify_map.build_backups({"hosts": hosts})["connections"]}
+        self.assertEqual((links[("b_a", "b_c")]["fromSide"], links[("b_a", "b_c")]["toSide"]), ("bottom", "bottom"))
+        self.assertNotIn("route", links[("b_a", "b_c")])
+        self.assertEqual(links[("b_b", "b_store")]["route"], "orthogonal-v")   # towards another row: unchanged
+
     def test_empty(self):
         s = archify_map.build_backups({"hosts": []})
         self.assertEqual([c["id"] for c in s["components"]], ["aucune"])

@@ -19,6 +19,14 @@ TARGET = f"{IP}:8080"
 ROW = {"type": "npm", "id": 7, "ip": IP, "port": 8080, "enabled": True, "web": "up", "backend": {"up": True}}
 
 
+class PulseCost(unittest.TestCase):
+    def test_a_port_answered_by_an_agent_costs_no_connection(self):
+        with mock.patch.object(server.PULSE, "state", {IP: {}}), mock.patch.object(server.PORTS, "state", {TARGET: {}, "192.0.2.11:80": {}}), \
+                mock.patch.dict(server.AGENT_PORTS, {TARGET: True}, clear=True), mock.patch.dict(server.CFG, {"pulse_every": 30, "ports_every": 60}):
+            self.assertEqual(server.pulse_cost(), [{"name": "machines", "targets": 1, "every": 30, "per_min": 2.0},
+                                                   {"name": "ports", "targets": 1, "every": 60, "per_min": 1.0}])
+
+
 class AfterSuccess(unittest.TestCase):
     STEPS = ("keep_availability", "build_map", "keep_history", "schedule_recheck", "keep_metrics")
 
