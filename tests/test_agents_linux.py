@@ -262,6 +262,11 @@ class LinuxAgentScripts(unittest.TestCase):
             self.assertFalse(agents.serves_inventory(rep(part)))
         self.assertIsNone(agents.listening_ports(rep({k: v for k, v in full.items() if k != process.LISTEN_SH})))
         self.assertFalse(agents.serves_inventory({"data": {"disks": []}}))
+        self.assertEqual(agents.inventory_gaps({"data": {"disks": []}}), [])
+        self.assertEqual(agents.inventory_gaps(rep(full)), [])
+        nameless = {**full, process.LISTEN_SH: [0, "LISTEN 0 128 0.0.0.0:22 0.0.0.0:*\n"]}   # `ss` without root: ports, no process
+        self.assertEqual(agents.inventory_gaps(rep(nameless)), ["sudo"])
+        self.assertEqual(agents.inventory_gaps(rep({k: v for k, v in full.items() if k != docker_ssh.NET_SH})), ["docker"])
 
     def test_v4_info_machine_gardee_une_heure(self):
         from msv.collect import hostinfo

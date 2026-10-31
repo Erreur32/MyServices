@@ -806,6 +806,7 @@ export interface AgentInfo {
   update_requested?: boolean;  // « mettre à jour maintenant » demandé, pas encore pris en compte
   latest_version?: string;     // version du script d'agent servi par cette installation
   outdated?: boolean;          // l'agent est plus ancien que le script servi
+  gaps?: string[];             // what its fresh report lacks to replace SSH (agents.inventory_gaps)
   id: number;
   ip: string;
   name: string;

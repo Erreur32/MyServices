@@ -1,6 +1,7 @@
 // Gestion des agents MyServices (petit script en lecture seule, sans SSH) : le bloc d'une machine (sa page, onglet Accès) et la page
 // Machines → Agents (tous les agents avec leurs gestes, agents révoqués). Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller.
 // Gérés seulement depuis une session admin.
+import { AgentGaps } from "../components/AgentGaps";
 import { ArrowUpCircle, Check, KeyRound, MonitorUp, Plus, RotateCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
@@ -171,6 +172,7 @@ function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: M
       <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
       <td className="px-3 py-2"><AgentActions a={a} kind={a.kind ?? "windows"} onChanged={onChanged} onInstall={setInstall} /></td>
     </tr>
+    {!!a.gaps?.length && <tr><td colSpan={7} className="px-3 pb-3"><AgentGaps gaps={a.gaps} /></td></tr>}
     {install && <tr><td colSpan={7} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
     </>
   );

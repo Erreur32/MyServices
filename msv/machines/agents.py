@@ -318,11 +318,19 @@ def linux_inventory(report: dict | None) -> dict | None:
             "ports": process.parse_listening(out_ss)[0] if rc_ss == 0 else None}
 
 
+def inventory_gaps(report: dict | None) -> list[str]:
+    """What a Linux agent report lacks to replace the SSH inventory: "info" (machine info), "docker" (containers or networks unreadable by the
+    agent's account), "sudo" (listening ports without their process, `ss` needs root for that). Empty when complete, or when it is not a Linux report."""
+    inv = linux_inventory(report)
+    if inv is None:
+        return []
+    return [gap for gap, ok in (("info", inv["info"]), ("docker", inv["containers"] is not None and inv["internal"] is not None), ("sudo", inv["ports"])) if not ok]
+
+
 def serves_inventory(report: dict | None) -> bool:
     """True when a Linux agent report carries the whole SSH inventory (machine info, Docker containers and networks, listening ports): the
     collection then opens no SSH connection to that machine. Any missing field (old agent, Docker unreadable) keeps the SSH read."""
-    inv = linux_inventory(report)
-    return bool(inv and inv["info"] and inv["containers"] is not None and inv["internal"] is not None and inv["ports"])
+    return linux_inventory(report) is not None and not inventory_gaps(report)
 
 
 def listening_ports(report: dict | None) -> set[int] | None:
