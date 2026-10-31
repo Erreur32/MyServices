@@ -17,12 +17,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 
+- **My connectors**: every card has the same height, with a dark title and a lighter body. A trouble takes one line at the foot of its card, so a long message no longer stretches its neighbours. The open card says what it means, what still holds and what to check first, with the technical message folded.
 - **Machines**: the cards fit four per line from 1280 px and five from 1536 px, the name keeps its room and the source badges move to the foot. Clicking a card or its title opens the machine page, and the link at the bottom opens its services, filtered on it.
 - **Machines**: the machine page is rebuilt on three columns, always the same subjects at the same place: the state of the machine, what runs on it, access and protection. Two columns on a smaller screen, one on a phone, cards with the same margins and long lists folded at their foot: the page is less than half as tall.
 - **Machines**: the « Alerts » and « Type » (VM, host, machine) filters and the « Not followed » switch stay on the search line, the other filters go behind the button, and API, manual SSH and « via a connector » no longer have a filter of their own (the tiles and links that use them keep working).
 
 ### Fixed
 
+- **Connectors**: a wrong connector setting (unknown type, no name, missing field) no longer stops the whole collection. That instance is skipped and reported as failed, and the others keep working.
+- **Glances**: a plugin that this Glances does not have (no sensors in a container) is no longer called, which ends the HTTP 400 seen in Settings › Requests. The list of plugins is asked once an hour.
 - **Machines**: the « Updates » card stays on the machine page when a notice points to it with nothing waiting (automatic updates in error or too old, a snap to update, a service to restart). Those links used to open the page without scrolling or flashing; the automatic updates one now lands on its exact row.
 
 ## v0.31.8 (2026-10-30)

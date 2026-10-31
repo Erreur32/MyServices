@@ -229,6 +229,7 @@ class Arcane(StatusConnector):
 
 GLANCES_OFF_RETRY = 3600   # a plugin switched off in Glances is asked again after an hour, not at every pass
 _glances_off: dict[tuple[str, str], float] = {}   # (url, plugin) -> when to ask again ; kept by the server process between passes
+_glances_plugins: dict[str, tuple[float, set | None]] = {}   # url -> (when to ask again, its plugins), kept the same way
 
 
 class Glances(StatusConnector):
@@ -247,6 +248,19 @@ class Glances(StatusConnector):
     guide = ("Glances lancé en mode web (-w) répond sans compte sur le réseau local : l'adresse suffit.",
              "Si Glances est protégé (--password), donnez l'utilisateur et le mot de passe. MyServices ne fait que des GET.")
 
+    def _plugins(self, api: str, h) -> set | None:
+        """The plugins this Glances has, asked once an hour: a route that does not exist is then never called. None when it does not say."""
+        at, names = _glances_plugins.get(self.conf["url"], (0, None))
+        if at > time.time():
+            return names
+        try:
+            got = self.get(f"{api}/pluginslist", h)
+        except ConnectorError:
+            got = None
+        names = set(got) if isinstance(got, list) else None
+        _glances_plugins[self.conf["url"]] = (time.time() + GLANCES_OFF_RETRY, names)
+        return names
+
     def collect(self) -> dict:
         h = None
         if self.conf.get("password"):
@@ -261,9 +275,10 @@ class Glances(StatusConnector):
         ql = self.get(f"{api}/quicklook", h)
         if not isinstance(ql, dict) or "cpu" not in ql:
             raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Glances")
-        def opt(plugin: str):   # a plugin can be switched off in Glances (--disable-plugin): its route answers 404, or 400 « Unknown plugin »
+        plugins = self._plugins(api, h)
+        def opt(plugin: str):   # a plugin can be switched off in Glances (--disable-plugin), or absent (no sensors in a container): its route answers 404, or 400 « Unknown plugin »
             off = (self.conf["url"], plugin)
-            if _glances_off.get(off, 0) > time.time():
+            if _glances_off.get(off, 0) > time.time() or (plugins is not None and plugin not in plugins):
                 return None
             try:
                 return self.get(f"{api}/{plugin}", h)

@@ -117,6 +117,17 @@ class Glances(Base):
         super().setUp()
         from connectors import homelab_more
         homelab_more._glances_off.clear()
+        homelab_more._glances_plugins.clear()
+
+    def test_a_plugin_this_glances_lacks_is_never_called(self):
+        self.route("/api/4/status", {"version": "4.5.8"})
+        self.route("/api/4/quicklook", {"cpu": 5, "mem": 20})
+        self.route("/api/4/pluginslist", ["load", "fs", "system", "alert"])
+        self.route("/api/4/sensors", {"error": "Unknown plugin sensors"}, code=400)
+        self.conn("glances").collect()
+        self.conn("glances").collect()
+        self.assertFalse([x for x in SEEN if "/api/4/sensors" in x[1]])
+        self.assertEqual(sum(1 for x in SEEN if "/api/4/pluginslist" in x[1]), 1)
 
     def test_plugin_off_not_asked_again_for_an_hour(self):
         """A plugin switched off in Glances (400 « Unknown plugin ») is not asked at every pass, only again after an hour."""

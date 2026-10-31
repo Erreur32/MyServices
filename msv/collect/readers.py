@@ -25,14 +25,10 @@ SLACK = 90   # s, a reading older than its period by less than this is still « 
 
 
 def instances(cfg: dict) -> list[cbase.Connector]:
-    """Every instance the readers handle, once each (an instance with two kinds comes once); a kind whose settings are wrong is skipped."""
+    """Every instance the readers handle, once each (an instance with two kinds comes once)."""
     out: dict[str, cbase.Connector] = {}
     for kind in KINDS:
-        try:
-            found = connectors.instances(cfg, kind=kind)
-        except cbase.ConnectorError:
-            continue
-        for c in found:
+        for c in connectors.instances(cfg, kind=kind):
             if c.type not in SKIP_TYPES and not c.conf.get("ssh") and f"{c.type}/{c.name}" not in out:
                 out[f"{c.type}/{c.name}"] = c
     return list(out.values())

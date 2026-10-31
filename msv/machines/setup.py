@@ -993,7 +993,7 @@ def check() -> int:
     for kind in cbase.KINDS:  # réglage faux : échec, sauf pour une alerte (la collecte n'en dépend pas)
         try:
             have = {(c.type, c.name) for c in conns}  # un connecteur à plusieurs apports : testé une fois
-            conns += [c for c in connectors.instances(CFG, kind=kind) if (c.type, c.name) not in have]
+            conns += [c for c in connectors.instances(CFG, kind=kind, strict=True) if (c.type, c.name) not in have]
         except connectors.ConnectorError as e:
             (warn if kind == "alerts" else bad)(f"{e}{' : pas d’envoi' if kind == 'alerts' else ''}")
     if not any(c.type == "npm" for c in conns) and not FAILED:
@@ -1071,7 +1071,7 @@ def propose_connectors(ip: str, conts: list[tuple[str, str, str]]) -> None:
         return
     cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
     try:
-        have = connectors.instances(cfg)
+        have = connectors.instances(cfg, strict=True)
     except connectors.ConnectorError:
         return
     def already(c) -> bool:  # instance déjà réglée sur cette machine (NPM : IP vue du LAN, sinon l'URL)

@@ -89,25 +89,39 @@ def declared(cfg: dict, meta: dict | None = None) -> list[dict]:
     return out + npm + alerts
 
 
-def instances(cfg: dict, ctx: Context | None = None, kind: str | None = None, meta: dict | None = None) -> list[Connector]:
-    """Instances prêtes, filtrées par apport (kind) ; ConnectorError si un réglage est faux."""
+def _fault(conf: dict, cls: type[Connector] | None, seen: set) -> str:
+    """Why an instance cannot run, empty when it can; `seen` remembers the names already met."""
+    if cls is None:
+        return f"connecteur « {conf.get('type')} » inconnu (types : {', '.join(sorted(TYPES))})"
+    name = conf.get("name")
+    if not name or (cls.type, name) in seen:
+        return f"{cls.label} : chaque instance doit avoir un « name » unique"
+    seen.add((cls.type, name))
+    missing = cls.validate(conf)
+    return f"{cls.label} {name} : {', '.join(missing)}" if missing else ""
+
+
+def instances(cfg: dict, ctx: Context | None = None, kind: str | None = None, meta: dict | None = None, strict: bool = False) -> list[Connector]:
+    """Instances prêtes, filtrées par apport (kind). Une instance mal réglée est ignorée (faults la signale) ; strict : ConnectorError."""
     ctx = ctx or Context(cache_dir=cfg.get("cache_dir"))  # cache : dossier du collecteur
     out, seen = [], set()
     for conf in declared(cfg, meta):
         cls = TYPES.get(conf.get("type", ""))
-        if cls is None:
-            raise ConnectorError(f"connecteur « {conf.get('type')} » inconnu (types : {', '.join(sorted(TYPES))})")
-        if kind is not None and kind not in cls.kinds:
+        if cls is not None and kind is not None and kind not in cls.kinds:
             continue  # seul ce qui est demandé est validé : une alerte mal réglée n'arrête pas la collecte
-        name = conf.get("name")
-        if not name or (cls.type, name) in seen:
-            raise ConnectorError(f"{cls.label} : chaque instance doit avoir un « name » unique")
-        seen.add((cls.type, name))
-        missing = cls.validate(conf)
-        if missing:
-            raise ConnectorError(f"{cls.label} {name} : {', '.join(missing)}")
-        out.append(cls(conf, ctx))
+        fault = _fault(conf, cls, seen)
+        if fault and strict:
+            raise ConnectorError(fault)
+        if not fault:
+            out.append(cls(conf, ctx))
     return out
+
+
+def faults(cfg: dict, meta: dict | None = None) -> list[tuple[str, str, str]]:
+    """The instances that `instances` leaves out: (type, name, why), so that the collection can report them."""
+    seen: set = set()
+    found = ((c, _fault(c, TYPES.get(c.get("type", "")), seen)) for c in declared(cfg, meta))
+    return [(str(c.get("type") or ""), str(c.get("name") or c.get("type") or ""), why) for c, why in found if why]
 
 
 def for_image(image: str) -> list[type[Connector]]:

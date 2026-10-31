@@ -14,7 +14,7 @@ import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import type { ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias } from "../types";
-import { cardsTitle, cardView, toWatch, type CardTone, type CardView } from "../lib/connectorCards";
+import { cardNotice, cardsTitle, cardView, toWatch, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
@@ -115,7 +115,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   };
   const listed = st.instances.filter((i) => key(i) === edited || key(i) === focusKey || (kept(i) && searchHit(`${i.label} ${i.name} ${i.type}`, find)))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name));   // alphabetical, like the picker
-  const mine = (<div className="mt-3 grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,18rem),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
+  const mine = (<div className="mt-3 grid grid-flow-dense gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,18rem),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
         {listed.length === 0 && <p className="col-span-full py-4 text-center text-sm text-muted">{tx("Aucun connecteur ne correspond.")}</p>}
         {listed.map((i) => (
           <InstanceCard key={`${i.type}/${i.name}`} inst={i} view={views.get(key(i))!} hosts={snap.data.hosts} collect={collect} type={typeOf(i)} reload={reload}
@@ -417,7 +417,7 @@ function CardHead({ inst, category, view, open }: Readonly<{ inst: ConnectorInst
   const s = inst.status, icon = appIcon([inst.label]);
   const sub = [inst.name === inst.type ? "" : inst.name, category ? catName(category) : ""].filter(Boolean).join(" · ");
   return (
-    <span className="flex items-center gap-2.5 rounded-t-xl border-b border-line/40 bg-card px-3 py-2.5">
+    <span className="flex items-center gap-2.5 rounded-t-xl border-b border-line/40 bg-bg px-3 py-2.5">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">
         {icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}
       </span>
@@ -442,22 +442,42 @@ function CardWhere({ inst, url }: Readonly<{ inst: ConnectorInstance; url?: stri
   );
 }
 
-/** What an opened card shows above its form: what the connector reads, and the problems beside it */
-function CardDetail({ view, page }: Readonly<{ view: CardView; page?: string }>) {
+/** A connector that fails or reads old data: what it means, what still holds, what to check first; the words of the tool stay folded */
+function CardFix({ notice, kept }: Readonly<{ notice: CardNotice; kept: boolean }>) {
+  const { advice, raw } = notice, bad = notice.tone === "bad";
+  if (!advice) return null;
   return (
-    <div className={`mb-3 mt-1 grid gap-x-6 gap-y-3 rounded-xl border border-line/60 p-4 ${view.problems.length ? "lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""}`}>
+    <section className={`rounded-lg border px-3 py-2 text-sm ${bad ? "border-bad/40 bg-bad/10" : "border-warn/40 bg-warn/10"}`}>
+      <h4 className={`flex items-center gap-1.5 font-bold ${TEXT[notice.tone]}`}><AlertTriangle size={14} aria-hidden />{advice.short}</h4>
+      <p className="mt-1">{advice.meaning}</p>
+      {kept && <p className="mt-1"><b>{tx("Ce qui reste valable")} :</b> {tx("Les chiffres affichés viennent du dernier relevé réussi. Le service lui-même n'est pas forcément en panne.")}</p>}
+      <p className="mt-1"><b>{tx("À vérifier d'abord")} :</b> {advice.tip}</p>
+      <details className="mt-1.5 text-xs text-muted"><summary className="cursor-pointer">{tx("Message technique")}</summary><p className="mt-1 break-words font-mono">{raw}</p></details>
+    </section>
+  );
+}
+
+/** What an opened card shows above its form: what the connector reads, and the problems beside it */
+function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: CardNotice | null; page?: string }>) {
+  const problems = notice && !notice.advice && !view.problems.includes(notice.text) ? [notice.text, ...view.problems] : view.problems;
+  const side = !!notice?.advice || problems.length > 0;
+  return (
+    <div className={`mb-3 mt-1 grid gap-x-6 gap-y-3 rounded-xl border border-line/60 p-4 ${side ? "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" : ""}`}>
       <div>
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
           <h4 className="text-xs font-bold uppercase tracking-wide text-muted">{tx("Ce que le connecteur lit")}</h4>
           {page && <a href={`#${page}`} className="text-xs font-semibold text-link hover:underline">{tx("Ouvrir la page")}</a>}
         </div>
-        <dl className="grid overflow-hidden rounded-lg border border-line bg-card [grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr))]">{/* the negative margins hide the separators on the outer edge */}
+        <dl className="grid overflow-hidden rounded-lg border border-line bg-bg2 [grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr))]">{/* the negative margins hide the separators on the outer edge */}
           {view.facts.map((f) => <div key={f.label} className="-mb-px -mr-px min-w-0 border-b border-r border-line px-3 py-2"><dd className={`break-words text-sm font-semibold ${f.tone ? TEXT[f.tone] : ""}`}>{f.value}</dd><dt className="text-xs text-muted">{f.label}</dt></div>)}
         </dl>
       </div>
-      {view.problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
-        <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
-        <ul className="divide-y divide-warn/20 text-sm">{view.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
+      {side && <div className="flex flex-col gap-3">
+        {notice?.advice && <CardFix notice={notice} kept={view.figures.length > 0} />}
+        {problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+          <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
+          <ul className="divide-y divide-warn/20 text-sm">{problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
+        </div>}
       </div>}
     </div>
   );
@@ -473,18 +493,19 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
   useEffect(() => { if (focus) box.current?.scrollIntoView({ block: "center" }); }, [focus]);
   useEffect(() => { if (edit) box.current?.scrollIntoView({ block: "nearest" }); }, [edit]);
   const s = inst.status;
-  const detail = view.facts.length > 0 || view.problems.length > 0;
+  const notice = cardNotice(inst, view);
+  const detail = view.facts.length > 0 || view.problems.length > 0 || !!notice;
   return (
-    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`min-w-0 scroll-mt-24 ${edit || focus ? "col-span-full" : ""}`}><div className={`flex h-full flex-col rounded-xl border bg-bg2 ${cardRing(!!(edit || focus), view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
+    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`min-w-0 scroll-mt-24 ${edit || focus ? "col-span-full" : ""}`}><div className={`flex h-full flex-col rounded-xl border bg-card ${cardRing(!!(edit || focus), view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
       {/* the whole top of the card opens it: state, what it reads, its settings and its test, in one place */}
       <button type="button" className="group rounded-t-xl text-left hover:bg-link/10 disabled:cursor-default disabled:hover:bg-transparent" disabled={locked} aria-expanded={edit}
         title={openTip(locked, edit)} onClick={() => setEdit(!edit)}>
         <CardHead inst={inst} category={type.category} view={view} open={edit} />
-        {edit && detail ? <span className="block h-2" /> : <span className="grid grid-cols-3 gap-2 px-3 pb-2 pt-2.5">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
+        {edit && detail ? <span className="block h-2" /> : <span className="grid min-h-16 grid-cols-3 gap-2 px-3 pb-2 pt-2.5">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
       </button>
-      {inst.enabled && (!s || s.pending || !s.ok || s.stale || s.warning) && <div className="px-3 pb-2 text-sm"><StatusLine s={s && { ...s, found: [] }} collect={collect} /></div>}
-      <div className={`mt-auto flex items-center gap-1 border-t border-line/40 bg-card py-1.5 pl-3 pr-2 ${edit ? "" : "rounded-b-xl"}`}>
-        <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>
+      <div className={`mt-auto flex items-center gap-1 border-t border-line/40 bg-bg py-1.5 pl-3 pr-2 ${edit ? "" : "rounded-b-xl"}`}>
+        {notice && !edit ? <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${TEXT[notice.tone]}`} title={notice.raw ?? notice.text}>{notice.text}</span>
+          : <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>}
         <span className="ml-1 flex items-center" title={tx("Le connecteur est lu par le serveur à sa période (voir Modifier) ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
           <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />
         </span>
@@ -492,7 +513,8 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
       <div className="px-3 empty:hidden">
         {toggling && <output className="inline-flex items-center gap-1.5 pb-2 text-xs text-warn"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</output>}
         <ToggleNote note={toggleNote ?? null} onForce={onForce} />
-        {edit && detail && <CardDetail view={view} page={PAGE[inst.type]} />}
+        {edit && inst.enabled && (!s || s.pending) && <p className="mb-2 mt-1 text-sm"><StatusLine s={s && { ...s, found: [] }} collect={collect} /></p>}
+        {edit && detail && <CardDetail view={view} notice={notice} page={PAGE[inst.type]} />}
         {edit && <ConnectorForm type={type} inst={inst} hosts={hosts} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)}
           onDelete={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => { if (ok) { setEdit(false); reload(); } })} />}
         <NoteLine note={note} />
