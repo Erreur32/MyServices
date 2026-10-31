@@ -710,7 +710,8 @@ function logRows(logs: HealthHost["logs"]) {
   if (!logs?.available) return [];
   const files = [...logs.files.map((f) => ({ name: f.path.replace("/var/log/", ""), mb: f.mb, warn: f.mb >= LOG_BIG_MB }))];
   if (logs.journal_mb) files.push({ name: "journal (systemd)", mb: logs.journal_mb, warn: logs.journal_mb >= 4 * LOG_BIG_MB });
-  return files.sort((a, b) => b.mb - a.mb).map((f) => ({ name: f.name, value: sizeText(f.mb), tone: f.warn ? "text-warn" : "" }));
+  files.sort((a, b) => b.mb - a.mb);
+  return files.map((f) => ({ name: f.name, value: sizeText(f.mb), tone: f.warn ? "text-warn" : "" }));
 }
 
 const SHARE_TONE: Record<string, string> = { ok: "text-ok", hang: "text-bad", error: "text-warn", missing: "text-warn" };
@@ -1742,6 +1743,8 @@ function ServiceCount({ m, snap, onOpen }: Readonly<{ m: Machine; snap: Snapshot
   return <button type="button" onClick={onOpen} title={tip} aria-label={tx("Voir les services de {0}", m.name)} className="group inline-flex items-baseline gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-link/10">{inner}</button>;
 }
 
+const stateMark = (v: string) => <Dot tone={MSTATE[v as MState][0]} />;
+
 /** Compact machine card: who, state, system, figures, servers and what to watch; « Details » unfolds the same detail as the table,
  *  the card then taking the whole row. A Home Assistant machine shows its add-on icons. */
 function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, onOpen, onMachine }: Readonly<{
@@ -1752,7 +1755,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, onOpe
   const w = worst(watch), tone = w ? TONE_OF_RANK[w] : null, lvl = levelKey(h);   // the colour follows the dot of the icon (the notices) as much as the health level
   const look = cardLook(lvl, tone);
   return (
-    <div role="presentation" onClick={(e) => { if (!(e.target as Element).closest("button, a, [role=button]")) onOpen(); }}
+    <div role="presentation" /* NOSONAR S6819: a mouse shortcut over the card; the keyboard has its title link */ onClick={(e) => { if (!(e.target as Element).closest("button, a, [role=button]")) onOpen(); }}
       className={`flex cursor-pointer flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] ${look.frame} bg-card p-3 transition-colors hover:border-link/50 ${look.edge} ${off ? "opacity-50" : ""}`}>{/* the whole card opens the machine page, except its buttons and links; keyboard: its title */}
       <div className={`-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 px-3 py-2.5 ${look.head}`}>
         <AlertDot items={watch}><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifi) }} scan={scan} reserve /></AlertDot>
@@ -1818,7 +1821,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
     return h && ignored[h.id] === kernelSig(h.kernel?.samples) ? items.filter((i) => i.kind !== "kernel") : items;   // set aside by the viewer, until a newer message
   }, [hb, snap.data.connectors, snap.data.network, snap.data.hosts, unifiOf, ignored, hiddenSvc]);
   const facets = useMemo((): Facet<Machine>[] => [
-    { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, quiet: ["api", "network", "manual"], mark: (v) => <Dot tone={MSTATE[v as MState][0]} /> },
+    { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, quiet: ["api", "network", "manual"], mark: stateMark },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },
       name: (v) => ({ ok: "OK", warn: tx("à surveiller"), crit: "critique", down: "injoignable" } as Record<string, string>)[v] || v, order: ["ok", "warn", "crit", "down"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
     { key: "alert", label: tx("Alertes"), get: (m) => { const w = worst(watchOf(m)); return w ? TONE_OF_RANK[w] : ""; },

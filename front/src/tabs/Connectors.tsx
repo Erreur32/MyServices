@@ -558,6 +558,16 @@ function iconOption(c: string) {
   return { value: c, label: c.charAt(0).toUpperCase() + c.slice(1), icon: src ? <img src={src} alt="" className="h-7 w-7" /> : <Package size={24} className="text-muted" aria-hidden /> };
 }
 
+/** A field with choices: icon buttons when its values have a logo, else a list */
+function ChoiceInput({ f, v, box, put }: Readonly<{ f: ConnectorField; v?: ConfValue; box: string; put: (x: ConfValue) => void }>) {
+  if (f.choices.some((c) => appIcon([c]))) return <IconChoice label={tx(f.label)} value={String(v ?? f.default ?? "")} onPick={put} options={f.choices.map(iconOption)} />;
+  return (
+    <select className={box} value={String(v ?? "")} onChange={(e) => put(e.target.value)}>
+      {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+    </select>
+  );
+}
+
 /** The input of a field, by its kind; `put` gives its new value */
 function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }: Readonly<{
   f: ConnectorField; v?: ConfValue; box: string; need: boolean; kept: boolean; inst?: ConnectorInstance; picksMachine: boolean; aliases: SshAlias[]; put: (x: ConfValue) => void;
@@ -570,12 +580,7 @@ function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }:
       {aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias}{aliasTail(a)}</option>)}
     </select>
   );
-  if (f.choices.some((c) => appIcon([c]))) return <IconChoice label={tx(f.label)} value={String(v ?? f.default ?? "")} onPick={put} options={f.choices.map(iconOption)} />;
-  if (f.choices.length) return (
-    <select className={box} value={text} onChange={(e) => put(e.target.value)}>
-      {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}
-    </select>
-  );
+  if (f.choices.length) return <ChoiceInput f={f} v={v} box={box} put={put} />;
   if (f.secret) return (
     <SecretInput value={text} onChange={put} kept={kept} className={box}
       placeholder={kept ? tx("déjà renseigné : laisser vide pour garder") : ""}

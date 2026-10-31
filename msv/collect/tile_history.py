@@ -156,6 +156,13 @@ def _service_down(h: dict) -> bool:
     return b.get("up") is False or (p.get("code") or 0) >= 500
 
 
+def _service_state(h: dict, warns) -> int:
+    """0 down, 1 warning, 2 fine: the lowest of a service is its state."""
+    if _service_down(h):
+        return 0
+    return 1 if warns else 2
+
+
 def machine_service(h: dict) -> str | None:
     """What makes rows one service on one machine, whatever their ports (front lib/servicesState.ts machineService); None: the row counts alone."""
     if h.get("type") in ("redirect", "dead"):
@@ -181,7 +188,7 @@ def services_points(data: dict) -> dict[str, tuple[int, int]]:
         warns = _service_warns(h)
         if warns is not None:
             key = machine_service(h) or n
-            lines[key] = min(lines.get(key, 2), 0 if _service_down(h) else 1 if warns else 2)   # 0 down, 1 warning, 2 fine
+            lines[key] = min(lines.get(key, 2), _service_state(h, warns))
     if not lines:
         return {}
     total, states = len(lines), list(lines.values())

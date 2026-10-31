@@ -45,10 +45,10 @@ const loadDismissed = (): string[] => {
   try { return JSON.parse(localStorage.getItem(DISMISSED) || "[]") as string[]; } catch { return []; }
 };
 
-export function NetworkStep({ net, reload, machines, connected, unlinked, hidden }: {
+export function NetworkStep({ net, reload, machines, connected, unlinked, hidden }: Readonly<{
   net: NetScan | null; reload: () => void; unlinked: Unlinked[]; hidden: { ip: string; name: string }[];
   machines: { ip: string; name?: string; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
-}) {
+}>) {
   const known = machines.map((m) => m.ip);
   const [dismissed, setDismissed] = useState<string[]>(loadDismissed);
   const [disc, reloadDisc] = useDiscoveries();

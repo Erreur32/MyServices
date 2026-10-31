@@ -55,9 +55,10 @@ export function UnlinkedDevices({ devices, fresh, ...actions }: Readonly<{ devic
   const sort = useSort(shown, keyOf, "ip");
   return (
     <>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label={tx("Filtrer les appareils")}>
+      <fieldset className="flex flex-wrap gap-1.5">
+        <legend className="sr-only">{tx("Filtrer les appareils")}</legend>
         {groups().map(([id, label]) => <button key={id} type="button" className={FILTER} aria-pressed={group === id} onClick={() => setGroup(id)}>{label}<Count n={devices.filter((d) => d.group === id).length} /></button>)}
-      </div>
+      </fieldset>
       {shown.length === 0 ? <Dim>{tx("Aucun appareil ici.")}</Dim> : <>
         <Table head={<>
           <Th k="state" sort={sort}>{tx("État")}</Th><Th k="name" sort={sort}>{tx("Appareil")}</Th><Th k="ip" sort={sort}>IP</Th>

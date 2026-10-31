@@ -26,7 +26,12 @@ export function unlinkedOf(snap: Snapshot): Unlinked[] {
 }
 
 const emptyHost = (ip: string, name: string): NetHost => ({ ip, name, ports: [], hints: [], apps: [] });
-const guestOf = (u: Unlinked) => (u.vmid == null ? undefined : `${u.type === "lxc" ? "LXC" : "VM"} ${u.vmid}${u.node ? ` · ${u.node}` : ""}`);
+
+function guestOf(u: Unlinked): string | undefined {
+  if (u.vmid == null) return undefined;
+  const guest = `${u.type === "lxc" ? "LXC" : "VM"} ${u.vmid}`;
+  return u.node ? `${guest} · ${u.node}` : guest;
+}
 
 function groupOf(d: Device, hidden: Set<string>): DeviceGroup {
   if (d.ip && hidden.has(d.ip)) return "hidden";

@@ -3,7 +3,7 @@ import { tx } from "./i18n";
 
 export interface ConnectorAdvice { short: string; meaning: string; tip: string }
 
-const HTTP = (codes: string) => new RegExp(`(?:HTTP|error|erreur)\\s*:?\\s*(${codes})\\b`, "i");
+const HTTP = (codes: string) => new RegExp(String.raw`(?:HTTP|error|erreur)\s*:?\s*(${codes})\b`, "i");
 
 const denied = () => ({ short: tx("Accès refusé"), meaning: tx("Le service répond, mais refuse le compte ou le jeton."), tip: tx("Vérifiez le compte, ou refaites le jeton dans le service.") });
 

@@ -34,16 +34,20 @@ const CARD_THEME: Record<string, string[]> = { netatmo: ["Domotique"], tapo: ["D
 /** Every real domain of a service: its NPM domains, or the ones its Apache / nginx declares */
 export const hostDomains = (r: Host): string[] => (r.domains.length ? r.domains : r.vhost_domains ?? []);
 
-/** What a row belongs to. Without a known application, each site with a domain is a service of its own, even on a shared address */
-function placeOf(r: Host, apps: Map<string, string>): { key: string; name: string; tech: boolean; site: boolean } {
-  if (r.type === "redirect" || r.type === "dead") return { key: "redirects", name: tx("Redirections et 404"), tech: true, site: false };
-  const domain = hostDomains(r)[0], word = r.app?.label.split(/[ (]/)[0].toLowerCase() ?? "", seen = r.service && r.service.kind !== "web" ? r.service : null;
-  // A guess from the port gives way to what really runs there (container, process), unless the domain says the same
+type Place = { key: string; name: string; tech: boolean; site: boolean };
+
+/** The place of a row whose application is known, null otherwise. A guess from the port gives way to what really runs there (container, process), unless the domain says the same */
+function appPlace(r: Host, apps: Map<string, string>, domain?: string): Place | null {
+  const word = r.app?.label.split(/[ (]/)[0].toLowerCase() ?? "", seen = r.service && r.service.kind !== "web" ? r.service : null;
   const sure = r.app && (r.app.confidence !== "possible" || !seen || !domain || domain.includes(word));
   const label = (sure ? r.app!.label.replace(/ \(.*$/, "") : "") || apps.get(`${r.ip}:${r.port}`);   // a domain in front of a known application is that application
   const plumbing = !!sure && (!!r.app?.agent_of || PLUMBING.test(r.app?.label ?? ""));
   if (plumbing && !domain) return { key: `tech:${r.app?.label}`, name: r.app?.label ?? "", tech: true, site: false };
-  if (label && !plumbing) return { key: `app:${label}`, name: label, tech: false, site: false };
+  return label && !plumbing ? { key: `app:${label}`, name: label, tech: false, site: false } : null;
+}
+
+/** The place of a row without a known application: each site with a domain is a service of its own, even on a shared address */
+function namedPlace(r: Host, domain?: string): Place {
   if (domain && r.service?.kind === "docker" && r.service.name) return { key: `name:${r.service.name}`, name: r.service.name, tech: false, site: false };   // several addresses of one container
   if (domain) return { key: `site:${domain}`, name: hostName(r), tech: false, site: true };
   const process = r.service?.kind === "process" ? r.service.name : "";
@@ -52,7 +56,13 @@ function placeOf(r: Host, apps: Map<string, string>): { key: string; name: strin
   return name ? { key: `name:${name}`, name, tech: false, site: false } : { key: `at:${r.ip}:${r.port}`, name: hostName(r), tech: false, site: false };
 }
 
-type Place = ReturnType<typeof placeOf>;
+/** What a row belongs to */
+function placeOf(r: Host, apps: Map<string, string>): Place {
+  if (r.type === "redirect" || r.type === "dead") return { key: "redirects", name: tx("Redirections et 404"), tech: true, site: false };
+  const domain = hostDomains(r)[0];
+  return appPlace(r, apps, domain) ?? namedPlace(r, domain);
+}
+
 const containerOf = (r: Host) => (r.service?.kind === "docker" && r.service.name && r.type !== "redirect" && r.type !== "dead" ? `${r.machine || r.host_ip || r.ip}|${r.service.name}` : "");
 const placeRank = (p: Place) => (p.tech ? 2 : Number(!p.key.startsWith("app:")));
 
@@ -78,6 +88,23 @@ function toneOf(hosts: Host[], cards: ServiceStatus[]): GroupTone {
   return seen.has("ok") || cards.length ? "ok" : "off";
 }
 
+function addRow(g: ServiceGroup, r: Host, p: Place): void {
+  if (g.theme === OTHERS() || g.theme === tx("Sites web")) g.theme = placeTheme(r, p.site);   // another row may know better
+  if (g.name === g.name.toLowerCase()) g.name = p.name;   // AnyDesk rather than anydesk, whichever machine comes first
+  g.hosts.push(r);
+  g.domains = [...new Set([...g.domains, ...hostDomains(r)])];
+  const machine = r.machine || r.host_ip || r.ip;
+  if (machine && !g.machines.includes(machine)) g.machines.push(machine);
+}
+
+/** The figures of a group once it has all its rows and cards */
+function settle(g: ServiceGroup, hidden: (r: Host) => boolean): void {
+  const word = g.name.split(/[ (]/)[0].toLowerCase();
+  g.domains.sort((a, b) => Number(b.includes(word)) - Number(a.includes(word)));   // the domain named after the service comes first
+  g.problems = g.cards.flatMap((c) => c.problems ?? []);
+  g.tone = toneOf(g.hosts.filter((r) => !hidden(r)), g.cards);
+}
+
 /** `hidden`: rows hidden from the alerts, which no longer colour their service */
 export function groupServices(hosts: Host[], cards: ServiceStatus[], hidden: (r: Host) => boolean = () => false): ServiceGroup[] {
   const groups = new Map<string, ServiceGroup>(), apps = new Map<string, string>();
@@ -85,12 +112,7 @@ export function groupServices(hosts: Host[], cards: ServiceStatus[], hidden: (r:
   const containers = containerPlaces(hosts, apps);
   for (const r of hosts) {
     const p = containers.get(containerOf(r)) ?? placeOf(r, apps), g = groups.get(p.key) ?? { key: p.key, name: p.name, theme: placeTheme(r, p.site), hosts: [], cards: [], domains: [], machines: [], tech: p.tech, cloud: false, problems: [], tone: "off" };
-    if (g.theme === OTHERS() || g.theme === tx("Sites web")) g.theme = placeTheme(r, p.site);   // another row may know better
-    if (g.name === g.name.toLowerCase()) g.name = p.name;   // AnyDesk rather than anydesk, whichever machine comes first
-    g.hosts.push(r);
-    g.domains = [...new Set([...g.domains, ...hostDomains(r)])];
-    const machine = r.machine || r.host_ip || r.ip;
-    if (machine && !g.machines.includes(machine)) g.machines.push(machine);
+    addRow(g, r, p);
     groups.set(p.key, g);
   }
   const list = [...groups.values()];
@@ -99,12 +121,7 @@ export function groupServices(hosts: Host[], cards: ServiceStatus[], hidden: (r:
     if (g) g.cards.push(c);
     else list.push({ key: `card:${c.connector}:${c.name}`, name: c.label, theme: themeOf(CARD_THEME[c.connector]?.[0]), hosts: [], cards: [c], domains: [], machines: [], tech: false, cloud: !c.url, problems: [], tone: "off" });
   }
-  for (const g of list) {
-    const word = g.name.split(/[ (]/)[0].toLowerCase();
-    g.domains.sort((a, b) => Number(b.includes(word)) - Number(a.includes(word)));   // the domain named after the service comes first
-    g.problems = g.cards.flatMap((c) => c.problems ?? []);
-    g.tone = toneOf(g.hosts.filter((r) => !hidden(r)), g.cards);
-  }
+  for (const g of list) settle(g, hidden);
   return list.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
 
