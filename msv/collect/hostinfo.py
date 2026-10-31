@@ -326,7 +326,7 @@ def parse_host_info(out: str) -> dict | None:
     if "##OS" not in out:
         return None
     tag = _host_tags(out)
-    svc = dict(kv.split("=", 1) for kv in tag.get("SVC", "").split() if "=" in kv)
+    svc = {k: v for k, _, v in (kv.partition("=") for kv in tag.get("SVC", "").split() if "=" in kv)}
     sshd = _host_sshd(tag)
     vhosts, unreadable, listen, listen_addr = parse_apache(out)
     nginx_vhosts, nginx_unreadable = parse_nginx(out)

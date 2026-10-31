@@ -61,8 +61,8 @@ export function machineFigures(h: HealthHost | undefined, uptimeS: number | null
 export function shortProbe(name: string): string {
   const s = name
     .replace(/^(coretemp|k10temp|zenpower|acpitz|nct\d+|it\d+|pch_\w+?|amdgpu|thinkpad)_/i, "")
-    .replace(/_id_/g, " ")
-    .replace(/_/g, " ")
+    .replaceAll("_id_", " ")
+    .replaceAll("_", " ")
     .trim();
   return s.length > 16 ? `${s.slice(0, 15)}…` : s || name;
 }

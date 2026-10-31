@@ -121,6 +121,7 @@ def parse_containers(out: str) -> list[dict]:
 NET_FMT = "{{range .Containers}}{{.Name}}={{.IPv4Address}} {{end}}"
 
 
+INTERNAL_ADDR = re.compile(r"([\d.]+)/\d+")
 HOST_ADDR = "_host"  # adresse de la machine elle-même (pont docker, IP secondaire) : service de l'hôte
 NET_SH = (f"docker network ls -q --filter driver=bridge | xargs -r docker network inspect --format '{NET_FMT}'; "
           f"ip -4 -o addr show scope global | awk '{{print \"{HOST_ADDR}=\" $4}}'")
@@ -140,7 +141,8 @@ def docker_internal_ips(alias):
 
 def parse_internal(out: str) -> dict:
     """{ip_interne: nom_conteneur} d'après la sortie de NET_SH (lue par SSH ou envoyée par l'agent Linux)."""
-    return {ip: name for name, ip in re.findall(r"(\S+)=([\d.]+)/\d+", out)}
+    pairs = (word.rpartition("=") for word in out.split())   # word by word: this text can come from an agent report, and one regex over it took minutes on a long word
+    return {m[1]: name for name, _, addr in pairs if name and (m := INTERNAL_ADDR.match(addr))}
 
 
 class DockerSSH(Connector):

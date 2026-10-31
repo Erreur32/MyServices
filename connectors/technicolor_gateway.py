@@ -119,7 +119,7 @@ def uptime_of(text: str | None) -> int | None:
     """« 2 days 3 hours 4 minutes 5 seconds » or « 2d 3h… » or « 3:04:05 » in seconds."""
     if not text:
         return None
-    units = re.findall(r"(\d+)\s*(d|h|m|s)", text.lower())
+    units = re.findall(r"(\d+)\s*([dhms])", text.lower())
     if units:
         return sum(int(v) * {"d": 86400, "h": 3600, "m": 60, "s": 1}[u] for v, u in units)
     clock = re.fullmatch(r"(?:(\d+):)?(\d+):(\d+)", text.strip())

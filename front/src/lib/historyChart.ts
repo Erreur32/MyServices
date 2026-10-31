@@ -75,7 +75,7 @@ export function dayBuckets(perDay: { day: string; kind: string; n: number }[], d
 
 /** Jour de la semaine (0 = lundi) × heure : nombre d'événements, pour la carte de chaleur */
 export function heat(at: Point[]): number[][] {
-  const grid = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
+  const grid = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
   for (const e of at) {
     const d = new Date(e.ts * 1000);
     grid[(d.getDay() + 6) % 7][d.getHours()]++;

@@ -93,7 +93,7 @@ def follow(keys: list[str], state_dir: str | Path) -> None:
     """Keep these services as they are: no longer proposed (choices older than the window are dropped)."""
     now, horizon = time.time(), (WINDOW_DAYS + 1) * 86400
     marks = {k: v for k, v in _decided(state_dir).items() if now - v < horizon}
-    marks.update({k: now for k in keys})
+    marks.update(dict.fromkeys(keys, now))
     _write_json(_decided_file(state_dir), marks)
 
 

@@ -178,7 +178,7 @@ class Reading(unittest.TestCase):
         self.assertEqual((box["line_down_bps"], box["line_up_bps"]), (40000000, 2000000))
         self.assertEqual((box["down_bps"], box["up_bps"]), (8000000, 0))
         self.assertEqual(box["public_ip"], PUBLIC_IP)
-        self.assertEqual(box["firmware"], None)
+        self.assertIsNone(box["firmware"])
         self.assertEqual(d["problems"], [])
         self.assertTrue(all(url.startswith("http://10.0.0.1:49000/") for _, url, _ in ctx.posts))
 

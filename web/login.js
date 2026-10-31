@@ -10,7 +10,7 @@
   var reset = /^[A-Za-z0-9_-]{20,128}$/.test(resetToken);
   // Back only to a page of this site (never an external address); the old /myservices/ and /myservices/v2/ addresses lead to the root
   next = next.replace(/^\/myservices\/v2(?=\/|$)/, "").replace(/^\/myservices(?=\/|$)/, "") || "/";
-  if (!/^\/[^\\]*$/.test(next) || next.indexOf("//") >= 0) next = "/";
+  if (!/^\/[^\\]*$/.test(next) || next.includes("//")) next = "/";
   // Destination read again as an address: same site only (never another site nor javascript:)
   var dest = new URL(next, location.href);
   if (dest.origin !== location.origin) dest = new URL("/", location.origin);
@@ -69,7 +69,7 @@
     .then(function (s) {
       if (s?.needed === false && !s.mail) $("forgot-sub").textContent = "L'envoi d'e-mails n'est pas encore réglé sur cette page : demande à un administrateur un nouveau mot de passe.";
       if (s?.mail === false) $("fgo").disabled = true;
-      if (!s || !s.needed || reset) return;
+      if (!s?.needed || reset) return;
       setup = true;
       $("links").hidden = true;
       $("sub").textContent = "Première installation : aucun compte n'existe encore.";

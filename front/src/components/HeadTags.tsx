@@ -17,7 +17,7 @@ export function HeadTags({ counts = [], sources = [], others = [], at, max }: Re
   };
   return (
     <span className="flex flex-wrap items-center gap-1.5 text-sm">
-      {row(counts, "info", undefined)}
+      {row(counts, "info")}
       {row(others, "off")}
       {row(sources, "ok")}
       <Badge tone="off" outline>{tx("relevé du {0}", dateTime(at))}</Badge>

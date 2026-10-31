@@ -128,7 +128,7 @@ class HomeAssistantTests(unittest.TestCase):
         self.conn(token="mauvais").test()
         self.assertTrue(FakeHA.seen)
         self.assertEqual({m for m, _ in FakeHA.seen}, {"GET"})
-        self.assertTrue({p for _, p in FakeHA.seen} <= {"/api/config", "/api/states"})
+        self.assertLessEqual({p for _, p in FakeHA.seen}, {"/api/config", "/api/states"})
 
     def test_pas_home_assistant(self):
         r = self.conn(url=self.url + "/broken").test()

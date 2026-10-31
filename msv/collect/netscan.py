@@ -129,7 +129,7 @@ def _page(ip: str, port: int, timeout: float = 1.5) -> str | None:
         body = resp.read(32768).decode("utf-8", "replace")
         status = resp.status
         conn.close()
-    except (OSError, ssl.SSLError, http.client.HTTPException):
+    except (OSError, http.client.HTTPException):
         return None
     if not 200 <= status < 300:  # redirection ou erreur : son titre (« 301 Moved Permanently ») ne dit rien de l'appareil
         return None
@@ -235,7 +235,6 @@ def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_ban
     with ThreadPoolExecutor(3) as wx:  # page d'accueil des ports web : le titre dit souvent ce que c'est
         pages = [{"port": p, "scheme": "https" if p == 443 else "http", "title": t} for p, t in zip(web, wx.map(lambda p: page(ip, p), web))]
     app_of = {p: hit[0].label for p in opened if (hit := known_apps.identify(port=p))}
-    titled = {x["port"]: x["title"] for x in pages if x["title"]}
     def hint(p: int) -> str | None:
         if p in (80, 443):
             return f"web :{p}"

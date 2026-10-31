@@ -111,7 +111,7 @@ function Events({ snap, middle }: Readonly<{ snap: Snapshot; middle: ReactNode }
   const pick = (k: ChartStyle) => { setStyle(k); try { localStorage.setItem(STYLE_KEY, k); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
 
   const label = useCallback((k: string) => (snap.labels[k] || k), [snap.labels]);
-  const ready = hist && hist.days === days ? hist : null;
+  const ready = hist?.days === days ? hist : null;
   // Noise hidden by default (fail2ban threats, connectors back within an hour, devices found by the scan): display only, one click shows them
   const [hidden, setHidden] = useState<NoiseId[]>(savedHidden);
   const setHide = (v: NoiseId[]) => { setHidden(v); saveHidden(v); };

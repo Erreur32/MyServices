@@ -142,7 +142,7 @@ class Sources(unittest.TestCase):
             self.assertEqual(reads[-1], ["10.0.0.1"])
             ic.mark_stale(path)                                        # sans machine : tout est relu
             ic.refresh(path, 7200, read)
-            self.assertEqual(reads[-1], None)
+            self.assertIsNone(reads[-1])
 
     def test_lecture_ratee_reste_a_relire(self):
         import json

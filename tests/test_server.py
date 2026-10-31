@@ -205,7 +205,7 @@ class Http(unittest.TestCase):
         for bad in ("/myservices//evil.com", "/myservices///evil.com/x", "/myservices/\\evil.com", "/myservices/v2//evil.com"):
             r = self.c.get(bad, follow_redirects=False)
             loc = r.headers.get("location", "")
-            self.assertTrue(r.status_code in (302, 404), bad)
+            self.assertIn(r.status_code, (302, 404), bad)
             self.assertFalse(loc.startswith("//") or "\\" in loc or "://" in loc, f"{bad} -> {loc}")
             self.assertTrue(loc == "" or loc.startswith("/"), f"{bad} -> {loc}")
 

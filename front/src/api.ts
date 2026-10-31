@@ -165,7 +165,7 @@ export async function loadSnapshot(known?: Record<string, string>): Promise<Snap
     if (stamps) return !(rel in k.files) ? now - (k.readAt[rel] ?? 0) > REMOTE_EVERY_MS : true;   // not stamped: at its own pace
     return true;   // no manifest at all: everything, as before
   };
-  const readAt: Record<string, number> = { ...(k?.readAt ?? {}) };
+  const readAt: Record<string, number> = { ...k?.readAt };
   const file = async <T>(rel: string, prev: T | null, read: () => Promise<T | null>): Promise<T | null> => {
     if (!moved(rel)) return prev;
     readAt[rel] = now;

@@ -150,7 +150,7 @@ function Overview({ cards, cams, admin, at }: Readonly<{ cards: StreamCard[]; ca
   const slowest = Math.max(0, ...cards.map((c) => c.conn?.stream?.detector_ms ?? 0));
   const peak = hourly ? hourly.indexOf(Math.max(...hourly)) : -1;
   const stamp = Date.parse(at) || Date.now();
-  const hourOf = (i: number) => new Date(stamp - (23 - i) * 3600_000).getHours();   // bin 23 is the hour just gone
+  const hourOf = (i: number) => new Date(stamp - (23 - i) * 3_600_000).getHours();   // bin 23 is the hour just gone
   const last = recent[0];
   const now = Date.now();
   const watched = cams.filter((c) => c.detect || (c.events ?? 0) > 0);

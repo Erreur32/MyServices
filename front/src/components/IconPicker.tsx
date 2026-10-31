@@ -63,7 +63,7 @@ export function IconPicker({ value, onPick, disabled, autoHint, auto }: Readonly
         <div className="mt-2 rounded-xl border border-line bg-card p-3 shadow-lg shadow-black/20">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <input className={`${input} w-56`} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={tx("Chercher : Debian, NAS, caméra…")} aria-label={tx("Chercher une icône")} />
-            <button type="button" onClick={() => pick(undefined)} aria-pressed={!value}
+            <button type="button" onClick={() => pick()} aria-pressed={!value}
               className={`inline-flex h-9 items-center rounded-lg border px-3 text-xs font-semibold ${!value ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>{tx("Automatique")}</button>
             <span className="text-xs text-dim">{shown.length} {tx("icônes")}</span>
           </div>

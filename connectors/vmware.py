@@ -63,7 +63,7 @@ class VCenter(Connector):
                 msg = str(e)
                 if msg.startswith("HTTP 401"):
                     raise ConnectorError("compte refusé (utilisateur@domaine et mot de passe ?)") from None
-                if msg[:8] == "HTTP 404" and prefix == "/api":
+                if msg.startswith("HTTP 404") and prefix == "/api":
                     continue   # older vCenter: the /rest route
                 if "CERTIFICATE_VERIFY_FAILED" in msg:
                     raise ConnectorError("certificat non reconnu : décocher « Vérifier le certificat » (certificat auto-signé)") from None

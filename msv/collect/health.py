@@ -166,7 +166,7 @@ SSH_MARK = "__MSV_START__"
 
 def after_banner(out: str) -> str:
     """Sortie d'une commande SSH sans ce qui précède le repère (bandeau de connexion, avertissements du shell distant)."""
-    head, sep, tail = out.partition(SSH_MARK + "\n")
+    _, sep, tail = out.partition(SSH_MARK + "\n")
     return tail if sep else out
 
 
@@ -478,7 +478,7 @@ def parse_cpu_temp(out: str) -> dict:
         cols = ln.split()
         if len(cols) != 4 or not cols[3].lstrip("-").isdigit():
             continue
-        kind, name, label, milli = cols
+        _, name, label, milli = cols
         if name not in CPU_SENSORS:
             continue
         c = round(int(milli) / 1000, 1)
@@ -1998,7 +1998,7 @@ def compute_host_blocks(h: dict) -> dict:
             + "</div>",
             f"<div style='margin-top:.35rem'><span class='val {total_cls}'>{dk['total_cpu']}%</span> "
             f"<span class='muted'>CPU cumulé</span></div>"
-            f"<div><span class='val {avg_cls}'>{dk['avg_cpu']}%</span> <span class='muted'>moyenne/conteneur</span></div>",
+            + f"<div><span class='val {avg_cls}'>{dk['avg_cpu']}%</span> <span class='muted'>moyenne/conteneur</span></div>",
         ]
         if dk["top"]:
             titems = "".join(

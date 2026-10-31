@@ -118,7 +118,7 @@ MARK = "__MSV_START__"  # repère avant une commande SSH dont on lit la sortie :
 
 def after_mark(out: str) -> str:
     """Sortie d'une commande lancée après « printf '%s\\n' MARK », sans le bandeau d'accueil qui la précède."""
-    head, sep, tail = out.partition(MARK + "\n")
+    _, sep, tail = out.partition(MARK + "\n")
     return tail if sep else out
 
 
@@ -405,7 +405,7 @@ def page_url(ip: str) -> str:
     r = run("local", "ss -tlnpH")
     ports = set()
     for line in r.stdout.splitlines() if r else []:
-        m = re.search(r"^\S+\s+\S+\s+\S+\s+(?:\S*):(\d+)\s", line)
+        m = re.search(r"^\S+\s+\S+\s+\S+\s+\S*:(\d+)\s", line)
         pid = re.search(r"pid=(\d+)", line)
         if not (m and pid and any(f'"{w}"' in line for w in WEB_SERVERS)):
             continue
@@ -671,7 +671,7 @@ def setup_npm(val: dict, machines: dict) -> None:
     found = [f for f in find_npm_api() if os.path.realpath(f) not in used]
     while True:
         default = found[0] if found else ""
-        path = ask("Chemin de npm-api.sh déjà configuré" + (f" (trouvé ; autre chemin, ou n = aucun)" if default
+        path = ask("Chemin de npm-api.sh déjà configuré" + (" (trouvé ; autre chemin, ou n = aucun)" if default
                                                           else " (vide = aucun)"), default)
         if not path or path.lower() in ("n", "non"):
             break
@@ -1037,7 +1037,7 @@ def check() -> int:
         bad(f"{web} absent (web_dir)")
     if CFG["public_url"]:  # lien des alertes : doit mener à la page (port, / final)
         try:
-            with urllib.request.urlopen(CFG["public_url"].rstrip("/") + "/data.json", timeout=5) as resp:
+            with urllib.request.urlopen(CFG["public_url"].rstrip("/") + "/data.json", timeout=5):
                 ok(f"page joignable : {CFG['public_url']}")
         except (OSError, ValueError) as e:
             ip = local_net()[0] or socket.gethostname()

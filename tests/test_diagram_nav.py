@@ -18,7 +18,7 @@ class Nav(unittest.TestCase):
         self.assertNotIn('href="sauvegardes.html"', out)              # schéma absent : pas de lien mort
         self.assertNotIn(dn.ARCHIFY_URL, out)                         # l'origine est du texte
         self.assertIn("Généré avec Archify", out)
-        self.assertTrue(out.index("ms-nav") < out.index("</body>"))
+        self.assertLess(out.index("ms-nav"), out.index("</body>"))
 
     def test_idempotent(self):
         once = dn.inject(PAGE, "carte", ["carte", "acces"])

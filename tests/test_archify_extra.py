@@ -58,7 +58,7 @@ class Extra(unittest.TestCase):
         spec = ax.build_reseau(DATA)
         labels = {c["label"]: c for c in spec["components"]}
         self.assertEqual(spec["components"][0]["label"], "GW")
-        self.assertTrue({"Switch", "AP"} <= set(labels))
+        self.assertLessEqual({"Switch", "AP"}, set(labels))
         bounds = {b["label"].split(" · ")[0]: b for b in spec["boundaries"]}
         under = lambda g: {c["label"] for c in spec["components"] if c["id"] in bounds[g]["wraps"][1:]}   # noqa: E731   (le premier est le bloc du groupe)
         self.assertIn("pc", under("Switch"))
@@ -86,7 +86,7 @@ class Extra(unittest.TestCase):
     def test_virtualisation_modeles_exclus(self):
         spec = ax.build_virtualisation(DATA)
         labels = {c["label"] for c in spec["components"]}
-        self.assertTrue({"vm1", "ct1", "n1"} <= labels)
+        self.assertLessEqual({"vm1", "ct1", "n1"}, labels)
         self.assertNotIn("tpl", labels)
 
     def test_beaucoup_d_elements_restent_dans_les_limites(self):
