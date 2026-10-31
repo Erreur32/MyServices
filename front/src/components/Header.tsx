@@ -3,11 +3,13 @@ import { Avatar } from "./Avatar";
 import { ScheduleCard } from "./ScheduleCard";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { logout, type Snapshot } from "../api";
 import { LANG, setLang, tx } from "../lib/i18n";
 import { Flag } from "./Flag";
 import { appVersion } from "../lib/format";
+import { otherBranches } from "../lib/devState";
+import { usePoll } from "../lib/polling";
 import { reopenAssistant } from "../lib/assistant";
 import { GITHUB } from "../lib/links";
 import { announcedTag, dismissTag, dismissedTag, markAnnounced, noticesOn, onCheck, onNotices, type UpdateNews } from "../lib/updateNotice";
@@ -44,21 +46,35 @@ function FreshnessTip({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
-/** Dev image only: the release in prod, the git state it was built from (branch, commit, commits since the tag, uncommitted
- *  changes) and the planned version. GIT_REV from scripts/git-rev.sh: « branch|commit|ahead|tag|dirty »; an older plain value is shown as is */
-function DevState({ git, released, planned }: Readonly<{ git?: string; released?: string | null; planned?: string | null }>) {
-  const [branch, sha, ahead, tag, dirty] = (git ?? "").split("|");
+/** The state of the working copy, from the Vite dev server (vite.config.ts); null on a built page, which keeps the state of its image */
+function useLiveGit() {
+  const [live, setLive] = useState<{ git: string; planned: string | null } | null>(null);
+  const load = useCallback(() => {
+    if (import.meta.env.DEV) fetch("/dev-git.json").then((r) => (r.ok ? r.json() : null)).then(setLive).catch(() => setLive(null));
+  }, []);
+  usePoll(load, 30_000);
+  return live;
+}
+
+/** Dev image only: the release in prod, the git state (branch, commit, commits since the tag, uncommitted changes, branches with work
+ *  not merged here) and the planned version. From scripts/git-rev.sh: « branch|commit|ahead|tag|dirty|others »; an older plain value is shown as is */
+function DevState({ git: built, released, planned: builtPlanned }: Readonly<{ git?: string; released?: string | null; planned?: string | null }>) {
+  const live = useLiveGit();
+  const git = live?.git ?? built;
+  const planned = live ? live.planned : builtPlanned;
+  const [branch, sha, ahead, tag, dirty, others] = (git ?? "").split("|");
   const parts = git?.includes("|");
   const pill = "rounded border border-line bg-bg2/60 px-1.5 py-0.5 font-mono";
   return (
     <span className="flex flex-wrap items-center gap-1.5 text-xs font-normal tracking-normal text-dim">
       {released && <span title={tx("Version en service sur la prod (lue sur son conteneur Docker)")}>{tx("prod")} <code className={`${pill} text-muted`}>{released}</code></span>}
       {git && (parts ? (
-        <span className="inline-flex flex-wrap items-center gap-1" title={tx("État git d'où vient cette image")}>
+        <span className="inline-flex flex-wrap items-center gap-1" title={live ? tx("État git de la copie de travail") : tx("État git d'où vient cette image")}>
           git <code className={`${pill} ${branch === "main" ? "text-muted" : "text-warn"}`}>{branch}</code>
           <code className={`${pill} text-muted`}>{sha}</code>
           {Number(ahead) > 0 && <span>{tx("+{0} depuis {1}", ahead, tag)}</span>}
           {dirty && <span className="text-warn">{tx("modifs non commitées")}</span>}
+          {otherBranches(others).map((b) => <code key={b.name} className={`${pill} text-muted`} title={tx("Branche active : {0} commit(s) pas encore ici", b.commits)}>{b.name} +{b.commits}</code>)}
         </span>
       ) : <span>git <code className={`${pill} text-muted`}>{git}</code></span>)}
       {planned && <span title={tx("Version prévue d'après le journal des changements")}>{tx("prévue")} <code className={`${pill} text-link`}>{planned}</code></span>}

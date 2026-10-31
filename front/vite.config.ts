@@ -5,8 +5,12 @@
 // relaie tout ce qui n'est pas le front (API, data.json, page de connexion, schémas…) vers le conteneur de test
 // (MYSERVICES_BACKEND, défaut http://127.0.0.1:8090). L'en-tête Host est gardé (changeOrigin: false) :
 // le contrôle d'origine des écritures et le cookie de session marchent comme en production.
-import { createLogger, defineConfig } from "vite";
+import { createLogger, defineConfig, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { plannedVersion } from "./src/lib/devState";
 
 const BACKEND = process.env.MYSERVICES_BACKEND || "http://127.0.0.1:8090";
 const PORT = Number.parseInt(process.env.VITE_PORT || "5180", 10);
@@ -24,10 +28,28 @@ logger.error = (msg, options) => {
   }
 };
 
+// The header of the dev server: the image only knows the git state of its build, and Vite runs on the working copy (no route in a built page)
+const devGitState = {
+  name: "dev-git-state",
+  configureServer(server: ViteDevServer) {
+    server.middlewares.use("/dev-git.json", (_req, res) => {
+      try {
+        const git = execFileSync("sh", [fileURLToPath(new URL("../scripts/git-rev.sh", import.meta.url))], { encoding: "utf-8" }).trim();
+        const changelog = readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf-8");
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ git, planned: plannedVersion(changelog, git.split("|")[3]) }));
+      } catch {
+        res.statusCode = 503;
+        res.end();
+      }
+    });
+  },
+};
+
 export default defineConfig({
   customLogger: logger,
   base: "/",
-  plugins: [react()],
+  plugins: [react(), devGitState],
   server: {
     port: PORT,
     strictPort: true,
