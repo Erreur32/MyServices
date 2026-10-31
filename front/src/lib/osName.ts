@@ -1,7 +1,7 @@
 // Nom de système abrégé pour les colonnes : « Microsoft Windows 11 Professionnel » -> « Windows 11 Pro », « Debian GNU/Linux 13 (trixie) » -> « Debian 13 (trixie) ».
 // Le nom complet reste dans l'info-bulle et le détail.
 // \b ne voit pas « é » comme une lettre : bornes explicites
-const word = (alt: string) => new RegExp(`(?<![\\p{L}])(?:${alt})(?![\\p{L}])`, "iu");
+const word = (alt: string) => new RegExp(String.raw`(?<![\p{L}])(?:${alt})(?![\p{L}])`, "iu");
 const EDITIONS: [RegExp, string][] = [
   [word("professionnel|professional"), "Pro"], [word("entreprise|enterprise"), "Enterprise"], [word("éducation|education"), "Education"],
   [word("familiale|famille|home"), "Home"],

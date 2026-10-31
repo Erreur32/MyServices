@@ -497,7 +497,6 @@ def remove_copy(set_id: str, index: int) -> None:
     if not 1 <= index < len(s.get("locations", [])):
         raise BackupError("copie inconnue")
     del s["locations"][index]
-    hosts = {h["id"]: h for h in meta.get("hosts", [])}
     if not any(l.get("host") != s.get("origin") or l.get("offsite") for l in s["locations"][1:]):
         s["expect_offsite"] = False   # last off-machine copy gone: nothing left to require
     _write(meta)

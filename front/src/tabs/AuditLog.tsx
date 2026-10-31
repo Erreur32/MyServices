@@ -13,7 +13,7 @@ import { InfoNote } from "../components/InfoNote";
 
 const TEXT: Record<AuditTone, string> = { bad: "text-bad", warn: "text-warn", ok: "", info: "" };
 const DOT: Record<AuditTone, string> = { bad: "bg-bad", warn: "bg-warn", ok: "bg-ok", info: "bg-link" };
-const csvCell = (v: string | number | null) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+const csvCell = (v: string | number | null) => `"${String(v ?? "").replaceAll('"', '""')}"`;
 const chip = (on: boolean) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`;
 const PERIODS: [number, string][] = [[1, tx("24 h")], [7, tx("7 jours")], [30, tx("30 jours")], [0, tx("Tout")]];
 const DAYS_KEY = "ms.audit.days";

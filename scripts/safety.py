@@ -73,13 +73,13 @@ SECRETS = [
 ]
 # nom = "valeur" écrit en dur
 ASSIGN = re.compile(
-    r"""(?ix)\b([\w.-]*(?:password|passwd|passphrase|secret|token|api[_-]?key|apikey|private[_-]?key)[\w.-]*)
+    r"""(?ix)\b([\w.-]*(?:password|passwd|passphrase|secret|token|api[_-]?key|private[_-]?key)[\w.-]*)
         ["']?\s*[:=]\s*["']([^"'\s$<{}\[\]()]{8,})["']""")
 PLACEHOLDER = re.compile(
     r"(?i)^(?:[/~.][\w./~-]*|x+|\*+|\.+|change[-_]?me|example|exemple|secret|password|motdepasse|mot-de-passe|none|null|true|false|"
     r"your[-_].*|<.*>|dummy.*|fake.*|test.*|demo.*|todo|redacted|enc:v1:.*)$")
 PRIVATE_IP = re.compile(r"\b(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b")
-IP_EXAMPLE = re.compile(r"\b(?:10\.0\.0|192\.168\.(?:0|1)|172\.(?:16|30)\.0)\.\d{1,3}\b")  # adresses de documentation courantes
+IP_EXAMPLE = re.compile(r"\b(?:10\.0\.0|192\.168\.[01]|172\.(?:16|30)\.0)\.\d{1,3}\b")  # adresses de documentation courantes
 IP_QUIET = ("README", "docs/", "tests/", "fixtures", ".example.", "CHANGELOG", "setup.py", "install.sh", "config.py")
 
 IMAGE = re.compile(r"\.(png|jpe?g|gif|webp|bmp|tiff?|svg|ico)$", re.I)

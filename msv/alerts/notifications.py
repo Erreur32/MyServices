@@ -238,7 +238,7 @@ class Notifications:
         """Exemples choisis, ajoutés désactivés sur les canaux actifs ; ceux déjà présents (même nom) sont sautés."""
         have = {n["name"] for n in self.list()}
         chans = [c["id"] for c in self.a.channels() if c["enabled"]]
-        stats, data = self._data()
+        _, data = self._data()
         first = next((m["name"] for m in data.get("machine_list") or [] if not m.get("disabled")), "")
         n = 0
         for ex in EXAMPLES:

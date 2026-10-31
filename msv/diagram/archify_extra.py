@@ -112,7 +112,7 @@ def _watchers(data: dict) -> dict[str, dict]:
     return out
 
 
-def available(key: str, data: dict | None, backups_url: str = "") -> bool:
+def available(key: str, data: dict | None) -> bool:
     """Le schéma a-t-il de quoi se construire ? (un connecteur réseau lu, des services vus, des domaines, un hôte Proxmox)"""
     data = data or {}
     need = CATALOG[key][2] if key in CATALOG else ""

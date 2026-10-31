@@ -168,7 +168,7 @@ def role_changes(current: str | None, seen: list[str]) -> tuple[list[str], list[
     return add, remove
 
 
-def _seen_tags(ip: str, ssh_port_hint: bool = True) -> list[str]:
+def _seen_tags(ip: str) -> list[str]:
     """Étiquettes d'après la détection du réseau (applis reconnues, puis ports par défaut joignables), sans rien écrire."""
     from msv.collect import netscan
     d = netscan._describe(ip, ssh=netscan.ssh_ports())

@@ -54,7 +54,7 @@ def _index() -> dict[str, dict]:
 
 def _write(path: Path, data: bytes) -> None:
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_bytes(data)
+    tmp.write_bytes(data)   # NOSONAR S2083: the name comes from a SHA-256 of the content or a constant, and _file checks the folder
     tmp.replace(path)
 
 

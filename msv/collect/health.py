@@ -166,7 +166,7 @@ SSH_MARK = "__MSV_START__"
 
 def after_banner(out: str) -> str:
     """Sortie d'une commande SSH sans ce qui précède le repère (bandeau de connexion, avertissements du shell distant)."""
-    head, sep, tail = out.partition(SSH_MARK + "\n")
+    _, sep, tail = out.partition(SSH_MARK + "\n")
     return tail if sep else out
 
 
@@ -478,7 +478,7 @@ def parse_cpu_temp(out: str) -> dict:
         cols = ln.split()
         if len(cols) != 4 or not cols[3].lstrip("-").isdigit():
             continue
-        kind, name, label, milli = cols
+        _, name, label, milli = cols
         if name not in CPU_SENSORS:
             continue
         c = round(int(milli) / 1000, 1)
@@ -1998,7 +1998,7 @@ def compute_host_blocks(h: dict) -> dict:
             + "</div>",
             f"<div style='margin-top:.35rem'><span class='val {total_cls}'>{dk['total_cpu']}%</span> "
             f"<span class='muted'>CPU cumulé</span></div>"
-            f"<div><span class='val {avg_cls}'>{dk['avg_cpu']}%</span> <span class='muted'>moyenne/conteneur</span></div>",
+            + f"<div><span class='val {avg_cls}'>{dk['avg_cpu']}%</span> <span class='muted'>moyenne/conteneur</span></div>",
         ]
         if dk["top"]:
             titems = "".join(
@@ -2184,7 +2184,7 @@ def merge_only(previous: list[dict], previous_asleep: list[dict], hosts: list[di
             asleep + [a for a in previous_asleep if a["id"] not in fresh and a.get("ip") != only])
 
 
-def main() -> int:
+def main() -> None:
     dry = "--dry-run" in sys.argv
     ts = datetime.now(timezone.utc).isoformat()
 
@@ -2198,7 +2198,7 @@ def main() -> int:
     ssh_first = [hc for hc in candidates if hc["ip"] == only and hc["target"] and source_order(hc, agents.get(only))[0] == "ssh"] if only and "--agent" in sys.argv else []
     if ssh_first:
         print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire" + (" (un point pour les courbes)" if agent_figures(ssh_first[0], agents.get(only), ts) else ""))
-        return 0
+        return
     previous, previous_asleep, previous_connectors = [], [], []
     if only:
         try:
@@ -2253,7 +2253,7 @@ def main() -> int:
 
     if dry:
         print(json.dumps(stats, indent=2, ensure_ascii=False, default=str)[:6000])
-        return 0
+        return
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     record_events(hosts, prev_levels, ts)
@@ -2284,10 +2284,9 @@ def main() -> int:
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"last_run": ts, "overall_level": overall,
                                       "levels": {h["id"]: h["level"] for h in hosts}, "hot": hot_since_of(hosts), "since": check_since}, indent=2), encoding="utf-8")
-    return 0
 
 
 if __name__ == "__main__":
     from msv.core import app_user
     app_user.drop_root()   # docker compose exec : root -> compte 10001 (sa config SSH, fichiers de /data restés à lui)
-    sys.exit(main())
+    main()

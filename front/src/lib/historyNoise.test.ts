@@ -21,13 +21,13 @@ describe("historique : bruit", () => {
     const { shown, counts } = unmasked(list, ["menace", "flap", "appareil"]);
     expect(counts).toEqual({ menace: 2, flap: 2, appareil: 1 });
     expect(shown.map((e) => e.kind)).toEqual(["panne", "connecteur_ok", "connecteur"]);
-    expect(unmasked(list, []).shown.length).toBe(list.length);   // nothing hidden: everything back
+    expect(unmasked(list, []).shown).toHaveLength(list.length);   // nothing hidden: everything back
   });
   it("one line per jail for threats and per connector for its cuts", () => {
     const items = collapse(list);
     const groups = items.filter((i) => "events" in i) as { title: string; detail: string; events: StoredEvent[] }[];
     expect(groups.map((g) => [g.title, g.detail, g.events.length])).toEqual([
       ["mynetwork lan : 1 coupure(s)", "rétabli", 2], ["fail2ban : 2 nouvelles menaces", "jails sshd", 2], ["connecteur:beszel/b : 1 coupure(s)", "rétabli", 2]]);
-    expect(items.length).toBe(5);   // 3 groups + the device + the outage
+    expect(items).toHaveLength(5);   // 3 groups + the device + the outage
   });
 });

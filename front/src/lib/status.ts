@@ -95,10 +95,10 @@ export function checks(r: Host): Check[] {
   if (p.err === "gaierror") c.push("dns");
   else if (p.err === "RemoteDisconnected") { if (!r.closes_root) c.push("closed"); }
   else if (p.err) c.push("tls");
-  const di = (r.dns?.issues || []).map((x) => x[0]);
-  if (di.includes("absent") && !c.includes("dns")) c.push("dns");
+  const di = new Set((r.dns?.issues || []).map((x) => x[0]));
+  if (di.has("absent") && !c.includes("dns")) c.push("dns");
   for (const [k, v] of [["nom", "dnsname"], ["ecart", "dnsdiff"], ["hors_lan", "dnslan"], ["bloque", "dnsblock"]] as const)
-    if (di.includes(k)) c.push(v);
+    if (di.has(k)) c.push(v);
   if (r.type === "dead" && p.code && p.code !== 404) c.push("http");
   if (r.nginx_online === false) c.push("nginx");
   if (exposure(r) === "ouvert") c.push("open");

@@ -20,7 +20,7 @@ export function useNetScan(): { net: NetScan | null; reload: () => void } {
 }
 
 export function netState(net: NetScan | null): NetState {
-  return net && (net.phase === "ping" || net.phase === "identify") ? "run" : net && net.found.length ? "found" : "idle";
+  return net?.phase === "ping" || net?.phase === "identify" ? "run" : net?.found.length ? "found" : "idle";
 }
 
 export interface Tag { label: string; kind: "ssh" | "app" | "port" }

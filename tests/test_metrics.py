@@ -43,7 +43,7 @@ class Metrics(unittest.TestCase):
         # Windows: the processor in « load »; no disk, temperature not available
         win = {"load": {"cpu_pct": 7}, "res": {"available": False}, "temp": {"available": False, "celsius": 40}}
         self.assertEqual(metrics.figures(win), {"cpu": 7.0, "mem": None, "disk": None, "temp": None})
-        self.assertEqual(metrics.figures({"res": {"cpu_pct": True}, "disks": [{"used_pct": None}, "x"]})["cpu"], None)
+        self.assertIsNone(metrics.figures({"res": {"cpu_pct": True}, "disks": [{"used_pct": None}, "x"]})["cpu"])
 
     def test_points(self):
         stats = {"hosts": [host(), host("off · 10.0.0.3", reachable=False), host("old · 10.0.0.4", read_at=None),

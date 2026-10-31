@@ -32,7 +32,7 @@ def read_secrets(path: str) -> dict:
     """Fichier CLÉ=valeur (mode 600) : identifiants jamais écrits dans backups-meta.json."""
     try:
         with open(path) as f:
-            return dict(l.strip().split("=", 1) for l in f if "=" in l and not l.startswith("#"))
+            return {k: v for k, v in (l.strip().split("=", 1) for l in f if "=" in l and not l.startswith("#"))}
     except OSError as e:
         raise ConnectorError(f"secrets illisibles ({path} : {e.strerror})") from None
 

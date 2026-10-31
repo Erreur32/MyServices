@@ -20,7 +20,7 @@ import { virtFigures } from "../lib/virtFigures";
 import { levelTone, shareTone } from "../lib/figureTones";
 import type { TilePoint } from "../lib/tileHistory";
 
-const HYPERVISORS = ["proxmox", "pulse", "esxi", "vcenter", "pdm", "unraid", "libvirt", "incus", "lxd", "virtualbox", "hyperv"];
+const HYPERVISORS = new Set(["proxmox", "pulse", "esxi", "vcenter", "pdm", "unraid", "libvirt", "incus", "lxd", "virtualbox", "hyperv"]);
 /** How a host was read, shown as a badge */
 const VIA: Record<string, string> = { esxi: "vim-cmd", proxmox: "pvesh", libvirt: "virsh", incus: "incus", lxd: "lxc", virtualbox: "VBoxManage" };
 type Guest = NonNullable<VirtualizationConnector["guests"]>[number];
@@ -161,7 +161,7 @@ function Host({ c, snap, onMachine, hideStopped }: Readonly<{ c: VirtualizationC
                 </div>
               )}
               {n && <NodeStats n={n} list={list} />}
-              {(n || storageOf(undefined).length > 0) && (
+              {(n || storageOf().length > 0) && (
                 <div className="grid gap-x-6 gap-y-2 border-t border-line/60 px-3 py-2.5 sm:grid-cols-2 lg:grid-cols-4 [&:first-child]:border-t-0 [&:empty]:hidden">
                   {n && <Gauge big label={tx("Attente disque")} pct={n.iowait_pct} />}
                   {n?.root_total ? <Gauge big label={tx("Disque système")} pct={100 * (n.root_used ?? 0) / n.root_total} used={n.root_used} total={n.root_total} icon={<HardDrive size={12} className="shrink-0 text-dim" aria-hidden />} /> : null}
@@ -203,10 +203,10 @@ function Host({ c, snap, onMachine, hideStopped }: Readonly<{ c: VirtualizationC
 const HIDE_KEY = "myservices.virtualization.hideStopped";
 
 export function Virtualization({ snap, onMachine }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void }>) {
-  const [hideStopped, setHide] = useState(() => { try { return localStorage.getItem(HIDE_KEY) === "1"; } catch { return false; } });
-  const toggleHide = () => { setHide(!hideStopped); try { localStorage.setItem(HIDE_KEY, hideStopped ? "0" : "1"); } catch { /* private window: fine */ } };
+  const [hideStopped, setHideStopped] = useState(() => { try { return localStorage.getItem(HIDE_KEY) === "1"; } catch { return false; } });
+  const toggleHide = () => { setHideStopped(!hideStopped); try { localStorage.setItem(HIDE_KEY, hideStopped ? "0" : "1"); } catch { /* private window: fine */ } };
   const virt = snap.data.virtualization ?? [];
-  const pve = virt.filter((c) => HYPERVISORS.includes(c.connector)), pbs = virt.filter((c) => c.connector === "proxmox-backup");
+  const pve = virt.filter((c) => HYPERVISORS.has(c.connector)), pbs = virt.filter((c) => c.connector === "proxmox-backup");
   const [hours, setHours] = usePeriod(), hist = useVirtHistory(hours, snap.data.generated), now = Math.floor(Date.now() / 1000);
   const fig = virtFigures(pve, snap.backups?.sets), common = { hours, now } as const;
   const ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, missing = (p: TilePoint) => p[2] - p[1], level = (p: TilePoint) => `${p[1]} %`, hot = levelTone;

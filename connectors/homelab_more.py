@@ -308,7 +308,7 @@ class Glances(StatusConnector):
         if isinstance(system, dict) and system.get("hr_name"):
             facts.insert(0, fact("Système", system["hr_name"]))
         problems = [f"disque {f.get('mnt_point', '?')} plein à {num(f.get('percent'), 0):.0f} %" for f in fs if num(f.get("percent"), 0) >= 90]
-        for a in opt("alert") or []:   # v4: objects; v3: [begin, end, state, type, …]
+        for a in opt("alert") or []:   # version 4 gives objects, version 3 a list (begin, end, state, type…)
             a = a if isinstance(a, dict) else dict(zip(("begin", "end", "state", "type"), a)) if isinstance(a, list) else {}
             if a.get("end") in (-1, None) and str(a.get("state", "")).upper() in ("WARNING", "CRITICAL"):
                 problems.append(f"alerte Glances {a.get('type', '?')} : {str(a['state']).lower()}")

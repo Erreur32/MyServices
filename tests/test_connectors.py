@@ -447,7 +447,7 @@ class HealthFromBeszel(unittest.TestCase):
         self.assertTrue(h["disks"][0]["warning"])  # 81 % >= 80
         self.assertEqual(h["systemd"]["failed"][0]["unit"], "nginx.service")
         self.assertEqual((h["apt"]["upgradable"], h["apt"]["security"]), (7, 2))
-        self.assertEqual(h["smart"]["disks"][0]["healthy"], True)
+        self.assertIs(h["smart"]["disks"][0]["healthy"], True)
         self.assertEqual(health.host_level(h), "warn")
         blocks = health.compute_host_blocks(dict(h, level="warn"))
         self.assertIn("lu par Beszel", blocks["smart"])

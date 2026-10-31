@@ -239,7 +239,7 @@ function Redetect({ st, onDone }: Readonly<{ st: State; onDone: () => void }>) {
           ))}
         </div>
       ))}
-      {res && res.machines.filter((r) => r.note !== null && r.note !== "rien à changer").map((r) => <Dim key={r.ip}>{r.name} · {tx("Injoignable ou illisible : non vérifiable")}</Dim>)}
+      {res?.machines.filter((r) => r.note !== null && r.note !== "rien à changer").map((r) => <Dim key={r.ip}>{r.name} · {tx("Injoignable ou illisible : non vérifiable")}</Dim>)}
       {note && <NoteLine note={note} />}
       <div className="flex gap-2">
         {withChanges.length > 0 && <button type="button" className={primary} disabled={busy} onClick={apply}><Check size={14} />{busy ? tx("Enregistrement…") : tx("Appliquer")}</button>}

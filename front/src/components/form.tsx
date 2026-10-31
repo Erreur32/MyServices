@@ -48,7 +48,7 @@ export function TagInput({ value, onChange, label, suggestions = [], max = 200, 
   const [draft, setDraft] = useState("");
   const set = (next: string[]) => onChange(next.join(", ").slice(0, max));
   const add = (raw: string) => {
-    const t = raw.replace(/,/g, " ").trim();
+    const t = raw.replaceAll(",", " ").trim();
     if (t && !tags.some((x) => x.toLowerCase() === t.toLowerCase())) set([...tags, t]);
     setDraft("");
   };

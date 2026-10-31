@@ -27,7 +27,7 @@ import { UnifiCards } from "./UnifiCards";
 import { HeadTags } from "../components/HeadTags";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
 
-const INTERNET = ["freebox", "upnp-box", "opnsense", "speedtest-tracker"];
+const INTERNET = new Set(["freebox", "upnp-box", "opnsense", "speedtest-tracker"]);
 type Kind = "gear" | "wifi" | "wired" | "device";
 const KIND: Record<Kind, string> = { gear: tx("Équipement réseau"), wifi: tx("Client wifi"), wired: tx("Client filaire"), device: tx("Appareil trouvé") };
 
@@ -275,8 +275,8 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
   const net = snap.data.network ?? [];
   const unifiConn = cards.find((c) => c.connector === "unifi");
   const unifi = unifiConn && !unifiConn.ok && !unifiConn.stale ? unifiConn : unifiCard(rows, unifiConn);   // a failing connector shows its error
-  const internet = [...cards.filter((c) => c.connector === "freebox"), ...(unifi ? [unifi] : []), ...cards.filter((c) => INTERNET.includes(c.connector) && c.connector !== "freebox")];
-  const others = cards.filter((c) => !INTERNET.includes(c.connector) && c.connector !== "unifi");
+  const internet = [...cards.filter((c) => c.connector === "freebox"), ...(unifi ? [unifi] : []), ...cards.filter((c) => INTERNET.has(c.connector) && c.connector !== "freebox")];
+  const others = cards.filter((c) => !INTERNET.has(c.connector) && c.connector !== "unifi");
   const boxes = cards.filter((c) => c.box);
   const has: Record<Sub, boolean> = { watch: true, unifi: !!unifi, box: boxes.length > 0, scan: net.some((c) => c.connector === "mynetwork"), list: true, diagnostic: true };
   const all = (k: Kind) => rows.filter((r) => r.kind === k);

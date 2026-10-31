@@ -164,7 +164,7 @@ class HitronCoda(StatusConnector):
         except ValueError:
             if optional:
                 return []
-            raise ConnectorError(SESSION_LOST if text.lstrip()[:1] == "<" else UNREADABLE) from None
+            raise ConnectorError(SESSION_LOST if text.lstrip().startswith("<") else UNREADABLE) from None
         return rows(value)
 
     def collect(self) -> dict:

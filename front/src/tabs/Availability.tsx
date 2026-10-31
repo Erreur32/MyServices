@@ -76,7 +76,7 @@ export function Availability({ snap }: Readonly<{ snap: Snapshot }>) {
   const [rep, setRep] = useState<Report | null>(null), [error, setError] = useState("");
   useEffect(() => { read<Report>(`availability?days=${days}`).then((r) => { setRep(r); setError(""); }).catch((e) => setError(String(e.message || e))); }, [days, snap.data.generated]);
   const pick = (d: number) => { setDays(d); try { localStorage.setItem(DAYS_KEY, String(d)); } catch { /* stockage refusé */ } };
-  const items = useMemo(() => (rep && rep.days === days ? rep.items : []), [rep, days]);
+  const items = useMemo(() => (rep?.days === days ? rep.items : []), [rep, days]);
   const facets = useMemo((): Facet<Item>[] => [
     { key: "kind", label: tx("Voir"), get: rowKind, name: (v) => KIND[v as RowKind][2], order: KINDS },
     { key: "state", label: tx("État"), get: stateOf, name: (v) => STATES[v as State], order: Object.keys(STATES) },

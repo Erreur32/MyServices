@@ -37,7 +37,6 @@ _BAR = ("position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:flex;
 def nav_html(current: str, available: list[str]) -> str:
     """Le bandeau : ← MyServices, puis un lien par autre schéma déjà construit (celui qu'on regarde est en gras, sans lien ; un schéma absent n'a
     pas de lien), puis l'origine du schéma en simple texte."""
-    titles = {k: t for k, t, _, _ in all_diagrams()}
     sib = [f'<b style="{_PILL};background:rgba(124,196,255,.22);color:#fff">{t}</b>' if k == current
            else f'<a style="{_LINK};{_PILL}" href="{k}.html">{t}</a>'
            for k, t, _, _ in all_diagrams() if k in available]

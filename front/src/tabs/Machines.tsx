@@ -32,9 +32,8 @@ import { SshAccess } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
 import { HeadTags } from "../components/HeadTags";
 import { StatTile } from "../components/StatTile";
-import { HistoryTile, useMachinesHistory } from "../components/HistoryTile";
+import { HistoryTile, useMachinesHistory, useNetworkHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
-import { useNetworkHistory } from "../components/HistoryTile";
 import { BandwidthTile } from "../components/BandwidthTile";
 import { PageHead } from "../components/PageHead";
 import type { TilePoint } from "../lib/tileHistory";
@@ -416,7 +415,7 @@ function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
 /** Kernel errors set aside by the viewer, per machine: hidden until a more recent message appears (kept in this browser only) */
 const KernelIgnore = createContext<{ ignored: Record<string, string>; set: (id: string, sig: string | null) => void }>({ ignored: {}, set: () => undefined });
 const KERNEL_KEY = "ms.machines.kernelIgnored";
-const kernelSig = (samples: string[] = []): string => samples[samples.length - 1] ?? "";
+const kernelSig = (samples: string[] = []): string => samples.at(-1) ?? "";
 
 /** Asks the machines page to open a machine window at the section that explains a notice (null outside the page) */
 const PickWatch = createContext<((ip: string, kind: WatchKind) => void) | null>(null);
@@ -483,7 +482,7 @@ function WatchSummary({ items, onShow }: Readonly<{ items: WatchItem[]; onShow?:
 /** Nom de système d'une icône choisie à la main (« windows-10 » -> « Windows 10 »), pour le logo quand aucun relevé ne donne le système */
 function chosenSystem(icon?: string | null): string | undefined {
   const c = chosenIcon(icon);
-  return c && c.family === "system" && "file" in c ? c.label : undefined;
+  return c?.family === "system" && "file" in c ? c.label : undefined;
 }
 
 /** Système sur une ligne : logo de la distribution (ou icône de la famille) puis le nom, coupé, entier au survol */
@@ -1678,7 +1677,7 @@ function healthRank(m: Machine, h: HealthHost | undefined, followed: boolean): n
 
 /** How long a machine has been up, from whatever reads it: SSH, its agent, the UniFi console or the Freebox */
 function uptimeOf(m: Machine, unifi?: UnifiDevice, fb?: FreeboxInfo, ha?: ServiceStatus): number | undefined {
-  const booted = ha?.host?.boot ? Date.parse(ha.host.boot) : NaN;   // Home Assistant gives its last boot time, not a duration
+  const booted = ha?.host?.boot ? Date.parse(ha.host.boot) : Number.NaN;   // Home Assistant gives its last boot time, not a duration
   return m.info?.uptime_s ?? m.agent?.uptime_s ?? unifi?.uptime ?? fb?.system?.uptime ?? (Number.isNaN(booted) ? undefined : Math.max(0, Math.floor((Date.now() - booted) / 1000)));
 }
 

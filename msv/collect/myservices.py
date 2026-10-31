@@ -265,7 +265,8 @@ def adopt_ssh(hinfo: dict) -> None:
         from msv.machines import machines_admin
         for ip in machines_admin.adopt_ssh(found):
             print(f"SSH activé tout seul pour {MACHINES[ip][0]} ({ip}) : accès « {found[ip]} », clé testée", flush=True)
-    except Exception as e:  # noqa: BLE001 : la collecte continue, l'interrupteur reste à activer à la main
+    # the collection goes on, the switch stays to turn on by hand
+    except Exception as e:  # noqa: BLE001
         print(f"⚠ activation automatique du SSH impossible : {type(e).__name__}: {e}", flush=True)
 
 
@@ -379,7 +380,7 @@ def probe_https(domain):
                 raise
             cert_ok = False
             code = _get(_opener_insecure, domain)
-    except (urllib.error.URLError, OSError) as e:
+    except OSError as e:
         return {"code": None, "err": type(getattr(e, "reason", e)).__name__}
     return {"code": code, "ms": round((time.monotonic() - t) * 1000), "cert_ok": cert_ok}
 
@@ -401,7 +402,7 @@ def probe_follow(domain):
                 code, url, body = r.status, r.geturl(), r.read(65536)
         except urllib.error.HTTPError as e:
             code, url, body = e.code, e.geturl(), e.read(65536) if e.fp else b""
-    except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as e:
+    except (http.client.HTTPException, OSError, ValueError) as e:
         return {"code": None, "err": type(getattr(e, "reason", e)).__name__}
     return {"code": code, "url": url, "title": _title(body)}
 
@@ -451,7 +452,7 @@ def probe_web(scheme, ip, port, host=None):
         try:
             code, headers, body = _fetch(sch, ip, port, host)
             ctype = (headers.get("Content-Type", "") if headers else "")
-        except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError):
+        except (http.client.HTTPException, OSError, ValueError):
             continue
         if code == 400 and b"sent to HTTPS port" in body:
             continue
@@ -1565,8 +1566,8 @@ if __name__ == "__main__":
     from msv.core import app_user
     app_user.drop_root()   # docker compose exec : root -> compte 10001 (sa config SSH, fichiers de /data restés à lui)
     # Un seul passage à la fois (cron + lancement manuel) : sinon on sort sans rien faire
-    lock = open(os.path.join(os.path.dirname(DOCKER_CACHE), "run.lock"), "w") \
-        if os.makedirs(os.path.dirname(DOCKER_CACHE), exist_ok=True) is None else None
+    os.makedirs(os.path.dirname(DOCKER_CACHE), exist_ok=True)
+    lock = open(os.path.join(os.path.dirname(DOCKER_CACHE), "run.lock"), "w")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:

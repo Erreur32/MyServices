@@ -6,7 +6,7 @@ import type { ConnectorType } from "../types";
 export function modeOf(type: ConnectorType, config: Record<string, unknown> | undefined): string {
   const modes = type.modes ?? [];
   if (!modes.length) return "";
-  const has = (k: string) => !!(config && config[k]);
+  const has = (k: string) => !!config?.[k];
   const id = has("api") ? "script" : has("ssh") ? "ssh" : "direct";
   return modes.some((m) => m.id === id) ? id : modes[0].id;
 }

@@ -49,7 +49,7 @@ def notifications_state(request: Request):
     if denied := admin_only(request):
         return denied
     n = core.notifications_store()
-    stats, data = n._data()
+    _, data = n._data()
     names = {m["ip"]: m["name"] for m in data.get("machine_list") or [] if not m.get("disabled")}
     sent = [x for x in core.alerts_store().sent(200) if (x.get("rule") or "").startswith("🔔")][:30]
     return {"notifications": n.list(), "channels": core.alerts_store().channels(), "sent": sent,
@@ -231,7 +231,7 @@ def icons_get(key: str, request: Request):
         return deny(404, "aucune icône")
     raw, mime = got
     # same guard as an avatar: an SVG opened on its own runs nothing, and the type is never guessed. The key is a fingerprint: cache for good
-    return Response(raw, media_type=mime, headers={"Content-Security-Policy": avatars.SERVE_CSP, "X-Content-Type-Options": "nosniff",
+    return Response(raw, media_type=mime, headers={"Content-Security-Policy": avatars.SERVE_CSP, "X-Content-Type-Options": "nosniff",   # NOSONAR S5131: checked by avatars.check, sent with a sandbox CSP and nosniff
                                                     "Cache-Control": "private, max-age=31536000, immutable", "Content-Disposition": "inline"})
 
 
@@ -321,7 +321,7 @@ class MailConf(BaseModel):
     port: int = 587
     security: str = Field("starttls", max_length=10)
     user: str = Field("", max_length=254)
-    password: str | None = Field(None, max_length=256)   # empty: kept ; « - »: cleared
+    password: str | None = Field(None, max_length=256)   # left empty it is kept, « - » clears it
     sender: str = Field("", max_length=254)
     page_url: str = Field("", max_length=300)
 
