@@ -361,21 +361,9 @@ class UnifiDeviceCard extends HTMLElement {
       return { columns: 12, rows: "auto" };
     }
 
-    // A slot occupies port_size + 4px of pitch (40 at the default 36, the same
-    // pitch _maxFittableColumns measures with) and the panel adds 28px of
-    // padding. A grid column is a twelfth of a view column, which Home
-    // Assistant keeps between 320 and 500px, so ~36px per column sits in that
-    // range. Narrower viewports fall short of the request; the row repacking
-    // absorbs that.
-    const needed = this._widestSlots() * (this._portSize() + 4) + 28;
-    const columns = Math.min(48, Math.max(12, Math.ceil(needed / 36)));
-    return { columns, rows: "auto" };
-  }
-
-  // The width the front panel actually needs, counted in slots on its widest
-  // line. Odd/even panels draw one pair of declared rows as two lines, so a
-  // pair of twelve is twelve wide, not twenty-four.
-  _widestSlots() {
+    // Ask for the width the front panel actually needs, counted in slots on
+    // its widest line. Odd/even panels draw one pair of declared rows as two
+    // lines, so a pair of twelve is twelve wide, not twenty-four.
     const layout = this._ctx?.layout;
     const rows = layout?.rows || [];
     let widest = 0;
@@ -397,7 +385,17 @@ class UnifiDeviceCard extends HTMLElement {
     for (const slot of layout?.specialSlots || []) {
       if (Number.isInteger(slot?.row)) perRow.set(slot.row, (perRow.get(slot.row) || 0) + 1);
     }
-    return widest + Math.max(0, ...perRow.values());
+    const slots = widest + Math.max(0, ...perRow.values());
+
+    // A slot occupies port_size + 4px of pitch (40 at the default 36, the same
+    // pitch _maxFittableColumns measures with) and the panel adds 28px of
+    // padding. A grid column is a twelfth of a view column, which Home
+    // Assistant keeps between 320 and 500px, so ~36px per column sits in that
+    // range. Narrower viewports fall short of the request; the row repacking
+    // absorbs that.
+    const needed = slots * (this._portSize() + 4) + 28;
+    const columns = Math.min(48, Math.max(12, Math.ceil(needed / 36)));
+    return { columns, rows: "auto" };
   }
 
   _estimateCardSize() {
@@ -618,19 +616,11 @@ class UnifiDeviceCard extends HTMLElement {
 
   _effectivePortSize() {
     const configured = this._portSize();
-    if (this._config?.port_size_fit !== true) return configured;
-    // MyServices: the ports follow the width of the card. clientWidth, not the
-    // bounding box: the page may scale the card down to a chosen height.
-    const panel = this.shadowRoot?.querySelector(".frontpanel");
-    const width = (panel?.clientWidth || this.offsetWidth || 0) - 28;   // .frontpanel padding
-    const slots = this._widestSlots();
-    if (width <= 0 || slots < 1) return configured;
-    const room = width - (this._ctx?.layout?.specialSlots?.some((s) => Number.isInteger(s?.row)) ? 12 : 0);   // .port-row-side margin
-    return Math.min(52, Math.max(24, Math.floor((room + 6) / slots) - 4));   // a slot is size - 2 wide, with a 6px gap
+    return configured;
   }
 
   _measuredCardWidth() {
-    const hostWidth = this.getBoundingClientRect?.().width || this.offsetWidth || 0;
+    const hostWidth = this.offsetWidth || this.getBoundingClientRect?.().width || 0;   // MyServices: offsetWidth first, the page zooms the card with a transform
     if (hostWidth > 0) return hostWidth;
     const cardWidth = this.shadowRoot?.querySelector("ha-card")?.getBoundingClientRect?.().width || 0;
     if (cardWidth > 0) return cardWidth;
@@ -641,7 +631,7 @@ class UnifiDeviceCard extends HTMLElement {
     const frontPanel = this.shadowRoot?.querySelector(".frontpanel");
     if (!frontPanel) return 0;
 
-    const panelWidth = frontPanel.getBoundingClientRect?.().width || frontPanel.clientWidth || 0;
+    const panelWidth = frontPanel.clientWidth || frontPanel.getBoundingClientRect?.().width || 0;   // MyServices: same reason
     if (panelWidth <= 0) return 0;
 
     const computed = getComputedStyle(frontPanel);
@@ -656,7 +646,7 @@ class UnifiDeviceCard extends HTMLElement {
     const configuredPPR = Number.parseInt(this._config?.ports_per_row, 10);
     if (Number.isFinite(configuredPPR) && configuredPPR > 0) return Infinity;
 
-    const portSize = this._effectivePortSize();
+    const portSize = this._portSize();
     const panelContentWidth = this._measuredFrontPanelContentWidth();
     const hostWidth = this._measuredCardWidth();
     if (!panelContentWidth && !hostWidth) return Infinity;
@@ -2187,6 +2177,7 @@ class UnifiDeviceCard extends HTMLElement {
         flex-direction: column;
       }
 
+      .header, .detail-grid, .detail-title, .panel-label, .port-num { zoom: var(--udc-text-zoom, 1); }
       .header {
         padding: 16px 18px 13px;
         background: var(--udc-chrome-bg, linear-gradient(160deg, var(--udc-surface) 0%, var(--udc-bg) 100%));

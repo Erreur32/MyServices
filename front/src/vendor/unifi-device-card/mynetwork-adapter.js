@@ -230,7 +230,7 @@ function buildContext(states, d, all, cardConfig) {
     firmware: d.version || "",
     online_entity: putState(states, `binary_sensor.${prefix}_online`, onOff(online)),
     status_entity: statusEntity,
-    ap_status_entity: statusEntity,
+    ap_status_entity: putState(states, `sensor.${prefix}_ap_status`, online ? "connected" : "disconnected"),   // the card only colours these two values
     uptime_entity: uptime == null ? null : putState(states, `sensor.${prefix}_uptime`, uptime, { unit_of_measurement: "s" }),
     clients_entity: clients == null ? null : putState(states, `sensor.${prefix}_clients`, clients),
     led_switch_entity: null,

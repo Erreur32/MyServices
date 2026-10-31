@@ -19,7 +19,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Fixed
 - **Backups map**: it could stay frozen when a machine both sends and keeps copies. Links inside a row now go under it instead of through the machines.
 - **Maps**: a map that failed is tried again at the next pass, even when its data did not change. Until then, the Diagrams page says it is out of date instead of showing it as up to date.
-- **UniFi cards**: the ports now follow the width of the card, instead of keeping their size and folding onto more lines.
+- **UniFi cards**: a card now zooms like a picture when it is resized: ports and access point image follow it and the card always reaches the edges of its frame, while the texts keep their size. Ports are bigger from the start on switches and gateways, and no longer fold onto more lines. The default order is gateways, switches, then access points, with a default size for each kind of device; a card resized by hand keeps its own. A card never goes beyond 700 px high, and the status of an access point is green when it is connected.
 - **Network map**: it could fail when a device left a switch, a link label landing on the title of the next group. These labels repeated what the group already says, so they are gone.
 - **Settings > Requests**: the port pulse no longer counts the ports an agent answers for, as they cost no connection.
 
