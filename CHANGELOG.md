@@ -30,6 +30,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Services**: the ignored domains leave their frame for a small button in the title line, with the domains beside it and the full panel opening under the button.
 - **Cloudflare, Audit log**: the browser keeps the chosen period, and the chosen domain on the Cloudflare pages, like the other pages already do.
 - **Frigate**: with an account, the sign-in is kept in memory between readings and camera pictures instead of being done again each time. It stays out of any file, and a changed password is really tried.
+- **Machine notices**: each one says since when it lasts, and more of what is behind it: the thresholds, the hottest probe and the load for a hot processor, the free space of a disk, the amounts of memory, the security updates and the packages waiting.
 - **Login page**: the button text uses the page font at its proper size.
 
 ### Removed

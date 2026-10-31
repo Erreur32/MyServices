@@ -1,6 +1,8 @@
 // « À surveiller » : tout ce qui demande un coup d'œil sur une machine, avec sa gravité et une icône. Sert à la colonne de l'onglet Machines et,
 // pour la partie santé, à la liste de problèmes de l'onglet Machines (mêmes phrases aux deux endroits).
 import type { Connector, HealthHost, HostSystem, Machine } from "../types";
+import { bytes, dur } from "./format";
+import { shortProbe } from "./machineFigures";
 import { MSTATE, mState } from "./machines";
 import { tx } from "./i18n";
 
@@ -22,6 +24,7 @@ export const RANK: Record<WatchTone, number> = { bad: 3, warn: 2, info: 1 };
 /** The same thresholds as health.py (host_checks): the sentence says what the server measured */
 export const UU_STALE_DAYS = 3;   // health.py UU_STALE_DAYS
 export const ZFS_BAD = ["FAULTED", "UNAVAIL", "SUSPENDED"];
+const MB = 1048576, GB = 1073741824;
 const LOAD_WARN_MULT = 1.5, LOAD_CRIT_MULT = 3, CPU_WARN_PCT = 90, SYSTEMD_CRIT_N = 3, DOCKER_CRIT_N = 3, SSH_AUTH_WARN_N = 20, SSH_AUTH_CRIT_N = 100;
 const CHECK_KIND: Record<string, WatchKind> = { disk: "disk", systemd: "systemd", docker: "docker", kernel: "kernel", load: "load", ssh_auth: "ssh_auth", smart: "smart", temp: "temp", res: "mem",
   pm2: "pm2", raid: "raid", zfs: "zfs", mounts: "mounts", ntp: "ntp", timers: "timers", auto_upd: "auto_upd" };
@@ -83,11 +86,43 @@ function systemItems(h: HealthHost, add: AddItem) {
   if (nr.length) add("warn", "updates", tx("{0} service(s) à redémarrer après une mise à jour", nr.length), nr);
 }
 
+/** A disk's filling, with what is left when the machine reports it */
+function diskText(d: NonNullable<HealthHost["disks"]>[number]): string {
+  if (d.avail_gb == null || d.size_gb == null) return tx("disque {0} rempli à {1} %", d.mount, d.used_pct);
+  return tx("disque {0} rempli à {1} % ({2} libres sur {3})", d.mount, d.used_pct, bytes(d.avail_gb * GB), bytes(d.size_gb * GB));
+}
+
+/** The memory in use, with the amounts when the machine reports them */
+function memText(r: NonNullable<HealthHost["res"]>): string {
+  const pct = Math.round(r.mem_pct!);
+  if (r.mem_used_mb == null || r.mem_total_mb == null) return tx("mémoire utilisée à {0} %", pct);
+  return tx("mémoire utilisée à {0} % ({1} sur {2})", pct, bytes(r.mem_used_mb * MB), bytes(r.mem_total_mb * MB));
+}
+
+/** What explains a hot processor: its thresholds, the hottest probe, and the load (a low one means the heat does not come from the work) */
+function heatDetail(h: HealthHost): string[] {
+  const t = h.temp, hottest = [...(t?.sensors ?? [])].sort((a, b) => b.celsius - a.celsius)[0], out: string[] = [];
+  if (t?.warn_c != null && t.crit_c != null) out.push(tx("Avertissement à {0} °C, critique à {1} °C", t.warn_c, t.crit_c));
+  if (hottest) out.push(tx("Capteur le plus chaud : {0} à {1} °C", shortProbe(hottest.name), hottest.celsius));
+  if (h.load?.available && h.load.cpu_pct == null) out.push(tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu));
+  return out;
+}
+
+/** Adds since when each notice lasts; the temperature says it in its own sentence.
+ *  shortcut: one date per control, so two full disks share the oldest one; a date per disk if that ever misleads */
+function withSince(items: WatchItem[], h: HealthHost): WatchItem[] {
+  const since = new Map(Object.entries(h.check_s ?? {}).map(([check, s]) => [CHECK_KIND[check], s]));
+  return items.map((i) => {
+    const s = i.kind === "temp" ? 0 : since.get(i.kind) ?? 0;
+    return s >= 60 ? { ...i, text: tx("{0}, depuis {1}", i.text, dur(s)) } : i;
+  });
+}
+
 export function healthItems(h: HealthHost): WatchItem[] {
   if (h.reachable === false) return [{ tone: "bad", kind: "down", text: tx("injoignable : ni SSH ni Beszel") }];
   const out: WatchItem[] = [];
   const add = (tone: WatchTone, kind: WatchKind, text: string, detail?: string[]) => out.push({ tone, kind, text, ...(detail?.length ? { detail } : {}) });
-  for (const d of h.disks || []) if (d.critical || d.warning) add(d.critical ? "bad" : "warn", "disk", tx("disque {0} rempli à {1} %", d.mount, d.used_pct));
+  for (const d of h.disks || []) if (d.critical || d.warning) add(d.critical ? "bad" : "warn", "disk", diskText(d));
   const failed = h.systemd?.failed || [];
   if (failed.length) add(failed.length >= SYSTEMD_CRIT_N ? "bad" : "warn", "systemd", tx("{0} service(s) systemd en échec : {1}", failed.length, failed.map((u) => u.unit).join(", ")));
   const dk = h.docker, dkN = (dk?.unhealthy || 0) + (dk?.restarting || 0) + (dk?.exited || 0);
@@ -101,20 +136,20 @@ export function healthItems(h: HealthHost): WatchItem[] {
     else if (h.load.load_1 >= LOAD_WARN_MULT * h.load.ncpu) add(h.load.load_1 >= LOAD_CRIT_MULT * h.load.ncpu ? "bad" : "warn", "load", tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu));
   }
   if (h.ssh_auth?.available && h.ssh_auth.failed_24h >= SSH_AUTH_WARN_N) add(h.ssh_auth.failed_24h >= SSH_AUTH_CRIT_N ? "bad" : "warn", "ssh_auth", tx("{0} connexions SSH refusées en 24 h", h.ssh_auth.failed_24h));
-  if (h.res?.available && (h.res.mem_pct ?? 0) >= 90) add(h.res.mem_pct! >= 97 ? "bad" : "warn", "mem", tx("mémoire utilisée à {0} %", Math.round(h.res.mem_pct!)));
+  if (h.res?.available && (h.res.mem_pct ?? 0) >= 90) add(h.res.mem_pct! >= 97 ? "bad" : "warn", "mem", memText(h.res));
   if (h.temp?.available && h.temp.celsius != null) {   // the server's level: the machine's own threshold, and only once it stays hot (a short peak is not an alert)
     const level = h.temp.level ?? (h.temp.celsius >= 95 ? "crit" : h.temp.celsius >= 85 ? "warn" : "ok");
-    if (level === "warn" || level === "crit") add(level === "crit" ? "bad" : "warn", "temp", tx("processeur à {0} °C", h.temp.celsius));
+    if (level === "warn" || level === "crit") add(level === "crit" ? "bad" : "warn", "temp", h.temp.hot_s ? tx("processeur à {0} °C depuis {1}", h.temp.celsius, dur(h.temp.hot_s)) : tx("processeur à {0} °C", h.temp.celsius), heatDetail(h));
   }
   systemItems(h, add);
   if (h.reboot_required) add("warn", "reboot", tx("redémarrage requis"));
-  if (h.apt?.upgradable) add("warn", "updates", tx("{0} mise(s) à jour en attente", h.apt.upgradable));
+  if (h.apt?.upgradable) add("warn", "updates", h.apt.security ? tx("{0} mise(s) à jour en attente, dont {1} de sécurité", h.apt.upgradable, h.apt.security) : tx("{0} mise(s) à jour en attente", h.apt.upgradable), h.apt.sample);
   // A control the server flags that nothing above explained (another threshold, a datum this page does not read): said anyway, in general terms
   for (const [check, level] of Object.entries(h.checks ?? {})) {
     const kind = CHECK_KIND[check];
     if (kind && (level === "warn" || level === "crit") && !out.some((i) => i.kind === kind)) add(level === "crit" ? "bad" : "warn", kind, CHECK_TEXT[check]());
   }
-  return out;
+  return withSince(out, h);
 }
 
 /** The access notice of a machine that is up but not (or badly) read: nothing, a notice, or null */

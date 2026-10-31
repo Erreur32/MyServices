@@ -594,6 +594,23 @@ def track_heat(h: dict, warn_c, prev_since, now: float) -> None:
     temp["level"] = temp_level(temp)
 
 
+def track_checks(hosts: list[dict], prev: dict, now: float) -> dict:
+    """Since when each control has been in warn or crit: writes `check_s` (control -> seconds) on each machine and returns {host id: {control: epoch}},
+    kept in health.json for the next pass. A control back to ok forgets its date; a machine not read this pass keeps its dates, and the seconds
+    of its heat go on (a machine is not read at every pass)."""
+    since = {}
+    for h in hosts:
+        old, temp = prev.get(h["id"]) or {}, h.get("temp")
+        if isinstance(temp, dict) and isinstance(temp.get("hot_since"), (int, float)):
+            temp["hot_s"] = max(0, round(now - temp["hot_since"]))
+        if "checks" not in h:
+            since[h["id"]] = old
+            continue
+        since[h["id"]] = {k: old[k] if isinstance(old.get(k), (int, float)) else now for k in h["checks"]}
+        h["check_s"] = {k: max(0, round(now - t)) for k, t in since[h["id"]].items()}
+    return since
+
+
 def hot_since_of(hosts: list[dict]) -> dict:
     """{host id: epoch since when it is hot}, kept in health.json for the next pass (a pass of one machine keeps the others' from stats.json)."""
     return {h["id"]: h["temp"]["hot_since"] for h in hosts if isinstance(h.get("temp"), dict) and h["temp"].get("hot_since") is not None}
@@ -2228,6 +2245,7 @@ def main() -> int:
     for h in hosts:   # the controls that are not « ok »: what the page shows next to a « warn » or « crit » badge
         if h.get("reachable") and "disks" in h:
             h["checks"] = {k: v for k, v in host_checks(h).items() if v in ("warn", "crit")}
+    check_since = track_checks(hosts, prev_state.get("since", {}), now)
     overall = worst(*(h["level"] for h in hosts))
     connectors = [{"type": st.type, "name": st.name, "ok": st.ok, "message": st.message} for st in besz_status] or previous_connectors   # a pass of one machine reads no Beszel: it keeps the last states
     stats = {"timestamp": ts, "hosts": hosts, "asleep": asleep, "overall_level": overall, "connectors": connectors}
@@ -2265,7 +2283,7 @@ def main() -> int:
 
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"last_run": ts, "overall_level": overall,
-                                      "levels": {h["id"]: h["level"] for h in hosts}, "hot": hot_since_of(hosts)}, indent=2), encoding="utf-8")
+                                      "levels": {h["id"]: h["level"] for h in hosts}, "hot": hot_since_of(hosts), "since": check_since}, indent=2), encoding="utf-8")
     return 0
 
 
