@@ -11,6 +11,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+- **Security: a crafted answer can no longer hold the server.** A web page could take 5 s of the collection, and a long word in the Docker networks of an agent report several minutes. Both are read in milliseconds now.
+
 ## v0.32.0 (2026-10-31)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

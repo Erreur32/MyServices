@@ -419,7 +419,7 @@ def _fetch(scheme, ip, port, host):
         return e.code, e.headers, e.read(65536) if e.fp else b""
 
 
-GENERATOR_RE = re.compile(rb"<meta[^>]+name=[\"']generator[\"'][^>]*content=[\"']([^\"']{1,80})", re.I)
+GENERATOR_RE = re.compile(rb"<meta[^>]{1,200}name=[\"']generator[\"'][^>]{0,200}content=[\"']([^\"']{1,80})", re.I)   # bounded: any page feeds it, and a crafted one took 5 s
 FP_HEADERS = ("server", "x-powered-by", "x-generator", "www-authenticate")
 
 
