@@ -23,6 +23,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Copy buttons**: the button of the kernel errors works on a plain http address, and every copy now shows a short confirmation, or says when it failed.
 - **Kernel errors**: a CIFS share closing a file left open by an interrupted request (`Close unmatched open`) is no longer a warning; a share that stops answering still is.
 - **Open ports**: the domains of a port sit beside the name of its service.
+- **Web servers of a machine**: how a server runs (Docker and its container, or service) sits beside its name, and what it forwards to beside its ports.
 - **Network map**: it could fail when a device left a switch, a link label landing on the title of the next group. These labels repeated what the group already says, so they are gone.
 - **Settings > Requests**: the port pulse no longer counts the ports an agent answers for, as they cost no connection.
 

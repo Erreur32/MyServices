@@ -40,9 +40,9 @@ function Sends({ w, proxies }: Readonly<{ w: WebServer; proxies: number }>) {
     const b = w.behind;
     return <span className="inline-flex items-center gap-1.5" title={w.target ?? undefined}><Icon src={appIconByText(b.name, b.image)} />{b.name ? <b className="font-medium">{b.name}</b> : null}<span className="font-mono text-[11px] text-dim">{b.addr}</span></span>;
   }
-  if (w.key === "npm") return proxies ? <span className="text-dim">{tx("{0} hôte(s) proxy", proxies)}</span> : <Dim>-</Dim>;
+  if (w.key === "npm") return proxies ? <span className="text-dim">{tx("{0} hôte(s) proxy", proxies)}</span> : null;
   if (w.vhosts) return <span className="text-dim">{tx("{0} vhost(s)", w.vhosts)}{w.vhosts_unreadable ? <span className="text-warn"> · {tx("{0} illisible(s)", w.vhosts_unreadable)}</span> : null}</span>;
-  return <Dim>-</Dim>;
+  return null;
 }
 
 /** Web servers of the machine, one line each: software, how it runs, where it listens, what it forwards to */
@@ -60,17 +60,14 @@ export function WebServersTable({ m, hosts, npmIps }: Readonly<{ m: Machine; hos
           if (!w.up) tone = "bad";
           else if (w.mode === "binary") tone = "warn";
           return (
-            <li key={`${w.key}/${w.mode}/${w.name}`} className="flex flex-col gap-0.5 py-1">
+            <li key={`${w.key}/${w.mode}/${w.name}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 py-1">
               <span className="flex min-w-0 items-center gap-2">
                 <Dot tone={tone} /><Icon src={appIcon([w.label])} /><b className="truncate font-medium">{w.label}</b>
-                {!w.up && <span className="text-xs text-bad">{tx("arrêté")}</span>}
-                <span className="ml-auto shrink-0 font-mono text-xs">{ports(w.ports)}</span>
-              </span>
-              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pl-4 text-xs">
-                <span className={`inline-flex min-w-0 items-center gap-1 rounded border px-1.5 ${cls}`} title={tip}>{mode} · <span className="truncate font-mono">{w.name}</span></span>
+                <span className={`inline-flex min-w-0 items-center gap-1 rounded border px-1.5 text-xs ${cls}`} title={tip}>{mode} · <span className="truncate font-mono">{w.name}</span></span>
                 {w.host_net && <span className="rounded border border-dashed border-line px-1 text-[11px] text-dim" title={tx("Réseau de l'hôte : pas de port publié, le port vient de sa configuration")}>{tx("réseau hôte")}</span>}
-                <span className="ml-auto min-w-0"><Sends w={w} proxies={proxies} /></span>
+                {!w.up && <span className="text-xs text-bad">{tx("arrêté")}</span>}
               </span>
+              <span className="ml-auto flex shrink-0 items-center gap-2 text-xs"><Sends w={w} proxies={proxies} /><span className="font-mono">{ports(w.ports)}</span></span>
             </li>
           );
         })}
