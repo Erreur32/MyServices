@@ -13,7 +13,7 @@ import { useSort } from "../lib/filter";
 import { bytes } from "../lib/format";
 import { LOCALE, tx } from "../lib/i18n";
 import { usePageView } from "../lib/route";
-import type { CloudflareLine, CloudflarePeriod, CloudflarePeriodKey, CloudflareZone } from "../types";
+import type { CloudflareLine, CloudflarePeriod, CloudflarePoint, CloudflarePeriodKey, CloudflareZone } from "../types";
 
 const VIEWS = ["overview", "compare", "traffic", "checks"] as const;
 const FRAME = "overflow-hidden rounded-2xl border border-line bg-card shadow-sm";
@@ -34,9 +34,22 @@ function Head({ title, snap }: Readonly<{ title: string; snap: Snapshot }>) {
   return <PageHead icon={Plug} logo={appIcon(["Cloudflare"])} title={title} tags={null} actions={actions} />;
 }
 
+/** A tile's small curve: its figure over the points of the period, nothing when it never left zero */
+function Spark({ points, of, tone = "text-link" }: Readonly<{ points: CloudflarePoint[]; of: (p: CloudflarePoint) => number; tone?: string }>) {
+  const W = 120, H = 34, values = points.map(of), top = Math.max(0, ...values);
+  if (values.length < 2 || !top) return null;
+  const at = values.map((v, i) => `${((i * W) / (values.length - 1)).toFixed(1)} ${(H - 2 - (v / top) * (H - 4)).toFixed(1)}`), line = `M${at.join("L")}`;
+  return (
+    <svg aria-hidden viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className={`mt-1 h-[34px] w-full min-w-[70px] overflow-visible ${tone}`}>
+      <path d={`${line}L${W} ${H}L0 ${H}Z`} fill="currentColor" opacity="0.12" />
+      <path d={line} fill="none" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
 function Overview({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZone[] }>) {
   const list = advice(zones), toFix = list.filter((a) => a.tone === "warn").length, requests = sum(zones, (t) => t.requests);
-  const checks = cloudflareChecks(zones, snap.data.hosts).filter(isTrouble).length;
+  const checks = cloudflareChecks(zones, snap.data.hosts).filter(isTrouble).length, week = trafficOf(zones, "7d")?.points ?? [];
   return (
     <>
       <Head title="Cloudflare" snap={snap} />
@@ -44,8 +57,8 @@ function Overview({ snap, zones }: Readonly<{ snap: Snapshot; zones: CloudflareZ
         <StatTile n={zones.length} label={tx("domaines")} sub={tx("{0} proxifiés", zones.filter((z) => !dnsOnly(z)).length)} />
         <StatTile n={toFix} label={tx("réglages à corriger")} tone={toFix ? "warn" : "ok"} />
         <StatTile n={checks} label={tx("noms à vérifier")} tone={checks ? "warn" : "ok"} onClick={() => { location.hash = "cloudflare/checks"; }} />
-        <StatTile n={fmt(requests)} label={tx("requêtes sur 7 jours")} />
-        <StatTile n={share(sum(zones, (t) => t.threats), requests)} label={tx("de requêtes classées comme menaces")} hint={tx("Cloudflare les classe comme menaces, sans dire ici lesquelles ont été bloquées.")} />
+        <StatTile n={fmt(requests)} label={tx("requêtes sur 7 jours")}><Spark points={week} of={(p) => p.requests} /></StatTile>
+        <StatTile n={share(sum(zones, (t) => t.threats), requests)} label={tx("de requêtes classées comme menaces")} hint={tx("Cloudflare les classe comme menaces, sans dire ici lesquelles ont été bloquées.")}><Spark points={week} of={(p) => p.threats} /></StatTile>
       </div>
       {list.length > 0 && (
         <section className={FRAME}>
@@ -199,13 +212,13 @@ function TrafficFigures({ p }: Readonly<{ p: CloudflarePeriod }>) {
   const was = p.previous;
   return (
     <div className="flex flex-wrap gap-2.5">
-      <StatTile n={fmt(p.visitors)} label={tx("visiteurs uniques")}><Trend now={p.visitors} before={was.visitors} rising="good" /></StatTile>
-      <StatTile n={fmt(p.requests)} label={tx("requêtes")}><Trend now={p.requests} before={was.requests} rising="good" /></StatTile>
-      <StatTile n={share(p.cached, p.requests)} label={tx("servi par le cache")}><Trend now={p.requests ? p.cached / p.requests : 0} before={was.requests ? was.cached / was.requests : 0} rising="good" /></StatTile>
-      <StatTile n={bytes(p.bytes)} label={tx("données traitées")}><Trend now={p.bytes} before={was.bytes} rising="good" /></StatTile>
-      <StatTile n={bytes(p.cached_bytes)} label={tx("données en cache")}><Trend now={p.cached_bytes} before={was.cached_bytes} rising="good" /></StatTile>
-      <StatTile n={fmt(p.errors)} label={tx("erreurs serveur")} tone={p.errors ? "bad" : "ok"}><Trend now={p.errors} before={was.errors} rising="bad" /></StatTile>
-      <StatTile n={fmt(p.threats)} label={tx("classées comme menaces")} hint={tx("Cloudflare les classe comme menaces, sans dire ici lesquelles ont été bloquées.")}><Trend now={p.threats} before={was.threats} rising="bad" /></StatTile>
+      <StatTile n={fmt(p.visitors)} label={tx("visiteurs uniques")}><Trend now={p.visitors} before={was.visitors} rising="good" /><Spark points={p.points} of={(x) => x.visitors} /></StatTile>
+      <StatTile n={fmt(p.requests)} label={tx("requêtes")}><Trend now={p.requests} before={was.requests} rising="good" /><Spark points={p.points} of={(x) => x.requests} /></StatTile>
+      <StatTile n={share(p.cached, p.requests)} label={tx("servi par le cache")}><Trend now={p.requests ? p.cached / p.requests : 0} before={was.requests ? was.cached / was.requests : 0} rising="good" /><Spark points={p.points} of={(x) => (x.requests ? x.cached / x.requests : 0)} /></StatTile>
+      <StatTile n={bytes(p.bytes)} label={tx("données traitées")}><Trend now={p.bytes} before={was.bytes} rising="good" /><Spark points={p.points} of={(x) => x.bytes} /></StatTile>
+      <StatTile n={bytes(p.cached_bytes)} label={tx("données en cache")}><Trend now={p.cached_bytes} before={was.cached_bytes} rising="good" /><Spark points={p.points} of={(x) => x.cached_bytes} /></StatTile>
+      <StatTile n={fmt(p.errors)} label={tx("erreurs serveur")} tone={p.errors ? "bad" : "ok"}><Trend now={p.errors} before={was.errors} rising="bad" /><Spark points={p.points} of={(x) => x.errors} tone="text-bad" /></StatTile>
+      <StatTile n={fmt(p.threats)} label={tx("classées comme menaces")} hint={tx("Cloudflare les classe comme menaces, sans dire ici lesquelles ont été bloquées.")}><Trend now={p.threats} before={was.threats} rising="bad" /><Spark points={p.points} of={(x) => x.threats} tone="text-warn" /></StatTile>
     </div>
   );
 }

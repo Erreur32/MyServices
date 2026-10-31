@@ -107,7 +107,7 @@ class CloudflareRead(unittest.TestCase):
                         "countryMap": [{"clientCountryName": "NL", "requests": 9, "threats": 2}, {"clientCountryName": "FR", "requests": 90, "threats": 0}],
                         "browserMap": [{"uaBrowserFamily": "Chrome", "pageViews": 4}]}, "uniq": {"uniques": 8}}
         hour = datetime.now(timezone.utc).replace(minute=0) - timedelta(hours=1)
-        hours = [{"dimensions": {"datetime": hour.strftime(STAMP)}, "sum": {"requests": 7, "responseStatusMap": codes[1:2]}}]
+        hours = [{"dimensions": {"datetime": hour.strftime(STAMP)}, "sum": {"requests": 7, "cachedRequests": 2, "responseStatusMap": codes[1:2]}, "uniq": {"uniques": 3}}]
         answer = {"day": [full], "day_before": [{"sum": {"requests": 50}, "uniq": {"uniques": 4}}], "hours": hours}
         names = {"data": {"viewer": {"zones": [{"day": [{"count": 20, "dimensions": {"clientRequestHTTPHost": "www.exemple.fr", "edgeResponseStatus": 525}}]}]}}}
         got = conn(Fake(traffic={"data": {"viewer": {"zones": [answer]}}}, names=names)).collect()["cloudflare"]["zones"][0]["traffic"]["periods"]
@@ -118,7 +118,7 @@ class CloudflareRead(unittest.TestCase):
         self.assertEqual([c["name"] for c in day["countries"]], ["FR", "NL"])
         self.assertEqual(day["browsers"], [{"name": "Chrome", "requests": 4}])
         self.assertEqual(len(day["points"]), 24)
-        self.assertEqual(day["points"][-1], {"at": hour.strftime(STAMP), "requests": 7, "errors": 20})
+        self.assertEqual(day["points"][-1], {"at": hour.strftime(STAMP), "requests": 7, "cached": 2, "bytes": 0, "cached_bytes": 0, "threats": 0, "errors": 20, "visitors": 3})
         self.assertEqual(day["hosts"], [{"name": "www.exemple.fr", "code": 525, "requests": 20}])
         self.assertEqual(len(got["30d"]["points"]), 30)
 

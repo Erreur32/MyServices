@@ -231,8 +231,9 @@ export interface CloudflareZone {
 export type CloudflarePeriodKey = "24h" | "7d" | "30d";
 export interface CloudflareTotals { requests: number; cached: number; bytes: number; cached_bytes: number; threats: number; errors: number; visitors: number }
 export interface CloudflareLine { name: string; requests: number; threats?: number; bytes?: number }
+export interface CloudflarePoint extends CloudflareTotals { at: string }
 export interface CloudflarePeriod extends CloudflareTotals {
-  previous: CloudflareTotals; points: { at: string; requests: number; errors: number }[]; status: { code: number; requests: number }[];
+  previous: CloudflareTotals; points: CloudflarePoint[]; status: { code: number; requests: number }[];
   countries: CloudflareLine[]; content: CloudflareLine[]; tls: CloudflareLine[]; http: CloudflareLine[]; browsers: CloudflareLine[]; hosts: { name: string; code: number; requests: number }[];
 }
 

@@ -1,6 +1,6 @@
 // The Cloudflare pages: domains read by the connector, what to improve on them, and the check of each name against the reverse proxy that really serves it.
 import type { Snapshot } from "../api";
-import type { CloudflareLine, CloudflarePeriod, CloudflarePeriodKey, CloudflareRecord, CloudflareTotals, CloudflareZone, Host } from "../types";
+import type { CloudflareLine, CloudflarePeriod, CloudflarePeriodKey, CloudflarePoint, CloudflareRecord, CloudflareTotals, CloudflareZone, Host } from "../types";
 import { LOCALE, tx } from "./i18n";
 
 export const SETTINGS: { key: string; label: string }[] = [
@@ -146,7 +146,7 @@ export function cloudflareCounts(s: Snapshot): Record<string, number> {
 
 const TOTALS: (keyof CloudflareTotals)[] = ["requests", "cached", "bytes", "cached_bytes", "threats", "errors", "visitors"];
 export const LINES = 6;   // lines of each breakdown of the traffic page
-const addTotals = (list: CloudflareTotals[]) => Object.fromEntries(TOTALS.map((k) => [k, list.reduce((a, t) => a + t[k], 0)])) as unknown as CloudflareTotals;
+const addTotals = (list: CloudflareTotals[]) => Object.fromEntries(TOTALS.map((k) => [k, list.reduce((a, t) => a + (t[k] ?? 0), 0)])) as unknown as CloudflareTotals;
 
 function addLines(lists: CloudflareLine[][]): CloudflareLine[] {
   const all = new Map<string, CloudflareLine>();
@@ -161,10 +161,10 @@ function addLines(lists: CloudflareLine[][]): CloudflareLine[] {
 export function trafficOf(zones: CloudflareZone[], key: CloudflarePeriodKey): CloudflarePeriod | null {
   const read = zones.flatMap((z) => z.traffic?.periods?.[key] ?? []);
   if (!read.length) return null;
-  const points = new Map<string, { at: string; requests: number; errors: number }>();
+  const points = new Map<string, CloudflarePoint>();
   for (const p of read.flatMap((r) => r.points)) {
-    const seen = points.get(p.at) ?? { at: p.at, requests: 0, errors: 0 };
-    points.set(p.at, { at: p.at, requests: seen.requests + p.requests, errors: seen.errors + p.errors });
+    const seen = points.get(p.at);
+    points.set(p.at, { at: p.at, ...addTotals(seen ? [seen, p] : [p]) });
   }
   const status = new Map<number, number>();
   for (const s of read.flatMap((r) => r.status)) status.set(s.code, (status.get(s.code) ?? 0) + s.requests);

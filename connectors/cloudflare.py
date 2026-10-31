@@ -46,8 +46,8 @@ TRAFFIC = ("{viewer{zones(filter:{zoneTag:$zone}){"
            + _whole("week_before", "httpRequests1dGroups", DAY_WINDOW.format("week_before", "week"), TOTALS)
            + _whole("month", "httpRequests1dGroups", DAY_WINDOW.format("month", "today"), f"{TOTALS} {BREAKDOWN}")
            + _whole("month_before", "httpRequests1dGroups", DAY_WINDOW.format("month_before", "month"), TOTALS)
-           + f"hours:httpRequests1hGroups(limit:{HOURS},orderBy:[datetime_ASC],filter:{{{HOUR_WINDOW.format('day', 'hour')}}}){{dimensions{{datetime}} sum{{requests responseStatusMap{{edgeResponseStatus requests}}}}}} "
-           + f"days:httpRequests1dGroups(limit:{MONTH},orderBy:[date_ASC],filter:{{{DAY_WINDOW.format('month', 'today')}}}){{dimensions{{date}} sum{{requests responseStatusMap{{edgeResponseStatus requests}}}}}}"
+           + f"hours:httpRequests1hGroups(limit:{HOURS},orderBy:[datetime_ASC],filter:{{{HOUR_WINDOW.format('day', 'hour')}}}){{dimensions{{datetime}} sum{{{TOTALS}}} uniq{{uniques}}}} "
+           + f"days:httpRequests1dGroups(limit:{MONTH},orderBy:[date_ASC],filter:{{{DAY_WINDOW.format('month', 'today')}}}){{dimensions{{date}} sum{{{TOTALS}}} uniq{{uniques}}}}"
            + "}}}")
 # A query of its own: this table is the one a plan can refuse, and the rest must survive that
 _ERRORS_FILTER = "edgeResponseStatus_geq:500,edgeResponseStatus_lt:600"
@@ -88,9 +88,9 @@ def _top(rows: list | None, name: str, count: str = "requests", extra: str | Non
 
 
 def _points(rows: list | None, dimension: str, stamps: list[str]) -> list[dict]:
-    """One bar for each stamp: a quiet hour or day has no group."""
-    by_stamp = {(r.get("dimensions") or {}).get(dimension): r.get("sum") or {} for r in rows or []}
-    return [{"at": at, "requests": _count(by_stamp.get(at, {}), "requests"), "errors": _errors(by_stamp.get(at, {}))} for at in stamps]
+    """One point for each stamp, with the figures of the period: a quiet hour or day has no group."""
+    by_stamp = {(r.get("dimensions") or {}).get(dimension): r for r in rows or []}
+    return [{"at": at, **_totals(by_stamp.get(at, {}))} for at in stamps]
 
 
 def _period(group: dict, before: dict, points: list[dict]) -> dict:

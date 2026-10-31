@@ -84,13 +84,13 @@ describe("chart helpers", () => {
 
 describe("traffic periods", () => {
   const totals = { requests: 100, cached: 10, bytes: 5, cached_bytes: 1, threats: 2, errors: 30, visitors: 4 };
-  const period = (o: Partial<CloudflarePeriod> = {}): CloudflarePeriod => ({ ...totals, previous: { ...totals, requests: 50 }, points: [{ at: "2026-10-30", requests: 7, errors: 2 }],
+  const period = (o: Partial<CloudflarePeriod> = {}): CloudflarePeriod => ({ ...totals, previous: { ...totals, requests: 50 }, points: [{ ...totals, at: "2026-10-30", requests: 7, errors: 2, visitors: 2 }],
     status: [{ code: 200, requests: 70 }, { code: 525, requests: 30 }], countries: [{ name: "FR", requests: 9, threats: 1 }], content: [], tls: [], http: [], browsers: [], hosts: [{ name: "a.example", code: 525, requests: 30 }], ...o });
   const withPeriod = (name: string, p: CloudflarePeriod) => ({ ...zone(name), traffic: { requests: 0, cached: 0, bytes: 0, threats: 0, page_views: 0, visitors: 0, days: [], periods: { "24h": p, "7d": p, "30d": p } } });
 
   it("adds the domains up, line by line", () => {
     const got = trafficOf([withPeriod("a.example", period()), withPeriod("b.example", period({ countries: [{ name: "FR", requests: 1, threats: 2 }, { name: "NL", requests: 20, threats: 0 }], hosts: [{ name: "b.example", code: 520, requests: 40 }] }))], "24h");
-    expect(got).toMatchObject({ requests: 200, errors: 60, previous: { requests: 100 }, points: [{ at: "2026-10-30", requests: 14, errors: 4 }], status: [{ code: 200, requests: 140 }, { code: 525, requests: 60 }] });
+    expect(got).toMatchObject({ requests: 200, errors: 60, previous: { requests: 100 }, points: [{ at: "2026-10-30", visitors: 4, requests: 14, errors: 4 }], status: [{ code: 200, requests: 140 }, { code: 525, requests: 60 }] });
     expect(got?.countries).toEqual([{ name: "NL", requests: 20, threats: 0 }, { name: "FR", requests: 10, threats: 3, bytes: 0 }]);
     expect(got?.hosts.map((h) => h.name)).toEqual(["b.example", "a.example"]);
   });
