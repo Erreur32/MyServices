@@ -1,24 +1,24 @@
-// Étape « Recherche des autres machines du réseau » de Premiers pas : lancer la recherche, choisir les machines à
-// ajouter, puis, pour celles qui répondent en SSH, préparer l'accès (alias + commande à autoriser + test).
-// Lecture seule sur le réseau ; rien n'est ajouté sans que l'admin le demande.
-import { Check, ChevronRight, Circle, EyeOff, Globe, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, Wifi, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+// Machines › Untracked devices: the list of devices, the progress of a search, and for a machine just followed, its access to set (SSH alias, command to allow, test).
+// Read-only on the network; nothing is added unless the admin asks.
+import { Check, Circle, EyeOff, KeyRound, Loader2, Plug, Square } from "lucide-react";
+import { useEffect, useState } from "react";
 import { read, send } from "../api";
 import { authorizeFor } from "../lib/ssh";
 import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
-import { dateTime } from "../lib/format";
+import { mergeDevices, type Device } from "../lib/devices";
 import { ADDED_KEY, DISMISSED_KEY, REOPEN_EVENT } from "../lib/firstSteps";
 import { appIcon } from "../lib/appIcons";
-import { changes, interesting, needsLink, netState, osOf, quiet, roleOf, summarize, tagsOf, viaMynetwork } from "../lib/netScan";
+import { changes, needsLink, netState, roleOf, viaMynetwork } from "../lib/netScan";
 import { pokeScan, rereadMachines } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
-import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
+import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState, Unlinked } from "../types";
 import { Copyable, NoteLine } from "./form";
 import { netPercent } from "./ScanBar";
 import { SkipButton } from "./SkipButton";
 import { useDiscoveries } from "./DiscoveryCard";
-import { Badge, Count } from "./ui";
+import { Badge } from "./ui";
+import { UnlinkedDevices } from "./UnlinkedDevices";
 import { InfoNote } from "./InfoNote";
 
 /** Icône de l'appli reconnue (rien si elle n'en a pas) */
@@ -27,53 +27,11 @@ function AppIcon({ apps }: { apps?: readonly string[] }) {
   return src ? <img src={src} alt="" aria-hidden className="h-5 w-5 shrink-0 object-contain" /> : null;
 }
 
-/** Une machine trouvée : nom (ou « sans nom »), adresse une seule fois, une étiquette par information */
-function HostInfo({ h, fresh = false }: { h: NetHost; fresh?: boolean }) {
-  const tags = tagsOf(h), os = osOf(h);
-  return (
-    <>
-      <AppIcon apps={h.apps} />
-      {h.name ? <b className="text-txt">{h.name}</b> : <i className="text-dim">{tx("sans nom")}</i>}
-      <span className="font-mono text-xs text-dim">{h.ip}</span>
-      {tags.map((t) => <Badge key={t.label} tone={t.kind === "ssh" ? "ok" : t.kind === "app" ? "info" : "off"}>{t.label}</Badge>)}
-      {os && <Badge tone="off" title={tx("Système probable, d'après : {0}", os.how)}>{os.label}</Badge>}
-      {fresh && <Badge tone="warn">{tx("nouvelle")}</Badge>}
-    </>
-  );
-}
-
-/** Ce qui suivra l'ajout d'une machine cochée (jeton Home Assistant, API MynetworK, clé SSH) : sous sa ligne, pas dedans */
-function HostHint({ h }: { h: NetHost }) {
-  return (
-    <>
-      {h.apps.includes("Home Assistant") && (
-        <span className="text-xs text-warn">
-          <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, un jeton d'accès vous sera demandé (par son API, pas par SSH) : l'aide vous guide pas à pas.")}
-        </span>
-      )}
-      {viaMynetwork(h) && (
-        <span className="text-xs text-info">
-          <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("UniFi sera lu par l'API de MynetworK (à venir) : SSH n'est pas nécessaire pour la surveillance, il reste possible si vous voulez l'état système.")}
-        </span>
-      )}
-      {!!h.ssh_port && !viaMynetwork(h) && !h.apps.includes("Home Assistant") && (
-        <span className="text-xs text-link">
-          <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, une étape guidée prépare l'accès SSH : une commande à lancer sur la machine avec la clé de MyServices, puis un test.")}
-        </span>
-      )}
-    </>
-  );
-}
-
 /** Cadre dépliable (« machines déjà ajoutées », « autres appareils ») : bordure et fond à la couleur d'accent pour qu'on voie qu'on peut l'ouvrir */
 export const FOLD = "group rounded-xl border border-link/50 bg-link/5 open:bg-link/[0.03] hover:border-link";
 /** Même cadre dépliable quand il y a une action à faire : couleur d'alerte */
 export const FOLD_WARN = "group rounded-xl border border-warn/60 bg-warn/10 hover:border-warn";
 export const FOLD_HEAD = "flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 rounded-t-[11px] bg-bg px-3 py-2.5 text-sm font-semibold text-txt group-open:border-b group-open:border-line/60 [details:not([open])_&]:rounded-b-[11px] [&::-webkit-details-marker]:hidden";
-
-/** Une ligne de machine trouvée : cadre net, case + infos à gauche, actions à droite ; la ligne cochée prend l'accent */
-const ROW = "flex flex-wrap items-start rounded-lg border";
-const ROW_BODY = "flex min-w-0 flex-1 basis-64 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2";
 
 const quietBtn = `${button} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`;
 
@@ -87,12 +45,9 @@ const loadDismissed = (): string[] => {
   try { return JSON.parse(localStorage.getItem(DISMISSED) || "[]") as string[]; } catch { return []; }
 };
 
-export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredList, onCount, noButton = false }: {
-  noButton?: boolean;   // the page shows the search button itself (Discovery: next to the search settings)
-  onCount?: (n: number) => void;  // nombre de machines cochées, pour l'afficher sur l'en-tête du cadre quand il est plié
-  net: NetScan | null; reload: () => void; onSkip?: () => void;
-  ignoredList?: { ip: string; name: string }[];  // appareils ignorés à la main, avec « Reprendre » (Réglages → Découverte)  // sans onSkip : pas de bouton « Passer » (Réglages → Découverte)
-  machines: { ip: string; name?: string; ping?: boolean; local?: boolean; off?: boolean; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
+export function NetworkStep({ net, reload, machines, connected, unlinked, hidden }: {
+  net: NetScan | null; reload: () => void; unlinked: Unlinked[]; hidden: { ip: string; name: string }[];
+  machines: { ip: string; name?: string; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
 }) {
   const known = machines.map((m) => m.ip);
   const [dismissed, setDismissed] = useState<string[]>(loadDismissed);
@@ -100,10 +55,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   // Accesses forgotten with « Forget »: kept on the server (« access:<ip> »), plus the older « Skip » choices of this browser
   const [justForgot, setJustForgot] = useState<string[]>([]);   // hidden at the click, before the server answer comes back
   const forgot = new Set([...dismissed, ...justForgot, ...(disc?.muted ?? []).filter((id) => id.startsWith("access:")).map((id) => id.slice(7))]);
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [othersOpen, setOthersOpen] = useState(false);  // cadre « autres appareils » ouvert : ses cases ne comptent que s'il l'est
-  const [names, setNames] = useState<Record<string, string>>({});  // nom choisi avant l'ajout (sinon : nom DNS, sinon l'IP)
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState<string | null>(null);
   // Machines ajoutées dont les options (SSH, jeton) restent à régler : gardées si la page est rechargée, retirées par « Terminé »
   const [added, setAdded] = useState<Record<string, NetHost>>(loadAdded);
   useEffect(() => { sessionStorage.setItem(ADDED, JSON.stringify(added)); }, [added]);
@@ -112,270 +64,73 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
     addEventListener(REOPEN_EVENT, refresh);
     return () => removeEventListener(REOPEN_EVENT, refresh);
   }, []);
-  const state = netState(net);
-  const preselected = useRef<number | null>(null);
-  useEffect(() => {  // fin d'une recherche : les machines intéressantes sont cochées d'office (décochables)
-    if (net?.phase !== "done" || !net.ended || preselected.current === net.ended) return;
-    preselected.current = net.ended;
-    setPicked(new Set(net.found.filter(interesting).map((h) => h.ip)));
-  }, [net]);
-  const diff = net ? changes(net) : null;
-
-  const start = async () => {
-    setBusy(true);
-    await act(async () => { await send("POST", "network/scan"); pokeScan(); reload(); }, tx("recherche lancée"), setNote);
-    setBusy(false);
-  };
   const stop = async () => { await send("POST", "network/scan/stop"); reload(); };
 
-  const toggle = (ip: string) => setPicked((p) => { const n = new Set(p); if (n.has(ip)) n.delete(ip); else n.add(ip); return n; });
-  const found = (net?.found ?? []).filter((h) => !added[h.ip] && !known.includes(h.ip) && !net?.ignored?.includes(h.ip));
-  const ignoredIps = net?.ignored ?? [];
-  const ignoredSeen = (net?.found ?? []).filter((h) => !known.includes(h.ip) && ignoredIps.includes(h.ip));
-  const ignoredGone = (ignoredList ?? []).filter((e) => !(net?.found ?? []).some((h) => h.ip === e.ip)).map((e): NetHost => ({ ip: e.ip, name: e.name, ports: [], hints: [], apps: [] }));  // pas revus à ce scan
-  const watch = found.filter(interesting);                              // liste principale : SSH, appli reconnue, service utile
-  const webOnly = found.filter((h) => !interesting(h) && !quiet(h));    // repliés : caméras, box, objets connectés…
-  const pingOnly = found.filter((h) => !interesting(h) && quiet(h));
-  const ignoredAll = [...ignoredSeen, ...ignoredGone];                    // rangés dans « autres appareils », avec « Reprendre »
-  const rest = webOnly.length + pingOnly.length + ignoredAll.length;
-  const sum = net && net.phase === "done" ? summarize(net.found, known) : null;
   // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le jeton Home Assistant manque
   const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !forgot.has(h.ip) && needsLink(h, machines, connected) === "ha");
-  const toLink = [...Object.values(added), ...pending].filter((h) => !forgot.has(h.ip) && needsLink(h, machines, connected));   // seulement ce qui reste à régler : le reste est dans « déjà ajoutées »
-  const recall = (ip: string) => void act(async () => {
-    setJustForgot((f) => f.filter((x) => x !== ip));   // the access asks again: off the server list and the old browser one
-    await send("PUT", "discoveries/muted", { id: `access:${ip}`, muted: false });
-    setDismissed((d) => { const n = d.filter((x) => x !== ip); localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
-  }, tx("rappelé : de nouveau proposé"), setNote).then(() => reloadDisc());
+  const toLink = [...Object.values(added), ...pending].filter((h) => !forgot.has(h.ip) && needsLink(h, machines, connected));
 
-  const scanned = !!net && net.phase === "done" && !!net.ended;
-  const declared = machines.filter((m) => !m.local);  // machines déjà ajoutées (hors la machine hôte)
-  /** Les deux actions de l'étape, ensemble : (re)lancer la recherche, ou la passer (à reprendre plus tard) */
-  const actions = (
-    <div className="flex flex-wrap items-center gap-2">
-      <button type="button" className={scanned ? quietBtn : primary} disabled={busy} onClick={() => void start()}>
-        {scanned ? <RefreshCw size={14} aria-hidden /> : <Search size={14} aria-hidden />}{scanned ? tx("Relancer la recherche") : tx("Chercher maintenant")}
-      </button>
-      {onSkip && <SkipButton onClick={onSkip} onDark />}
-    </div>
-  );
-
-  const unignore = (h: NetHost) => void act(() => send("DELETE", `network/ignored/${h.ip}`), tx("{0} rappelé : de nouveau proposé", h.name || h.ip), setNote).then(() => reload());
-  const renderRows = (list: NetHost[]) => list.map((h) => ignoredAll.includes(h) ? (
-    <li key={h.ip} className={`${ROW} border-dashed bg-bg2/30 opacity-80`}>
-      <EyeOff size={15} className="ml-3 mt-3 shrink-0 text-muted" aria-hidden />
-      <div className={ROW_BODY}>
-        <HostInfo h={h} />
-        <Badge tone="off">{tx("oublié")}{ignoredGone.includes(h) ? ` · ${tx("pas revu à cette recherche")}` : ""}</Badge>
-      </div>
-      <button type="button" className={`${quietBtn} m-1.5 shrink-0`} onClick={() => unignore(h)}><RotateCcw size={13} aria-hidden />{tx("Rappeler")}</button>
-    </li>
-  ) : (
-    <li key={h.ip} className={`${ROW} ${picked.has(h.ip) ? "border-link/50 bg-link/5" : "border-transparent bg-bg2/60 hover:bg-bg2"}`}>
-      <label className={`${ROW_BODY} cursor-pointer`}>
-        <input type="checkbox" className="h-4 w-4 shrink-0 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
-        <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} />
-      </label>
-      <button type="button" className="m-1.5 inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-line/40 hover:text-txt" aria-label={tx("Oublier {0}", h.name || h.ip)}
-        title={tx("Ne plus le proposer. Il reste dans « autres appareils » pour le rappeler plus tard.")} onClick={() => void ignore(h)}><EyeOff size={14} aria-hidden />{tx("Oublier")}</button>
-      {picked.has(h.ip) && (
-        <div className="row-in flex basis-full flex-col gap-1.5 px-3 pb-2.5 pl-9">
-          <input className={`${input} max-w-xs py-1 text-xs`} value={names[h.ip] ?? h.name ?? ""} maxLength={60} placeholder={h.ip}
-            aria-label={tx("Nom de {0}", h.ip)} title={tx("Nom donné à la machine une fois ajoutée (modifiable ici avant l'ajout)")}
-            onChange={(e) => setNames((n) => ({ ...n, [h.ip]: e.target.value }))} />
-          <HostHint h={h} />
-        </div>
-      )}
-    </li>
-  ));
-
-  /** Un groupe de lignes : titre en petites capitales avec son nombre, puis la liste */
-  const group = (title: string, list: NetHost[], Icon: LucideIcon, tone: string) => list.length > 0 && (
-    <section className="flex flex-col gap-1.5" key={title}>
-      <h3 className={`flex items-center gap-2 rounded-md border-l-4 bg-bg2 px-3 py-1.5 text-sm font-semibold text-txt ${tone}`}><Icon size={15} className="shrink-0 text-muted" aria-hidden />{title}<Count n={list.length} /></h3>
-      <ul className="flex flex-col gap-1.5">{renderRows(list)}</ul>
-    </section>
-  );
-
-  // Cochées ET visibles : une machine ignorée, déjà ajoutée ou cachée dans un cadre plié ne compte pas (sinon des boutons sans rien à l'écran)
-  const chosen = found.filter((h) => picked.has(h.ip) && (watch.includes(h) || othersOpen));
-  useEffect(() => { onCount?.(chosen.length); }, [chosen.length, onCount]);
-  // Boutons de la sélection : sous la liste, dans son cadre, seulement quand quelque chose est coché
-  const selectionBar = chosen.length > 0 && (
-    <div className="row-in sticky bottom-2 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-2.5 shadow-lg">
-      <button type="button" className={primary} disabled={busy} onClick={() => void addPicked()}>
-        <Check size={14} aria-hidden />{tx("Ajouter la sélection")} ({chosen.length})
-      </button>
-      <button type="button" className={quietBtn} onClick={() => setPicked(new Set())}>{tx("Tout désélectionner")}</button>
-    </div>
-  );
-
-  const ignore = async (h: NetHost) => {
-    setPicked((p) => { const n = new Set(p); n.delete(h.ip); return n; });
-    await act(() => send("POST", "network/ignored", { ip: h.ip, name: h.name || "" }), tx("{0} oublié : il reste dans « autres appareils », pour le rappeler", h.name || h.ip), setNote);
+  const follow = async (d: Device) => {
+    const ip = d.ip as string, host = { ...d.host, name: d.name };
+    setBusy(ip);
+    const ok = await act(() => send("PUT", `machines/settings/${ip}`, { machine: { name: d.name.slice(0, 60) || ip, role: roleOf(host) }, extra: [] }), tx("machines ajoutées : relevé et santé lancés"), setNote);
+    if (ok) {
+      setAdded((a) => ({ ...a, [ip]: host }));
+      await rereadMachines([ip]).catch(() => undefined);  // relevé et santé de la seule machine ajoutée
+    }
+    setBusy(null);
+  };
+  const setHidden = async (d: Device, hide: boolean) => {
+    const label = d.name || d.ip || "";
+    setBusy(d.ip as string);
+    await (hide ? act(() => send("POST", "network/ignored", { ip: d.ip, name: d.name }), tx("{0} caché : « Reprendre » le ramène", label), setNote)
+      : act(() => send("DELETE", `network/ignored/${d.ip}`), tx("{0} rappelé : de nouveau proposé", label), setNote));
+    setBusy(null);
     reload();
   };
 
-  const addPicked = async () => {
-    setBusy(true);
-    const done: Record<string, NetHost> = {};
-    await act(async () => {
-      for (const h of chosen) {
-        await send("PUT", `machines/settings/${h.ip}`, { machine: { name: (names[h.ip] ?? h.name ?? "").trim() || h.ip, role: roleOf(h) }, extra: [] });
-        done[h.ip] = h;
-      }
-    }, tx("machines ajoutées : relevé et santé lancés"), setNote);
-    setAdded((a) => ({ ...a, ...done }));
-    setPicked(new Set());
-    setNames({});
-    await rereadMachines(Object.keys(done)).catch(() => undefined);  // relevé et santé des seules machines ajoutées
-    setBusy(false);
-  };
-
-  if (state === "run" && net) {
-    const pinging = net.phase === "ping";
-    return (
-      <div className="flex flex-col gap-3" aria-live="polite">
-        <InfoNote>
-          {tx("Lecture seule : un ping par adresse, la demande du nom et quelques connexions TCP. Rien n'est modifié sur vos machines.")}
-        </InfoNote>
-        <ul className="flex flex-col gap-1.5 text-sm">
-          <li className="flex items-center gap-2">
-            {pinging ? <Loader2 size={15} className="animate-spin text-link" aria-hidden /> : <Check size={15} className="step-pop text-ok" aria-hidden />}
-            <b className="text-txt">{tx("Recherche des machines allumées")}</b>
-            <span className="tabular-nums text-dim">{net.done}/{net.total} {tx("adresses")}</span>
-            <span className="font-mono text-xs text-dim">{net.net}</span>
-          </li>
-          <li className={`flex items-center gap-2 transition-opacity duration-500 ${pinging ? "opacity-50" : ""}`}>
-            {pinging ? <Circle size={15} className="text-dim" aria-hidden /> : <Loader2 size={15} className="animate-spin text-link" aria-hidden />}
-            <b className="text-txt">{tx("Identification de chaque machine")}</b>
-            <span className="text-dim">{pinging ? tx("nom, ports ouverts : juste après") : tx("{0}/{1} machines (nom, ports ouverts)", net.described, net.up)}</span>
-          </li>
-        </ul>
-        <div className="h-1.5 overflow-hidden rounded-full bg-line/60" aria-hidden>
-          <div className="scan-fill h-full rounded-full" style={{ width: `${Math.max(3, netPercent(net))}%` }} />
-        </div>
-        {net.found.length > 0 && (
-          <ul className="flex flex-col gap-1.5">
-            {net.found.map((h) => (
-              <li key={h.ip} className="row-in flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2"><HostInfo h={h} /></li>
-            ))}
-          </ul>
-        )}
-        <div><button type="button" className={quietBtn} onClick={() => void stop()}><Square size={13} aria-hidden />{tx("Arrêter")}</button></div>
-      </div>
-    );
-  }
-
+  const pinging = net?.phase === "ping";
   return (
     <div className="flex flex-col gap-3">
-      {!noButton && actions}
-      {toLink.length === 0 && found.length === 0 && (
-        <p>{tx("Cherche les machines allumées sur votre réseau local (un seul sous-réseau /24, en lecture seule : ping, nom et quelques ports). Vous choisissez ensuite lesquelles ajouter ; rien n'est ajouté tout seul.")}</p>
+      {net && netState(net) === "run" && (
+        <div className="flex flex-col gap-3" aria-live="polite">
+          <InfoNote>
+            {tx("Lecture seule : un ping par adresse, la demande du nom et quelques connexions TCP. Rien n'est modifié sur vos machines.")}
+          </InfoNote>
+          <ul className="flex flex-col gap-1.5 text-sm">
+            <li className="flex items-center gap-2">
+              {pinging ? <Loader2 size={15} className="animate-spin text-link" aria-hidden /> : <Check size={15} className="step-pop text-ok" aria-hidden />}
+              <b className="text-txt">{tx("Recherche des machines allumées")}</b>
+              <span className="tabular-nums text-dim">{net.done}/{net.total} {tx("adresses")}</span>
+              <span className="font-mono text-xs text-dim">{net.net}</span>
+            </li>
+            <li className={`flex items-center gap-2 transition-opacity duration-500 ${pinging ? "opacity-50" : ""}`}>
+              {pinging ? <Circle size={15} className="text-dim" aria-hidden /> : <Loader2 size={15} className="animate-spin text-link" aria-hidden />}
+              <b className="text-txt">{tx("Identification de chaque machine")}</b>
+              <span className="text-dim">{pinging ? tx("nom, ports ouverts : juste après") : tx("{0}/{1} machines (nom, ports ouverts)", net.described, net.up)}</span>
+            </li>
+          </ul>
+          <div className="h-1.5 overflow-hidden rounded-full bg-line/60" aria-hidden>
+            <div className="scan-fill h-full rounded-full" style={{ width: `${Math.max(3, netPercent(net))}%` }} />
+          </div>
+          <div><button type="button" className={quietBtn} onClick={() => void stop()}><Square size={13} aria-hidden />{tx("Arrêter")}</button></div>
+        </div>
       )}
       {net?.error && <p className="text-bad">⚠ {net.error}</p>}
-      {sum && scanned && !net.error && (
-        <section className="flex flex-col gap-2 rounded-xl border border-line bg-bg2/40 px-3 py-2.5" aria-live="polite">
-          {/* line 1: what was scanned, when, and what changed since the scan before; line 2: the tags only */}
-          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-            <b className="text-txt">{net.stopped ? tx("Recherche arrêtée : ") : ""}{tx("{0} appareil(s) sur {1}", sum.total, net.net ?? "")}</b>
-            {sum.known > 0 && <span className="text-dim">· {tx("{0} déjà ajouté(s)", sum.known)}</span>}
-            {net.ended && <span className="text-dim">· {tx("scan du {0}", dateTime(net.ended * 1000))}</span>}
-            {diff && !net.stopped && (diff.fresh.size === 0 && diff.gone.length === 0
-              ? <span className="text-dim" title={tx("Aucun changement depuis le scan du {0}.", dateTime((net.previous_ended ?? 0) * 1000))}>· {tx("aucun changement")}</span>
-              : <span title={tx("Depuis le scan du {0} :", dateTime((net.previous_ended ?? 0) * 1000)) + (diff.gone.length ? ` ${diff.gone.join(", ")}` : "")}>
-                  <span className="text-dim">· </span>
-                  {diff.fresh.size > 0 && <span className="text-warn">{tx("{0} nouvelle(s)", diff.fresh.size)}</span>}
-                  {diff.fresh.size > 0 && diff.gone.length > 0 && <span className="text-dim">, </span>}
-                  {diff.gone.length > 0 && <span className="text-bad">{tx("{0} disparue(s) : {1}", diff.gone.length, diff.gone.slice(0, 2).join(", "))}{diff.gone.length > 2 ? "…" : ""}</span>}
-                </span>)}
-          </p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge tone={sum.watch ? "info" : "off"}>{tx("{0} à regarder", sum.watch)}</Badge>
-            {sum.ssh > 0 && <Badge tone="off">SSH {sum.ssh}</Badge>}
-            {sum.apps > 0 && <Badge tone="off">{tx("{0} applis reconnues", sum.apps)}</Badge>}
-            {sum.shares > 0 && <Badge tone="off">{tx("{0} partages / bureau à distance", sum.shares)}</Badge>}
-            {sum.webOnly > 0 && <Badge tone="off">{tx("{0} pages web seules (repliées)", sum.webOnly)}</Badge>}
-            {sum.pingOnly > 0 && <Badge tone="off">{tx("{0} ping seulement (repliés)", sum.pingOnly)}</Badge>}
-          </div>
-        </section>
-      )}
-      {(found.length > 0 || ignoredAll.length > 0) && toLink.length === 0 && (
-        <>
-          {watch.length > 0 && (
-            <section className="flex flex-col gap-1.5">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <p className="min-w-0 flex-1 basis-64 text-sm font-semibold text-txt">
-                  {tx("À regarder")} <span className="font-normal text-dim">({watch.length}) · {tx("cochées d'office : SSH, appli reconnue ou service utile ; décochez ce que vous ne voulez pas")}</span>
-                </p>
-                {watch.some((h) => !picked.has(h.ip)) && <button type="button" className={quietBtn} onClick={() => setPicked(new Set(watch.map((h) => h.ip)))}>{tx("Tout sélectionner")}</button>}
-              </div>
-              <ul className="flex flex-col gap-1.5">{renderRows(watch)}</ul>
-            </section>
-          )}
-          {watch.length === 0 && rest > 0 && <p className="text-sm text-dim">{tx("Rien d'évident à ajouter dans cette recherche : les appareils trouvés sont repliés ci-dessous.")}</p>}
-          {rest > 0 && (
-            <details open={othersOpen} onToggle={(e) => setOthersOpen(e.currentTarget.open)} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-              <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
-                {tx("{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement, oubliés", rest)}
-                {[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
-              </summary>
-              <p className="text-xs text-dim">{tx("On n'y touche pas : décochés. Cochez-en un si vous voulez le suivre quand même.")}</p>
-              <div className="flex flex-col gap-3">
-                {group(tx("Pages web seules"), webOnly, Globe, "border-link")}
-                {group(tx("Répondent au ping seulement"), pingOnly, Wifi, "border-warn")}
-                {group(tx("Ignorés à la main"), ignoredAll, EyeOff, "border-dim")}
-              </div>
-            </details>
-          )}
-          {selectionBar}
-        </>
-      )}
       {toLink.length > 0 && (
         <div className="flex flex-col gap-2">
-          {found.length > 0 && <p className="text-xs text-dim">{tx("{0} autre(s) appareil(s) masqué(s) : ils reviennent quand les accès ci-dessous sont réglés ou oubliés.", found.length)}</p>}
           <p className="text-sm font-semibold text-txt">{tx("Machines ajoutées : accès à régler")}</p>
           {toLink.map((h) => (
             <AddedMachine key={h.ip} host={h} linked={!viaMynetwork(h) && !needsLink(h, machines, connected)}
               onDone={() => setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; })}
               onForget={() => { setJustForgot((f) => [...f, h.ip]); void act(() => send("PUT", "discoveries/muted", { id: `access:${h.ip}`, muted: true }),
-                (noButton ? tx("{0} oublié : il reste dans « Arrêtés et oubliés », pour le rappeler", h.name || h.ip) : tx("{0} oublié : il reste dans « machines déjà ajoutées », pour le rappeler", h.name || h.ip)), setNote)
+                tx("{0} oublié : il reste dans « Arrêtés et oubliés », pour le rappeler", h.name || h.ip), setNote)
                 .then((ok) => { if (ok) { setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; }); reloadDisc(); } else setJustForgot((f) => f.filter((x) => x !== h.ip)); }); }} />
           ))}
-          {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Relancer la recherche » la refait.")}</p>}
         </div>
       )}
-      {/* Settings -> Discovery lists them elsewhere (the machines list, « Arrêtés et oubliés »): no second frame there */}
-      {scanned && declared.length > 0 && !noButton && (
-        <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-          <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
-            {tx("{0} machine(s) déjà ajoutée(s)", declared.length)}
-            <span className="font-normal text-dim"> · {tx("vos choix précédents")}</span>
-          </summary>
-          <ul className="mt-2 flex flex-col gap-1.5">
-            {declared.map((m) => {
-              const seen = net?.found.find((h) => h.ip === m.ip);
-              const link = !!seen && needsLink(seen, machines, connected) === "ha";
-              return (
-                <li key={m.ip} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
-                  <AppIcon apps={seen?.apps} />
-                  <b className="text-txt">{m.name || m.ip}</b>
-                  <span className="font-mono text-xs text-dim">{m.ip}</span>
-                  {m.ssh ? <Badge tone="ok">SSH</Badge> : null}
-                  {link && (forgot.has(m.ip) ? <>
-                    <Badge tone="off">{tx("accès oublié")}</Badge>
-                    <button type="button" className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-link hover:bg-link/10" onClick={() => recall(m.ip)}>
-                      <RotateCcw size={12} aria-hidden />{tx("Rappeler")}</button>
-                  </> : <Badge tone="warn">{tx("jeton à régler")}</Badge>)}
-                  {!m.off && m.ping === false && <Badge tone="bad">{tx("hors ligne")}</Badge>}
-                  {m.off && <Badge tone="off">{tx("éteinte volontairement")}</Badge>}
-                </li>
-              );
-            })}
-          </ul>
-          <InfoNote className="mt-2">{tx("Pour retirer une machine : Réglages → Machines. Un accès oublié revient avec « Rappeler ».")}</InfoNote>
-        </details>
-      )}
+      <UnlinkedDevices devices={mergeDevices(net?.found ?? [], unlinked, [...known, ...Object.keys(added)], hidden)} fresh={net ? changes(net)?.fresh : undefined}
+        busy={busy} onFollow={(d) => void follow(d)} onHide={(d) => void setHidden(d, true)} onBring={(d) => void setHidden(d, false)} />
       <NoteLine note={note} />
     </div>
   );

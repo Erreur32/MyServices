@@ -11,6 +11,7 @@ import { NoteLine, Switch } from "../components/form";
 import { Badge, Count, Dim, Loading, TITLE } from "../components/ui";
 import { Action, MODE, MuteButton, Title, useDiscoveries, when, type DiscoveryItem } from "../components/DiscoveryCard";
 import { NetworkStep } from "../components/NetworkStep";
+import { unlinkedOf } from "../lib/devices";
 import { dateTime } from "../lib/format";
 import { reopenAssistant } from "../lib/assistant";
 import { act, primary, quiet, type Note } from "../lib/forms";
@@ -71,14 +72,6 @@ export function discoveryMoved(hash: string): string | null {
   return null;
 }
 
-/** The line under « Machines on the network »: the ticked count while choosing, else the last search and what happens to the machines found */
-function hostsHint(picked: number, last: number | null, note: string | undefined, auto: boolean): string {
-  if (picked) return tx("{0} cochée(s)", picked);
-  const when = last ? tx("dernière recherche : {0}", dateTime(last)) : tx("aucune recherche faite");
-  const what = note || (auto ? tx("le mode automatique ajoute seul les plus utiles") : tx("à cocher pour les suivre, ou à ignorer"));
-  return [when, what].join(" · ");
-}
-
 /** The state of the network search: running, turned off, waiting for its first pass, or its rhythm */
 function SearchState({ running, everyH, last }: Readonly<{ running: boolean; everyH: number; last: number | null }>) {
   if (running) return <Badge tone="info"><RefreshCw size={11} className="mr-1 inline animate-spin" aria-hidden />{tx("en cours")}</Badge>;
@@ -91,7 +84,6 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
   const [disc, reloadDisc] = useDiscoveries();
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [note, setNote] = useState<Note>(null), [error, setError] = useState("");
-  const [picked, setPicked] = useState(0);
   const load = useCallback(() => {
     Promise.all([read<NetSettings>("network/settings"), read<NetScan>("network/scan")])
       .then(([c, s]) => { setCfg(c); setScan(s); setError(""); })
@@ -110,7 +102,6 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
   const forgotten = items.filter((x) => x.muted).sort(byLabel);   // « Forget »: out of every list above, back with « Recall »
   // put aside, one frame by category: stopped containers, forgotten apps, other forgotten suggestions
   const forgotOthers = forgotten.filter((x) => !x.id.startsWith("connector:"));   // the apps forgotten are in Connectors › Detected to link
-  const hostsItem = items.find((x) => x.id === "hosts");
 
   const last = scan.ended ? scan.ended * 1000 : null;
   const next = last && cfg.every_h ? last + cfg.every_h * 3_600_000 : null;
@@ -162,10 +153,8 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
       </>,
 
       // 3. Machines sur le réseau
-      hosts: <Section id="net-hosts" icon={<Radar size={16} aria-hidden />} title={tx("Machines sur le réseau")} n={scan.found.filter((h) => !h.known).length || undefined}
-        hint={hostsHint(picked, last, hostsItem?.note, cfg.auto)}>
-        {/* the network search fills this frame: its state and settings here, its button just below */}
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line/60 pb-3 text-sm">
+      hosts: <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-card px-3 py-2 text-sm">
           <Search size={15} className="text-muted" aria-hidden /><b>{tx("Recherche sur le réseau")}</b>
           <SearchState running={running} everyH={cfg.every_h} last={last} />
           {last ? <span className="text-dim">{tx("dernière :")} {dateTime(last)} · {scan.found.length} {tx("appareils")}</span> : <Dim>{tx("aucune recherche faite")}</Dim>}
@@ -177,8 +166,8 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
           </span>
         </div>
         <NoteLine note={searchNote} />
-        <NetworkStep noButton net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={setPicked} />
-      </Section>,
+        <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} unlinked={unlinkedOf(snap)} hidden={cfg.ignored} />
+      </div>,
 
       // 4. Applis à activer : only those that run (stopped and forgotten ones are put aside, below)
       // 5. Autres suggestions

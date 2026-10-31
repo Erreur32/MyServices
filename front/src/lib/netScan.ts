@@ -70,9 +70,6 @@ export function changes(net: { found: { ip: string }[]; previous?: string[]; gon
   return { fresh: new Set(net.found.filter((h) => !before.has(h.ip)).map((h) => h.ip)), gone: net.gone ?? [] };
 }
 
-/** Appareils sans aucune information (ni port reconnu, ni titre de page) : rangés à part, décochés */
-export const quiet = (h: { hints: string[]; apps: string[] }): boolean => tagsOf(h).length === 0;
-
 /** Accès encore à régler sur une machine déjà déclarée : Home Assistant sans connecteur, ou machine en SSH sans accès SSH.
  *  Déduit des données (pas de l'état du navigateur) : revient à chaque chargement jusqu'à ce que ce soit fait. */
 export function needsLink(h: { ip: string; name?: string; title?: string | null; ssh_port?: number | null; apps: string[] },
@@ -81,33 +78,6 @@ export function needsLink(h: { ip: string; name?: string; title?: string | null;
   if (h.apps.includes("Home Assistant"))
     return connected.some((s) => s.connector === "home-assistant" && (s.url ?? "").includes(h.ip)) ? null : "ha";
   return h.ssh_port && !machines.find((m) => m.ip === h.ip)?.ssh ? "ssh" : null;
-}
-
-export interface NetSummary {
-  total: number;      // appareils qui ont répondu
-  known: number;      // déjà ajoutés à MyServices
-  candidates: number; // les autres : à ajouter ou non
-  watch: number;      // à regarder (liste principale)
-  ssh: number;
-  apps: number;
-  shares: number;     // partages (SMB), bureau à distance, Veeam…
-  webOnly: number;    // replié : page web seule (caméras, box, objets connectés…)
-  pingOnly: number;   // replié : répond au ping seulement
-}
-
-type Seen = { ip: string; ssh_port?: number | null; hints: string[]; apps: string[] };
-
-/** Résultat d'un scan en chiffres. « À regarder » = SSH, appli reconnue ou service utile ; le reste est replié. */
-export function summarize(found: Seen[], known: string[]): NetSummary {
-  const cand = found.filter((h) => !known.includes(h.ip));
-  const watch = cand.filter(interesting);
-  const rest = cand.filter((h) => !interesting(h));
-  return {
-    total: found.length, known: found.length - cand.length, candidates: cand.length, watch: watch.length,
-    ssh: watch.filter((h) => !!h.ssh_port).length, apps: watch.filter((h) => h.apps.length > 0).length,
-    shares: watch.filter((h) => h.hints.some((x) => x === "partage SMB" || x.startsWith("Windows") || x.startsWith("Veeam")) || h.apps.some((a) => a.startsWith("Veeam"))).length,
-    webOnly: rest.filter((h) => !quiet(h)).length, pingOnly: rest.filter(quiet).length,
-  };
 }
 
 /** Équipement lu plus tard par l'API MynetworK (UniFi) : SSH n'est pas nécessaire à sa surveillance, il reste possible.

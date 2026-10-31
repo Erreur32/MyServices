@@ -30,7 +30,6 @@ import { tx } from "../lib/i18n";
 import { InfoNote } from "../components/InfoNote";
 import { describeAdvice } from "../lib/access";
 import { AddMachine } from "../components/AddMachine";
-import { UnlinkedDevices } from "../components/UnlinkedDevices";
 import { SshConnections } from "./SshConnections";
 
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
@@ -73,7 +72,7 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   const [redetecting, setRedetecting] = useState(() => location.hash.endsWith("/machines/redetect"));
   const [showAccess, setShowAccess] = useState(false);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
-  if (part === "devices") return <div className="flex flex-col gap-4"><NetworkSettings snap={snap} parts={["hosts"]} /><UnlinkedDevices snap={snap} onFollowed={reload} /></div>;   // the network search, then what the tools see
+  if (part === "devices") return <NetworkSettings snap={snap} parts={["hosts"]} />;
   const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip> | new: that SSH access alone; #settings/machines/agents/<ip>: the list, that row lit
   // The address only picks a known machine: its IP is then taken from the list, never from the address (nothing typed in the URL reaches the page)
   const wanted = one ? decodeURIComponent(one) : undefined;
