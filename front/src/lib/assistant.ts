@@ -90,6 +90,12 @@ export function previousStep(id: AssistantStep): AssistantStep {
 /** Toutes les étapes faites ou passées */
 export const isFinished = (p: Pick<AssistantProgress, "done" | "skipped"> | null): boolean => !!p && STEPS.every((s) => p.done.includes(s.id) || p.skipped.includes(s.id));
 
+/** Fin de l'assistant : l'étape en cours est faite, celles restées en attente sont passées ; on peut y revenir */
+export function finish(p: AssistantProgress): AssistantProgress {
+  const done = [...new Set([...p.done, p.current])];
+  return { ...p, done, skipped: STEPS.map((s) => s.id).filter((id) => !done.includes(id)) };
+}
+
 /** Marque l'étape faite (ou passée) et avance */
 export function advance(p: AssistantProgress, how: "done" | "skipped"): AssistantProgress {
   const rest = (l: AssistantStep[]) => l.filter((i) => i !== p.current);

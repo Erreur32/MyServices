@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Machine } from "../types";
-import { STEPS, reopened, advance, bannerClosed, closeBanner, isFinished, markLanded, normalizeProgress, shouldLand, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
+import { STEPS, finish, reopened, advance, bannerClosed, closeBanner, isFinished, markLanded, normalizeProgress, shouldLand, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
 
 // Un localStorage minimal : les tests tournent sans navigateur
 const mem = new Map<string, string>();
@@ -74,6 +74,8 @@ describe("assistant : progression", () => {
   it("l'assistant est fini quand chaque étape est faite ou passée", () => {
     const ids = STEPS.map((s) => s.id);
     expect(isFinished(null)).toBe(false);
+    expect(isFinished(finish({ current: "tools", done: ["welcome"], skipped: ["network"], host: "", accepted: [] }))).toBe(true);   // « Terminer » finit, quelle que soit la route suivie
+    expect(finish({ current: "tools", done: ["welcome"], skipped: [], host: "", accepted: [] })).toMatchObject({ done: ["welcome", "tools"], skipped: ["machine", "network", "access"] });
     expect(isFinished({ done: ids.slice(0, 4), skipped: [] })).toBe(false);
     expect(isFinished({ done: ids.slice(0, 3), skipped: ids.slice(3) })).toBe(true);
   });

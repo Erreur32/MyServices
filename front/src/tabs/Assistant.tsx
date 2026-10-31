@@ -2,7 +2,7 @@
 // Cinq étapes : bienvenue, cette machine (sans SSH), le réseau, la façon de lire chaque machine, relier les outils, puis un résumé.
 // La progression est gardée côté serveur (reprise depuis un autre navigateur), avec une copie dans ce navigateur.
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Download, Eye, Flag, KeyRound, Loader2, Plug, Plus, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
-import { createElement, useCallback, useEffect, useState } from "react";
+import { createElement, useCallback, useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
 import type { Snapshot } from "../api";
 import { MachineIcon } from "../components/MachineIcon";
@@ -12,7 +12,7 @@ import { SourceBadges } from "../components/SourceBadges";
 import { AccessChoice } from "../components/AccessChoice";
 import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
-import { STEPS, advance, isFinished, type AssistantStep, loadProgress, normalizeProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress, reopened } from "../lib/assistant";
+import { STEPS, advance, finish, isFinished, type AssistantStep, loadProgress, normalizeProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress, reopened } from "../lib/assistant";
 import { savedFor } from "../lib/savedFor";
 import { STATUS_RANK, describeAdvice, isActive, summary } from "../lib/access";
 import { primary, quiet } from "../lib/forms";
@@ -38,6 +38,9 @@ export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
   const [p, setP] = useState<AssistantProgress>(() => reopened(loadProgress()));
   const store = (next: AssistantProgress) => { saveProgress(next); setP(next); void send("PUT", "assistant", next).catch(() => undefined); };   // navigateur + serveur
   const update = (next: AssistantProgress) => { store(next); scrollTo({ top: 0 }); };
+  const recap = useRef<HTMLDivElement>(null), [ended, setEnded] = useState(0);
+  const end = () => { store(finish(p)); setEnded(ended + 1); };
+  useEffect(() => { if (ended) recap.current?.scrollIntoView({ block: "start" }); }, [ended]);   // le résumé est sous l'étape : c'est lui qui répond à « Terminer »
   useEffect(() => {   // la progression du serveur fait foi (reprise depuis un autre navigateur) ; sinon on lui confie celle de ce navigateur
     read<{ state: AssistantProgress | null }>("assistant").then((r) => {
       if (r.state) { const state = reopened(normalizeProgress(r.state)); saveProgress(state); setP(state); return; }
@@ -95,14 +98,14 @@ export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
               onClick={() => update(advance(p, "skipped"))}><SkipForward size={14} aria-hidden />{tx("Passer cette étape")}</button> : null}
             {step.ready
               ? <button type="button" className={last ? quiet : primary} title={last ? tx("C'est fait : l'assistant affiche son résumé.") : tx("Cette étape est faite : la suivante s'affiche.")}
-                onClick={() => update(advance(p, "done"))}>{last ? tx("Terminer") : tx("Continuer")}<ArrowRight size={14} aria-hidden /></button>
+                onClick={() => (last ? end() : update(advance(p, "done")))}>{last ? tx("Terminer") : tx("Continuer")}<ArrowRight size={14} aria-hidden /></button>
               : null}
           </span>
         </div>
       </Card>
 
       {setup && <SetupModal setup={setup} snap={snap} onClose={closeSetup} onSwitch={setSetup} />}
-      {finished && <Recap snap={snap} onReview={() => update({ ...p, current: "access" })} />}
+      {finished && <div ref={recap} className="scroll-mt-4"><Recap snap={snap} onReview={() => update({ ...p, current: "access" })} /></div>}
       <p className="mt-6 text-center text-xs text-dim">
         {tx("Votre progression est enregistrée.")}{" "}
         <button type="button" className="text-link hover:underline" onClick={() => { resetProgress(); store(loadProgress()); }}>{tx("Recommencer")}</button>
