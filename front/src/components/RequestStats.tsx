@@ -17,7 +17,9 @@ export type RequestRow = {
   last_code: number | null; n429: number; retry_after: number | null; last_error: string; last_at: number | null; limit: number | null; watch: boolean;
 };
 export type RequestWatch = { owner: string; route: string; per_min: number; limit: number | null; n429: number; retry_after: number | null };
-export type RequestDoc = { rows: RequestRow[]; watch: RequestWatch[]; at: number; version?: string };
+/** What a pulse costs: one ping or TCP connection per target and pass (`every` = 0: the pulse is off) */
+export type PulseCost = { name: "machines" | "ports"; targets: number; every: number; per_min: number };
+export type RequestDoc = { rows: RequestRow[]; watch: RequestWatch[]; at: number; version?: string; pulses?: PulseCost[] };
 
 const POLL = 10_000;
 
@@ -36,6 +38,25 @@ function text429(r: RequestRow): string {
 export function watchText(w: RequestWatch): string {
   if (w.n429 > 0) return w.retry_after === null ? tx("429 reçu sur {0} ({1})", w.route, w.owner) : tx("429 reçu sur {0} ({1}), réessai dans {2} s", w.route, w.owner, w.retry_after);
   return tx("{0} appels par minute sur {1} ({2}), limite {3}", w.per_min, w.route, w.owner, w.limit ?? "?");
+}
+
+const PULSE_NAME = { machines: tx("Pouls (ping des machines)"), ports: tx("Pouls (port des services)") };
+
+/** The pulses are not connector calls: their cost per minute next to the counters, so that the whole load of the app is read in one place */
+export function PulseCosts({ pulses }: Readonly<{ pulses: PulseCost[] }>) {
+  if (pulses.length === 0) return null;
+  const total = Math.round(pulses.reduce((sum, p) => sum + p.per_min, 0) * 10) / 10;
+  return (
+    <ul className="mb-3 space-y-0.5 rounded-lg border border-line/60 bg-bg/50 px-3 py-2 text-sm">
+      {pulses.map((p) => (
+        <li key={p.name}>
+          <b>{PULSE_NAME[p.name]}</b>{" "}
+          {p.every > 0 ? tx("{0} cible(s), une passe toutes les {1} s : {2} connexions par minute", p.targets, p.every, p.per_min) : tx("coupé")}
+        </li>
+      ))}
+      <li className="text-muted">{tx("Pouls au total : {0} connexions par minute", total)}</li>
+    </ul>
+  );
 }
 
 /** The rows of one connector (`owner`), or of all of them. */
@@ -105,6 +126,7 @@ export function RequestsSettings() {
       </div>
       <div className="p-4">
         <InfoNote className="mb-3">{tx("Appels de chaque connecteur vers son service, comptés par route depuis le démarrage du serveur ; relus toutes les {0} s. Une route proche d'une limite connue du service, ou un 429 reçu dans l'heure, est signalée.", POLL / 1000)}</InfoNote>
+        {doc?.pulses && <PulseCosts pulses={doc.pulses} />}
         {failed && !doc ? <Empty>{tx("Lecture des compteurs impossible.")}</Empty> : doc && <RequestTable doc={doc} />}
       </div>
     </section>

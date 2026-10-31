@@ -63,7 +63,7 @@ def agent_states(hosts: list[dict], listening: dict[str, set[int]]) -> dict[str,
 
 
 class Pulse:
-    """Confirmed ping state of each machine: {ip: {"ping", "ms", "since", "streak"}}."""
+    """Confirmed ping state of each machine: {ip: {"ping", "ms", "since", "streak", "began"}}."""
 
     def __init__(self, path: Path, confirm: int = 2, probe=ping) -> None:
         self.path, self.confirm, self.probe = path, max(1, confirm), probe
@@ -82,6 +82,8 @@ class Pulse:
                 continue
             s["ms"] = ms if up else None
             s["streak"] = 0 if up == s["ping"] else s["streak"] + 1
+            if s["streak"] == 1:
+                s["began"] = now   # the first contrary pulse: when a change confirmed later really began (availability.record)
             if s["streak"] >= self.confirm:
                 s.update(ping=up, since=now, streak=0)
                 changed.append(ip)
