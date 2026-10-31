@@ -6,6 +6,7 @@ A token without one of the optional rights (DNS, Zone Settings, Analytics) still
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 from connectors.base import ConnectorError, Field, RateLimited
@@ -13,7 +14,8 @@ from connectors.status_kit import StatusConnector, fact, num, size
 
 API = "https://api.cloudflare.com/client/v4"
 DAYS = 7
-MAX_ZONES = 20   # 9 calls per domain, one after the other, in the 60 s of a pass; above that a problem says how many were left out
+MAX_ZONES = 20   # 9 calls per domain at about 0.5 s each, read by READERS at a time to stay in the 60 s of a pass; above that a problem says how many were left out
+READERS = 4
 SETTINGS = {"ssl": "SSL", "always_use_https": "HTTPS forcé", "min_tls_version": "TLS minimal", "security_header": "HSTS",
             "security_level": "Niveau de sécurité", "cache_level": "Cache"}
 # Variables left undeclared, as in Cloudflare's own example: its gateway fills them in by name
@@ -96,7 +98,8 @@ class Cloudflare(StatusConnector):
         got = self._zones()
         today = datetime.now(timezone.utc).date()
         since, until = (today - timedelta(days=DAYS - 1)).isoformat(), (today + timedelta(days=1)).isoformat()
-        zones = [self._zone(z, since, until) for z in got["result"] if isinstance(z, dict)]
+        with ThreadPoolExecutor(READERS) as pool:
+            zones = list(pool.map(lambda z: self._zone(z, since, until), [z for z in got["result"] if isinstance(z, dict)]))
         total = (got.get("result_info") or {}).get("total_count") or len(zones)
 
         return {**self.out(None, self._facts(zones, total), self._problems(zones, total)), "cloudflare": {"days": DAYS, "zones": zones}}
@@ -126,6 +129,8 @@ class Cloudflare(StatusConnector):
                 problems.append(f"« {name} » en pause : Cloudflare ne le protège plus")
             if z["status"] != "active":
                 problems.append(f"« {name} » : état {z['status']}")
+            if (z["dns"] or {}).get("proxied") == 0:
+                continue   # DNS only: no request goes through Cloudflare, its SSL and HTTPS settings apply to nothing
             if ssl in ("off", "flexible"):
                 problems.append(f"« {name} » : SSL {ssl}, liaison vers le serveur non chiffrée")
             if z["settings"]["always_use_https"] == "off":

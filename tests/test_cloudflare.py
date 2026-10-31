@@ -26,8 +26,8 @@ SSL = {"z1": "strict", "z2": "flexible"}
 class Fake:
     """Answers like Cloudflare; `refuse` holds the bits of URL answered 403."""
 
-    def __init__(self, zones=None, refuse=(), traffic=None, total=None):
-        self.calls, self.refuse = [], refuse
+    def __init__(self, zones=None, refuse=(), traffic=None, total=None, proxied=3):
+        self.calls, self.refuse, self.proxied = [], refuse, proxied
         self.zones, self.traffic = zones if zones is not None else [zone("z1", "exemple.fr"), zone("z2", "example.org")], traffic or TRAFFIC_OK
         self.total = total
 
@@ -41,7 +41,7 @@ class Fake:
         if path == "/graphql":
             return self.traffic
         if "/dns_records" in path:
-            return {"result": [], "result_info": {"total_count": 3 if "proxied=true" in path else 10}}
+            return {"result": [], "result_info": {"total_count": self.proxied if "proxied=true" in path else 10}}
         z, key = path.split("/")[2], path.rsplit("/", 1)[1]
         value = {"ssl": SSL[z], "always_use_https": "on" if z == "z1" else "off", "min_tls_version": "1.2", "security_level": "medium", "cache_level": "aggressive",
                  "security_header": {"strict_transport_security": {"enabled": z == "z1", "max_age": 0}}}[key]
@@ -104,6 +104,14 @@ class CloudflareRead(unittest.TestCase):
         d = conn(Fake(traffic={"data": {"viewer": {"zones": [{"httpRequests1dGroups": []}]}}})).collect()
         self.assertEqual(d["cloudflare"]["zones"][0]["traffic"]["requests"], 0)
         self.assertIn("En cache (7 j)", [f["label"] for f in d["facts"]])
+
+    def test_a_dns_only_domain_has_no_ssl_or_https_problem(self):
+        d = conn(Fake(proxied=0)).collect()
+        self.assertEqual(d["problems"], [])
+
+    def test_order_of_the_domains_is_kept(self):
+        d = conn(Fake(zones=[zone("z2", "b.example"), zone("z1", "a.example")])).collect()
+        self.assertEqual([z["name"] for z in d["cloudflare"]["zones"]], ["b.example", "a.example"])
 
     def test_refused_token_or_no_domain(self):
         with self.assertRaisesRegex(ConnectorError, "accès refusé"):
