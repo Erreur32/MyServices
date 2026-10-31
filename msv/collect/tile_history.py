@@ -23,7 +23,8 @@ NET_GEAR, NET_CLIENTS, NET_DEVICES = "network.gear", "network.clients", "network
 NETWORK = (NET_GEAR, NET_CLIENTS, NET_DEVICES)
 BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD = "backups.ok", "backups.late", "backups.bad"
 BACKUPS = (BACKUPS_OK, BACKUPS_LATE, BACKUPS_BAD)
-SERVICES_WARN, SERVICES_HEALTH = "services.warn", "services.health"
+SERVICES_UP, SERVICES_WARN, SERVICES_HEALTH = "services.up", "services.warn", "services.health"
+GENERIC_PROCESS = {"python", "python3", "node", "nodejs", "java", "php", "php-fpm", "ruby", "dotnet", "bash", "sh", "perl", "deno", "bun"}   # as front lib/servicesState.ts
 AGENTS_RUNNING, AGENTS_LATE, AGENTS_HEALTH = "agents.running", "agents.late", "agents.health"
 AGENTS = (AGENTS_RUNNING, AGENTS_LATE, AGENTS_HEALTH)
 VIRT = ("virt.hosts", "virt.guests", "virt.cpu", "virt.mem", "virt.storage", "virt.backups")
@@ -155,14 +156,36 @@ def _service_down(h: dict) -> bool:
     return b.get("up") is False or (p.get("code") or 0) >= 500
 
 
+def machine_service(h: dict) -> str | None:
+    """What makes rows one service on one machine, whatever their ports (front lib/servicesState.ts machineService); None: the row counts alone."""
+    if h.get("type") in ("redirect", "dead"):
+        return None
+    where, svc, app = h.get("machine") or h.get("host_ip") or h.get("ip"), h.get("service") or {}, h.get("app") or {}
+    name, kind = str(svc.get("name") or ""), svc.get("kind")
+    if name and (kind == "docker" or (kind == "process" and name.lower() not in GENERIC_PROCESS)):
+        return f"{where}|{kind}|{name.lower()}"
+    return f"{where}|app|{app['label']}" if app.get("label") and app.get("confidence") != "possible" else None
+
+
+def service_count(hosts: list[dict]) -> int:
+    """How many services, with one service on several ports counted once per machine."""
+    keys = [machine_service(h) for h in hosts]
+    return keys.count(None) + len(set(keys) - {None})
+
+
 def services_points(data: dict) -> dict[str, tuple[int, int]]:
-    """{key: (value, total)} of the Services « Warning » tile: the services followed that are not in warning, out of the services followed
-    (so a strip counts the ones in warning). The services the user hid from « To watch » are counted like the others."""
-    followed = [(h, w) for h in data.get("hosts") or [] if isinstance(h, dict) and (w := _service_warns(h)) is not None]
-    if not followed:
+    """{key: (value, total)} of the Services tiles, counted like the page: one service per machine in its worst state, out of the services followed
+    (a strip counts the ones missing). The services the user hid from « To watch » are counted like the others."""
+    lines: dict = {}
+    for n, h in enumerate(h for h in data.get("hosts") or [] if isinstance(h, dict)):
+        warns = _service_warns(h)
+        if warns is not None:
+            key = machine_service(h) or n
+            lines[key] = min(lines.get(key, 2), 0 if _service_down(h) else 1 if warns else 2)   # 0 down, 1 warning, 2 fine
+    if not lines:
         return {}
-    healthy = sum(1 for h, w in followed if not w and not _service_down(h))
-    return {SERVICES_WARN: (sum(1 for _, w in followed if not w), len(followed)), SERVICES_HEALTH: (round(healthy / len(followed) * 100), 100)}
+    total, states = len(lines), list(lines.values())
+    return {SERVICES_UP: (total - states.count(0), total), SERVICES_WARN: (total - states.count(1), total), SERVICES_HEALTH: (round(states.count(2) / total * 100), 100)}
 
 
 def sample_services(db_path: str | Path, data_file: Path, now: float | None = None) -> int:

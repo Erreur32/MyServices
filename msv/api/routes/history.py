@@ -100,7 +100,9 @@ def services_history(hours: int = 24):
     from msv.collect import availability
     from msv.collect import tile_history
     h = hours if hours in HISTORY_HOURS else 24
-    return {"hours": h, "up": availability.service_series(db_path(core.CFG), h), "warn": tile_history.series(db_path(core.CFG), tile_history.SERVICES_WARN, h),
+    up = tile_history.series(db_path(core.CFG), tile_history.SERVICES_UP, h)
+    older = [p for p in availability.service_series(db_path(core.CFG), h) if not up or p[0] < up[0][0]]   # before 0.31.9: one point per port
+    return {"hours": h, "up": older + up, "warn": tile_history.series(db_path(core.CFG), tile_history.SERVICES_WARN, h),
             "health": tile_history.series(db_path(core.CFG), tile_history.SERVICES_HEALTH, h)}
 
 

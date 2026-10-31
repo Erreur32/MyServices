@@ -22,9 +22,34 @@ function count(f: ServicesFigures, r: Host): void {
   if (ck.length) { f.toCheck++; for (const k of ck) pushOnce(f.checkWhy, k); }
 }
 
+/** What makes rows one service on one machine, whatever their ports (the same rule as machine_service in msv/collect/tile_history.py) */
+function machineService(r: Host): string | null {
+  if (r.type === "redirect" || r.type === "dead") return null;
+  const where = r.machine || r.host_ip || r.ip, s = r.service;
+  if (s?.name && (s.kind === "docker" || (s.kind === "process" && !genericProcess(s.name)))) return `${where}|${s.kind}|${s.name.toLowerCase()}`;
+  return r.app && r.app.confidence !== "possible" ? `${where}|app|${r.app.label}` : null;
+}
+
+function worse(a: Host, b: Host): boolean {
+  const gap = RANK[status(a)[0]] - RANK[status(b)[0]];
+  return gap < 0 || (gap === 0 && liveChecks(a).length > liveChecks(b).length);
+}
+
+/** One row per service on each machine, the one in the worst state: a service with one port down of three counts once, as it stands */
+export function perService(hosts: Host[]): Host[] {
+  const lines = new Map<string, Host>(), alone: Host[] = [];
+  for (const r of hosts) {
+    const key = machineService(r), kept = key ? lines.get(key) : undefined;
+    if (!key) alone.push(r);
+    else if (!kept || worse(r, kept)) lines.set(key, r);
+  }
+  return [...lines.values(), ...alone];
+}
+
 export function figures(hosts: Host[]): ServicesFigures {
-  const f: ServicesFigures = { total: hosts.length, withDomain: 0, local: 0, machines: new Set(hosts.map((r) => r.host_ip || r.ip || r.target_ip).filter(Boolean)).size, ok: 0, bad: 0, warn: 0, toCheck: 0, warnWhy: [], checkWhy: [] };
-  for (const r of hosts) count(f, r);
+  const rows = perService(hosts);
+  const f: ServicesFigures = { total: rows.length, withDomain: 0, local: 0, machines: new Set(hosts.map((r) => r.host_ip || r.ip || r.target_ip).filter(Boolean)).size, ok: 0, bad: 0, warn: 0, toCheck: 0, warnWhy: [], checkWhy: [] };
+  for (const r of rows) count(f, r);
   return f;
 }
 

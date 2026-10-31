@@ -4,6 +4,7 @@ import type { Machine } from "../types";
 import { tx } from "./i18n";
 import { mState } from "./machines";
 import { hiddenNow, isHidden } from "./servicesHidden";
+import { perService } from "./servicesState";
 import { connectorCounts } from "./statsExtra";
 import { status } from "./status";
 import { plural, type Attention } from "./summary";
@@ -21,7 +22,7 @@ export interface KeyCounts {
 export function keyCounts(snap: Snapshot): KeyCounts {
   const { data, health, backups } = snap;
   const ms = (data.machine_list || []).filter((m) => !m.disabled);
-  const hidden = hiddenNow(), hosts = data.hosts.filter((r) => r.enabled && status(r)[0] !== "off" && !isHidden(r, hidden));
+  const hidden = hiddenNow(), hosts = perService(data.hosts.filter((r) => r.enabled && status(r)[0] !== "off" && !isHidden(r, hidden)));
   const c = connectorCounts(snap);
   return {
     machines: ms.length, machinesUp: ms.filter((m) => mState(m) !== "down").length, machinesOff: ms.filter((m) => m.off && !m.ping).length,

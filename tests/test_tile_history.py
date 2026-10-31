@@ -115,15 +115,21 @@ class ServicesWarn(unittest.TestCase):
     def test_counted_like_the_page(self):
         # seven followed services, four in warning
         # eight followed, three healthy (the one down and the four in warning are not)
-        self.assertEqual(th.services_points({"hosts": self.HOSTS}), {th.SERVICES_WARN: (4, 8), th.SERVICES_HEALTH: (38, 100)})
+        self.assertEqual(th.services_points({"hosts": self.HOSTS}), {th.SERVICES_UP: (7, 8), th.SERVICES_WARN: (4, 8), th.SERVICES_HEALTH: (38, 100)})
         self.assertEqual(th.services_points({"hosts": []}), {})
+
+    def test_one_service_per_machine_whatever_its_ports(self):
+        svc = lambda machine, port, up, name="anydesk": {"type": "local", "enabled": True, "machine": machine, "port": port, "backend": {"up": up}, "service": {"kind": "process", "name": name}}
+        hosts = [svc("a", 7070, True), svc("a", 27461, False), svc("b", 7070, True), svc("a", 3000, True, "node"), svc("a", 3001, True, "node")]
+        self.assertEqual(th.services_points({"hosts": hosts}), {th.SERVICES_UP: (3, 4), th.SERVICES_WARN: (4, 4), th.SERVICES_HEALTH: (75, 100)})
+        self.assertEqual(th.service_count(hosts), 4)
 
     def test_sampled_at_the_time_of_the_collection(self):
         with tempfile.TemporaryDirectory() as tmp:
             f, db = Path(tmp) / "data.json", Path(tmp) / "t.db"
             f.write_text(json.dumps({"generated": "2026-10-27T20:00:00+00:00", "hosts": self.HOSTS}), encoding="utf-8")
             ts = int(th.datetime.fromisoformat("2026-10-27T20:00:00+00:00").timestamp())
-            self.assertEqual(th.sample_services(db, f, now=ts), 2)
+            self.assertEqual(th.sample_services(db, f, now=ts), 3)
             self.assertEqual(th.series(db, th.SERVICES_WARN, 24, now=ts), [[ts, 4, 8]])
 
 

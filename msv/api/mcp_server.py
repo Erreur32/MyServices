@@ -37,13 +37,14 @@ def _health(core) -> dict:
 
 def t_status(core, args, ctx):
     d, st = _data(core), core.status()
+    from msv.collect import tile_history
     seen = {(c["type"], c["name"]) for c in d.get("connectors", [])}
     health_connectors = [c for c in _health(core).get("connectors", []) if (c["type"], c["name"]) not in seen]   # Beszel is read by the health task, not by the collection
     return {"version": os.environ.get("MYSERVICES_VERSION", "dev"), "server_time": datetime.now().astimezone().isoformat(timespec="seconds"),
             "data_generated": d.get("generated"), "next_run": d.get("next_run"), "collect": st,
             "tasks": {name: {"enabled": core.enabled(name), "next": core.next_run(name), "ended": t["end"], "result": t["result"], "running": t["proc"] is not None}
                       for name, t in core.TASKS.items()},
-            "machines": len(d.get("machine_list", [])), "services": len(d.get("hosts", [])),
+            "machines": len(d.get("machine_list", [])), "services": tile_history.service_count(d.get("hosts", [])),
             "connectors": [{"type": c["type"], "name": c["name"], "ok": c["ok"], "message": c.get("message")}
                            for c in [*d.get("connectors", []), *health_connectors]]}
 
