@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 
 export interface IconOption<V extends string> { value: V; label: string; icon: ReactNode; hint?: string }
 
-export function IconChoice<V extends string>({ value, options, onPick, label, disabled }: {
+export function IconChoice<V extends string>({ value, options, onPick, label, disabled }: Readonly<{
   value: V; options: IconOption<V>[]; onPick: (v: V) => void; label: string; disabled?: boolean;
-}) {
+}>) {
   return (
     <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={label}>
       {options.map((o) => (

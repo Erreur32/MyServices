@@ -24,6 +24,8 @@ app_user.drop_root()   # docker compose exec : root -> compte 10001, sinon la ba
 from msv.core.auth import AuthError, Store, db_path
 from msv.core.config import CFG
 
+TOOL = "manage.py"
+
 DB = db_path(CFG)
 
 
@@ -50,15 +52,15 @@ def main() -> int:
         elif cmd == "add" and len(args) >= 2:
             role = args[2] if len(args) > 2 else ("viewer" if store.has_users() else "admin")
             store.create_user(args[1], ask_password(), role)
-            store.audit("compte créé", "manage.py", None, f"{args[1]} ({role})")
+            store.audit("compte créé", TOOL, None, f"{args[1]} ({role})")
             print(f"compte « {args[1]} » créé ({role})")
         elif cmd == "password" and len(args) == 2:
             store.set_password(args[1], ask_password())
-            store.audit("mot de passe changé", "manage.py", None, args[1])
+            store.audit("mot de passe changé", TOOL, None, args[1])
             print(f"mot de passe de « {args[1]} » changé, ses sessions fermées")
         elif cmd == "delete" and len(args) == 2:
             store.delete_user(args[1])
-            store.audit("compte supprimé", "manage.py", None, args[1])
+            store.audit("compte supprimé", TOOL, None, args[1])
             print(f"compte « {args[1]} » supprimé")
         elif cmd == "encrypt-secrets":
             import json
@@ -72,7 +74,7 @@ def main() -> int:
             tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
             tmp.chmod(0o600)
             tmp.replace(f)
-            store.audit("secrets chiffrés", "manage.py", None, f"{n} valeur(s)")
+            store.audit("secrets chiffrés", TOOL, None, f"{n} valeur(s)")
             print(f"{n} secret(s) chiffré(s) dans {f} (clé : {secrets_store.key_path(f)}, à sauvegarder avec /config)")
         elif cmd == "audit":
             for a in reversed(store.audit_log(int(args[1]) if len(args) > 1 else 50)):

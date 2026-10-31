@@ -1,40 +1,40 @@
-# Release notes: MyServices 0.31.10
+# Release notes: MyServices 0.32.0
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.31.10** (31 October 2026) adds **Cloudflare**, a read-only connector with its own pages, and tidies what you use every day: **Services** keeps a service's sheet inside its card, **Availability** is redrawn, and the **setup assistant** ends on one clear next step.
+**0.32.0** (31 October 2026) sees problems sooner and says more about them: **availability** is kept to the minute, a failing service is **tried again** after 90 seconds, machine notices tell **since when** they last, and an **agent** can now replace SSH for reading a machine. The pages you use every day also line up.
 
 ## For everyone
 
 **What's new?**
-- **Cloudflare**: an optional read-only connector. Its pages show what to improve and why, the traffic over 24 hours, 7 and 30 days, security events, server and cache, DNS, your domains side by side, and each proxied name checked against NPM, Apache or nginx.
-- **Read now**: a button reads one connector, tests one service or reads the health of one machine, without waiting for a whole pass.
+- **Availability to the minute**: machines and services keep their outages from the port pulses, and the 24 hour view shows 96 quarter-hour cells.
+- **Quick recheck**: a service found bad although its port answers (a 5xx, or no answer on its public site) is tried again about 90 seconds later, so an outage is confirmed sooner.
+- **Since when**: each machine notice says how long it has lasted, and what is behind it. A hot processor gives its thresholds, its hottest probe and the load, a disk its free space, the memory its amounts, the updates how many are for security.
+- **Header**: every scheduled task can appear in the header, chosen per browser in Tasks and schedules, each with its own colours.
+- **Internet box**: a Liberty gateway connector for Virgin Media Hub 5 and Ziggo SmartWifi, simulated here: please tell us how it behaves on a real one.
 
 **What's changed?**
-- **Services**: an outage shows in 2 to 3 minutes instead of 20 to 35. A light pulse tries the port of every web service each minute; you can set it or turn it off in « Live checks ». SSH, mail, SMB, 5xx errors and public sites are still seen by the collection, every 15 minutes.
-- **Services**: one service, one place. Its sheet opens inside its card, under the table, and its pencil edits it there. Old links open the same service in the list.
-- **Availability**: machines, services, domains and Uptime Kuma are named as you name them, the filters stay in sight and the cells line up. The page opens on the machines, then keeps your filters in your browser.
-- **Machines**: a visible filter, on by default, hides the machines powered off or no longer followed. The « Off » tile brings them back.
-- **Assistant**: the last step is a short message with one main button, « Add a machine », which offers the agent first, and a link to connect your tools. Reopened once finished, it starts at the first step and keeps what was validated.
-- **Machines › SSH connections**: a badge tells which machines must keep SSH, and why.
-- **Machine alert limits**: the fields show the values in force, so their arrows no longer start from 0.
-- **Agents**: a new agent reports every 5 minutes instead of 15. An agent already installed keeps its rhythm until its install command is run again.
-- **Video and cameras**: the overview and the Frigate page sit on three columns.
-- **Fields**: every field has its own background in each theme, and what you type stays readable.
-- **Connectors**: the connector button of a page opens that connector for editing.
-- **Services**: « Ignored domains » shows its list in the title and starts folded.
+- **Agent first**: a machine with a fresh and complete agent report is no longer read over SSH for its inventory, ports and logins. When an agent cannot read everything, the Agents and SSH connections pages say what is missing and how to fix it.
+- **Tasks and schedules**: the coming runs in a table sorted by time, with state, schedule, next run and header columns on wide screens.
+- **Machines, Services, Connectors**: the same frame, with the search centred in its title. Services shows its main filters on the left like Machines, and Connectors has tighter cards, six a line at most.
+- **Services**: « Ignored domains » is now a small button in the title line, with the domains beside it.
+- **Cloudflare and Audit log**: your browser keeps the chosen period, and the chosen domain on the Cloudflare pages.
+- **Remote folder**: a Samba account is presented as the simple way, and the READMEs give a read-only mount example.
 
 **What's fixed?**
-- **Assistant**: « Finish » always ends it and brings the summary into view.
+- **Requests**: the date of the reading is right.
+- **Login page**: the button text uses the page font at its proper size.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change, see [MIGRATION.md](MIGRATION.md).
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.31.10` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
-- **API and storage**: the Cloudflare figures join `data.json`. The pages `#services/item` and `#services/edit` are gone and redirect to `#services/all/<key>`.
-- **Service pulse**: a new `ports.json` beside `pulse.json`, and a new `ports_every` setting (60 s by default, 0 = off).
-- **Cloudflare**: read once an hour, about 11 calls per domain, no new right beyond read access. Paths and user agents are stored, client IPs never are.
-- **Agents**: same agent scripts (Linux agent 4, Windows agent 9); only the timer of a new install changes.
-- **Migration**: nothing required from 0.31.9, see [MIGRATION.md](MIGRATION.md).
+- **Image**: `ghcr.io/erreur32/myservices:0.32.0` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **Storage**: a new `avail_runs` table, about 2 MB estimated with 100 pulsed services, older rows removed by themselves. `recheck.json` appears next to `ports.json`, and `health.json` keeps a start date per control.
+- **Notices**: the count starts at the first health pass after the update, so a notice already there shows a shorter time at first. There is one date per control, so two full disks share the oldest one.
+- **Requests**: Rybbit and Umami are read every 15 minutes instead of 5, and Settings › Requests shows what the port pulses cost.
+- **Frigate**: with an account, the sign-in is kept in memory between readings and camera pictures, never in a file.
+- **Security**: the key of a custom icon is checked where the file path is built.
+- **Removed**: `legacy/`, the old systemd installation, unused since the Docker version.
+- **Migration**: nothing required from 0.31.10, see [MIGRATION.md](MIGRATION.md).
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).

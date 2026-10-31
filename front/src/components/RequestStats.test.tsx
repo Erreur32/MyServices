@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { RequestTable, watchText, type RequestDoc, type RequestRow } from "./RequestStats";
+import { PulseCosts, RequestTable, watchText, type RequestDoc, type RequestRow } from "./RequestStats";
 
 const row = (over: Partial<RequestRow>): RequestRow => ({
   owner: "mynetwork/lan", route: "/api/lan/devices", per_min: 2, per_hour: 40, total: 300, hits: 0, last_ms: 12, avg_ms: 15, last_code: 200, n429: 0,
@@ -30,5 +30,15 @@ describe("Request counters table", () => {
     expect(html).toContain("Avertissement");
     expect(renderToStaticMarkup(<RequestTable doc={doc([])} />)).toContain("Aucun appel compté");
     expect(renderToStaticMarkup(<RequestTable doc={doc([row({ last_code: null, total: 1, last_error: "injoignable" })])} />)).toContain("aucune réponse");
+  });
+});
+
+describe("Pulse costs", () => {
+  it("gives the connections per minute of each pulse and their total, and says when one is off", () => {
+    const html = renderToStaticMarkup(<PulseCosts pulses={[{ name: "machines", targets: 12, every: 30, per_min: 24 }, { name: "ports", targets: 40, every: 60, per_min: 40 }]} />);
+    expect(html).toContain("12 cible(s), une passe toutes les 30 s : 24 connexions par minute");
+    expect(html).toContain("Pouls au total : 64 connexions par minute");
+    expect(renderToStaticMarkup(<PulseCosts pulses={[{ name: "ports", targets: 0, every: 0, per_min: 0 }]} />)).toContain("coupé");
+    expect(renderToStaticMarkup(<PulseCosts pulses={[]} />)).toBe("");
   });
 });

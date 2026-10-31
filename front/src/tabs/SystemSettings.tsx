@@ -10,11 +10,13 @@ import { Badge, Card, Dim, type Tone } from "../components/ui";
 import { bytes, dateTime, dur, hm } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
 import { usePoll } from "../lib/polling";
+import { useHeaderTask } from "../lib/headerTasks";
 import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
 import { GITHUB, releaseOf } from "../lib/links";
-import { groupOf, inText, liveText, parseAt, period, runLength, runState, summarize, TASK_GROUPS, type RunState } from "../lib/tasks";
+import { groupOf, inText, liveText, parseAt, period, runLength, runState, summarize, upcoming, TASK_GROUPS, type RunState } from "../lib/tasks";
 import { pokeScan } from "../lib/scan";
+import { onStream } from "../lib/stream";
 import { AutoDiscoveries, DISCOVERED_BY } from "../components/AutoDiscoveries";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import { MailSettings } from "../components/MailSettings";
@@ -31,6 +33,7 @@ export function SystemSettings({ part, snap }: Readonly<{ part: "mail" | "export
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
   usePoll(reload, st?.tasks.some((t) => t.running) ? 10_000 : 60_000);   // 10 s seulement pour suivre une tâche lancée
+  useEffect(() => onStream("tasks", reload), [reload]);   // a task that ends shows at once, not at the next read
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   return (
     <div className="flex flex-col gap-4">
@@ -43,7 +46,7 @@ export function SystemSettings({ part, snap }: Readonly<{ part: "mail" | "export
 }
 
 /** Aligned columns from one row to the next: task, editable schedule, next run, button */
-const ROW_COLS = "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem_9rem_11rem]";
+const ROW_COLS = "min-[1480px]:grid min-[1480px]:grid-cols-[minmax(0,1fr)_11rem_24rem_6rem_4rem_7rem] min-[1480px]:gap-x-3";
 const ICON: Record<string, LucideIcon> = { collect: RefreshCw, watch: Bell, health: HeartPulse, backups: HardDrive, netscan: Radar, pulse: Activity };
 const DESC: Record<string, string> = {
   collect: tx("Lit les machines, Docker, NPM et les connecteurs, puis met les pages à jour."),
@@ -89,8 +92,8 @@ function TaskIcon({ name, state }: Readonly<{ name: string; state: RunState }>) 
 }
 
 /** Left part of every row: icon, name, state, short description and the last run */
-function TaskHead({ name, title, state, badge, note, extra, about, children }: Readonly<{
-  name: string; title: string; state: RunState; badge?: ReactNode; note: Note; extra?: ReactNode; about: ReactNode; children?: ReactNode;
+function TaskHead({ name, title, state, badge, note, about }: Readonly<{
+  name: string; title: string; state: RunState; badge?: ReactNode; note: Note; about: ReactNode;
 }>) {
   return (
     <div className="flex min-w-[220px] gap-3">
@@ -98,12 +101,10 @@ function TaskHead({ name, title, state, badge, note, extra, about, children }: R
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <b>{title}</b>
-          {badge ?? <StateBadge state={state} />}
+          {badge}
           <NoteLine inline note={note} />
-          {extra}
         </div>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">{about}</p>
-        {children}
       </div>
     </div>
   );
@@ -128,7 +129,7 @@ function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[];
       <Card key={g.id}>
         <h3 className={`${STRIP} text-xs font-bold uppercase tracking-wider text-muted`}>{g.title()}</h3>
         <div className={`mb-1 hidden items-center gap-x-4 border-b border-line px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-dim ${ROW_COLS}`} aria-hidden>
-          <span>{tx("Tâche")}</span><span>{tx("Horaire")}</span><span>{tx("Prochain passage")}</span><span />
+          <span>{tx("Tâche")}</span><span className="text-center">{tx("État")}</span><span>{tx("Horaire")}</span><span>{tx("Prochain")}</span><span>{tx("En-tête")}</span><span />
         </div>
         <ul className="flex flex-col divide-y divide-line/60" aria-label={g.title()}>{sections[g.id]}</ul>
       </Card>
@@ -139,7 +140,7 @@ function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[];
 /** Title, scheduler heartbeat and a one-line summary: how many tasks are on, which one is running or failed, which is next */
 function TasksHeader({ tasks, netscan, ago, alive, now, edit, setEdit }: Readonly<{ tasks: SystemTask[]; netscan: SystemState["netscan"]; ago: number | null; alive: boolean; now: number; edit: boolean; setEdit: (on: boolean) => void }>) {
   const items = netscan ? [...tasks, { name: "netscan", label: tx("Recherche réseau"), enabled: netscan.enabled, running: netscan.running, result: netscan.ended ? "success" : null, next: netscan.next }] : tasks;
-  const sum = summarize(items), label = items.find((t) => t.name === sum.next?.name)?.label;
+  const sum = summarize(items), runs = upcoming(items);
   return (
     <Card tone={alive ? undefined : "bad"}>
       <div className={`${STRIP} flex flex-wrap items-center gap-2`}>
@@ -155,8 +156,21 @@ function TasksHeader({ tasks, netscan, ago, alive, now, edit, setEdit }: Readonl
         <span>{tx("{0} tâche(s) active(s) sur {1}", sum.enabled, items.length)}</span>
         {sum.running > 0 && <Badge tone="info"><Loader2 size={12} aria-hidden className="motion-safe:animate-spin" />{tx("{0} en cours", sum.running)}</Badge>}
         {sum.failed > 0 && <Badge tone="bad"><TriangleAlert size={12} aria-hidden />{tx("{0} en échec", sum.failed)}</Badge>}
-        {sum.next && <span>{tx("prochaine : {0}, {1} ({2})", label ?? sum.next.name, hm(sum.next.at * 1000), inText(sum.next.at * 1000 - now))}</span>}
       </p>
+      {runs.length > 0 && (
+        <table className="mt-3 w-full text-sm">
+          <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+            <th className="w-40 px-3 py-1.5">{tx("Prochain passage")}</th><th className="w-40 px-3 py-1.5" aria-label={tx("Délai")} /><th className="px-3 py-1.5">{tx("Tâche")}</th>
+          </tr></thead>
+          <tbody>{runs.map((t) => (
+            <tr key={t.name} className="even:bg-bg/50" title={dateTime(t.next * 1000)}>
+              <td className="px-3 py-1.5 font-mono font-bold tabular-nums">{hm(t.next * 1000)}</td>
+              <td className="px-3 py-1.5 text-xs tabular-nums text-dim">{inText(t.next * 1000 - now)}</td>
+              <td className="px-3 py-1.5">{t.label}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      )}
       {!alive && (
         <p className="mt-3 rounded-lg border border-bad/50 bg-bad/10 px-3 py-2 text-sm">
           <b>{tx("Les horaires ne sont pas appliqués :")}</b> {tx("le planificateur intégré au conteneur (l'équivalent d'une crontab) ne tourne plus, aucune tâche ne part à son heure. Rien à activer : redémarrez le conteneur MyServices. Si le message revient, regardez Réglages → Journaux. En attendant, « Exécuter maintenant » marche toujours.")}
@@ -170,14 +184,14 @@ function TasksHeader({ tasks, netscan, ago, alive, now, edit, setEdit }: Readonl
 function NextRun({ on, t, now }: Readonly<{ on: boolean; t: { running: boolean; started: number | null; next: number | null }; now: number }>) {
   const when = on && t.next !== null && !t.running;
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2 lg:block lg:pt-1" title={when ? dateTime(t.next! * 1000) : undefined}>
-      <span className="text-xs text-dim lg:hidden">{tx("Prochain passage")}</span>
+    <div className="flex flex-wrap items-baseline gap-x-2 min-[1480px]:block min-[1480px]:pt-1" title={when ? dateTime(t.next! * 1000) : undefined}>
+      <span className="text-xs text-dim min-[1480px]:hidden">{tx("Prochain passage")}</span>
       {when ? (
-        <span className="flex items-baseline gap-2 tabular-nums lg:flex-col lg:gap-0">
+        <span className="flex items-baseline gap-2 tabular-nums min-[1480px]:flex-col min-[1480px]:gap-0">
           <b className="font-mono text-sm">{hm(t.next! * 1000)}</b>
           <span className="text-xs text-dim">{inText(t.next! * 1000 - now)}</span>
         </span>
-      ) : <span className="text-xs tabular-nums text-muted lg:block lg:pt-1">{on ? liveText(t, now) : tx("coupée")}</span>}
+      ) : <span className="text-xs tabular-nums text-muted min-[1480px]:block min-[1480px]:pt-1">{on ? liveText(t, now) : tx("coupée")}</span>}
     </div>
   );
 }
@@ -201,20 +215,24 @@ const SHORT_FIND: Record<string, string> = { services: tx("services et ports"), 
 function LastRun({ t }: Readonly<{ t: Pick<SystemTask, "running" | "result" | "started" | "ended"> }>) {
   const failed = !!t.result && t.result !== "success" && !t.running;
   let last: string | null = null;
-  if (t.ended && t.started) last = `${tx("dernier :")} ${dateTime(t.ended * 1000)} (${runLength(t.started, t.ended)})`;
+  if (t.ended && t.started) last = `${dateTime(t.ended * 1000)} (${runLength(t.started, t.ended)})`;
   else if (!t.running) last = tx("pas encore passé depuis le démarrage");
   if (!last && !failed) return null;
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-dim">
-      {last && <span>{last}</span>}
+    <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-dim min-[1480px]:justify-center">
+      {last && <span className="min-[1480px]:whitespace-nowrap" title={tx("Dernier passage")}>{last}</span>}
       {failed && <span className="font-semibold text-bad">{t.result}</span>}
     </div>
   );
 }
 
+function StateCell({ state, on, t }: Readonly<{ state: RunState; on: boolean; t: Parameters<typeof LastRun>[0]["t"] }>) {
+  return <div className="min-[1480px]:pt-1 min-[1480px]:text-center"><StateBadge state={state} />{on && <LastRun t={t} />}</div>;
+}
+
 function RunButton({ label, busy, disabled, onRun }: Readonly<{ label: string; busy: boolean; disabled?: boolean; onRun: () => void }>) {
   return (
-    <div className="flex items-start lg:justify-end">
+    <div className="flex items-start min-[1480px]:justify-end">
       <button type="button" className={`${button} h-9 min-w-[7rem] justify-center border-link/50 bg-link/10 text-txt hover:border-link hover:bg-link/20 active:scale-[0.98] motion-safe:transition`}
         disabled={disabled || busy} aria-busy={busy} aria-label={tx("Lancer {0} maintenant", label)}
         title={tx("Lance la tâche tout de suite, une fois, sans attendre l'horaire ; l'horaire ne change pas")} onClick={onRun}>
@@ -222,6 +240,11 @@ function RunButton({ label, busy, disabled, onRun }: Readonly<{ label: string; b
       </button>
     </div>
   );
+}
+
+function HeaderSwitch({ task }: Readonly<{ task: string }>) {
+  const [on, set] = useHeaderTask(task);
+  return <div className="flex items-center gap-2 text-xs text-dim"><Switch on={on} onChange={set} label={tx("Afficher dans l'en-tête")} /><span className="min-[1480px]:hidden">{tx("Afficher dans l'en-tête")}</span></div>;
 }
 
 function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number; reload: () => void; edit: boolean }>) {
@@ -232,11 +255,10 @@ function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number
     <li className={rowClass(state)}>
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
         <TaskHead name={t.name} title={t.label} state={state} note={note}
-          about={<><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></>}>
-          {t.enabled && <LastRun t={t} />}
-        </TaskHead>
+          about={<><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></>} />
+        <StateCell state={state} on={t.enabled} t={t} />
         <div>
-          <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
+          <span className="mb-1 block text-xs text-dim min-[1480px]:hidden">{tx("Horaire")}</span>
           {!edit && <p className="text-sm">{parsed ? period(parsed) : t.at}{t.at !== t.default && <Dim> · {tx("modifié")}</Dim>}</p>}
           {edit && <>
           <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (parsed) save(at.trim(), tx("horaire enregistré")); }}>
@@ -255,6 +277,7 @@ function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number
           </>}
         </div>
         <NextRun on={t.enabled} t={{ running: t.running, started: t.started, next: t.next ?? null }} now={now} />
+        <HeaderSwitch task={t.name} />
         <RunButton label={t.label} busy={t.running} disabled={!t.enabled}
           onRun={() => void act(() => send("POST", `system/tasks/${t.name}/run`), tx("lancée : son état se met à jour ici"), setNote).then((ok) => ok && reload())} />
       </div>
@@ -331,11 +354,10 @@ function NetscanRow({ n, now, reload, edit }: Readonly<{ n: NonNullable<SystemSt
   return (
     <li className={rowClass(state)}>
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
-        <TaskHead name="netscan" title={tx("Recherche réseau")} state={state} note={note} about={<><span>{desc("netscan")}</span><AlsoFinds task="netscan" /></>}>
-          {n.enabled && <LastRun t={{ running: n.running, result: null, started: n.started, ended: n.ended }} />}
-        </TaskHead>
+        <TaskHead name="netscan" title={tx("Recherche réseau")} state={state} note={note} about={<><span>{desc("netscan")}</span><AlsoFinds task="netscan" /></>} />
+        <StateCell state={state} on={n.enabled} t={{ running: n.running, result: null, started: n.started, ended: n.ended }} />
         <div>
-          <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
+          <span className="mb-1 block text-xs text-dim min-[1480px]:hidden">{tx("Horaire")}</span>
           {!edit && cfg && <p className="text-sm">{cfg.every_h ? tx("toutes les {0} h", cfg.every_h) : tx("coupée")}{cfg.nets.length > 0 && <Dim> · {cfg.nets.join(", ")}</Dim>}{cfg.discreet && <Dim> · {tx("mode discret")}</Dim>}</p>}
           {edit && <>
           <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (valid) save(h); }}>
@@ -358,6 +380,7 @@ function NetscanRow({ n, now, reload, edit }: Readonly<{ n: NonNullable<SystemSt
           </>}
         </div>
         <NextRun on={n.enabled} t={n} now={now} />
+        <HeaderSwitch task="netscan" />
         <RunButton label={tx("Recherche réseau")} busy={n.running}
           onRun={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => reload())} />
       </div>

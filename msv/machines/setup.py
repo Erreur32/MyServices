@@ -51,6 +51,8 @@ from msv.remote import npmapi
 from msv.core.config import CFG, DEFAULTS, HERE
 from msv.remote.sshmux import SSH_MUX
 
+HEALTH_URL = "health/"
+
 CONFIG = Path(os.environ.get("MYSERVICES_CONFIG") or HERE / "config.json")
 META = Path(CFG["meta"])
 EXAMPLE_META = HERE / "services-meta.example.json"
@@ -464,8 +466,8 @@ def setup_config() -> dict:
     val["collector_name"] = ask("Nom de cette machine dans les alertes", val["collector_name"] or socket.gethostname())
     val["discord_webhook"] = ask("Webhook Discord des alertes (vide = aucun)", val["discord_webhook"])
     # Santé des machines : health.py intégré (health_url "health/") ou health-watcher externe (autre URL)
-    if val["health_url"] in ("", "health/"):
-        val["health_url"] = "health/"   # intégrée, toujours allumée (plus d'interrupteur depuis la refonte)
+    if val["health_url"] in ("", HEALTH_URL):
+        val["health_url"] = HEALTH_URL   # intégrée, toujours allumée (plus d'interrupteur depuis la refonte)
     else:
         ok(f"santé : health-watcher externe ({val['health_url']}), gardé")
     if val["discord_webhook"] and yes("Envoyer un message de test sur ce webhook ?", False):
@@ -963,7 +965,7 @@ def check_machine(mip: str, m: dict, aliases: dict[str, str]) -> None:
                  "(image autre que adguard/adguardhome ?)")
     if "adguard_sync" not in m and any("adguardhome-sync" in f"{c[0]} {c[1]}" for c in conts or []):
         ok(f"{label} : adguardhome-sync détecté (lu automatiquement ; \"adguard_sync\": false pour l'ignorer)")
-    if CFG["health_url"] in ("", "health/") and m.get("health") is not False and not m.get("off"):
+    if CFG["health_url"] in ("", HEALTH_URL) and m.get("health") is not False and not m.get("off"):
         check_health(alias, label, m)
 
 

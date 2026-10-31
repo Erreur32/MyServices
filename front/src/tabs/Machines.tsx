@@ -47,7 +47,7 @@ import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernel
 import { MachineIcon } from "../components/MachineIcon";
 import { FollowAsk, FollowIcon } from "../components/MachineFollow";
 import { InfoNote } from "../components/InfoNote";
-import { Badge, Cards, Count, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
+import { Badge, Cards, Count, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, SearchBox, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
@@ -164,7 +164,7 @@ function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number })
 }
 
 /** Clé utilisée par l'alias (chemin et début d'empreinte) */
-function KeyCell({ m }: { m: Machine }) {
+function KeyCell({ m }: Readonly<{ m: Machine }>) {
   const s = m.ssh;
   if (!s) return <Dim>-</Dim>;
   if (!s.identity) return <Dim>{tx("aucune (accès manuel)")}</Dim>;
@@ -172,19 +172,19 @@ function KeyCell({ m }: { m: Machine }) {
 }
 
 /** ✓ vert = sûr, ⚠ orange = à revoir, - = inconnu ; l'explication est au survol */
-function Mark({ tone, title, children }: { tone: "ok" | "warn" | "bad" | "off"; title: string; children: string }) {
+function Mark({ tone, title, children }: Readonly<{ tone: "ok" | "warn" | "bad" | "off"; title: string; children: string }>) {
   const c = { ok: "text-ok", warn: "text-warn", bad: "text-bad", off: "text-dim" }[tone];
   return <span className={`text-base font-bold ${c}`} title={title} aria-label={title}>{children}</span>;
 }
 
-function HostKey({ m }: { m: Machine }) {
+function HostKey({ m }: Readonly<{ m: Machine }>) {
   if (!m.ssh) return <Dim>-</Dim>;
   return m.ssh.host_key ? <Mark tone="ok" title={tx("Clé d'hôte connue (known_hosts)")}>✓</Mark>
     : <Mark tone="bad" title={tx("Clé d'hôte absente de known_hosts : 1re connexion non vérifiée")}>✗</Mark>;
 }
 
 /** Root et mot de passe selon sshd : refusé ou clé seule = vert, autorisé = orange */
-function Sshd({ m, what }: { m: Machine; what: "root" | "pwd" }) {
+function Sshd({ m, what }: Readonly<{ m: Machine; what: "root" | "pwd" }>) {
   if (!m.ssh) return <Dim>-</Dim>;
   const sd = m.info?.sshd || {};
   const v = what === "root" ? sd.permitrootlogin
@@ -197,7 +197,7 @@ function Sshd({ m, what }: { m: Machine; what: "root" | "pwd" }) {
 }
 
 /** Colonnes santé de la v1 : disque le plus rempli, services systemd en échec, mises à jour et redémarrage */
-export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
+export function ResCell({ h, what }: Readonly<{ h?: HealthHost; what: "cpu" | "mem" }>) {
   const v = what === "cpu" ? h?.res?.cpu_pct : h?.res?.mem_pct;
   if (!h?.res?.available || v == null) return <Dim>-</Dim>;
   const tone = what === "mem" && v >= 97 ? "text-bad" : (what === "mem" && v >= 90) || (what === "cpu" && v >= 90) ? "text-warn" : "text-ok";
@@ -446,7 +446,7 @@ function showWatch(root: HTMLElement | null, kind: WatchKind) {
 }
 const WATCH_SMALL_KEY = "ms.machine.watch.small";
 
-function WatchSummary({ items, onShow }: { items: WatchItem[]; onShow?: (kind: WatchKind) => void }) {
+function WatchSummary({ items, onShow }: Readonly<{ items: WatchItem[]; onShow?: (kind: WatchKind) => void }>) {
   const [small, setSmall] = useState(() => { try { return localStorage.getItem(WATCH_SMALL_KEY) === "1"; } catch { return false; } });   // reduced to its title line, kept by this browser
   const pick = (v: boolean) => { setSmall(v); try { localStorage.setItem(WATCH_SMALL_KEY, v ? "1" : "0"); } catch { /* storage refused: the choice lasts this visit */ } };
   if (!items.length) return null;   // nothing to watch: no block
@@ -487,7 +487,7 @@ function chosenSystem(icon?: string | null): string | undefined {
 }
 
 /** Système sur une ligne : logo de la distribution (ou icône de la famille) puis le nom, coupé, entier au survol */
-function OsShort({ m, kind }: { m: Machine; kind: OsKind | null }) {
+function OsShort({ m, kind }: Readonly<{ m: Machine; kind: OsKind | null }>) {
   const os = m.info?.os || m.agent?.os || m.os_hint;
   if (!os && !kind) return <span className="inline-flex items-center gap-1.5"><OsGlyph /><Dim>-</Dim></span>;
   return <span className="inline-flex max-w-[13rem] items-center gap-1.5" title={os || (kind ? OS_LABEL[kind] : "")}><OsGlyph kind={kind} name={os || chosenSystem(m.icon)} /><span className="truncate">{shortOs(os) || (kind ? OS_LABEL[kind] : "")}</span></span>;
@@ -521,7 +521,7 @@ function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanne
   };
 }
 
-function From({ list }: { list: Origin[] }) {
+function From({ list }: Readonly<{ list: Origin[] }>) {
   if (!list.length) return null;
   return (
     <span className="flex flex-wrap items-center gap-x-1.5 text-xs font-normal text-dim">
@@ -537,7 +537,7 @@ function From({ list }: { list: Origin[] }) {
 const HOW: Record<string, string> = { ip: tx("reliée par son adresse IP"), mac: tx("reliée par son adresse MAC"), name: tx("reliée par son nom (à vérifier)") };
 
 /** Matching layer: one badge per tool that sees the machine ; a name match is dashed (weaker than an address) */
-function SeenBy({ links }: { links?: MachineLinks | null }) {
+function SeenBy({ links }: Readonly<{ links?: MachineLinks | null }>) {
   const list = links?.sources ?? [];
   if (!list.length) return null;
   return (
@@ -556,7 +556,7 @@ function SeenBy({ links }: { links?: MachineLinks | null }) {
 const otherNames = (m: Machine) => (m.links?.names ?? []).filter((n) => n.split(".")[0].toLowerCase() !== m.name.toLowerCase());
 
 /** Where UniFi sees the address plugged: the switch and its port, or the access point for a Wi-Fi client */
-function PlugLine({ u }: { u: NonNullable<AddressSheet["unifi"]> }) {
+function PlugLine({ u }: Readonly<{ u: NonNullable<AddressSheet["unifi"]> }>) {
   if (u.wired) return <span><b>{u.switch_name ?? tx("switch")}</b>{u.switch_port != null && <> · {tx("port {0}", u.switch_port)}</>}<Dim> · {tx("filaire")}{u.switch_ip ? ` · ${u.switch_ip}` : ""}{u.switch_model ? ` · ${u.switch_model}` : ""}</Dim></span>;
   return <span><b>{u.ap_name ?? "Wi-Fi"}</b><Dim> · Wi-Fi{u.ap_model ? ` · ${u.ap_model}` : ""}</Dim></span>;
 }
@@ -571,7 +571,7 @@ function forwardText(f: Record<string, unknown>): string {
 }
 
 /** « VM 101 sur pve » / « nœud Proxmox pve » */
-function Virt({ links, version }: { links?: MachineLinks | null; version?: string }) {
+function Virt({ links, version }: Readonly<{ links?: MachineLinks | null; version?: string }>) {
   const g = links?.guest, n = links?.hypervisor;
   if (g) return <>{g.type === "lxc" ? tx("conteneur LXC") : "VM"} {g.vmid} {tx("sur")} <b>{g.node}</b>{g.status && g.status !== "running" && <Dim> · {g.status}</Dim>}</>;
   if (n) return <>{n.source === "proxmox" || !n.source ? tx("nœud Proxmox") : tx("hôte VMware ESXi")} <b>{n.node}</b>{version && <Dim> · {tx("version")} {version}</Dim>}</>;
@@ -580,7 +580,7 @@ function Virt({ links, version }: { links?: MachineLinks | null; version?: strin
 
 
 /** Rubrique du détail, avec d'où viennent ses données à droite de la bande de titre */
-function Section({ icon, title, tone, from, sec, children }: { sec?: string; icon: typeof Info; title: string; tone: "link" | "violet" | "ok" | "warn" | "bad"; from?: Origin[]; children: React.ReactNode }) {
+function Section({ icon, title, tone, from, sec, children }: Readonly<{ sec?: string; icon: typeof Info; title: string; tone: "link" | "violet" | "ok" | "warn" | "bad"; from?: Origin[]; children: React.ReactNode }>) {
   return <DetailSection sec={sec} icon={icon} title={title} tone={tone} right={from?.length ? <From list={from} /> : undefined}>{children}</DetailSection>;
 }
 const Row = DetailRow;
@@ -1788,7 +1788,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, onOpe
 
 const asleep = (m: Machine) => ["off", "disabled"].includes(mState(m));
 
-export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapshot; onMachine: (ip: string) => void; onFilter?: (sel: Selected) => void; initial?: Selected }) {
+export function Machines({ snap, onMachine, onFilter, initial }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; onFilter?: (sel: Selected) => void; initial?: Selected }>) {
   // Health by IP: the health check's, completed by UniFi (through MynetworK) for the devices read no other way (the gateway…)
   const devices = useMemo(() => unifiDevices(snap.data.network), [snap.data.network]);
   const sysUnifi = useMemo(() => unifiSystem(snap.data.network), [snap.data.network]);
@@ -1912,8 +1912,9 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
         if (sel.state?.includes("off")) setHideOff(false);
         f.setSel(sel);
       }} />
-      <FoldPanel id="machines-all" icon={Monitor} title={tx("Toutes les machines")} count={sort.sorted.length} pinned>
-      <FilterBar bare f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
+      <FoldPanel id="machines-all" icon={Monitor} title={tx("Toutes les machines")} count={sort.sorted.length} pinned
+        center={<SearchBox value={f.query} onChange={f.setQuery} placeholder={tx("Nom, IP, rôle, système, compte SSH…")} count={[f.shown.length, f.total]} />}>
+      <FilterBar bare searchBox={false} f={f} placeholder=""
         primary={["alert", "kind"]} oneLine optionsLabel={tx("Affichage")}
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Masquer éteintes et non suivies"), on: hideOff, toggle: () => setHideOff(!hideOff), mark: hideOff ? <EyeOff size={12} aria-hidden /> : <Eye size={12} aria-hidden />, count: nOff }] : []),

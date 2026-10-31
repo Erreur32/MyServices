@@ -29,7 +29,7 @@ function placeTheme(r: Host, site: boolean): string {
   if (theme !== tx("Sites web") && theme !== OTHERS()) return theme;
   return site ? tx("Sites web") : OTHERS();
 }
-const CARD_THEME: Record<string, string[]> = { netatmo: ["Domotique"], tapo: ["Domotique"], freebox: ["Réseau / DNS"], unifi: ["Réseau / DNS"], "upnp-box": ["Réseau / DNS"], fritzbox: ["Réseau / DNS"], sfrbox: ["Réseau / DNS"], livebox: ["Réseau / DNS"], "vodafone-station": ["Réseau / DNS"], "sagemcom-fast": ["Réseau / DNS"], bbox: ["Réseau / DNS"], "swisscom-box": ["Réseau / DNS"], "connect-box": ["Réseau / DNS"], "speedport": ["Réseau / DNS"], "technicolor-gateway": ["Réseau / DNS"], "tmobile-home-internet": ["Réseau / DNS"], "hitron-coda": ["Réseau / DNS"], "verizon-fios": ["Réseau / DNS"], "arris-surfboard": ["Réseau / DNS"] };
+const CARD_THEME: Record<string, string[]> = { netatmo: ["Domotique"], tapo: ["Domotique"], freebox: ["Réseau / DNS"], unifi: ["Réseau / DNS"], "upnp-box": ["Réseau / DNS"], fritzbox: ["Réseau / DNS"], sfrbox: ["Réseau / DNS"], livebox: ["Réseau / DNS"], "vodafone-station": ["Réseau / DNS"], "sagemcom-fast": ["Réseau / DNS"], bbox: ["Réseau / DNS"], "swisscom-box": ["Réseau / DNS"], "connect-box": ["Réseau / DNS"], "liberty-gateway": ["Réseau / DNS"], "speedport": ["Réseau / DNS"], "technicolor-gateway": ["Réseau / DNS"], "tmobile-home-internet": ["Réseau / DNS"], "hitron-coda": ["Réseau / DNS"], "verizon-fios": ["Réseau / DNS"], "arris-surfboard": ["Réseau / DNS"] };
 
 /** Every real domain of a service: its NPM domains, or the ones its Apache / nginx declares */
 export const hostDomains = (r: Host): string[] => (r.domains.length ? r.domains : r.vhost_domains ?? []);

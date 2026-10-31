@@ -32,7 +32,7 @@ export function SearchBox({ value, onChange, placeholder, count, className = "" 
   );
 }
 
-export function Badge({ tone, children, title, outline = false, plainText = false }: { tone: Tone; children: ReactNode; title?: string; outline?: boolean; plainText?: boolean }) {   // outline: the border and the text colour only, no filled background ; plainText: the text in the normal colour (white on dark), the state is carried by the border
+export function Badge({ tone, children, title, outline = false, plainText = false }: Readonly<{ tone: Tone; children: ReactNode; title?: string; outline?: boolean; plainText?: boolean }>) {   // outline: the border and the text colour only, no filled background ; plainText: the text in the normal colour (white on dark), the state is carried by the border
   return (
     <span title={title} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-semibold ${(outline ? TONE[tone].replace(/bg-\S+/, "bg-transparent") : TONE[tone]).replace(plainText ? /text-\S+/ : /$^/, "text-txt")}`}>
       {children}
@@ -41,7 +41,7 @@ export function Badge({ tone, children, title, outline = false, plainText = fals
 }
 
 
-export function Level({ level, children, outline, plainText }: { level: string; children?: ReactNode; outline?: boolean; plainText?: boolean }) {   // outline: border and text colour only; always so for « to watch »
+export function Level({ level, children, outline, plainText }: Readonly<{ level: string; children?: ReactNode; outline?: boolean; plainText?: boolean }>) {   // outline: border and text colour only; always so for « to watch »
   const [tone, label] = LEVEL[level] || ["off", level];
   return <Badge tone={tone} outline={outline ?? level === "warn"} plainText={plainText ?? level === "warn"}>{children ?? label}</Badge>;
 }
@@ -93,7 +93,7 @@ export function TableCard({ title, tone, count, cols, rows, sort, note, empty, f
 }
 
 /** Nombre d'un titre de carte, dans une bulle ronde (teinte au choix : info par défaut) */
-export function Count({ n, tone = "info" }: { n: ReactNode; tone?: "info" | "ok" | "warn" | "bad" | "off" }) {
+export function Count({ n, tone = "info" }: Readonly<{ n: ReactNode; tone?: "info" | "ok" | "warn" | "bad" | "off" }>) {
   const c = { info: "bg-link/15 text-link", ok: "bg-ok/15 text-ok", warn: "bg-warn text-bg", bad: "bg-bad text-bg", off: "bg-bg2 text-muted" }[tone];
   return <span className={`inline-grid h-[22px] min-w-[22px] shrink-0 place-items-center rounded-full px-1.5 align-middle font-mono text-xs font-bold leading-none ${c}`}>{n}</span>;
 }
@@ -103,7 +103,7 @@ export function Loading({ error }: Readonly<{ error?: string }>) {
   return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 }
 
-export function Dim({ children }: { children: ReactNode }) {
+export function Dim({ children }: Readonly<{ children: ReactNode }>) {
   return <span className="text-dim">{children}</span>;
 }
 
@@ -121,7 +121,7 @@ const CARD_TONE: Record<"ok" | "warn" | "bad", string> = {
   bad: "border-bad/50",
 };
 
-export function Card({ children, className = "", tone }: { children: ReactNode; className?: string; tone?: "ok" | "warn" | "bad" }) {
+export function Card({ children, className = "", tone }: Readonly<{ children: ReactNode; className?: string; tone?: "ok" | "warn" | "bad" }>) {
   return <section className={`rounded-2xl border ${tone ? "" : "border-line"} bg-card p-4 shadow-sm ${TITLE} ${tone ? CARD_TONE[tone] : ""} ${className}`}>{children}</section>;
 }
 
@@ -144,7 +144,7 @@ export function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: b
   );
 }
 
-export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions = [], optionsLabel, primary: primaryProp = [], oneLine = false, bare = false }: Readonly<{
+export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions = [], optionsLabel, primary: primaryProp = [], oneLine = false, bare = false, searchBox = true }: Readonly<{
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
   placeholder: string; extra?: ReactNode; side?: ReactNode; options?: FilterOption[];   // side : à droite, sous le bouton « Filtres »
@@ -152,6 +152,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   primary?: string[];
   /** Filtres visibles sur la même ligne que la recherche ; au-delà de 10 pastilles ou si la ligne déborde, ils passent derrière le bouton « Filtres » */
   oneLine?: boolean; bare?: boolean   // bare: no frame of its own (the page's list right under it has one);
+  searchBox?: boolean;   // false: the field lives in the title of the panel (FoldPanel center)
   /** Given: the options are toggles shown on the search line under this caption (« Masquer »), not behind the « Filtres » button */
   optionsLabel?: string;
 }>) {
@@ -164,16 +165,19 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   const wanted = shownGroups.filter((g) => primaryProp.includes(g.facet.key));
   const rowRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
+  const sideRef = useRef<HTMLDivElement>(null);
   const [tooWide, setTooWide] = useState(false);
   useLayoutEffect(() => {
     const row = rowRef.current;
     if (!oneLine || !row) return;
-    const check = () => setTooWide(220 + 400 + (measureRef.current?.scrollWidth ?? 0) > row.clientWidth);   // 220 = search field, 400 = counter, buttons and gaps
+    // 220 = search field, 400 = counter, buttons and gaps; no field here: only what stands on the right, and a gap
+    const taken = () => (searchBox ? 620 : (sideRef.current?.offsetWidth ?? 400) + 24);
+    const check = () => setTooWide(taken() + (measureRef.current?.scrollWidth ?? 0) > row.clientWidth);
     check();
     const ro = new ResizeObserver(check);
     ro.observe(row);
     return () => ro.disconnect();
-  }, [oneLine, wanted.length]);
+  }, [oneLine, searchBox, wanted.length]);
   const collapsed = oneLine && (tooWide || wanted.reduce((n, g) => n + g.chips.length, 0) > 10);
   const primary = collapsed ? [] : primaryProp;
   const inline = shownGroups.filter((g) => primary.includes(g.facet.key));
@@ -198,9 +202,9 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   );
   const inlineFilters = renderInline(inline, oneLine);
   return (
-    <div className={`my-4 flex flex-col gap-3 ${bare ? "" : "rounded-2xl border border-line bg-card/70 p-3"}`}>
+    <div className={`${searchBox ? "my-4" : "mb-4"} flex flex-col gap-3 ${bare ? "" : "rounded-2xl border border-line bg-card/70 p-3"}`}>
       <div ref={rowRef} className={`flex items-center gap-3 ${oneLine && !collapsed ? "flex-nowrap" : "flex-wrap"}`}>
-        <SearchBox value={f.query} onChange={f.setQuery} placeholder={placeholder} count={[f.shown.length, f.total]} />
+        {searchBox && <SearchBox value={f.query} onChange={f.setQuery} placeholder={placeholder} count={[f.shown.length, f.total]} />}
         {oneLine && inlineFilters}
         {optionsLabel && allOptions.length > 0 && (
           <span className="flex flex-wrap items-center gap-1.5">
@@ -215,7 +219,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
           </button>
         )}
         {((groups.length > 0 || options.length > 0) || side || extra) && (
-          <div className="ml-auto flex flex-col items-end gap-1.5">
+          <div ref={sideRef} className="ml-auto flex flex-col items-end gap-1.5">
             <div className="flex flex-wrap items-center justify-end gap-2">
               {extra}
               {(groups.length > 0 || options.length > 0) && (
@@ -295,9 +299,9 @@ function SortLabel({ k, sort, children }: Readonly<{ k: string; sort: ColumnSort
   );
 }
 
-export function Th({ k, sort, children, className = "", title }: {
+export function Th({ k, sort, children, className = "", title }: Readonly<{
   title?: string; k?: string; sort?: ColumnSort; children?: ReactNode; className?: string;
-}) {
+}>) {
   return (
     <th title={title} className={`sticky top-0 z-10 whitespace-nowrap border-b border-line bg-bg2 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim ${className}`}>
       {k && sort ? <SortLabel k={k} sort={sort}>{children}</SortLabel> : children}
@@ -317,16 +321,16 @@ export function Table({ head, children, fit = false, fixed = false }: Readonly<{
 }
 
 /** Version mobile d'un tableau : une fiche par ligne */
-export function Cards({ children, always = false, dense = false }: { children: ReactNode; always?: boolean; dense?: boolean }) {  // always : aussi sur grand écran (choix « Cartes ») ; dense : cartes compactes, une colonne de plus
+export function Cards({ children, always = false, dense = false }: Readonly<{ children: ReactNode; always?: boolean; dense?: boolean }>) {  // always : aussi sur grand écran (choix « Cartes ») ; dense : cartes compactes, une colonne de plus
   if (!always) return <div className="flex flex-col gap-2.5 md:hidden">{children}</div>;
   return <div className={`grid gap-2.5 md:grid-cols-2 ${dense ? "lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" : "xl:grid-cols-3"}`}>{children}</div>;
 }
 
-export function Empty({ children }: { children: ReactNode }) {
+export function Empty({ children }: Readonly<{ children: ReactNode }>) {
   return <p className="rounded-2xl border border-dashed border-line p-8 text-center text-muted">{children}</p>;
 }
 
-export function Td({ children, className = "" }: { children?: ReactNode; className?: string }) {
+export function Td({ children, className = "" }: Readonly<{ children?: ReactNode; className?: string }>) {
   return <td className={`px-3 py-2.5 align-top ${className}`}>{children}</td>;
 }
 

@@ -55,7 +55,7 @@ class HttpStatus(ConnectorError):
 def md5_sha512(text: str) -> str:
     """The box's browser code hashes the low 8 bits of each character."""
     raw = bytes(ord(c) & 0xFF for c in text)
-    return hashlib.sha512(hashlib.md5(raw).hexdigest().encode()).hexdigest()
+    return hashlib.sha512(hashlib.md5(raw).hexdigest().encode()).hexdigest()  # NOSONAR MD5 is imposed by the box login script, we must send the same value it computes
 
 
 def luci_password(password: str, token: str) -> str:

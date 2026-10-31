@@ -33,6 +33,27 @@ class TempLevel(unittest.TestCase):
 
 
 @unittest.skipIf(health is None, "health.py needs its dependencies (run in the image)")
+class TrackChecks(unittest.TestCase):
+    def test_a_control_keeps_its_date_until_it_is_back_to_ok(self):
+        h = {"id": "a", "checks": {"disk": "warn"}}
+        first = health.track_checks([h], {}, 1000.0)
+        self.assertEqual((first, h["check_s"]), ({"a": {"disk": 1000.0}}, {"disk": 0}))
+        h = {"id": "a", "checks": {"disk": "crit", "res": "warn"}}
+        second = health.track_checks([h], first, 1600.0)
+        self.assertEqual((second["a"], h["check_s"]), ({"disk": 1000.0, "res": 1600.0}, {"disk": 600, "res": 0}))
+        h = {"id": "a", "checks": {"res": "warn"}}
+        self.assertEqual(health.track_checks([h], second, 1700.0), {"a": {"res": 1600.0}})
+
+    def test_the_heat_goes_on_counting_between_two_readings(self):
+        h = {"id": "a", "checks": {"temp": "warn"}, "temp": {"celsius": 90, "hot_since": 1000.0, "hot_s": 60}}
+        health.track_checks([h], {}, 4600.0)
+        self.assertEqual(h["temp"]["hot_s"], 3600)
+
+    def test_a_machine_not_read_keeps_its_dates(self):
+        self.assertEqual(health.track_checks([{"id": "a"}], {"a": {"disk": 1000.0}}, 2000.0), {"a": {"disk": 1000.0}})
+
+
+@unittest.skipIf(health is None, "health.py needs its dependencies (run in the image)")
 class TrackHeat(unittest.TestCase):
     def test_counts_since_the_first_hot_pass(self):
         h = {"temp": {"available": True, "celsius": 90.0}}

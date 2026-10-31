@@ -147,8 +147,10 @@ class HttpDigest(unittest.TestCase):
         self.assertEqual((str(got), op.call_count), ("HTTP 401", 1))
 
     def test_without_digest_nothing_is_retried(self):
-        with mock.patch.object(base.urllib.request, "urlopen", side_effect=[self._error(401, Digest.CHALLENGE)]) as op, self.assertRaises(ConnectorError):
-            Context().http("http://box/x")
+        with mock.patch.object(base.urllib.request, "urlopen", side_effect=[self._error(401, Digest.CHALLENGE)]) as op:
+            ctx = Context()
+            with self.assertRaises(ConnectorError):
+                ctx.http("http://box/x")
         self.assertEqual(op.call_count, 1)
 
 
@@ -243,30 +245,35 @@ class Reading(unittest.TestCase):
 class Failures(unittest.TestCase):
     def test_a_refused_login_stops_at_the_first_call(self):
         ctx = FakeContext(FULL, refused=True)
+        box = FritzBox(conf(), ctx)
         with self.assertRaises(ConnectorError) as e:
-            FritzBox(conf(), ctx).collect()
+            box.collect()
         self.assertIn("utilisateur ou mot de passe refusé", str(e.exception))
         self.assertEqual(len([c for c in ctx.calls if c[0] == "POST"]), 1, "the box locks an address that keeps trying")
         self.assertNotIn(SECRET, str(e.exception))
 
     def test_tr064_off(self):
+        box = FritzBox(conf(), FakeContext({}, no_tr064=True))
         with self.assertRaises(ConnectorError) as e:
-            FritzBox(conf(), FakeContext({}, no_tr064=True)).collect()
+            box.collect()
         self.assertIn("TR-064 est coupé", str(e.exception))
 
     def test_a_device_without_services(self):
+        box = FritzBox(conf(), FakeContext({}, desc=b'<root xmlns="urn:dslforum-org:device-1-0"><device/></root>'))
         with self.assertRaises(ConnectorError) as e:
-            FritzBox(conf(), FakeContext({}, desc=b'<root xmlns="urn:dslforum-org:device-1-0"><device/></root>')).collect()
+            box.collect()
         self.assertIn("aucun service TR-064", str(e.exception))
 
     def test_an_account_without_the_right_gets_only_500(self):
+        box = FritzBox(conf(), FakeContext({}))
         with self.assertRaises(ConnectorError) as e:
-            FritzBox(conf(), FakeContext({})).collect()
+            box.collect()
         self.assertIn("refuse la lecture", str(e.exception))
 
     def test_unreadable_xml_is_an_error_not_a_crash(self):
+        box = FritzBox(conf(), FakeContext({}, desc=b"<<<"))
         with self.assertRaises(ConnectorError):
-            FritzBox(conf(), FakeContext({}, desc=b"<<<")).collect()
+            box.collect()
 
     def test_the_test_button_shows_no_secret_and_no_address(self):
         r = FritzBox(conf(), FakeContext(FULL)).test()

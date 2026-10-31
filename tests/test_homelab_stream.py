@@ -189,6 +189,8 @@ class Stream(unittest.TestCase):
             self.assertEqual((d["version"], Fake.logins), ("0.16.2", 1))
             c.collect()
             self.assertEqual(Fake.logins, 1, "the token is kept between calls")
+            self.make(Frigate, user="viewer", password=PW).collect()
+            self.assertEqual(Fake.logins, 1, "a connector built again keeps the session of its account")
             Fake.token = "jwt-" + "b" * 12   # expired: one new sign-in
             c.collect()
             self.assertEqual(Fake.logins, 2)

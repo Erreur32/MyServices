@@ -15,7 +15,7 @@ export interface NewService {
   machine?: string | null; ip?: string | null; port?: number | null; since?: number | null;
 }
 
-export function NewServices({ generated }: { generated?: string }) {   // generated: read again when a collection ends
+export function NewServices({ generated }: Readonly<{ generated?: string }>) {   // generated: read again when a collection ends
   const [items, setItems] = useState<NewService[]>([]), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const load = useCallback(() => {
     read<{ items: NewService[] }>("services/new").then((d) => setItems(d.items))

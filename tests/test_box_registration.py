@@ -8,7 +8,7 @@ import connectors
 from connectors.settings import category
 
 BOXES = {"sfrbox": (), "livebox": ("password",), "vodafone-station": ("password",), "sagemcom-fast": ("password",), "bbox": ("password",),
-         "swisscom-box": ("password",), "connect-box": ("password",), "speedport": ("password",), "technicolor-gateway": ("password",),
+         "swisscom-box": ("password",), "connect-box": ("password",), "liberty-gateway": ("password",), "speedport": ("password",), "technicolor-gateway": ("password",),
          "tmobile-home-internet": ("password",), "hitron-coda": ("password",), "verizon-fios": ("password",), "arris-surfboard": ("password",)}
 
 

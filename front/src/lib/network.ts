@@ -2,7 +2,7 @@
 import type { Snapshot } from "../api";
 
 /** Status cards shown in the Network tab rather than in Health */
-export const NETWORK_CARDS = ["freebox", "unifi", "upnp-box", "fritzbox", "sfrbox", "livebox", "vodafone-station", "sagemcom-fast", "bbox", "swisscom-box", "connect-box", "speedport", "technicolor-gateway", "tmobile-home-internet", "hitron-coda", "verizon-fios", "arris-surfboard", "opnsense", "netalertx", "speedtest-tracker", "tailscale"];
+export const NETWORK_CARDS = ["freebox", "unifi", "upnp-box", "fritzbox", "sfrbox", "livebox", "vodafone-station", "sagemcom-fast", "bbox", "swisscom-box", "connect-box", "liberty-gateway", "speedport", "technicolor-gateway", "tmobile-home-internet", "hitron-coda", "verizon-fios", "arris-surfboard", "opnsense", "netalertx", "speedtest-tracker", "tailscale"];
 
 /** Something to show: a network source that answers (or answered: stale), or devices already found */
 export function hasNetwork(s: Snapshot): boolean {

@@ -79,6 +79,8 @@ describe("sshNeed", () => {
     expect(sshNeed(false, [], false, false, false)).toBe("no_agent");
     expect(sshNeed(false, [], false, false, true)).toBe("offer_agent");
     expect(sshNeed(false, [], false, false)).toBe("offer_agent");
+    expect(sshNeed(false, [], true, true, true, true)).toBe("partial");
+    expect(sshNeed(false, ["npm"], true, true, true, true)).toBe("uses");
   });
   it("has nothing to say on an access already cut", () => expect(sshNeed(true, ["npm"], true, true)).toBe("cut"));
 });

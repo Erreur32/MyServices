@@ -113,4 +113,17 @@ describe("à surveiller", () => {
     expect(explained).toHaveLength(1);   // the measured sentence, not the general one too
     expect(explained[0].text).toBe("mémoire utilisée à 92 %");
   });
+
+  it("dit depuis quand et donne le détail", () => {
+    const [hot] = healthItems(health({ temp: { available: true, celsius: 90, level: "warn", warn_c: 85, crit_c: 95, hot_s: 4550, sensors: [{ name: "a", celsius: 60 }, { name: "b", celsius: 92 }] },
+      load: { available: true, load_1: 2.5, ncpu: 20 }, check_s: { temp: 4550 } }));
+    expect(hot.text).toBe("processeur à 90 °C depuis 1 h 15 min");   // said once, not twice
+    expect(hot.detail).toEqual(["Avertissement à 85 °C, critique à 95 °C", "Capteur le plus chaud : b à 92 °C", "charge 2.5 pour 20 CPU"]);
+    const [mem] = healthItems(health({ res: { available: true, mem_pct: 92, mem_used_mb: 7372, mem_total_mb: 8000 }, check_s: { res: 7200 } }));
+    expect(mem.text).toBe("mémoire utilisée à 92 % (7,2 Go sur 7,8 Go), depuis 2 h 0 min");
+    const [disk] = healthItems(health({ disks: [{ mount: "/", used_pct: 91, warning: true, avail_gb: 9, size_gb: 100 }], check_s: { disk: 0 } }));
+    expect(disk.text).toBe("disque / rempli à 91 % (9,0 Go libres sur 100 Go)");   // first pass: no date yet
+    const [upd] = healthItems(health({ apt: { upgradable: 3, security: 1, sample: ["curl"] } }));
+    expect(upd).toMatchObject({ text: "3 mise(s) à jour en attente, dont 1 de sécurité", detail: ["curl"] });
+  });
 });

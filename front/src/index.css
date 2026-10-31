@@ -91,15 +91,20 @@ body {
 .range::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 9999px; background: rgb(var(--link)); box-shadow: 0 0 0 3px rgb(var(--link) / 0.25); }
 .range:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--link) / 0.35); }
 
-/* Barre de scan (ScanBar) : dégradé lien -> ok, reflet qui avance ; sans progression connue, bloc qui va et vient */
+/* Barre de scan (ScanBar) : dégradé lien -> ok, reflet qui avance ; sans progression connue, bloc qui va et vient. Un dégradé par tâche, avec les couleurs du thème */
 /* Figure of a state tile in warning: the yellow of the theme, softer (a little less on the light theme, where the amber is already dark) */
 .tile-warn { color: rgb(var(--warn) / .72); }
 :root.light .tile-warn, .theme-light .tile-warn { color: rgb(var(--warn) / .9); }
-.scan-fill { background: linear-gradient(90deg, rgb(var(--link)), rgb(var(--ok))); transition: width .6s ease; position: relative; overflow: visible; box-shadow: 0 0 10px rgb(var(--link) / .55), 0 0 18px rgb(var(--ok) / .35); }
+.scan-collect { --scan-a: var(--link); --scan-b: var(--ok); }
+.scan-netscan { --scan-a: var(--apache); --scan-b: var(--link); }
+.scan-watch { --scan-a: var(--loc); --scan-b: var(--apache); }
+.scan-health { --scan-a: var(--ok); --scan-b: var(--loc); }
+.scan-backups { --scan-a: var(--npm); --scan-b: var(--bad); }
+.scan-fill { background: linear-gradient(90deg, rgb(var(--scan-a)), rgb(var(--scan-b))); transition: width .6s ease; position: relative; overflow: visible; box-shadow: 0 0 10px rgb(var(--scan-a) / .55), 0 0 18px rgb(var(--scan-b) / .35); }
 /* flowing stripes over the whole fill, and a bright head that pulses at its end */
-.scan-fill::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgb(255 255 255 / .22) 0 6px, transparent 6px 12px); background-size: 17px 100%; animation: scan-stripes .9s linear infinite; opacity: .8; }
-.scan-head { position: absolute; right: -3px; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 9999px; background: rgb(255 255 255 / .95); box-shadow: 0 0 8px 3px rgb(var(--ok) / .8); animation: scan-head 1.1s ease-in-out infinite; }
-.scan-wait { width: 30%; background: linear-gradient(90deg, transparent, rgb(var(--link)), rgb(var(--ok)), transparent); animation: scan-wait 1.4s ease-in-out infinite alternate; }
+.scan-fill::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgb(255 255 255 / .22) 0 6px, transparent 6px 12px); background-size: 17px 100%; animation: scan-stripes 1.8s linear infinite; opacity: .8; }
+.scan-head { position: absolute; right: -3px; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 9999px; background: rgb(255 255 255 / .95); box-shadow: 0 0 8px 3px rgb(var(--scan-b) / .8); animation: scan-head 2s ease-in-out infinite; }
+.scan-wait { width: 30%; background: linear-gradient(90deg, transparent, rgb(var(--scan-a)), rgb(var(--scan-b)), transparent); animation: scan-wait 2.6s ease-in-out infinite alternate; }
 @keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scan-stripes { to { background-position: 17px 0; } }
 @keyframes scan-head { 0%, 100% { transform: scale(.8); opacity: .75; } 50% { transform: scale(1.35); opacity: 1; } }

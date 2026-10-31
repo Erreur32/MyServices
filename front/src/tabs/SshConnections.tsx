@@ -6,6 +6,7 @@ import { Cpu, Plus, Terminal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
 import type { Advice, AgentInfo, MachinesSettings, SystemState } from "../types";
+import { AgentGaps } from "../components/AgentGaps";
 import { AppKeyBand, keyOf } from "../components/AppKey";
 import { Badge, Dim, type Tone } from "../components/ui";
 import { StatTile } from "../components/StatTile";
@@ -31,7 +32,7 @@ const STATE: Record<SshState, [Tone, string]> = {
 };
 
 /** The two lines of a machine that must keep its SSH: why it does, and what can still be done */
-function KeepSsh({ why, children }: Readonly<{ why: string; children?: ReactNode }>) {
+function KeepSsh({ why, children }: Readonly<{ why: ReactNode; children?: ReactNode }>) {
   return (
     <span className="flex flex-col items-start gap-0.5 text-xs">
       <Badge tone="warn">{tx("SSH à garder")}</Badge>
@@ -41,7 +42,7 @@ function KeepSsh({ why, children }: Readonly<{ why: string; children?: ReactNode
   );
 }
 
-function SshAdvice({ ip, need, uses, canInstall }: Readonly<{ ip: string; need: SshNeed; uses: string[]; canInstall: boolean }>) {
+function SshAdvice({ ip, need, uses, canInstall, gaps }: Readonly<{ ip: string; need: SshNeed; uses: string[]; canInstall: boolean; gaps: string[] }>) {
   const install = <a href={`#machines/${ip}/agent`} className="inline-flex items-center gap-1 text-xs text-link hover:underline"><Cpu size={13} aria-hidden />{tx("Installer l'agent")} ›</a>;
   const agentPage = <a href={`#machines/${ip}/agent`} className="text-link hover:underline">{tx("Page de l'agent")} ›</a>;
   switch (need) {
@@ -49,10 +50,12 @@ function SshAdvice({ ip, need, uses, canInstall }: Readonly<{ ip: string; need: 
     case "offer_agent": return install;
     case "no_agent": return <KeepSsh why={tx("Aucun agent ne s'installe sur ce système.")} />;
     case "silent": return <KeepSsh why={tx("L'agent n'envoie plus de relevé : le SSH prend le relais.")}>{agentPage}</KeepSsh>;
+    case "partial": return <KeepSsh why={<AgentGaps gaps={gaps} />}>{agentPage}</KeepSsh>;
     case "uses": return <KeepSsh why={tx("L'agent ne lit pas : {0}", useText(uses))}>{canInstall && install}</KeepSsh>;
     default: return (
       <span className="flex flex-col items-start gap-0.5 text-xs">
         <Badge tone="info">{tx("SSH facultatif : l'agent suffit")}</Badge>
+        <span className="text-muted">{tx("Vous pouvez retirer le SSH de cette machine : « Couper le SSH » le désactive, rien n'est coupé tout seul.")}</span>
         <span className="flex gap-3">{agentPage}<a href={`#settings/machines/ssh/${ip}`} className="text-link hover:underline">{tx("Couper le SSH")} ›</a></span>
       </span>
     );
@@ -83,9 +86,10 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
   const count = (s: SshState) => rows.filter((r) => r.state === s).length;
   const refused = count("refused");
   const usesOf = (ip: string) => st.ssh_uses?.[ip] ?? [];
-  const needOf = (r: SshRow) => sshNeed(r.state === "off", usesOf(r.ip), withAgent.has(r.ip), working.has(r.ip), advice[r.ip]?.agent_possible);
+  const gapsOf = (ip: string) => agents.find((a) => a.ip === ip && a.state === "actif")?.gaps ?? [];
+  const needOf = (r: SshRow) => sshNeed(r.state === "off", usesOf(r.ip), withAgent.has(r.ip), working.has(r.ip), advice[r.ip]?.agent_possible, gapsOf(r.ip).length > 0);
   const needs = rows.map(needOf);
-  const keep = needs.filter((n) => n === "uses" || n === "no_agent" || n === "silent").length;
+  const keep = needs.filter((n) => n === "uses" || n === "no_agent" || n === "silent" || n === "partial").length;
   return (
     <div className="flex flex-col gap-4">
       <PageHead icon={Terminal} title={tx("Connexions SSH")} tags={<span className="flex flex-wrap items-center gap-1.5 text-sm"><Badge tone="info" outline>{tx("{0} connexion(s)", rows.length)}</Badge></span>}
@@ -121,7 +125,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
                       <td className="px-3 py-2 font-mono text-xs">{r.access || <Dim>-</Dim>}</td>
                       <td className="px-3 py-2">{r.state === "off" || !seen?.ssh ? <Dim>-</Dim> : <Badge tone={keyTone} title={seen.ssh.key_fp ?? undefined}>{keyLabel}</Badge>}</td>
                       <td className="px-3 py-2"><Badge tone={tone} title={r.message || undefined}>{label}</Badge></td>
-                      <td className="px-3 py-2"><SshAdvice ip={r.ip} need={needOf(r)} uses={usesOf(r.ip)} canInstall={!withAgent.has(r.ip) && advice[r.ip]?.agent_possible !== false} /></td>
+                      <td className="px-3 py-2"><SshAdvice ip={r.ip} need={needOf(r)} uses={usesOf(r.ip)} gaps={gapsOf(r.ip)} canInstall={!withAgent.has(r.ip) && advice[r.ip]?.agent_possible !== false} /></td>
                       <td className="px-3 py-2 text-right"><SettingsLink href={`#settings/machines/ssh/${r.ip}`} of={r.name} /></td>
                     </tr>
                   );

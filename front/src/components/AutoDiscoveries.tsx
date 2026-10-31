@@ -13,7 +13,7 @@ export const DISCOVERED_BY: Record<string, string[]> = { collect: ["services", "
 const COVERED = new Set(Object.values(DISCOVERED_BY).flat());
 
 /** One row: icon, what it is and why, then mode and dates on one line; the button on the right */
-function ManualRow({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines: Snapshot["data"]["machine_list"] }) {
+function ManualRow({ x, reload, machines }: Readonly<{ x: DiscoveryItem; reload: () => void; machines: Snapshot["data"]["machine_list"] }>) {
   const m = MODE[x.mode], last = when(x.last), next = when(x.next);
   return (
     <li className="flex flex-wrap items-start gap-x-3 gap-y-2 py-3 md:flex-nowrap">
@@ -33,15 +33,15 @@ function ManualRow({ x, reload, machines }: { x: DiscoveryItem; reload: () => vo
   );
 }
 
-export function AutoDiscoveries({ machines }: { machines: Snapshot["data"]["machine_list"] }) {
+export function AutoDiscoveries({ machines }: Readonly<{ machines: Snapshot["data"]["machine_list"] }>) {
   const [disc, reload] = useDiscoveries();
   const items = (disc?.items ?? []).filter((x) => x.state !== "todo" && x.state !== "suggest" && x.id !== "hosts" && !x.muted && x.running !== false
     && !COVERED.has(x.id) && !x.id.startsWith("connector:"));
   if (!items.length) return null;
   return (
     <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Hand size={16} aria-hidden />{tx("À la main ou une seule fois")} <Count n={items.length} /></h2>
-      <InfoNote>{tx("Ces recherches ne suivent pas d'horaire : à lancer quand c'est utile, ou faites une seule fois.")}</InfoNote>
+      <h2 className="mb-1 flex items-center gap-2 font-bold"><Hand size={16} aria-hidden />{tx("Recherches sans horaire")} <Count n={items.length} /></h2>
+      <InfoNote>{tx("Rien à faire au quotidien. À utiliser seulement après un changement : nouvelle appli, système réinstallé, autre dossier de sauvegarde.")}</InfoNote>
       <ul className="mt-2 flex flex-col divide-y divide-line/60">{items.map((x) => <ManualRow key={x.id} x={x} reload={reload} machines={machines} />)}</ul>
     </Card>
   );

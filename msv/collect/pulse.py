@@ -45,13 +45,25 @@ def port_of(r: dict) -> str | None:
     A port that answers without a web page (SSH, mail, SMB, a database) is left out: a silent connection every minute fills its logs and
     can get MyServices banned by Fail2ban. It stays read at the collection."""
     b = r.get("backend") or {}
-    if not r.get("enabled") or r.get("paused") or r.get("machine_off") or r.get("stopped") or b.get("internal") or (b.get("up") and r.get("web") == "none"):
+    silent = b.get("up") and r.get("web") == "none" and not r.get("by_agent")   # by_agent: its state comes from the agent's report, no connection
+    if not r.get("enabled") or r.get("paused") or r.get("machine_off") or r.get("stopped") or b.get("internal") or silent:
         return None
     return f'{r["ip"]}:{r["port"]}' if r.get("ip") and r.get("port") and isinstance(b.get("up"), bool) else None
 
 
+def agent_states(hosts: list[dict], listening: dict[str, set[int]]) -> dict[str, bool]:
+    """{« ip:port »: listening} for the followed rows flagged `by_agent` whose machine has a fresh agent report with listening ports. A row
+    whose agent is silent or sends no ports is left out: it is neither probed nor announced down, the collection's state stays."""
+    out = {}
+    for r in hosts:
+        key = port_of(r)
+        if key and r.get("by_agent") and r["ip"] in listening:
+            out[key] = int(r["port"]) in listening[r["ip"]]
+    return out
+
+
 class Pulse:
-    """Confirmed ping state of each machine: {ip: {"ping", "ms", "since", "streak"}}."""
+    """Confirmed ping state of each machine: {ip: {"ping", "ms", "since", "streak", "began"}}."""
 
     def __init__(self, path: Path, confirm: int = 2, probe=ping) -> None:
         self.path, self.confirm, self.probe = path, max(1, confirm), probe
@@ -70,6 +82,8 @@ class Pulse:
                 continue
             s["ms"] = ms if up else None
             s["streak"] = 0 if up == s["ping"] else s["streak"] + 1
+            if s["streak"] == 1:
+                s["began"] = now   # the first contrary pulse: when a change confirmed later really began (availability.record)
             if s["streak"] >= self.confirm:
                 s.update(ping=up, since=now, streak=0)
                 changed.append(ip)

@@ -9,18 +9,25 @@ count as downtime. Two tables keep the size small:
   avail_samples  one row per thing and collection, kept SAMPLE_DAYS days (the last day in detail, the hour strip)
   avail_days     one row per thing and day (points, points up, sum of response times), kept DAY_DAYS days (stats, day strip)
 avail_items gives each key its label, kind and machine. Older rows are purged at each sample().
+
+The pulses (pulse.py: machine ping every 30 s, service port every minute) add a third table, with no extra request: record() keeps, for what
+they follow, runs of the same state { key, first and last pulse seen, up }. A healthy thing is one row that grows; a new row only appears when
+its state changes (or after a hole longer than `gap`), so an outage of a minute is a row of a minute and the table stays small (a few rows per
+thing and per day at most, kept DAY_DAYS days). report() reads a cell from the runs where they cover it, from the collections elsewhere.
 """
 from __future__ import annotations
 
 import json
 import sqlite3
 import time
+from bisect import bisect_right
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
 SAMPLE_DAYS = 14
 DAY_DAYS = 365
+QUARTER = 900   # s: a cell of the 24 h view; also what one collection stands for in a mix (shortcut: the default 15 minutes, read the setting if it matters)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS avail_items (key TEXT PRIMARY KEY, kind TEXT NOT NULL, label TEXT, machine TEXT, target TEXT, seen REAL NOT NULL);
@@ -29,6 +36,8 @@ CREATE TABLE IF NOT EXISTS avail_samples (key TEXT NOT NULL, ts INTEGER NOT NULL
 CREATE INDEX IF NOT EXISTS avail_samples_ts ON avail_samples(ts);
 CREATE TABLE IF NOT EXISTS avail_days (key TEXT NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL, up INTEGER NOT NULL,
   ms_sum INTEGER NOT NULL DEFAULT 0, ms_n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (key, day)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS avail_runs (key TEXT NOT NULL, t0 INTEGER NOT NULL, t1 INTEGER NOT NULL, up INTEGER NOT NULL, PRIMARY KEY (key, t0)) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS avail_runs_t1 ON avail_runs(t1);
 """
 
 
@@ -105,40 +114,98 @@ def sample(db_path: str | Path, data_file: Path, now: float | None = None) -> in
     return n
 
 
+def record(db_path: str | Path, states: dict[str, tuple[bool, float | None]], now: float, gap: float) -> None:
+    """What the pulses know right now, {key: (confirmed state, when it began)}: the last run of the key grows while its state holds and the hole
+    since its last pulse is at most `gap` s; else a run starts (at the first contrary pulse when the state just changed, which the pulse
+    only confirmed a few seconds later)."""
+    at = int(now)
+    with _db(db_path) as db:
+        db.execute("BEGIN")
+        for key, (up, began) in states.items():
+            last = db.execute("SELECT t0, t1, up FROM avail_runs WHERE key = ? ORDER BY t0 DESC LIMIT 1", (key,)).fetchone()
+            joined = last is not None and at - last["t1"] <= gap
+            if joined and bool(last["up"]) == up:
+                db.execute("UPDATE avail_runs SET t1 = ? WHERE key = ? AND t0 = ?", (at, key, last["t0"]))
+                continue
+            t0 = at
+            if joined:
+                t0 = min(max(int(began or at), last["t0"] + 1), at)
+                db.execute("UPDATE avail_runs SET t1 = ? WHERE key = ? AND t0 = ?", (t0, key, last["t0"]))
+            db.execute("INSERT OR REPLACE INTO avail_runs (key, t0, t1, up) VALUES (?, ?, ?, ?)", (key, t0, at, int(up)))
+        db.execute("DELETE FROM avail_runs WHERE t1 < ?", (now - DAY_DAYS * 86400,))
+        db.execute("COMMIT")
+
+
+def _run_cells(runs: list[tuple[int, int, int]], slots: list[int], width: int) -> dict[int, list[int]]:
+    """{slot index: [seconds covered by the runs, seconds up]} for the runs (t0, t1, up) of one key; a slot lasts until the next one (`width` for the last)."""
+    out: dict[int, list[int]] = {}
+    for t0, t1, up in runs:
+        i = max(bisect_right(slots, t0) - 1, 0)
+        while i < len(slots) and slots[i] < t1:
+            end = slots[i + 1] if i + 1 < len(slots) else slots[i] + width
+            sec = min(t1, end) - max(t0, slots[i])
+            if sec > 0:
+                c = out.setdefault(i, [0, 0])
+                c[0] += sec
+                c[1] += sec * up
+            i += 1
+    return out
+
+
 def report(db_path: str | Path, days: int = 30, now: float | None = None) -> dict:
-    """Per thing: uptime % and mean response time over `days`, one cell per day (or per hour over 1 day), last state.
-    Worst uptime first. Cells: {"t": start (s), "pct": 0..100 or None when nothing was sampled}."""
+    """Per thing: uptime % and mean response time over `days`, one cell per quarter of an hour (over 1 day) or per day, last state.
+    Worst uptime first. Cells: {"t": start (s), "pct": 0..100 or None when nothing was sampled}. A cell the pulses' runs cover comes from
+    them (to the minute), else from the collections; `samples` and `down` count readings of QUARTER s either way."""
     now = now or time.time()
     days = min(max(int(days), 1), DAY_DAYS)
     with _db(db_path) as db:
         items = {r["key"]: dict(r) for r in db.execute("SELECT key, kind, label, machine, target, seen FROM avail_items WHERE seen >= ?", (now - days * 86400,))}
         last = {r["key"]: (r["ts"], bool(r["up"])) for r in db.execute(
             "SELECT s.key, s.ts, s.up FROM avail_samples s JOIN (SELECT key, MAX(ts) AS ts FROM avail_samples GROUP BY key) m ON s.key = m.key AND s.ts = m.ts")}
-        if days == 1:   # hourly cells from the samples
-            start = int(now // 3600 * 3600) - 23 * 3600
-            rows = db.execute("SELECT key, ts / 3600 * 3600 AS t, COUNT(*) AS n, SUM(up) AS up, SUM(COALESCE(ms, 0)) AS ms_sum, COUNT(ms) AS ms_n "
-                              "FROM avail_samples WHERE ts >= ? GROUP BY key, t", (start,)).fetchall()
-            slots = [start + i * 3600 for i in range(24)]
+        for r in db.execute("SELECT r.key, r.t1, r.up FROM avail_runs r JOIN (SELECT key, MAX(t0) AS t0 FROM avail_runs GROUP BY key) m ON r.key = m.key AND r.t0 = m.t0"):
+            if r["t1"] >= (last.get(r["key"]) or (0,))[0]:   # a pulse is fresher than the last collection
+                last[r["key"]] = (r["t1"], bool(r["up"]))
+        if days == 1:   # a cell per quarter of an hour, from the samples
+            start = int(now // QUARTER * QUARTER) - 95 * QUARTER
+            rows = db.execute("SELECT key, ts / ? * ? AS t, COUNT(*) AS n, SUM(up) AS up, SUM(COALESCE(ms, 0)) AS ms_sum, COUNT(ms) AS ms_n "
+                              "FROM avail_samples WHERE ts >= ? GROUP BY key, t", (QUARTER, QUARTER, start)).fetchall()
+            slots, width = [start + i * QUARTER for i in range(96)], QUARTER
             cell = {(r["key"], r["t"]): r for r in rows}
         else:
             first = datetime.fromtimestamp(now - (days - 1) * 86400).strftime("%Y-%m-%d")
             rows = db.execute("SELECT key, day, n, up, ms_sum, ms_n FROM avail_days WHERE day >= ?", (first,)).fetchall()
             dayset = [datetime.fromtimestamp(now - (days - 1 - i) * 86400) for i in range(days)]
-            slots = [int(datetime(d.year, d.month, d.day).timestamp()) for d in dayset]
+            slots, width = [int(datetime(d.year, d.month, d.day).timestamp()) for d in dayset], 86400
             by_day = {datetime.fromtimestamp(s).strftime("%Y-%m-%d"): s for s in slots}
             cell = {(r["key"], by_day.get(r["day"])): r for r in rows}
+        runs: dict[str, list[tuple[int, int, int]]] = {}
+        for r in db.execute("SELECT key, t0, t1, up FROM avail_runs WHERE t1 >= ? ORDER BY key, t0", (slots[0],)):
+            runs.setdefault(r["key"], []).append((r["t0"], r["t1"], r["up"]))
     out = []
     for key, it in items.items():
-        cells, n, up, ms_sum, ms_n = [], 0, 0, 0, 0
-        for s in slots:
-            r = cell.get((key, s))
-            cells.append({"t": s, "pct": round(100 * r["up"] / r["n"], 1) if r and r["n"] else None})
+        by_run = _run_cells(runs.get(key, []), slots, width)
+        cells, n, up, ms_sum, ms_n, w, w_up = [], 0, 0, 0, 0, 0, 0
+        for i, s in enumerate(slots):
+            r, c = cell.get((key, s)), by_run.get(i)
             if r:
-                n, up, ms_sum, ms_n = n + r["n"], up + r["up"], ms_sum + r["ms_sum"], ms_n + r["ms_n"]
-        if not n:
+                ms_sum, ms_n = ms_sum + r["ms_sum"], ms_n + r["ms_n"]
+            if c:   # covered by the pulses: to the second
+                cells.append({"t": s, "pct": round(100 * c[1] / c[0], 1)})
+                w, w_up = w + c[0], w_up + c[1]
+            else:
+                cells.append({"t": s, "pct": round(100 * r["up"] / r["n"], 1) if r and r["n"] else None})
+                if r:
+                    w, w_up = w + r["n"] * QUARTER, w_up + r["up"] * QUARTER
+            if r:
+                n, up = n + r["n"], up + r["up"]
+        if not w:
             continue
+        if by_run:   # seconds, in readings of a quarter of an hour (an outage of a minute still counts as one down)
+            samples, down, uptime = max(1, round(w / QUARTER)), -(-(w - w_up) // QUARTER), 100 * w_up / w
+        else:
+            samples, down, uptime = n, n - up, 100 * up / n
         lt = last.get(key)
-        out.append({**it, "uptime": round(100 * up / n, 2), "samples": n, "down": n - up, "ms": round(ms_sum / ms_n) if ms_n else None,
+        out.append({**it, "uptime": round(uptime, 2), "samples": samples, "down": down, "ms": round(ms_sum / ms_n) if ms_n else None,
                     "last": {"ts": lt[0], "up": lt[1]} if lt else None, "cells": cells})
     out.sort(key=lambda x: (x["uptime"], x["kind"], (x["label"] or "").lower()))
     return {"days": days, "step": "hour" if days == 1 else "day", "items": out}

@@ -45,12 +45,14 @@ from pathlib import Path
 
 from msv.alerts import notify
 from msv.collect import pulse
+from msv.collect import recheck
 from msv.core.config import CFG, next_timer_run
 
 NAME = "myservices-watcher"
 DATA = Path(CFG["web_dir"]) / "data.json"
 PULSE_FILE = DATA.with_name("pulse.json")
 PORTS_FILE = DATA.with_name("ports.json")
+RECHECK_FILE = DATA.with_name("recheck.json")
 EVENTS = Path(CFG["web_dir"]) / "events.json"  # même dossier que DATA, lu par la page
 STATE_DIR = Path(CFG["state_dir"])
 STATE_FILE = STATE_DIR / f"{NAME}.json"
@@ -116,13 +118,17 @@ def status(r: dict) -> str:
     return "ok"
 
 
-def snapshot(r: dict, ports: dict | None = None) -> dict:
-    """ports: the port pulse (ports.json), fresher than the collection. pulse: it explains the status, so it is already confirmed."""
+def snapshot(r: dict, ports: dict | None = None, rechecks: dict | None = None) -> dict:
+    """ports: the port pulse (ports.json), fresher than the collection. rechecks: the quick second probe of the public sites (recheck.py).
+    pulse: it explains the status, so it is already confirmed."""
     s = r.get("service") or {}
     state = s.get("state") or ""
     live = (ports or {}).get(pulse.port_of(r))
     if live:
         r = {**r, "backend": {**r["backend"], "up": live["ping"]}}
+    again = (rechecks or {}).get(key(r))
+    if again:
+        r = {**r, "public": again}
     st = status(r)
     return {
         "label": label(r),
@@ -130,7 +136,7 @@ def snapshot(r: dict, ports: dict | None = None) -> dict:
         "machine": r.get("machine"),
         "target": f'{r.get("ip")}:{r.get("port")}' if r.get("ip") else r.get("target"),
         "status": st,
-        "pulse": live is not None and (st == "bad") != live["ping"],
+        "pulse": (live is not None and (st == "bad") != live["ping"]) or (again is not None and st == "bad"),   # a second probe still bad: confirmed
         "enabled": bool(r.get("enabled")),
         "no_acl": r["type"] == "proxy" and r.get("enabled") and not r.get("acl") and not r.get("acl_adv")
                   and not r.get("public_ok") and not r.get("public_ignored"),  # site public voulu, ou domaine ignoré (réglage Services)
@@ -502,7 +508,8 @@ def main() -> int:
         return 1
     state = load_json(STATE_FILE, {})
     ports = pulse.read(PORTS_FILE)
-    cur = {key(r): snapshot(r, ports) for r in data["hosts"]}
+    rechecks = recheck.read(RECHECK_FILE, data.get("generated"))
+    cur = {key(r): snapshot(r, ports, rechecks) for r in data["hosts"]}
     # Source coupée (Réglages → Sources) : ses éléments gardent leur dernier état connu, ni « disparus » à la
     # coupure, ni « nouveaux » au retour
     src = (data.get("page") or {}).get("sources") or {}

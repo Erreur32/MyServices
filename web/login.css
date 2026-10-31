@@ -8,7 +8,7 @@ h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 
 label { display: block; margin: 14px 0 6px; font-weight: 600; font-size: 13px; color: #c7cddc; }
 input { width: 100%; padding: 10px 12px; font: inherit; color: inherit; background: #0d1018; border: 1px solid #2b3246; border-radius: 8px; }
 input:focus { outline: 2px solid #2496ed; outline-offset: 1px; }
-button { width: 100%; margin-top: 20px; padding: 11px; font: 600 15px/1 inherit; color: #fff; background: #2496ed;
+button { width: 100%; margin-top: 20px; padding: 11px; font: inherit; font-weight: 600; font-size: 15px; line-height: 1; color: #fff; background: #2496ed;
   border: 0; border-radius: 8px; cursor: pointer; }
 button { box-shadow: 0 1px 0 rgba(255, 255, 255, .15) inset, 0 4px 14px rgba(36, 150, 237, .25); transition: background .15s, box-shadow .15s; }
 button:hover:not(:disabled) { background: #3aa4f2; }

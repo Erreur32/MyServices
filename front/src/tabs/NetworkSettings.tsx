@@ -27,7 +27,7 @@ const CARD = "rounded-2xl border border-line bg-card p-4";
 const byLabel = (a: DiscoveryItem, b: DiscoveryItem) => (a.app || a.title).localeCompare(b.app || b.title, undefined, { sensitivity: "base" }) || (a.machine?.name ?? "").localeCompare(b.machine?.name ?? "");
 
 /** Section : titre avec icône et compteur, une phrase d'aide, le contenu ; `id` sert aux liens directs */
-function Section({ id, icon, title, n, hint, right, children }: { id?: string; icon: ReactNode; title: string; n?: number; hint?: string; right?: ReactNode; children: ReactNode }) {
+function Section({ id, icon, title, n, hint, right, children }: Readonly<{ id?: string; icon: ReactNode; title: string; n?: number; hint?: string; right?: ReactNode; children: ReactNode }>) {
   return (
     <section id={id} className={`${CARD} ${TITLE} scroll-mt-20`} aria-label={title}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -41,7 +41,7 @@ function Section({ id, icon, title, n, hint, right, children }: { id?: string; i
 }
 
 /** Une découverte en ligne : titre, note, dernière / prochaine fois, puis ses boutons */
-function Row({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines: Snapshot["data"]["machine_list"] }) {
+function Row({ x, reload, machines }: Readonly<{ x: DiscoveryItem; reload: () => void; machines: Snapshot["data"]["machine_list"] }>) {
   const m = MODE[x.mode];
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">

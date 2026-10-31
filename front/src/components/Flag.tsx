@@ -1,7 +1,7 @@
 import type { Lang } from "../lib/i18n";
 
 /** Drapeau en SVG (les émojis de drapeau ne s'affichent pas sous Windows) */
-export function Flag({ lang, className = "h-5 w-7" }: { lang: Lang; className?: string }) {
+export function Flag({ lang, className = "h-5 w-7" }: Readonly<{ lang: Lang; className?: string }>) {
   return (
     <svg viewBox="0 0 30 20" className={`${className} shrink-0 rounded-[3px] shadow-sm ring-1 ring-black/20`} aria-hidden>
       {lang === "fr" ? (

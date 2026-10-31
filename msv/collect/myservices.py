@@ -88,6 +88,7 @@ _progress_last = [0.0]
 
 NPM_ONLY: set = set()  # machines joignables seulement depuis NPM (pare-feu) : sondées via NPM
 DISABLED: set = set()  # machines non suivies (services-meta.json : disabled)
+AGENT_SERVED: set = set()  # machines whose fresh agent report carries the whole inventory (agents.serves_inventory): no SSH read for them
 SSH_OFF: set = set()  # machines dont l'interrupteur SSH est coupé à la main (ssh: false) : jamais lues par SSH
 MACHINES_OFF: set = set()  # machines éteintes volontairement : services « machine éteinte » tant que le ping échoue
 MACHINE_FLAGS: dict = {}
@@ -268,16 +269,23 @@ def adopt_ssh(hinfo: dict) -> None:
         print(f"⚠ activation automatique du SSH impossible : {type(e).__name__}: {e}", flush=True)
 
 
+def _inventory_targets(only: set | None = None) -> tuple[dict, dict]:
+    """What the inventory reads over SSH: ({ip: Docker connector}, {ip: SSH alias for the machine info}); machines served by their agent are left out."""
+    want = lambda ip: only is None or ip in only  # noqa: E731
+    docks = {c.conf["ip"]: c for c in connectors.instances(CFG, kind="inventory", meta=META_RAW)
+             if c.type == "docker" and want(c.conf["ip"]) and c.conf["ip"] not in AGENT_SERVED}
+    sshc = hostinfo.ssh_config()   # known IP with an entry in ~/.ssh/config, plus the collecting machine locally
+    infos = {ip: "local" if MACHINES.get(ip, (0, 0, None))[2] == "local" else sshc[ip]["alias"]
+             for ip in MACHINES if want(ip) and ip not in DISABLED | SSH_OFF | AGENT_SERVED and (ip in sshc or MACHINES[ip][2] == "local")}
+    return docks, infos
+
+
 def _read_inventory(only: set | None = None) -> dict:
     """Lit par SSH l'inventaire Docker et les infos machines ; only : seulement ces IP (relecture d'une machine)."""
-    want = lambda ip: only is None or ip in only  # noqa: E731
-    docks = {c.conf["ip"]: c for c in connectors.instances(CFG, kind="inventory", meta=META_RAW) if c.type == "docker" and want(c.conf["ip"])}
+    docks, infos = _inventory_targets(only)
     with ThreadPoolExecutor(8) as ex:
         jobs = {ip: ex.submit(_docker_read, c) for ip, c in docks.items()}
-        # Infos machines (SSH, OS, Apache…) : toute IP connue ayant une entrée ~/.ssh/config, plus la machine collectrice en local
-        sshc = hostinfo.ssh_config()
-        hi = {ip: ex.submit(hostinfo.host_info, "local" if MACHINES.get(ip, (0, 0, None))[2] == "local" else sshc[ip]["alias"])
-              for ip in MACHINES if want(ip) and ip not in DISABLED | SSH_OFF and (ip in sshc or MACHINES[ip][2] == "local")}
+        hi = {ip: ex.submit(hostinfo.host_info, alias) for ip, alias in infos.items()}
     got = {ip: job.result() for ip, job in jobs.items()}
     data = {ip: g["containers"] for ip, g in got.items()}
     data["_internal"] = {ip: g["internal"] for ip, g in got.items()}
@@ -287,8 +295,12 @@ def _read_inventory(only: set | None = None) -> dict:
 
 def docker_inventory(force: bool | set = False):
     """Inventaire Docker et machines, gardé DOCKER_CACHE_TTL (inventory_cache) : une machine marquée « stale » (accès SSH changé,
-    état de ping changé) est seule relue, les autres restent en cache. force : True = tout relire ; ensemble d'IP = celles-là."""
-    return inventory_cache.refresh(DOCKER_CACHE, DOCKER_CACHE_TTL - CACHE_SLACK, _read_inventory, force)
+    état de ping changé) est seule relue, les autres restent en cache. force : True = tout relire ; ensemble d'IP = celles-là.
+    A machine left out because its agent served it (never read, so absent from the cache) is read over SSH as soon as its agent is silent."""
+    data = inventory_cache.refresh(DOCKER_CACHE, DOCKER_CACHE_TTL - CACHE_SLACK, _read_inventory, force)
+    docks, infos = _inventory_targets()
+    lost = {ip for ip in docks if ip not in data} | {ip for ip in infos if ip not in data.get("_hostinfo", {})}
+    return inventory_cache.refresh(DOCKER_CACHE, DOCKER_CACHE_TTL - CACHE_SLACK, _read_inventory, lost) if lost else data
 
 
 PING_TTL: dict = {}  # IP -> TTL de la dernière réponse au ping (128 Windows, 64 Linux / macOS, 255 matériel réseau)
@@ -310,9 +322,10 @@ def load_ssh_cache():
 
 
 def ssh_methods(cache, ip, port, force):
-    """hostinfo.auth_methods mis en cache SSH_CACHE_TTL (chaque test = un « Invalid user » dans auth.log)."""
+    """hostinfo.auth_methods mis en cache SSH_CACHE_TTL (chaque test = un « Invalid user » dans auth.log). A machine served by its agent is not
+    tested: the last known methods (or none) are shown."""
     c = cache.get(ip) or {}
-    if not force and c.get("port") == port and time.time() - c.get("ts", 0) < SSH_CACHE_TTL - CACHE_SLACK:
+    if ip in AGENT_SERVED or (not force and c.get("port") == port and time.time() - c.get("ts", 0) < SSH_CACHE_TTL - CACHE_SLACK):
         return c.get("methods")
     methods = hostinfo.auth_methods(ip, port)
     cache[ip] = {**c, "ts": time.time(), "port": port, "methods": methods}
@@ -1021,6 +1034,9 @@ def main():
     changed = {ip for ip, up in pings.items() if ip in ssh_cache and ssh_cache[ip].get("ping") not in (None, up)}
     if changed:
         print("état ping changé, caches ignorés : " + ", ".join(sorted(changed)), file=sys.stderr)
+    reports, agent_ports = agent_reports(), {}
+    AGENT_SERVED.clear()
+    AGENT_SERVED.update(ip for ip, a in reports.items() if a["fresh"] and agents.serves_inventory(a["report"]) and ip not in DISABLED)
     progress(3, "inventaire Docker et machines (SSH, cache 2 h)")
     dock = docker_inventory(force=changed)  # machines dont l'état de ping a changé : relues seules
     # Machine hôte -> {IP interne docker: conteneur} : un NPM ne joint que les réseaux docker de SA
@@ -1029,7 +1045,6 @@ def main():
     hinfo = dock.pop("_hostinfo", {})
     adopt_ssh(hinfo)
     # Linux machines followed by their agent: the same inventory as over SSH (machine info, Docker, ports), where SSH read nothing
-    reports, agent_ports = agent_reports(), {}
     for ip, a in reports.items():
         if a["fresh"] and (inv := agents.linux_inventory(a["report"])):
             if not hinfo.get(ip) and inv["info"]:
@@ -1076,7 +1091,7 @@ def main():
     with ThreadPoolExecutor(4) as ex:
         jobs = {ip: ex.submit(_process_read, c, fresh_ports)
                 for ip, c in ((c.conf["ip"], c) for c in connectors.instances(CFG, kind="inventory", meta=META_RAW)
-                              if c.type == "process")}
+                              if c.type == "process" and c.conf["ip"] not in agent_ports)}   # a fresh agent report has the ports: no SSH read
     procs = {ip: j.result() for ip, j in jobs.items()}
     for ip, ports in agent_ports.items():
         procs[ip] = procs.get(ip) or ports
@@ -1102,6 +1117,7 @@ def main():
             agent_apps[ip] = apps
             if agent_sys[ip]:
                 agent_sys[ip].update(docker=len(wdock) if wdock is not None else None, apps=[{"key": x.key, "label": x.label} for x in apps])
+    agent_listen = {ip: lp for ip in agent_fresh if (lp := agents.listening_ports(agent_fresh[ip]))}   # ports of the fresh reports, for silent ports (by_agent)
     meta = load_meta()
     # Machine hôte de MyServices (« host » : true) sans process lus par SSH : ses ports en écoute, lus sur place
     # (premier démarrage : de quoi remplir la page avant toute clé SSH ; les conteneurs reconnus passent devant)
@@ -1396,6 +1412,8 @@ def main():
         r["tags"] = m.get("tags", [])
         if "web" in m:  # surcharge manuelle : "ui" / "api" / "none"
             r["web"] = m["web"]
+        if r["web"] == "none" and r.get("ip") in agent_listen:   # silent port: its state comes from the agent report, no connection (pulse.port_of)
+            r["by_agent"] = True
         r["direct_ok"] = bool(m.get("direct_ok"))  # UI hors NPM voulue : exclue du compteur
         r["public_ok"] = bool(m.get("public"))  # site public voulu : pas d'ACL attendue
         if new_services.public_ignored(r["domains"], public_ignore):  # domaines jamais soumis à « public ? » (réglage Services)

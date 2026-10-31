@@ -49,6 +49,8 @@ from msv.core.docker_state import allowed_names, intended_stop
 from msv.collect import readers
 from msv.remote.sshmux import SSH_MUX
 
+DOCKER_LABEL = "🐳 Docker"
+
 STATE_FILE = Path(CFG["state_dir"]) / "health.json"
 DOCKER_CACHE = os.path.join(CFG["cache_dir"], "docker.json")   # the collection's Docker inventory (myservices.DOCKER_CACHE): its container states are refreshed here
 CONNECTORS_STATE = Path(CFG["state_dir"]) / "connectors.json"   # shared readings of the connectors (readers.py, the collection)
@@ -590,6 +592,23 @@ def track_heat(h: dict, warn_c, prev_since, now: float) -> None:
         temp.pop("hot_since", None)
         temp.pop("hot_s", None)
     temp["level"] = temp_level(temp)
+
+
+def track_checks(hosts: list[dict], prev: dict, now: float) -> dict:
+    """Since when each control has been in warn or crit: writes `check_s` (control -> seconds) on each machine and returns {host id: {control: epoch}},
+    kept in health.json for the next pass. A control back to ok forgets its date; a machine not read this pass keeps its dates, and the seconds
+    of its heat go on (a machine is not read at every pass)."""
+    since = {}
+    for h in hosts:
+        old, temp = prev.get(h["id"]) or {}, h.get("temp")
+        if isinstance(temp, dict) and isinstance(temp.get("hot_since"), (int, float)):
+            temp["hot_s"] = max(0, round(now - temp["hot_since"]))
+        if "checks" not in h:
+            since[h["id"]] = old
+            continue
+        since[h["id"]] = {k: old[k] if isinstance(old.get(k), (int, float)) else now for k in h["checks"]}
+        h["check_s"] = {k: max(0, round(now - t)) for k, t in since[h["id"]].items()}
+    return since
 
 
 def hot_since_of(hosts: list[dict]) -> dict:
@@ -1896,7 +1915,7 @@ def compute_host_blocks(h: dict) -> dict:
             "disk": "<div class='muted'>Hôte injoignable en SSH (timeout ou clé refusée)"
                     + (" ou PowerShell sans réponse" if h.get("os") == "windows" else "") + ".</div>",
             "systemd": na, "load": na, "kernel": na, "apt": na, "ssh": na, "smart": na,
-            "docker_label": "🐳 Docker", "docker": na,
+            "docker_label": DOCKER_LABEL, "docker": na,
         }
 
     level = h["level"]
@@ -1958,7 +1977,7 @@ def compute_host_blocks(h: dict) -> dict:
 
     dk = h["docker"]
     if not dk.get("accessible"):
-        docker_label = "🐳 Docker"
+        docker_label = DOCKER_LABEL
         docker_block = ("<div class='muted'>N/A (Windows)</div>" if dk.get("reason") == "windows"
                         else "<div class='muted'>Non relevé (Beszel seul)</div>" if dk.get("reason") == "beszel"
                         else "<div class='muted'>Non accessible (pas d'accès docker)</div>")
@@ -2076,7 +2095,7 @@ def render_html(stats: dict) -> str:
     columns = [
         ("💾 Disque", "disk"), ("⚙️ Systemd", "systemd"), ("⚡ Charge", "load"),
         ("🐧 Kernel", "kernel"), ("📦 Maj", "apt"), ("🔐 SSH", "ssh"),
-        ("🩺 SMART", "smart"), ("🐳 Docker", "docker"),
+        ("🩺 SMART", "smart"), (DOCKER_LABEL, "docker"),
     ]
     thead = "<th>Machine</th>" + "".join(f"<th>{label}</th>" for label, _ in columns)
     trows = []
@@ -2226,6 +2245,7 @@ def main() -> int:
     for h in hosts:   # the controls that are not « ok »: what the page shows next to a « warn » or « crit » badge
         if h.get("reachable") and "disks" in h:
             h["checks"] = {k: v for k, v in host_checks(h).items() if v in ("warn", "crit")}
+    check_since = track_checks(hosts, prev_state.get("since", {}), now)
     overall = worst(*(h["level"] for h in hosts))
     connectors = [{"type": st.type, "name": st.name, "ok": st.ok, "message": st.message} for st in besz_status] or previous_connectors   # a pass of one machine reads no Beszel: it keeps the last states
     stats = {"timestamp": ts, "hosts": hosts, "asleep": asleep, "overall_level": overall, "connectors": connectors}
@@ -2263,7 +2283,7 @@ def main() -> int:
 
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"last_run": ts, "overall_level": overall,
-                                      "levels": {h["id"]: h["level"] for h in hosts}, "hot": hot_since_of(hosts)}, indent=2), encoding="utf-8")
+                                      "levels": {h["id"]: h["level"] for h in hosts}, "hot": hot_since_of(hosts), "since": check_since}, indent=2), encoding="utf-8")
     return 0
 
 

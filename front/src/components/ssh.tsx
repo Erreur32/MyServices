@@ -11,7 +11,7 @@ import { appIcon } from "../lib/appIcons";
 const SSH_KIND: Record<string, string> = { docker: tx("conteneurs Docker"), process: tx("services hors Docker"), adguard: "AdGuard" };
 const SSH_KIND_ICON: Record<string, string | null> = { docker: appIcon(["Docker"]), adguard: appIcon(["AdGuard Home"]), process: null };
 
-export function StatusLine({ s, collect }: { s: (Partial<ConnectorStatus> & Connector) | null; collect?: { task: TaskInfo | null; now: number } }) {
+export function StatusLine({ s, collect }: Readonly<{ s: (Partial<ConnectorStatus> & Connector) | null; collect?: { task: TaskInfo | null; now: number } }>) {
   if (!s) {
     const t = collect?.task;   // when the collection runs next, or that it is running now
     if (!t?.enabled) return <Dim>{tx("pas encore lu (prochain passage de la collecte)")}</Dim>;
@@ -37,7 +37,7 @@ export function StatusLine({ s, collect }: { s: (Partial<ConnectorStatus> & Conn
   );
 }
 
-function Kv({ k, children }: { k: string; children: ReactNode }) {
+function Kv({ k, children }: Readonly<{ k: string; children: ReactNode }>) {
   return <div className="flex justify-between gap-3 whitespace-nowrap"><span className="shrink-0 text-dim">{k}</span><span className="min-w-0 truncate text-right">{children}</span></div>;
 }
 
@@ -52,9 +52,9 @@ const SSH_ICON = `${import.meta.env.BASE_URL}icons/ssh.svg`;
 /** SSH access as in the first version of the page, on one line: SSH logo and alias, then the account, IP and port pills
  *  (port filled when it is not 22). noIp: without the IP pill, where the IP is already shown (machine card header);
  *  noAlias: logo only, the alias being in the unfolded detail (Machines table column). */
-export function SshAccess({ alias, user, ip, port, refused, noIp, noAlias }: {
+export function SshAccess({ alias, user, ip, port, refused, noIp, noAlias }: Readonly<{
   alias: string; user?: string | null; ip?: string | null; port?: number | null; refused?: boolean; noIp?: boolean; noAlias?: boolean;
-}) {
+}>) {
   const p = port || 22;
   return (
     <span className="inline-flex max-w-full shrink-0 flex-wrap items-center gap-1 whitespace-nowrap">
@@ -98,7 +98,7 @@ function readSummary(i: NonNullable<Machine["info"]>): ReactNode {
 }
 
 /** Détail SSH : état de la connexion en tête, puis le bloc Accès (alias, clé, empreintes), le bloc Lecture (système, sshd, conteneurs) et l'état de chaque connecteur SSH. */
-export function SshDetails({ m, statuses }: { m: Machine; statuses: (Connector | ConnectorStatus)[] }) {
+export function SshDetails({ m, statuses }: Readonly<{ m: Machine; statuses: (Connector | ConnectorStatus)[] }>) {
   const s = m.ssh, i = m.info, d = i?.sshd;
   if (!s && !m.local) return m.agent ? null : <p className="text-dim">{tx("Ni agent ni SSH : ping et services web seulement.")}</p>;
   return (

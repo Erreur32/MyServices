@@ -1,5 +1,5 @@
 // Historique → Disponibilité : taux de disponibilité de chaque service, machine et sonde Uptime Kuma, relevé à chaque collecte
-// (availability.py, SQLite). Une case par heure (24 h) ou par jour ; le pire en premier. Les certificats sont dans l'onglet Sécurité.
+// (availability.py, SQLite). Une case par quart d'heure (24 h) ou par jour ; le pire en premier. Les certificats sont dans l'onglet Sécurité.
 import { StatTile } from "../components/StatTile";
 import { Activity, Boxes, Globe, Monitor } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -54,7 +54,7 @@ export const cellColor = (p: number | null) => (p == null ? "bg-bg2" : p >= 100 
 export const pctTone = (p: number) => (p >= 99.9 ? "text-ok" : p >= 95 ? "text-warn" : "text-bad");
 export const pct = (p: number) => `${p >= 99.995 ? "100" : p.toFixed(p >= 99 ? 2 : 1).replace(".", LANG === "fr" ? "," : ".")} %`;
 
-function Strip({ cells, step }: { cells: Cell[]; step: Report["step"] }) {
+function Strip({ cells, step }: Readonly<{ cells: Cell[]; step: Report["step"] }>) {
   return (
     <span className="flex h-5 min-w-[9rem] flex-1 items-stretch gap-px" aria-hidden>
       {cells.map((c) => (
@@ -115,7 +115,7 @@ export function Availability({ snap }: Readonly<{ snap: Snapshot }>) {
             <Filters f={f} />
             {f.shown.length === 0 ? <div className="p-4"><Empty>{tx("Rien pour ce filtre.")}</Empty></div> : (
               <div className="overflow-x-auto"><div className="min-w-[48rem]">
-                <div className={`${COLUMNS} border-b border-line py-1.5 text-xs text-muted`}><span>{tx("Nom")}</span><span className="text-right">{tx("Dispo.")}</span><span>{tx("Réponse")}</span><span>{rep.step === "hour" ? tx("Par heure") : tx("Par jour")}</span></div>
+                <div className={`${COLUMNS} border-b border-line py-1.5 text-xs text-muted`}><span>{tx("Nom")}</span><span className="text-right">{tx("Dispo.")}</span><span>{tx("Réponse")}</span><span>{rep.step === "hour" ? tx("Par quart d'heure") : tx("Par jour")}</span></div>
                 <ul>{f.shown.map((x) => <Row key={x.key} x={x} step={rep.step} />)}</ul>
               </div></div>
             )}
@@ -123,7 +123,7 @@ export function Availability({ snap }: Readonly<{ snap: Snapshot }>) {
           <p className="flex flex-wrap gap-3 text-xs text-muted">
             {([[100, tx("répond")], [85, tx("coupure courte")], [50, tx("en panne")], [null, tx("pas de relevé")]] as const).map(([v, l]) => <span key={l} className="inline-flex items-center gap-1.5"><i className={`h-2.5 w-2.5 rounded-[2px] ${cellColor(v)}`} aria-hidden />{l}</span>)}
           </p>
-          <InfoNote>{tx("Relevé à chaque collecte (toutes les 15 minutes par défaut) : une coupure plus courte peut passer inaperçue. Uptime Kuma garde le détail à la minute.")}</InfoNote>
+          <InfoNote>{tx("Les machines et les services dont le port est suivi sont relevés à la minute (le pouls, sans requête de plus) ; le reste à chaque collecte (toutes les 15 minutes par défaut), où une coupure plus courte peut passer inaperçue.")}</InfoNote>
         </>)}
     </div>
   );

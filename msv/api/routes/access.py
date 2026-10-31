@@ -265,7 +265,11 @@ def base_url(request: Request) -> str:
 def agents_list(request: Request):
     if denied := admin_write(request):
         return denied
-    return {"agents": agents_store().listing(), "report_path": AGENT_REPORT}
+    from msv.machines import agents
+    store = agents_store()
+    reports = store.fresh_reports()
+    rows = [{**a, "gaps": agents.inventory_gaps(reports[a["ip"]]["report"]) if reports.get(a["ip"], {}).get("fresh") else []} for a in store.listing()]
+    return {"agents": rows, "report_path": AGENT_REPORT}
 
 
 @router.post(API + "/agents", tags=["agents"], summary="Créer un agent pour une machine (jeton affiché une seule fois)")

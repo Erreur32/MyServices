@@ -34,6 +34,7 @@ from connectors.logviewr import LogviewR
 from connectors.mynetwork import MynetworK
 from connectors.fritzbox import FritzBox
 from connectors.sfrbox import SFRBox
+from connectors.liberty_gateway import LibertyGateway
 from connectors.livebox import Livebox
 from connectors.vodafone_station import VodafoneStation
 from connectors.sagemcom_fast import SagemcomFast
@@ -57,7 +58,7 @@ from connectors.upnp_box import UPnPBox
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, RemoteFolder, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Cloudflare, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, OpenAICompatible, OpenWebUI, Shinobi, Go2rtc, MediaMTX, Owncast, Netatmo, UPnPBox, FritzBox, SFRBox, Livebox, VodafoneStation, SagemcomFast, BouyguesBbox, SwisscomBox, ConnectBox, Speedport, TechnicolorGateway, TMobileHome, HitronCoda, VerizonFios, ArrisSurfboard, Tapo, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, RemoteFolder, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Cloudflare, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, OpenAICompatible, OpenWebUI, Shinobi, Go2rtc, MediaMTX, Owncast, Netatmo, UPnPBox, FritzBox, SFRBox, Livebox, VodafoneStation, SagemcomFast, BouyguesBbox, SwisscomBox, ConnectBox, LibertyGateway, Speedport, TechnicolorGateway, TMobileHome, HitronCoda, VerizonFios, ArrisSurfboard, Tapo, Discord, Telegram)}
 
 
 RETIRED = {"windows-admin-center"}   # removed types: what an older config.json still holds is skipped, an unknown type would stop every connector

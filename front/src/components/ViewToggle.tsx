@@ -11,7 +11,7 @@ export function useStoredView(key: string, fallback: View): [View, (v: View) => 
   return [view, pick];
 }
 
-export function ViewToggle({ view, onPick }: { view: View; onPick: (v: View) => void }) {
+export function ViewToggle({ view, onPick }: Readonly<{ view: View; onPick: (v: View) => void }>) {
   return (
     <span className="inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Affichage")}>
       {([["cards", tx("Cartes"), LayoutGrid], ["table", tx("Tableau"), Table2]] as const).map(([k, l, Icon]) => (

@@ -16,15 +16,18 @@ const DOT: Record<AuditTone, string> = { bad: "bg-bad", warn: "bg-warn", ok: "bg
 const csvCell = (v: string | number | null) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 const chip = (on: boolean) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`;
 const PERIODS: [number, string][] = [[1, tx("24 h")], [7, tx("7 jours")], [30, tx("30 jours")], [0, tx("Tout")]];
+const DAYS_KEY = "ms.audit.days";
 
-function Tile({ value, label, tone }: { value: number; label: string; tone?: string }) {
+function Tile({ value, label, tone }: Readonly<{ value: number; label: string; tone?: string }>) {
   return <div className="rounded-xl bg-bg2/60 px-3 py-2"><div className={`font-mono text-xl font-bold leading-tight ${tone ?? "text-txt"}`}>{value}</div><div className="text-xs text-dim">{label}</div></div>;
 }
 
 export function AuditLog() {
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   const [error, setError] = useState("");
-  const [q, setQ] = useState(""), [action, setAction] = useState(""), [user, setUser] = useState(""), [days, setDays] = useState(7);
+  const [q, setQ] = useState(""), [action, setAction] = useState(""), [user, setUser] = useState("");
+  const [days, setDays] = useState(() => { try { const v = Number(localStorage.getItem(DAYS_KEY) ?? 7); return PERIODS.some(([d]) => d === v) ? v : 7; } catch { return 7; } });   // ?? 7: 0 is « All », not the default
+  const pick = (d: number) => { setDays(d); try { localStorage.setItem(DAYS_KEY, String(d)); } catch { /* storage refused: the choice lasts this visit */ } };
   useEffect(() => {
     read<{ audit: AuditEntry[] }>("audit?limit=1000")
       .then((a) => setEntries(a.audit))
@@ -67,7 +70,7 @@ export function AuditLog() {
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap gap-1.5" role="group" aria-label={tx("Période")}>
-              {PERIODS.map(([d, l]) => <button key={d} type="button" aria-pressed={days === d} onClick={() => setDays(d)} className={chip(days === d)}>{l}</button>)}
+              {PERIODS.map(([d, l]) => <button key={d} type="button" aria-pressed={days === d} onClick={() => pick(d)} className={chip(days === d)}>{l}</button>)}
             </div>
             <SearchBox value={q} onChange={setQ} placeholder={tx("Compte, IP, action, détail…")} count={[shown.length, period.length]} className="ml-auto" />
           </div>

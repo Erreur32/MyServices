@@ -13,7 +13,7 @@ const sec = (ms: number) => ms / 1000;
 const label = (ms: number, days: number) => (days <= 2 ? hm(ms) : new Date(ms).toLocaleDateString(LOCALE, { day: "numeric", month: "short" }));
 
 /** Axe du temps sous le graphique : des repères réguliers, à l'heure près sur 24 h */
-function Axis({ from, to, days }: { from: number; to: number; days: number }) {
+function Axis({ from, to, days }: Readonly<{ from: number; to: number; days: number }>) {
   return (
     <div className="relative mt-1 h-4 text-[11px] text-dim">
       {ticks(from, to).map((t, i, a) => (
@@ -26,7 +26,7 @@ function Axis({ from, to, days }: { from: number; to: number; days: number }) {
 }
 
 /** Axe vertical du nombre d'événements : repères chiffrés à gauche, traits fins en pointillés derrière le graphique */
-function YAxis({ ticks: t, top, children }: { ticks: number[]; top: number; children: React.ReactNode }) {
+function YAxis({ ticks: t, top, children }: Readonly<{ ticks: number[]; top: number; children: React.ReactNode }>) {
   return (
     <div className="flex gap-2">
       <div className="relative h-36 w-8 shrink-0 text-right text-[11px] tabular-nums text-dim" aria-hidden>
@@ -58,7 +58,7 @@ function chipShift(x: number): string {
 
 /** Un point par événement, à son heure exacte ; une ligne par famille. Clic = la liste se limite à ce jour.
  *  Souris dans le graphique : un repère pointillé suit le temps (heure en haut) ; sur un point, le repère descend du point à l'axe et le point est mis en avant. */
-export function PointsChart({ events, from, to, days, onRange }: { events: StoredEvent[]; from: number; to: number; days: number; onRange: (r: Range) => void }) {
+export function PointsChart({ events, from, to, days, onRange }: Readonly<{ events: StoredEvent[]; from: number; to: number; days: number; onRange: (r: Range) => void }>) {
   const plot = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState<number | null>(null);   // 0..1 across the plot
   const [hot, setHot] = useState<number | null>(null);          // index of the hovered point
@@ -111,7 +111,7 @@ export function PointsChart({ events, from, to, days, onRange }: { events: Store
 }
 
 /** Barres empilées par famille ; clic sur une barre = la liste se limite à cette plage */
-export function BarsChart({ data, days, active, onRange }: { data: Bucket[]; days: number; active: Range | null; onRange: (r: Range | null) => void }) {
+export function BarsChart({ data, days, active, onRange }: Readonly<{ data: Bucket[]; days: number; active: Range | null; onRange: (r: Range | null) => void }>) {
   const { top, ticks: yt } = yScale(Math.max(0, ...data.map((b) => b.total)));
   const span = data[0] ? data[0].end - data[0].start : 0;
   const name = (b: Bucket) => (span >= 86400e3 ? longDay(b.start) : `${dateTime(b.start)} – ${hm(b.end)}`);
@@ -135,7 +135,7 @@ export function BarsChart({ data, days, active, onRange }: { data: Bucket[]; day
 }
 
 /** Courbe empilée par famille (l'épaisseur de chaque couleur = le nombre d'événements du barreau) */
-export function AreaChart({ data, days }: { data: Bucket[]; days: number }) {
+export function AreaChart({ data, days }: Readonly<{ data: Bucket[]; days: number }>) {
   if (data.length < 2) return null;
   const { top: max, ticks: yt } = yScale(Math.max(0, ...data.map((b) => b.total)));
   const W = 1000, H = 160, step = W / (data.length - 1);

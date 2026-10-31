@@ -55,19 +55,23 @@ export function runState(t: { enabled: boolean; running: boolean; result: string
   return t.result ? "failed" : "idle";
 }
 
-export interface TasksSummary { enabled: number; running: number; failed: number; next: { name: string; at: number } | null }
+export interface TasksSummary { enabled: number; running: number; failed: number }
 
-/** Counts for the page header and the soonest next run (epoch seconds) among the enabled tasks that are not running */
-export function summarize(items: { name: string; enabled: boolean; running: boolean; result: string | null; next?: number | null }[]): TasksSummary {
-  const out: TasksSummary = { enabled: 0, running: 0, failed: 0, next: null };
+/** Counts for the page header */
+export function summarize(items: { enabled: boolean; running: boolean; result: string | null }[]): TasksSummary {
+  const out: TasksSummary = { enabled: 0, running: 0, failed: 0 };
   for (const t of items) {
     const state = runState(t);
     if (t.enabled) out.enabled++;
     if (state === "running") out.running++;
     if (state === "failed") out.failed++;
-    if (t.enabled && !t.running && typeof t.next === "number" && (!out.next || t.next < out.next.at)) out.next = { name: t.name, at: t.next };
   }
   return out;
+}
+
+/** The coming runs of the enabled tasks, soonest first (epoch seconds); a running task has its own badge */
+export function upcoming<T extends { enabled: boolean; running: boolean; next?: number | null }>(items: T[]): (T & { next: number })[] {
+  return items.filter((t): t is T & { next: number } => t.enabled && !t.running && typeof t.next === "number").sort((a, b) => a.next - b.next);
 }
 
 /** Sections of the page: which task (by name) goes under which title; unknown tasks land in the last section */

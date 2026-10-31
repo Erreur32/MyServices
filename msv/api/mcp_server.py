@@ -17,6 +17,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+SETTINGS_PATH = "/machines/settings/{ip}"
+
 PROTOCOL = "2025-06-18"
 SUPPORTED = ("2025-06-18", "2025-03-26", "2024-11-05")
 
@@ -222,9 +224,9 @@ CONFIG = {
     },
     "machines_config": {
         "list": ("GET", "/machines/settings"),
-        "save": ("PUT", "/machines/settings/{ip}"),
-        "patch": ("PATCH", "/machines/settings/{ip}"),
-        "delete": ("DELETE", "/machines/settings/{ip}"),
+        "save": ("PUT", SETTINGS_PATH),
+        "patch": ("PATCH", SETTINGS_PATH),
+        "delete": ("DELETE", SETTINGS_PATH),
         "check": ("POST", "/machines/settings/{ip}/check"),
         "refresh": ("POST", "/machines/settings/{ip}/refresh"),
         "network_get": ("GET", "/network/settings"),

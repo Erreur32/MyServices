@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { AlertTriangle, Check, ChevronDown, EyeOff, HelpCircle, Loader2, Package, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ExternalLink, EyeOff, HelpCircle, Loader2, Package, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
@@ -9,7 +9,8 @@ import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
 import { act, danger, fieldFrame, fieldText, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Count, Dim, Th } from "../components/ui";
+import { FoldPanel } from "../components/FoldPanel";
+import { Badge, Card, Count, Dim, SearchBox, Th } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
@@ -45,7 +46,7 @@ const MINE = "settings/connectors";
 const WATCH = "*watch", OFF = "*off";   // filters of « My connectors », beside the categories
 // The page that shows what a connector reads
 const PAGE: Record<string, string> = {
-  cloudflare: "cloudflare/overview", netatmo: "domotique/netatmo", tapo: "domotique/tapo", mynetwork: "network", unifi: "network", freebox: "network", "upnp-box": "network", fritzbox: "network", sfrbox: "network", livebox: "network", "vodafone-station": "network", "sagemcom-fast": "network", bbox: "network", "swisscom-box": "network", "connect-box": "network", "speedport": "network", "technicolor-gateway": "network", "tmobile-home-internet": "network", "hitron-coda": "network", "verizon-fios": "network", "arris-surfboard": "network", logviewr: "security", wazuh: "security", npm: "services",
+  cloudflare: "cloudflare/overview", netatmo: "domotique/netatmo", tapo: "domotique/tapo", mynetwork: "network", unifi: "network", freebox: "network", "upnp-box": "network", fritzbox: "network", sfrbox: "network", livebox: "network", "vodafone-station": "network", "sagemcom-fast": "network", bbox: "network", "swisscom-box": "network", "connect-box": "network", "liberty-gateway": "network", "speedport": "network", "technicolor-gateway": "network", "tmobile-home-internet": "network", "hitron-coda": "network", "verizon-fios": "network", "arris-surfboard": "network", logviewr: "security", wazuh: "security", npm: "services",
   ollama: "ai", "open-webui": "ai", hermes: "ai", gpuviewr: "ai", frigate: "stream",
 };
 const DOT: Record<CardTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", off: "bg-dim" };
@@ -126,7 +127,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   };
   const listed = st.instances.filter((i) => key(i) === edited || key(i) === focusKey || (kept(i) && searchHit(`${i.label} ${i.name} ${i.type}`, find)))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name));   // alphabetical, like the picker
-  const mine = (<div className="mt-3 grid grid-flow-dense gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,18rem),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
+  const mine = (<div className="mt-5 grid grid-flow-dense gap-x-2.5 gap-y-4 [grid-template-columns:repeat(auto-fill,minmax(max(min(100%,18rem),calc((100%_-_3.125rem)/6)),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
         {only.length > 0 && <button type="button" className="col-span-full justify-self-start text-sm font-semibold text-link hover:underline" onClick={() => setOnly([])}>{tx("Voir tous mes connecteurs")}</button>}
         {listed.length === 0 && <p className="col-span-full py-4 text-center text-sm text-muted">{tx("Aucun connecteur ne correspond.")}</p>}
         {listed.map((i) => (
@@ -151,27 +152,21 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const form = type && <ConnectorForm key={type.type} type={type} hosts={snap.data.hosts} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={done} onCancel={() => setAdding("")} />;
   return (
     <div className="flex flex-col gap-4">
-      {part === "mine" && <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Count n={st.instances.length} /></h2>
-          <a href={`#${MINE}/available`} className={`${primary} no-underline`}><Plus size={14} />{tx("Ajouter un connecteur")}</a>
-        </div>
-        {st.instances.length > 0 && <p className="mt-1 text-sm text-muted">{cardsTitle([...views.values()])}</p>}
+      {part === "mine" && <FoldPanel icon={Plug} title={tx("Mes connecteurs")} pinned
+        extra={st.instances.length > 0 && <span className="min-w-0 text-xs leading-tight text-muted">{cardsTitle([...views.values()]).split(/(\d+)/).map((part, i) => (i % 2 ? <b key={part + i} className="text-sm text-txt">{part}</b> : part))}</span>}
+        center={st.instances.length > 0 && <SearchBox value={find} onChange={setFind} placeholder={tx("Chercher un connecteur")} count={[listed.length, st.instances.length]} />}
+        end={<a href={`#${MINE}/available`} className={`${primary} no-underline`}><Plus size={14} />{tx("Ajouter un connecteur")}</a>}>
         {form}
         {st.instances.length === 0 && !type && (
           <p className="mt-3 text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p>
         )}
         {st.instances.length > 0 && <>
-          <div className="mt-3 flex flex-wrap items-start gap-x-3 gap-y-2">
-            <label className="w-full max-w-[18rem]">
-              <span className="sr-only">{tx("Chercher un connecteur")}</span>
-              <input type="search" className={input} value={find} onChange={(e) => setFind(e.target.value)} placeholder={tx("Chercher un connecteur")} />
-            </label>
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-2 [&:not(:first-child)]:mt-3">
             <CategoryChips types={st.instances.map(typeOf)} cat={view} setCat={setView} extra={[[WATCH, tx("À vérifier"), watching, failing ? "bad" : "warn"], [OFF, tx("Coupés"), stopped, "off"]]} />
           </div>
           {mine}
         </>}
-      </Card>}
+      </FoldPanel>}
       {part === "read" && <ReadElsewhere list={readElsewhere} types={st.types} collect={collect} />}
       {picking && <Card>
         <h2 className="flex items-center gap-2 font-bold"><Plus size={16} />{tx("Connecteurs disponibles")}</h2>
@@ -272,7 +267,7 @@ async function runTest(type: string, body: unknown): Promise<TestOut> {
 }
 
 /** Résultat d'un essai : cadre vert ou rouge, version, puis une pastille par type d'information lue */
-function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
+function TestReport({ r, onClose }: Readonly<{ r: TestOut; onClose: () => void }>) {
   const total = (r.found ?? []).reduce((n, f) => n + f.count, 0);
   return (
     <div role="status" className={`mt-3 rounded-xl border px-3 py-2 text-sm ${r.ok ? "border-ok/40 bg-ok/5" : "border-bad/40 bg-bad/5"}`}>
@@ -448,7 +443,7 @@ function CardWhere({ inst, url }: Readonly<{ inst: ConnectorInstance; url?: stri
   if (!inst.enabled) return tx("Réglages gardés, plus rien de lu");
   return (
     <>
-      {url ? <a className="font-mono hover:text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a> : ""}
+      {url ? <a className="inline-flex max-w-full items-center gap-1 align-bottom text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer" title={url}><span className="truncate">{url.replace(/^https?:\/\//, "")}</span><ExternalLink size={11} className="shrink-0" aria-hidden /></a> : ""}
       {typeof inst.config.every === "number" && inst.config.every > 0 && <span title={tx("Période de lecture propre à ce connecteur")}>{url ? " · " : ""}{tx("toutes les {0} min", inst.config.every)}</span>}
     </>
   );
@@ -504,14 +499,14 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
   const s = inst.status;
   const notice = cardNotice(inst, view);
   return (
-    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`min-w-0 scroll-mt-24 ${edit || focus ? "col-span-full" : ""}`}><div className={`flex h-full flex-col rounded-xl border bg-card ${cardRing(!!(edit || focus), view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
+    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`min-w-0 scroll-mt-24 ${edit || focus ? "col-span-full" : ""}`}><div className={`flex h-full flex-col rounded-xl border bg-bg2 ${cardRing(!!(edit || focus), view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
       {/* the whole top of the card opens it: state, what it reads, its settings and its test, in one place */}
       <button type="button" className="group rounded-t-xl text-left hover:bg-link/10 disabled:cursor-default disabled:hover:bg-transparent" disabled={locked} aria-expanded={edit}
         title={openTip(locked, edit)} onClick={() => setEdit(!edit)}>
         <CardHead inst={inst} category={type.category} view={view} open={edit} />
-        {edit ? <span className="block h-2" /> : <span className="grid min-h-16 grid-cols-3 gap-2 px-3 pb-2 pt-2.5">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
+        {edit ? <span className="block h-2" /> : <span className="grid min-h-12 grid-cols-3 gap-2 px-3 pb-1.5 pt-2">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
       </button>
-      <div className={`mt-auto flex items-center gap-1 border-t border-line/40 bg-bg py-1.5 pl-3 pr-2 ${edit ? "" : "rounded-b-xl"}`}>
+      <div className="mt-auto flex items-center gap-1 border-t border-dashed border-line/60 py-1 pl-3 pr-2">
         {notice && !edit ? <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${TEXT[notice.tone]}`} title={notice.raw ?? notice.text}>{notice.text}</span>
           : <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>}
         {inst.enabled && <RereadButton compact label={tx("Relire {0}", inst.label)} tip={tx("Lire ce connecteur maintenant, sans attendre sa période")} run={readConnector(inst.type, inst.name)} onNote={setNote} />}
@@ -550,8 +545,8 @@ function FieldGroup({ title, stacked, children }: Readonly<{ title: string; stac
 function Figure({ f }: Readonly<{ f: CardView["figures"][number] }>) {
   return (
     <span className="min-w-0" title={`${f.label} : ${f.value}`}>
-      <span className={`block truncate text-base font-bold tabular-nums ${f.tone ? TEXT[f.tone] : ""}`}>{f.value}</span>
-      <span className="block truncate text-xs text-muted">{f.label}</span>
+      <span className={`block truncate text-sm font-semibold tabular-nums ${f.tone ? TEXT[f.tone] : ""}`}>{f.value}</span>
+      <span className="block truncate text-[11px] leading-tight text-muted">{f.label}</span>
     </span>
   );
 }

@@ -15,6 +15,20 @@ from msv.collect import pulse  # noqa: E402
 from msv.collect import watcher  # noqa: E402
 
 
+class AgentPorts(unittest.TestCase):
+    row = {"enabled": True, "ip": "10.0.0.5", "port": 22, "backend": {"up": True}, "web": "none"}
+
+    def test_silent_port_followed_only_when_read_by_the_agent(self):
+        self.assertIsNone(pulse.port_of(self.row))
+        self.assertEqual(pulse.port_of({**self.row, "by_agent": True}), "10.0.0.5:22")
+
+    def test_state_from_the_report_and_nothing_without_it(self):
+        row = {**self.row, "by_agent": True}
+        self.assertEqual(pulse.agent_states([row], {"10.0.0.5": {22, 80}}), {"10.0.0.5:22": True})
+        self.assertEqual(pulse.agent_states([row], {"10.0.0.5": {80}}), {"10.0.0.5:22": False})
+        self.assertEqual(pulse.agent_states([row], {}), {})   # agent silent or no ports section: no state, so no false outage
+
+
 class Confirm(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -36,6 +50,13 @@ class Confirm(unittest.TestCase):
         self.up["10.0.0.2"] = True
         self.assertEqual(self.p.tick(["10.0.0.2"]), [])
         self.assertTrue(self.p.state["10.0.0.2"]["ping"])
+
+    def test_a_confirmed_change_remembers_its_first_contrary_pulse(self):
+        self.p.tick(["10.0.0.2"], now=100)
+        self.up["10.0.0.2"] = False
+        self.p.tick(["10.0.0.2"], now=130)
+        self.p.tick(["10.0.0.2"], now=160)
+        self.assertEqual((self.p.state["10.0.0.2"]["since"], self.p.state["10.0.0.2"]["began"]), (160, 130))
 
     def test_two_pulses_in_a_row_confirm_then_the_way_back(self):
         self.p.tick(["10.0.0.2"])
@@ -163,6 +184,41 @@ class PortPulse(unittest.TestCase):
         self.assertEqual((bad["status"], bad["pulse"]), ("bad", False))
         ok = watcher.snapshot({**self.ROW, "type": "proxy", "public": {"code": 200}})
         self.assertEqual(watcher.diff({"proxy:1": ok}, {"proxy:1": bad}, {})[0], [])
+
+
+class QuickRecheck(unittest.TestCase):
+    ROW = {"type": "proxy", "id": 1, "enabled": True, "domains": ["web.lan"], "ip": "10.0.0.5", "port": 80, "backend": {"up": True}, "public": {"code": 502}}
+
+    def test_only_a_waiting_5xx_with_an_open_port_is_tried_once_per_domain_and_in_limited_number(self):
+        from msv.collect import recheck
+        rows = [self.ROW, {**self.ROW, "id": 2},   # same domain: one probe
+                {**self.ROW, "id": 3, "domains": ["b.lan"], "backend": {"up": False}},   # port closed: the port pulse sees it
+                {**self.ROW, "id": 4, "domains": ["c.lan"], "public": {"code": 200}},   # not bad
+                {**self.ROW, "id": 5, "domains": ["d.lan"]}]   # not waiting
+        pending = {"proxy:1": 1, "proxy:2": 1, "proxy:3": 1, "proxy:4": 1}
+        self.assertEqual(list(recheck.pick({"hosts": rows}, pending)), ["proxy:1"])
+        many = [{**self.ROW, "id": i, "domains": [f"s{i}.lan"]} for i in range(100)]
+        self.assertEqual(len(recheck.pick({"hosts": many}, {f"proxy:{i}": 1 for i in range(100)})), recheck.MAX_PASS)
+
+    def test_a_second_bad_answer_is_confirmed_at_once_and_a_good_one_waits(self):
+        from msv.collect import recheck
+        todo = {"proxy:1": self.ROW}
+        calls = []
+        got = recheck.run(todo, lambda d: calls.append(d) or {"code": 503})
+        self.assertEqual((calls, recheck.confirmed(todo, got)), (["web.lan"], ["proxy:1"]))
+        prev = watcher.snapshot({**self.ROW, "public": {"code": 200}})
+        bad = watcher.snapshot(self.ROW, None, got)
+        self.assertEqual([e["kind"] for e in watcher.diff({"proxy:1": prev}, {"proxy:1": bad}, {})[0]], ["panne"])
+        back = watcher.snapshot(self.ROW, None, {"proxy:1": {"code": 200}})
+        self.assertEqual((back["status"], back["pulse"]), ("ok", False))
+
+    def test_the_answer_is_only_valid_for_its_collection(self):
+        from msv.collect import recheck
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "recheck.json"
+            recheck.save(f, "gen1", {"proxy:1": {"code": 503}})
+            self.assertEqual(recheck.read(f, "gen1"), {"proxy:1": {"code": 503}})
+            self.assertEqual(recheck.read(f, "gen2"), {})
 
 
 class LiveSettings(unittest.TestCase):

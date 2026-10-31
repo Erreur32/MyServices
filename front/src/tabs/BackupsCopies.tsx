@@ -147,7 +147,7 @@ export function SetCopies({ setId, origin, copies, locations = [], machines, fou
 }
 
 /** « Find the copies »: looks on every machine (network shares included) for the newest archive of each followed folder ; one click links */
-export function CopyGuesses({ onDone, setNote }: { onDone: () => void; setNote: (n: Note) => void }) {
+export function CopyGuesses({ onDone, setNote }: Readonly<{ onDone: () => void; setNote: (n: Note) => void }>) {
   const [list, setList] = useState<CopyGuess[] | null>(null), [why, setWhy] = useState(""), [errors, setErrors] = useState<{ name: string; error: string }[]>([]);
   const [searching, setSearching] = useState(false), [busy, setBusy] = useState(""), [hidden, setHidden] = useState<string[]>([]);
   const key = (c: CopyGuess) => `${c.set_id}|${c.ip}|${c.path}`;

@@ -5,7 +5,7 @@ import { checkPassword, PASSWORD_MIN } from "../lib/password";
 import { tx } from "../lib/i18n";
 import { InfoNote } from "./InfoNote";
 
-function Rule({ ok, children, tip }: { ok: boolean; children: React.ReactNode; tip?: boolean }) {
+function Rule({ ok, children, tip }: Readonly<{ ok: boolean; children: React.ReactNode; tip?: boolean }>) {
   const Icon = ok ? Check : tip ? Lightbulb : Circle;
   return (
     <li className={`flex items-center gap-1.5 ${ok ? "text-ok" : "text-dim"}`}>
@@ -16,7 +16,7 @@ function Rule({ ok, children, tip }: { ok: boolean; children: React.ReactNode; t
   );
 }
 
-export function PasswordRules({ pw, again }: { pw: string; again?: string }) {
+export function PasswordRules({ pw, again }: Readonly<{ pw: string; again?: string }>) {
   if (!pw && !again) return <InfoNote>{tx("{0} caractères minimum. Une phrase de plusieurs mots est facile à retenir et solide.", PASSWORD_MIN)}</InfoNote>;
   const c = checkPassword(pw, again);
   return (

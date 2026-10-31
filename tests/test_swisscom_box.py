@@ -24,8 +24,9 @@ class SwisscomBoxTest(unittest.TestCase):
 
     def test_refused_login_is_one_call_and_names_the_box(self):
         ctx = FakeContext(FIBRE, "HTTP 401")
+        box = SwisscomBox(conf(), ctx)
         with self.assertRaises(ConnectorError) as e:
-            SwisscomBox(conf(), ctx).collect()
+            box.collect()
         self.assertEqual(len(ctx.calls), 1)
         self.assertIn("Internet-Box", str(e.exception))
         self.assertNotIn("Livebox", str(e.exception))

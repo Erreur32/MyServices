@@ -15,7 +15,7 @@ export interface PbsState { connectors: string[]; followed: number }
 interface Group { key: string; store: string; type: string; id: string; last: number | null; count: number; comment: string; followed: boolean }
 interface Choice { on: boolean; label: string; age: string }
 
-export function BackupsPbs({ state, reload }: { state: PbsState; reload: () => void }) {
+export function BackupsPbs({ state, reload }: Readonly<{ state: PbsState; reload: () => void }>) {
   const [name, setName] = useState(state.connectors[0] ?? "");
   const [groups, setGroups] = useState<Group[] | null>(null), [pick, setPick] = useState<Record<string, Choice>>({});
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState<"" | "search" | "follow">("");

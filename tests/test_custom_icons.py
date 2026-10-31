@@ -49,9 +49,15 @@ class CustomIcons(unittest.TestCase):
         self.assertEqual(custom_icons.listing(), [])
 
     def test_cles_inconnues_ou_piegees(self):
-        for key in ("", "custom-zzz", "../index", "custom-0123456789ab/../x", "custom-0123456789ab"):
+        for key in ("", "custom-zzz", "../index", "custom-0123456789ab/../x", "custom-0123456789ab",
+                    "/etc/passwd", "..\\..\\x", "custom-0123456789ab\\..\\x", "custom-0123456789\x00b", "custom-0123456789ab\x00.png", "custom-0123456789ab\n"):
             self.assertIsNone(custom_icons.get(key))
             self.assertFalse(custom_icons.remove(key))
+
+    def test_file_refuses_hostile_keys(self):
+        for key in ("../x", "/etc/passwd", "..\\x", "custom-0123456789ab/../x", "custom-0123456789ab\x00"):
+            with self.assertRaises(custom_icons.IconError):
+                custom_icons._file(key, "image/png")
 
     def test_plafond(self):
         with mock.patch.object(custom_icons, "MAX_ICONS", 1):

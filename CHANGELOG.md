@@ -11,6 +11,40 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.32.0 (2026-10-31)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- **Availability to the minute**: machines and services keep their outages from the pulses, and the 24 hour view shows 96 quarter-hour cells. A new `avail_runs` table holds them, created by itself.
+- **Quick recheck**: a service found bad although its port answers (a 5xx, or no answer on its public site) is tried again about 90 seconds after the watch, one per domain and at most 20 per pass, so the outage is confirmed without waiting for the next collection. Only the appearance of an outage is sped up, and the log says "contrôle rapide".
+- **Pulse cost**: Settings › Requests shows what the port pulses cost.
+- **Header**: every scheduled task can appear in the header, chosen per browser in Tasks and schedules; the collection and the network search stay on by default.
+- **Internet box**: a Liberty gateway connector for Virgin Media Hub 5 and Ziggo SmartWifi, based on the liberty-global-gateway project, whose author tried it on a Ziggo F3896LG only; simulated here.
+
+### Changed
+
+- **Agent first**: a machine with a fresh and complete agent report is no longer read over SSH for its inventory, ports and logins. Ports without a web page are followed from that report.
+- **Agents**: when a fresh Linux agent cannot read everything (no sudo for the names behind its ports, Docker unreadable), the Agents and SSH connections pages say what is missing and how to fix it; SSH stays used meanwhile.
+- **Header colours**: each task has its own gradient and title colour, made from the theme's tokens, tasks with no percentage get a back-and-forth bar, and a short task stays on show for 4 seconds. The animations are slower. The orb follows the theme in use instead of the system's light or dark setting.
+- **Tasks and schedules**: the coming runs in a table sorted by time at the top of the page, a real table with state, schedule, next run and header columns on wide screens, and a task that ends shows at once instead of at the next read. The section "By hand or once" is now "Searches with no schedule" and says there is nothing to do day to day.
+- **Analytics connectors**: Rybbit and Umami are read every 15 minutes instead of 5: their counts cover 24 hours and each site is one call.
+- **Machines, Services, Connectors**: the search field moves into the title of the frame, centred. Services shows its main filters on the left like Machines. Connectors gets the same frame, 6 cards a line at most, a tighter card body on its own background, and a footer that belongs to its card, with a short link.
+- **Services**: the ignored domains leave their frame for a small button in the title line, with the domains beside it and the full panel opening under the button.
+- **Cloudflare, Audit log**: the browser keeps the chosen period, and the chosen domain on the Cloudflare pages, like the other pages already do.
+- **Frigate**: with an account, the sign-in is kept in memory between readings and camera pictures instead of being done again each time. It stays out of any file, and a changed password is really tried.
+- **Machine notices**: each one says since when it lasts, and more of what is behind it: the thresholds, the hottest probe and the load for a hot processor, the free space of a disk, the amounts of memory, the security updates and the packages waiting.
+- **Login page**: the button text uses the page font at its proper size.
+
+### Removed
+
+- `legacy/`: the old systemd installation, unused since the Docker version.
+
+### Security
+
+- **Custom icons**: the key is checked where the file path is built.
+
 ## v0.31.10 (2026-10-31)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

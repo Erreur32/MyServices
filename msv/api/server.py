@@ -31,12 +31,16 @@ from pathlib import Path
 from msv.collect import fast
 from msv.collect import netscan
 from msv.collect import pulse
+from msv.collect import recheck
 from msv.core.config import CFG
 
 HERE = Path(__file__).resolve().parents[2]   # the project folder (msv/api/server.py -> ../..)
 STATIC = HERE / "web"
 WEB = Path(CFG["web_dir"])
 BACKUPS_FILE = "backups.json"
+NETSCAN_FILE = "network-scan.json"
+STATS_FILE = "stats.json"
+DATA_FILE = "data.json"
 CONNECTORS_FILE = "connectors.json"   # the readers' shared state, in the state directory
 PREFIX = "/"
 PORT = int(os.environ.get("MYSERVICES_PORT", "8090"))
@@ -153,6 +157,22 @@ def alerts_on() -> bool:
         return False
 
 
+def _after_success(name: str) -> None:
+    """What a task that ended well leads to, before it is freed: the maps always follow the files they show."""
+    if name == "collect":
+        keep_availability()
+        threading.Thread(target=auto_backup_default, daemon=True, name="auto-backup").start()
+        threading.Thread(target=auto_adguard, daemon=True, name="auto-adguard").start()
+    if name in ("collect", "health", "backups"):
+        build_map()
+    if name in ("watch", "health"):
+        keep_history(name, alert=True)
+    if name == "watch":
+        schedule_recheck()
+    if name == "health":
+        keep_metrics()
+
+
 def _wait(name: str) -> None:
     t = TASKS[name]
     proc = t["proc"]
@@ -163,16 +183,8 @@ def _wait(name: str) -> None:
     code = proc.wait()
     timer.cancel()
     result = "success" if code == 0 else "timeout" if code == -9 else f"exit-code {code}"
-    if name == "collect" and code == 0:
-        keep_availability()
-        threading.Thread(target=auto_backup_default, daemon=True, name="auto-backup").start()
-        threading.Thread(target=auto_adguard, daemon=True, name="auto-adguard").start()
-    if name in ("collect", "health", "backups") and code == 0:
-        build_map()  # avant de libérer la tâche : les cartes suivent toujours les fichiers qu'elles montrent
-    if name in ("watch", "health") and code == 0:
-        keep_history(name, alert=True)
-    if name == "health" and code == 0:
-        keep_metrics()
+    if code == 0:
+        _after_success(name)
     with LOCK:
         t.update(proc=None, end=time.time(), result=result)
     save_last_runs()
@@ -236,19 +248,75 @@ def auto_backup_default() -> None:
 
 
 PULSE = pulse.Pulse(WEB / "pulse.json", CFG["pulse_confirm"])
-PORTS = pulse.Pulse(WEB / "ports.json", CFG["pulse_confirm"], pulse.port_open)   # same confirmed state, keyed by « ip:port »
+AGENT_PORTS: dict[str, bool] = {}   # « ip:port » -> listening, from the fresh agent reports (set by ports_loop)
+
+
+def port_probe(target: str) -> tuple[bool, float | None]:
+    """A port read in an agent report is not connected to (SSH, mail, SMB, databases: a silent connection fills their logs)."""
+    return (AGENT_PORTS[target], None) if target in AGENT_PORTS else pulse.port_open(target)
+
+
+PORTS = pulse.Pulse(WEB / "ports.json", CFG["pulse_confirm"], port_probe)   # same confirmed state, keyed by « ip:port »
+
+
+def agent_listening() -> dict[str, set[int]]:
+    """{IP: listening ports} of the agents whose last report is fresh and carries them."""
+    from msv.core.auth import db_path
+    from msv.machines import agents
+    try:
+        reports = agents.Agents(db_path(CFG)).fresh_reports()
+    except Exception as e:  # no database or unreadable: the ports are tried as before
+        log(f"⚠ agents (pouls des services) : {e}")
+        return {}
+    return {ip: lp for ip, a in reports.items() if a["fresh"] and (lp := agents.listening_ports(a["report"]))}
 
 
 def last_collection() -> dict:
     try:
-        return json.loads((WEB / "data.json").read_text(encoding="utf-8"))
+        return json.loads((WEB / DATA_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
 
-def pulse_ips() -> list[str]:
+def pulse_machines() -> list[dict]:
     """Followed machines of the last collection, minus the ones switched off in Settings (no ping for them)."""
-    return [m["ip"] for m in last_collection().get("machine_list", []) if m.get("ip") and not m.get("disabled")]
+    return [m for m in last_collection().get("machine_list", []) if m.get("ip") and not m.get("disabled")]
+
+
+def pulse_ips() -> list[str]:
+    return [m["ip"] for m in pulse_machines()]
+
+
+def keep_pulse_availability(p: pulse.Pulse, keys: dict[str, list[tuple[str, str | None]]], every: float) -> None:
+    """What a pulse just saw goes to the availability runs (no request of its own). keys: {target: [(availability key, ip of its machine)]}; a
+    service that is down while its machine does not ping is left to the machine's own line, as in availability.points."""
+    from msv.collect import availability
+    from msv.core.auth import db_path
+    states = {}
+    for target, ks in keys.items():
+        s = p.state.get(target)
+        for key, ip in (ks if s else []):
+            if s["ping"] or (PULSE.state.get(ip) or {}).get("ping") is not False:
+                states[key] = (s["ping"], s.get("began"))
+    try:
+        availability.record(db_path(CFG), states, time.time(), max(120.0, 3 * every))
+    except Exception as e:  # base unavailable: only the minute detail misses a point
+        log(f"⚠ disponibilité (pouls) : {e}")
+
+
+def ports_keys(hosts: list[dict]) -> dict[str, list[tuple[str, str | None]]]:
+    """{« ip:port » followed by the port pulse: [(availability key of each service behind it, ip of its machine)]}."""
+    out: dict[str, list[tuple[str, str | None]]] = {}
+    for r in hosts:
+        if (p := pulse.port_of(r)) and r.get("type") not in ("redirect", "dead"):
+            out.setdefault(p, []).append((f'svc:{r["type"]}:{r["id"]}', r.get("host_ip") or r.get("ip")))
+    return out
+
+
+def pulse_cost() -> list[dict]:
+    """What the pulses cost, for Settings > Requests: one connection (a ping, a TCP connection) per target and pass."""
+    return [{"name": name, "targets": len(p.state), "every": every, "per_min": round(len(p.state) * 60 / every, 1) if every > 0 else 0}
+            for name, p, every in (("machines", PULSE, CFG["pulse_every"]), ("ports", PORTS, CFG["ports_every"]))]
 
 
 HEALTH_TRIED: dict = {}
@@ -259,7 +327,7 @@ def pulse_stale_health() -> list[str]:
     if not enabled("health"):
         return []
     try:
-        stats = json.loads((WEB / "health" / "stats.json").read_text(encoding="utf-8"))
+        stats = json.loads((WEB / "health" / STATS_FILE).read_text(encoding="utf-8"))
         age = time.time() - datetime.fromisoformat(stats["timestamp"]).timestamp()
     except (OSError, ValueError, KeyError, TypeError):
         return []
@@ -274,9 +342,11 @@ def pulse_loop() -> None:
         t0, every = time.time(), CFG["pulse_every"]   # read again at every pass: a change in the settings applies at once
         PULSE.confirm = max(1, CFG["pulse_confirm"])
         try:
-            ips = pulse_ips() if every > 0 else []
+            machines = pulse_machines() if every > 0 else []
+            ips = [m["ip"] for m in machines]
             if ips:
                 owed.add(PULSE.tick(ips))
+                keep_pulse_availability(PULSE, {m["ip"]: [(f'machine:{m["ip"]}', None)] for m in machines if not m.get("off")}, every)
                 owed.health += [ip for ip in pulse_stale_health() if ip not in owed.health]
             # the machine that moved also gets its health read again at once (not at the next 6 h pass), alone
             owed.settle(lambda: run_task("watch", "pouls"), lambda ip: run_task("health", f"ping de {ip} changé (pouls)", ("--only", ip)),
@@ -289,6 +359,20 @@ def pulse_loop() -> None:
 PORTS_FIRST_WAIT = 30   # s: right after a start the app's own port is not open yet, and a first sight is taken as it is
 
 
+def ports_pass(every: int) -> bool:
+    """One pass of the pulse of the services; True when a confirmed change is owed to the watcher."""
+    data = last_collection() if every > 0 else {}
+    hosts = data.get("hosts", [])
+    AGENT_PORTS.clear()
+    AGENT_PORTS.update(pulse.agent_states(hosts, agent_listening()))
+    # a row read by its agent whose report is missing is not followed at all (never probed, never announced down)
+    ports = sorted({p for r in hosts if (p := pulse.port_of(r)) and (not r.get("by_agent") or p in AGENT_PORTS)})
+    changed = bool(ports and PORTS.tick(ports))
+    if ports:
+        keep_pulse_availability(PORTS, ports_keys(hosts), every)
+    return changed
+
+
 def ports_loop() -> None:
     """Try the port of every service each `ports_every` s; a confirmed change starts the watcher at once, as for the ping of a machine."""
     owed = False
@@ -297,14 +381,44 @@ def ports_loop() -> None:
         t0, every = time.time(), CFG["ports_every"]
         PORTS.confirm = max(1, CFG["pulse_confirm"])
         try:
-            data = last_collection() if every > 0 else {}
-            ports = sorted({p for r in data.get("hosts", []) if (p := pulse.port_of(r))})
-            owed = bool(ports and PORTS.tick(ports)) or owed
+            owed = ports_pass(every) or owed
             if owed and (not enabled("watch") or run_task("watch", "pouls des services")):
                 owed = False
         except Exception as e:  # a bug here must not stop the loop
             log(f"⚠ pouls des services : {e}")
         time.sleep(max(1.0, (every or 5) - (time.time() - t0)))
+
+
+RECHECKED = {"gen": None}
+
+
+def schedule_recheck() -> None:
+    """Once per collection, after the watcher run that made some services wait for their confirmation: the ones bad on a 5xx are tried
+    again alone DELAY s later (recheck.py) instead of waiting for the next collection."""
+    gen = last_collection().get("generated")
+    if gen and gen != RECHECKED["gen"]:
+        RECHECKED["gen"] = gen   # the watcher runs the pulse starts on the same collection do not schedule another one
+        timer = threading.Timer(recheck.DELAY, quick_recheck, args=(gen,))
+        timer.daemon = True
+        timer.start()
+
+
+def quick_recheck(gen: str) -> None:
+    from msv.collect import myservices, watcher
+    try:
+        data = last_collection()
+        pending = json.loads(watcher.STATE_FILE.read_text(encoding="utf-8")).get("pending") or {} if data.get("generated") == gen else {}
+        todo = recheck.pick(data, pending)
+        if not todo:
+            return
+        got = recheck.run(todo, myservices.probe_https)
+        recheck.save(watcher.RECHECK_FILE, gen, got)
+        still = recheck.confirmed(todo, got)
+        log(f"contrôle rapide : {len(todo)} service(s) réessayé(s), {len(still)} toujours en panne")
+        if still and enabled("watch"):
+            run_chain(["watch"], "contrôle rapide")
+    except Exception as e:  # a convenience: the next collection confirms as before
+        log(f"⚠ contrôle rapide : {e}")
 
 
 BANDWIDTH_EVERY = 60   # s, between two readings of the Internet rate (the tiles want it almost live; the sources are shared readings)
@@ -366,7 +480,7 @@ def fast_loop() -> None:
 def local_dns_servers() -> list[str]:
     """The DNS servers of the DNS page (data.json, `dns.servers`): the ones the tiles test for an answer."""
     try:
-        servers = (json.loads((WEB / "data.json").read_text(encoding="utf-8")).get("dns") or {}).get("servers") or {}
+        servers = (json.loads((WEB / DATA_FILE).read_text(encoding="utf-8")).get("dns") or {}).get("servers") or {}
     except (OSError, ValueError):
         return []
     return [ip for ip in servers if isinstance(ip, str)]
@@ -381,13 +495,13 @@ def keep_availability() -> None:
     from msv.core.auth import db_path
     db = db_path(CFG)
     steps = {
-        "disponibilité": lambda: availability.sample(db, WEB / "data.json"),
-        "cadres Réseau": lambda: tile_history.sample_network(db, WEB / "data.json"),
+        "disponibilité": lambda: availability.sample(db, WEB / DATA_FILE),
+        "cadres Réseau": lambda: tile_history.sample_network(db, WEB / DATA_FILE),
         "cadres Sauvegardes": lambda: tile_history.sample_backups(db, WEB / BACKUPS_FILE),
-        "cadres Services": lambda: tile_history.sample_services(db, WEB / "data.json"),
+        "cadres Services": lambda: tile_history.sample_services(db, WEB / DATA_FILE),
         "cadres Agents": lambda: tile_history.sample_agents(db, agents.Agents(db).listing()),
-        "cadres IA": lambda: tile_history.sample_ai(db, WEB / "data.json", WEB / "health" / "stats.json"),
-        "cadres Virtualisation": lambda: tile_history.sample_virt(db, WEB / "data.json", WEB / BACKUPS_FILE),
+        "cadres IA": lambda: tile_history.sample_ai(db, WEB / DATA_FILE, WEB / "health" / STATS_FILE),
+        "cadres Virtualisation": lambda: tile_history.sample_virt(db, WEB / DATA_FILE, WEB / BACKUPS_FILE),
     }
     for name, step in steps.items():
         try:
@@ -405,8 +519,8 @@ def keep_metrics() -> None:
     from msv.collect import tile_history
     from msv.core.auth import db_path
     try:
-        metrics.sample(db_path(CFG), WEB / "health" / "stats.json")
-        tile_history.sample(db_path(CFG), WEB / "health" / "stats.json")
+        metrics.sample(db_path(CFG), WEB / "health" / STATS_FILE)
+        tile_history.sample(db_path(CFG), WEB / "health" / STATS_FILE)
     except Exception as e:  # base unavailable: only the curves miss a point
         log(f"⚠ mesures des machines : {e}")
 
@@ -562,7 +676,7 @@ def auto_netscan() -> None:
     les « netscan_every » heures (config.json, Réglages → Recherche réseau ; 0 = coupée). Mêmes garanties que le bouton :
     lecture seule, un /24 au plus, un passage à la fois."""
     every = CFG["netscan_every"]
-    f = Path(CFG["state_dir"]) / "network-scan.json"
+    f = Path(CFG["state_dir"]) / NETSCAN_FILE
     if netscan.due(f, every) and not netscan.summary()["running"]:
         try:
             from msv.machines import machines_admin
@@ -575,7 +689,7 @@ def auto_netscan() -> None:
 def auto_adopt() -> None:
     """Auto mode (Settings -> Discovery): once per finished network search, the machines worth following are added (machines_admin
     .adopt_found), then a collection reads them. An IP added this way and removed by hand later is never added again (auto-mode.json)."""
-    f, mark = Path(CFG["state_dir"]) / "network-scan.json", Path(CFG["state_dir"]) / "auto-mode.json"
+    f, mark = Path(CFG["state_dir"]) / NETSCAN_FILE, Path(CFG["state_dir"]) / "auto-mode.json"
     if not CFG["auto_mode"] or not f.exists():
         return
     st = netscan.state(f)
@@ -606,7 +720,7 @@ def auto_adopt() -> None:
 def netscan_task() -> dict:
     """La recherche réseau automatique, présentée comme une tâche (en-tête) : prochaine échéance = dernière recherche + « netscan_every » h
     (vérifiée chaque minute par le planificateur ; tout de suite s'il n'y en a jamais eu) ; coupée si netscan_every = 0."""
-    every, f = CFG["netscan_every"], Path(CFG["state_dir"]) / "network-scan.json"
+    every, f = CFG["netscan_every"], Path(CFG["state_dir"]) / NETSCAN_FILE
     on = every > 0
     st = netscan.state(f) if f.exists() else {}
     last = st.get("ended") or st.get("started")
@@ -651,7 +765,7 @@ def wake_check() -> None:
     """Postes « souvent éteints » dont la fiche est grisée dans Santé : un ping ciblé chaque minute ; si la réponse change (le PC
     s'allume ou s'éteint), la santé de cette seule machine est relue, la fiche passe de « éteinte » à « allumée, agent en attente »."""
     try:
-        asleep = json.loads((WEB / "health" / "stats.json").read_text(encoding="utf-8")).get("asleep", [])
+        asleep = json.loads((WEB / "health" / STATS_FILE).read_text(encoding="utf-8")).get("asleep", [])
     except (OSError, ValueError):
         return
     for a in asleep:
@@ -780,7 +894,7 @@ def first_meta() -> None:
     log(f"installation neuve : {meta} créé avec la machine hôte ({ip}) ; ses ports en écoute sont relevés tout de suite")
 
 
-FIRST = {"collect": "data.json", "watch": "events.json", "health": "health/stats.json", "backups": BACKUPS_FILE}
+FIRST = {"collect": DATA_FILE, "watch": "events.json", "health": "health/stats.json", "backups": BACKUPS_FILE}
 
 
 def first_runs() -> None:
@@ -828,11 +942,11 @@ def status() -> dict:
                 prog = None  # fichier du passage précédent
         except (OSError, ValueError):
             pass
-    generated = generated_of(WEB / "data.json")
+    generated = generated_of(WEB / DATA_FILE)
     ts = (lambda x: int(x) if x else None)
     return {"running": running, "progress": prog, "started": ts(t["start"]), "ended": ts(t["end"]),
             "result": t["result"], "generated": generated, "cooldown": COOLDOWN, "wait": wait, "now": int(now),
-            "network": netscan.summary()}
+            "network": netscan.summary(), "tasks": [n for n, x in TASKS.items() if n != "collect" and x["proc"] is not None]}
 
 
 def start() -> None:

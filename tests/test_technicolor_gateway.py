@@ -162,28 +162,33 @@ class Collect(unittest.TestCase):
         self.assertGreater(len(c.calls), n)
 
     def test_http_403_on_authenticate_is_a_refusal(self):
+        box = make(auth_error="HTTP 403")
         with self.assertRaises(ConnectorError) as e:
-            make(auth_error="HTTP 403").collect()
+            box.collect()
         self.assertEqual(str(e.exception), tg.REFUSED)
 
     def test_server_proof_checked(self):
+        box = make(bad_proof=True)
         with self.assertRaises(ConnectorError) as e:
-            make(bad_proof=True).collect()
+            box.collect()
         self.assertEqual(str(e.exception), tg.BAD_PROOF)
 
     def test_not_a_homeware_page(self):
+        box = make(pages={"GET ": b"<html>hello</html>"})
         with self.assertRaises(ConnectorError) as e:
-            make(pages={"GET ": b"<html>hello</html>"}).collect()
+            box.collect()
         self.assertEqual(str(e.exception), tg.UNKNOWN)
 
     def test_login_page_instead_of_data_is_a_lost_session(self):
+        box = make(pages={"GET modals/gateway-modal.lp": LOGIN})
         with self.assertRaises(ConnectorError) as e:
-            make(pages={"GET modals/gateway-modal.lp": LOGIN}).collect()
+            box.collect()
         self.assertEqual(str(e.exception), tg.SESSION_LOST)
 
     def test_unreadable_page_is_unknown(self):
+        box = make(pages={"GET modals/gateway-modal.lp": b"<p>nothing</p>"})
         with self.assertRaises(ConnectorError) as e:
-            make(pages={"GET modals/gateway-modal.lp": b"<p>nothing</p>"}).collect()
+            box.collect()
         self.assertEqual(str(e.exception), tg.UNKNOWN)
 
     def test_test_shows_no_secret(self):

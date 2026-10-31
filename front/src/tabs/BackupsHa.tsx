@@ -13,7 +13,7 @@ import { InfoNote } from "../components/InfoNote";
 
 export interface HaState { connectors: string[]; followed: boolean; connector: string }
 
-export function BackupsHa({ state, reload }: { state: HaState; reload: () => void }) {
+export function BackupsHa({ state, reload }: Readonly<{ state: HaState; reload: () => void }>) {
   const [name, setName] = useState(state.connector || state.connectors[0] || ""), [age, setAge] = useState("2");
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState<"" | "check" | "follow">("");
   const body = { connector: name, label: "", max_age_days: Number(age) };

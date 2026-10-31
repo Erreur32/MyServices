@@ -100,6 +100,7 @@ export interface Host {
   uptime?: { name?: string; status: string; response_ms?: number | null; cert_days?: number | null }[];
   dns?: { issues: [string, ...unknown[]][]; rewrites?: unknown[] };
   web?: string;
+  by_agent?: boolean;   // silent port (no web page) whose state comes from the agent report: followed live without any connection
   direct_ok?: boolean;
   target_changed?: string;   // ISO date: the target (ip:port) changed less than 7 days ago
   target_before?: string;    // the previous target
@@ -438,6 +439,7 @@ export interface HealthHost {
   apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null; firmware?: boolean };   // packages (apt) or Windows updates; sample: up to 30 named
   kernel?: { has_errors: boolean; samples?: string[] };
   load?: { load_1: number; ncpu: number; available: boolean; cpu_pct?: number | null };   // cpu_pct: Windows, instant CPU instead of a load average
+  check_s?: Record<string, number>;   // seconds each of those controls has been in warn or crit (health.py track_checks)
   checks?: Record<string, string>;   // the controls not « ok » (disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res, pm2, raid, zfs, mounts, ntp, timers, auto_upd -> warn | crit), from health.py host_checks
   system?: HostSystem;   // services and storage of a Linux machine (SSH or Linux agent); a part not on the machine has available false
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
@@ -805,6 +807,7 @@ export interface AgentInfo {
   update_requested?: boolean;  // « mettre à jour maintenant » demandé, pas encore pris en compte
   latest_version?: string;     // version du script d'agent servi par cette installation
   outdated?: boolean;          // l'agent est plus ancien que le script servi
+  gaps?: string[];             // what its fresh report lacks to replace SSH (agents.inventory_gaps)
   id: number;
   ip: string;
   name: string;

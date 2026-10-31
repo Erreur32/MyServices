@@ -5,6 +5,19 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.31.10 → 0.32.0
+
+**Nothing to do.** The update does these by itself:
+
+- A new `avail_runs` table is added to the database at start. It stays small: about 2 MB estimated with 100 pulsed services, older rows are removed by themselves.
+- The 24 hour view of Availability has 96 quarter-hour cells. Older days keep their previous precision.
+- `recheck.json` appears next to `ports.json`, and the log may show "contrôle rapide" lines after the watch.
+- Machines with a fresh and complete agent report get no inventory, ports or logins SSH connection. If you only used SSH on them, nothing changes.
+- The Agents and SSH connections pages now say when an agent cannot read everything. It is optional: run the install command again with `MSV_SUDO=1` after `sudo env` to fill it, or leave SSH doing that part.
+- `legacy/` is gone from the repository. It played no part in the Docker image.
+- The header choices are kept in each browser, with the collection and the network search on by default.
+- Machine notices say since when they last. The count starts at the first health pass after the update, so a notice already there shows a shorter time at first.
+
 ## 0.31.9 → 0.31.10
 
 **Nothing to do.** What to know:
@@ -108,7 +121,7 @@ Keep a copy of `config/` and `data/` before any update.
 **Nothing required to update.** No change to the compose file, the image's volumes or variables, or `config.json`.
 
 - **Command lines run by hand changed** (only if you use them): `python3 manage.py ...` is now `python3 -m msv.tools.manage ...`, `python3 setup.py ...` is `python3 -m msv.machines.setup ...`, `python3 import_install.py ...` is `python3 -m msv.tools.import_install ...`, always through `docker compose exec myservices`.
-- **Old installation without Docker (`install.sh`, systemd units, `refresh-api.py`)**: no longer maintained. The files moved to `legacy/` and the units start files that no longer exist under their old names. Move to the Docker image.
+- **Old installation without Docker (`install.sh`, systemd units, `refresh-api.py`)**: no longer maintained. The files were removed from the repository and the units start files that no longer exist under their old names. Move to the Docker image.
 - **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
 - **Behaviour**: none. The python code moved into the `msv` package and the image starts `python3 -m msv.api.server`; scheduled tasks run as modules.
 

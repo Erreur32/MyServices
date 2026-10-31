@@ -53,7 +53,19 @@ class Frigate(StatusConnector):
     guide = ("Port 5000 (API interne, sans connexion) : aucun compte à donner ; ce port ne doit pas être exposé sur Internet.",
              "Port 8971 (avec connexion, Frigate 0.14+) : donnez un compte de rôle « viewer » (lecture seule) et décochez la vérification du certificat s'il est auto-signé.",
              "MyServices ne fait que des GET (version, statistiques, événements), après la connexion.")
-    _token: str | None = None
+    _sessions: dict[tuple[str, str, str], str] = {}   # the connector is rebuilt at each read and each camera picture, and a sign-in takes as long as 35 calls
+
+    def _session(self) -> tuple[str, str, str]:
+        """The key of a session, in memory only; the password is part of it so that a changed one is really tried, not answered by the old token."""
+        return self.base_url(), str(self.conf["user"]), str(self.conf.get("password") or "")
+
+    def _auth(self) -> dict:
+        """The headers of this account's session, signing in only when it has none."""
+        key = self._session()
+        token = self._sessions.get(key)
+        if token is None:
+            token = self._sessions[key] = self._login()
+        return {"Authorization": f"Bearer {token}", "Cookie": f"frigate_token={token}"}
 
     def _login(self) -> str:
         """Signs in with the account (POST /api/login) and returns the frigate_token cookie Frigate sets; the password is never kept nor logged."""
@@ -83,15 +95,12 @@ class Frigate(StatusConnector):
         if not self.conf.get("user"):
             return super().get(path, headers, **kw)
         for retry in (False, True):
-            if self._token is None:
-                self._token = self._login()
-            auth = {"Authorization": f"Bearer {self._token}", "Cookie": f"frigate_token={self._token}"}
             try:
-                return super().get(path, {**(headers or {}), **auth}, **kw)
+                return super().get(path, {**(headers or {}), **self._auth()}, **kw)
             except ConnectorError as e:
                 if retry or not str(e).startswith("accès refusé"):
                     raise
-                self._token = None
+                self._sessions.pop(self._session(), None)
 
     def collect(self) -> dict:
         stats = self.get("/api/stats")
@@ -198,14 +207,12 @@ class Frigate(StatusConnector):
         for retry in (False, True):
             headers = {"User-Agent": "myservices"}
             if self.conf.get("user"):
-                if self._token is None:
-                    self._token = self._login()
-                headers.update({"Authorization": f"Bearer {self._token}", "Cookie": f"frigate_token={self._token}"})
+                headers.update(self._auth())
             try:
                 return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=self.ctx.timeout, context=ctx)
             except urllib.error.HTTPError as e:
                 if e.code in (401, 403) and self.conf.get("user") and not retry:
-                    self._token = None
+                    self._sessions.pop(self._session(), None)
                     continue
                 raise ConnectorError(f"flux refusé : HTTP {e.code}") from None
             except OSError as e:

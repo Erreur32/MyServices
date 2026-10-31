@@ -86,18 +86,22 @@ class Reading(unittest.TestCase):
         Fake(good(), password=SECRET + "2").collect()   # other settings: tried again
 
     def test_locked(self):
+        box = Fake({**good(), "goform/login": b"LoginProtect=9|58|21"})
         with self.assertRaises(ConnectorError) as e:
-            Fake({**good(), "goform/login": b"LoginProtect=9|58|21"}).collect()
+            box.collect()
         self.assertEqual(str(e.exception), LOCKED)
         self.assertEqual(REFUSED_BY, {})
 
     def test_not_a_hitron_and_unreadable(self):
+        box = Fake({})
         with self.assertRaises(ConnectorError):
-            Fake({}).collect()
+            box.collect()
+        box = Fake({**good(), "data/getSysInfo.asp": b"nope"})
         with self.assertRaises(ConnectorError):
-            Fake({**good(), "data/getSysInfo.asp": b"nope"}).collect()
+            box.collect()
+        box = Fake({**good(), "data/getSysInfo.asp": b"<html>login</html>"})
         with self.assertRaises(ConnectorError):
-            Fake({**good(), "data/getSysInfo.asp": b"<html>login</html>"}).collect()
+            box.collect()
 
 
 if __name__ == "__main__":

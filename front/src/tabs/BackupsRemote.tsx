@@ -21,7 +21,7 @@ interface Listing { path: string; folders: string[]; files: { name: string; size
 
 const PORTS: Record<Proto, string> = { ftp: "21", ftps: "21", smb: "445" };
 
-export function BackupsRemote({ accounts, sets, reload }: { accounts: RemoteAccountState[]; sets: RemoteSet[]; reload: () => void }) {
+export function BackupsRemote({ accounts, sets, reload }: Readonly<{ accounts: RemoteAccountState[]; sets: RemoteSet[]; reload: () => void }>) {
   const first = accounts[0];
   const [name, setName] = useState(first?.name ?? ""), [proto, setProto] = useState<Proto>(first?.protocol ?? "ftp");
   const [host, setHost] = useState(first?.host ?? ""), [port, setPort] = useState(first?.port ? String(first.port) : "");
@@ -67,7 +67,7 @@ export function BackupsRemote({ accounts, sets, reload }: { accounts: RemoteAcco
       <h2 className="mb-1 flex items-center gap-2 font-bold"><FolderTree size={16} />{tx("Dossier distant (FTP, FTPS, Samba)")}
         {accounts.length > 0 && <Badge tone="ok">{tx("{0} compte(s)", accounts.length)}</Badge>}</h2>
       <InfoNote className="mb-3">
-        {tx("Un dossier de sauvegarde sur une Freebox, un NAS ou un serveur FTP / Samba. MyServices ne fait que lister les fichiers (nom, date, taille) : rien n'est écrit ni supprimé là-bas. Le mot de passe est chiffré et n'est jamais réaffiché.")}
+        {tx("Un dossier de sauvegarde sur une Freebox, un NAS ou un serveur FTP / Samba. MyServices ne fait que lister les fichiers (nom, date, taille) : rien n'est écrit ni supprimé là-bas. Le mot de passe est chiffré et n'est jamais réaffiché. Partage déjà monté sur la machine de MyServices : aucun compte à saisir, voir le README.")}
       </InfoNote>
       {accounts.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">

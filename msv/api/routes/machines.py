@@ -44,7 +44,7 @@ def _ssh_uses(machines: dict) -> dict[str, list[str]]:
         declared = connectors.declared(core.CFG)
     except connectors.ConnectorError:
         declared = []
-    return access_advice.ssh_uses(machines, declared, hosts if isinstance(hosts, list) else [], (read_produced("data.json") or {}).get("virtualization") or [])
+    return access_advice.ssh_uses(machines, declared, hosts if isinstance(hosts, list) else [], (read_produced(core.DATA_FILE) or {}).get("virtualization") or [])
 
 
 @router.get(API + "/machines/advice", tags=["machines"], summary="Méthode de lecture recommandée pour chaque machine suivie : SSH, agent, connecteur ou ping (admin)")
@@ -54,7 +54,7 @@ def machines_advice(request: Request):
 
     def advise(m):
         try:
-            data = json.loads((Path(core.CFG["web_dir"]) / "data.json").read_text(encoding="utf-8"))
+            data = json.loads((Path(core.CFG["web_dir"]) / core.DATA_FILE).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             data = {}
         found = netscan.state(_netscan_file()).get("found") or []
@@ -204,7 +204,7 @@ def network_diagnostics_route():
     from msv.collect import network_diagnostics as nd
     from msv.collect import unifi_cards as uc
     doc = uc.read(core.CFG)
-    data = read_produced("data.json") or {}
+    data = read_produced(core.DATA_FILE) or {}
     clients = [c for row in data.get("network") or [] for c in ((row.get("unifi") or {}).get("clients") or [])]
     from msv.collect import fast
     live = {ip: d for src in (fast.read(core.WEB / "live.json").get("sources") or {}).values() for ip, d in (src.get("devices") or {}).items()}   # fresher than data.json
@@ -226,7 +226,7 @@ def connectors_requests(request: Request):
     """Settings > Requests: calls per route over the last minute and hour, durations, HTTP codes, 429s and what is to watch (reqstats),
     measured in real conditions on any build."""
     from connectors import reqstats
-    return admin_only(request) or dict(reqstats.snapshot(), version=os.environ.get("MYSERVICES_VERSION", "dev"))
+    return admin_only(request) or dict(reqstats.snapshot(), version=os.environ.get("MYSERVICES_VERSION", "dev"), pulses=core.pulse_cost())
 
 
 @router.post(API + "/connectors/requests/reset", tags=["connecteurs"], summary="Request counters back to zero (admin)")

@@ -186,7 +186,7 @@ function redetectChanges(r: RedetectItem): { key: string; text: string }[] {
 }
 
 /** Redétection de toutes les machines : écarts proposés, cochés par défaut ; rien n'est écrit avant « Appliquer » */
-function Redetect({ st, onDone }: { st: State; onDone: () => void }) {
+function Redetect({ st, onDone }: Readonly<{ st: State; onDone: () => void }>) {
   const [res, setRes] = useState<Redetection | null>(null);
   const [off, setOff] = useState<Set<string>>(new Set());  // écarts décochés : « ip|clé »
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
@@ -472,7 +472,7 @@ function offHintText(ssh: MachineConf["ssh"], foundSsh: boolean): string {
 }
 
 /** Groupe d'interrupteurs : titre, éventuel rappel, interrupteurs en dessous */
-function OptionGroup({ title, hint, tone, children }: { title: string; hint?: string; tone?: "ok"; children: React.ReactNode }) {
+function OptionGroup({ title, hint, tone, children }: Readonly<{ title: string; hint?: string; tone?: "ok"; children: React.ReactNode }>) {
   return (
     <fieldset className={`flex flex-col gap-2 rounded-xl border p-3 ${tone === "ok" ? "border-ok/40 bg-ok/10" : "border-dim/50 bg-bg2/70"}`}>
       <legend className="inline-flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-dim"><span aria-hidden className={`h-1.5 w-1.5 rounded-full ${tone === "ok" ? "bg-ok" : "bg-dim"}`} />{title}</legend>

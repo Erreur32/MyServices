@@ -116,21 +116,26 @@ class Reading(unittest.TestCase):
             self.assertTrue(changed.collect()["box"])
 
     def test_unreadable_xml_is_an_error(self):
+        box = FakeBox({1: b"<<<"})
         with self.assertRaises(ConnectorError):
-            FakeBox({1: b"<<<"}).collect()
+            box.collect()
 
     def test_not_a_connect_box(self):
+        box = FakeBox({1: xml("<foo/>")})
         with self.assertRaises(ConnectorError):
-            FakeBox({1: xml("<foo/>")}).collect()
+            box.collect()
+        box = FakeBox({})
         with self.assertRaises(ConnectorError):
-            FakeBox({}).collect()
+            box.collect()
 
     def test_lost_session_and_no_password(self):
+        box = FakeBox({1: ConnectorError("HTTP 401")})
         with self.assertRaises(ConnectorError) as cm:
-            FakeBox({1: ConnectorError("HTTP 401")}).collect()
+            box.collect()
         self.assertEqual(str(cm.exception), connect_box.SESSION_LOST)
+        box = FakeBox(PAGES, conf={"password": ""})
         with self.assertRaises(ConnectorError):
-            FakeBox(PAGES, conf={"password": ""}).collect()
+            box.collect()
 
     def test_the_test_button_shows_no_address_or_secret(self):
         r = FakeBox(PAGES).test()

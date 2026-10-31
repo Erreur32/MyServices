@@ -63,7 +63,7 @@ function sectionFromId(id: string): string {
   return SECTIONS.has(norm.section!) ? norm.section! : "accounts";
 }
 
-export function Settings({ snap }: { snap: Snapshot }) {
+export function Settings({ snap }: Readonly<{ snap: Snapshot }>) {
   const [section, setSection] = useState(() => {
     const s = location.hash.split("/")[1]; // lien direct : #settings/<section> (menu du compte)
     if (s === "look") { location.hash = "profile"; return "accounts"; }   // Appearance moved to the profile (old link)
@@ -97,7 +97,7 @@ export function Settings({ snap }: { snap: Snapshot }) {
   );
 }
 
-function Accounts({ me }: { me: string }) {
+function Accounts({ me }: Readonly<{ me: string }>) {
   const [users, setUsers] = useState<User[] | null>(null);
   const [error, setError] = useState("");
 
@@ -168,7 +168,7 @@ function SessionDays() {
   );
 }
 
-function AddUser({ onDone }: { onDone: () => void }) {
+function AddUser({ onDone }: Readonly<{ onDone: () => void }>) {
   const [name, setName] = useState(""), [pw, setPw] = useState(""), [role, setRole] = useState<User["role"]>("viewer");
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent) => {
@@ -201,7 +201,7 @@ function AddUser({ onDone }: { onDone: () => void }) {
   );
 }
 
-function UserRow({ u, self, onDone }: { u: User; self: boolean; onDone: () => void }) {
+function UserRow({ u, self, onDone }: Readonly<{ u: User; self: boolean; onDone: () => void }>) {
   const [note, setNote] = useState<Note>(null);
   const [pwOpen, setPwOpen] = useState(false), [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState(false);

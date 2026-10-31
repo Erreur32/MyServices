@@ -9,14 +9,30 @@ export interface ScanStatus {
   running: boolean;
   network?: NetworkSummary;
   progress: { step: number; steps: number; label: string; done: number | null; total: number | null } | null;
+  tasks?: string[];   // the other scheduled tasks running now
 }
 
-let current: ScanStatus | null = null;
+const MIN_SHOWN_MS = 4_000;   // a task of a second would only flash in the header
+
+let current: ScanStatus | null = null, latest: ScanStatus | null = null;
+const shownSince = new Map<string, number>();
+let hold: ReturnType<typeof setTimeout> | undefined;
 let poller: (() => void) | null = null;
 const subs = new Set<() => void>();
 
+/** The running tasks, plus those just over that have not been shown long enough; asks to look again once they have */
+function heldTasks(running: string[]): string[] {
+  const now = Date.now();
+  running.forEach((t) => { if (!shownSince.has(t)) shownSince.set(t, now); });
+  for (const [t, since] of shownSince) if (!running.includes(t) && now - since >= MIN_SHOWN_MS) shownSince.delete(t);
+  clearTimeout(hold);
+  if (shownSince.size > running.length) hold = setTimeout(() => setScan(latest), 1_000);
+  return [...shownSince.keys()];
+}
+
 export function setScan(s: ScanStatus | null): void {
-  current = s;
+  latest = s;
+  current = s && { ...s, tasks: heldTasks(s.tasks ?? []) };
   subs.forEach((f) => f());
 }
 

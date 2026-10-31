@@ -51,7 +51,7 @@ export function ApiMcp() {
   );
 }
 
-function NewToken({ onCreated }: { onCreated: (c: { token: string; info: ApiToken }) => void }) {
+function NewToken({ onCreated }: Readonly<{ onCreated: (c: { token: string; info: ApiToken }) => void }>) {
   const [kind, setKind] = useState<"api" | "mcp">("mcp");
   const [name, setName] = useState(""), [level, setLevel] = useState<ApiToken["level"]>("read");
   const [days, setDays] = useState<number | null>(90), [pw, setPw] = useState("");
@@ -113,7 +113,7 @@ function NewToken({ onCreated }: { onCreated: (c: { token: string; info: ApiToke
   );
 }
 
-function CopyBlock({ text, label }: { text: string; label: string }) {
+function CopyBlock({ text, label }: Readonly<{ text: string; label: string }>) {
   const [done, setDone] = useState(false);
   return (
     <div>
@@ -129,7 +129,7 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
   );
 }
 
-function Created({ c, origin, mcpPath, onClose }: { c: { token: string; info: ApiToken }; origin: string; mcpPath: string; onClose: () => void }) {
+function Created({ c, origin, mcpPath, onClose }: Readonly<{ c: { token: string; info: ApiToken }; origin: string; mcpPath: string; onClose: () => void }>) {
   const url = `${origin}${mcpPath}`;
   return (
     <Card tone="ok">
@@ -150,7 +150,7 @@ function Created({ c, origin, mcpPath, onClose }: { c: { token: string; info: Ap
   );
 }
 
-function TokenList({ tokens, reload }: { tokens: ApiToken[]; reload: () => void }) {
+function TokenList({ tokens, reload }: Readonly<{ tokens: ApiToken[]; reload: () => void }>) {
   return (
     <Card>
       <h2 className="mb-2 flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Jetons")} <Count n={tokens.filter((t) => t.state === "actif").length} tone="ok" /> <Dim>{tx("actifs")}</Dim></h2>
@@ -161,7 +161,7 @@ function TokenList({ tokens, reload }: { tokens: ApiToken[]; reload: () => void 
   );
 }
 
-function TokenRow({ t, reload }: { t: ApiToken; reload: () => void }) {
+function TokenRow({ t, reload }: Readonly<{ t: ApiToken; reload: () => void }>) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
   const live = t.state === "actif";
   return (
@@ -189,7 +189,7 @@ function TokenRow({ t, reload }: { t: ApiToken; reload: () => void }) {
   );
 }
 
-function Tools({ st, reload }: { st: TokensState; reload: () => void }) {
+function Tools({ st, reload }: Readonly<{ st: TokensState; reload: () => void }>) {
   const [note, setNote] = useState<Note>(null);
   return (
     <Card>

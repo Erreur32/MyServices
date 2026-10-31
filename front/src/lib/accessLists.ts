@@ -24,12 +24,13 @@ export function agentSummary(agents: AgentInfo[]): AgentSummary {
 export type SshState = "ok" | "refused" | "unread" | "off";
 export interface SshRow { ip: string; name: string; access: string; state: SshState; message: string }
 
-/** Whether a machine still needs its SSH: `uses` is what an agent does not read there, `agentPossible` undefined until the advice is read */
-export type SshNeed = "uses" | "no_agent" | "silent" | "optional" | "offer_agent" | "cut";
-export function sshNeed(off: boolean, uses: string[], agent: boolean, working: boolean, agentPossible?: boolean): SshNeed {
+/** Whether a machine still needs its SSH: `uses` is what an agent does not read there, `agentPossible` undefined until the advice is read, `partial` an agent that does not read all the SSH inventory */
+export type SshNeed = "uses" | "no_agent" | "silent" | "partial" | "optional" | "offer_agent" | "cut";
+export function sshNeed(off: boolean, uses: string[], agent: boolean, working: boolean, agentPossible?: boolean, partial = false): SshNeed {
   if (off) return "cut";
   if (uses.length) return "uses";
-  if (agent) return working ? "optional" : "silent";
+  if (agent && !working) return "silent";
+  if (agent) return partial ? "partial" : "optional";
   return agentPossible === false ? "no_agent" : "offer_agent";
 }
 
