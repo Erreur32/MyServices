@@ -93,6 +93,7 @@ KERNEL_IGNORE_RE = re.compile(
     r"|systemd-ssh-generator\[\d+\]: Failed to query local AF_VSOCK CID"
     r"|system-generators/systemd-ssh-generator failed with exit status 1"
     r"|snd_hda_intel [0-9a-f:.]+: no codecs found"
+    r"|CIFS: VFS: .*Close unmatched open for MID"   # the client closing a file left open by an interrupted request: cleanup, not a fault
     r"|CIFS: VFS: (Autodisabling the use of server inode numbers|The server doesn't seem to support them|Hardlinks will not be recognized)"   # a mount notice of a Samba share, not a fault
 )
 # ───────────── Machines surveillées ─────────────

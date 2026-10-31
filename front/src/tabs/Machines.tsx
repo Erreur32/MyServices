@@ -41,6 +41,7 @@ import { DetailMore, DetailRow, DetailSection } from "../components/DetailSectio
 import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
 import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
 import { primary, quiet } from "../lib/forms";
+import { copyText } from "../lib/clipboard";
 import { flash } from "../lib/flash";
 import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
@@ -640,7 +641,7 @@ function KernelBlock({ id, lines }: Readonly<{ id: string; lines: string[] }>) {
       </div>
     );
   }
-  const copy = () => { navigator.clipboard.writeText(lines.join("\n")).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => undefined); };
+  const copy = () => void copyText(lines.join("\n")).then((ok) => { setCopied(ok); setTimeout(() => setCopied(false), 1500); });
   return (
     <div data-watch="kernel" className="my-1 flex flex-col gap-1.5 rounded-md border border-warn/40 bg-warn/5 p-2.5">
       <div className="flex flex-wrap items-center gap-2">

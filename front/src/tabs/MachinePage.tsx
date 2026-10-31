@@ -78,14 +78,14 @@ const PORTS_SHOWN = 6, DOMAINS_SHOWN = 2;
 function PortLine({ r, scanned }: Readonly<{ r: PortRow; scanned: boolean }>) {
   const unseen = scanned && !r.listening && !!r.host, st = r.host ? status(r.host) : null;
   const cls: StatusClass = st?.[0] ?? "warn", label = st?.[1] ?? tx("port inconnu");
-  const below = unseen || r.domains.length > 0;
+  const domains = !unseen && r.domains.length > 0;
   return (
     <li className={`grid grid-cols-[auto_minmax(0,1fr)_auto_3.25rem] items-center gap-x-2 gap-y-1 border-t border-line/40 py-1 first:border-t-0 ${unseen ? "opacity-55" : ""}`}>
       <span title={unseen ? tx("pas vu ouvert au dernier scan") : label}><Dot tone={unseen ? "off" : cls} /></span>
-      <PortService r={r} />
-      <span>{!below && <PortExposure r={r} unseen={unseen} />}</span>
+      <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><PortService r={r} />{domains && <PortExposure r={r} unseen={false} />}</span>
+      <span>{!unseen && !domains && <PortExposure r={r} unseen={false} />}</span>
       <span className="text-right font-mono text-xs tabular-nums text-muted" title={r.seen.length ? tx("Vu par : {0}", r.seen.map((x) => SEEN_BY[x]).join(", ")) : undefined}>:{r.port}</span>
-      {below && <span className="col-span-full pl-4"><PortExposure r={r} unseen={unseen} /></span>}
+      {unseen && <span className="col-span-full pl-4"><PortExposure r={r} unseen /></span>}
     </li>
   );
 }
