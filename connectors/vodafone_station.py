@@ -107,7 +107,7 @@ def hmac_hex(key: str, message: str) -> str:
 
 
 def pbkdf2(secret: str, salt: str) -> str:
-    return hashlib.pbkdf2_hmac("sha256", secret.encode(), salt.encode(), 1000).hex()[:32]
+    return hashlib.pbkdf2_hmac("sha256", secret.encode(), salt.encode(), 1000).hex()[:32]  # NOSONAR 1000 iterations are imposed by the station login protocol, the client must derive the same key
 
 
 class VodafoneStation(StatusConnector):

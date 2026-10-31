@@ -18,7 +18,7 @@ from connectors.box_kit import Box, box_card
 from connectors.status_kit import StatusConnector
 
 ENDPOINT = "/cgi/json-req"
-HASHES = {"MD5": hashlib.md5, "SHA512": hashlib.sha512}
+HASHES = {"MD5": hashlib.md5, "SHA512": hashlib.sha512}  # NOSONAR the box asks for MD5 or SHA512 depending on the model, the login protocol imposes it
 REFUSED = {
     "XMO_AUTHENTICATION_ERR": "utilisateur ou mot de passe refusé par la box : vérifie le compte et le chiffrement (MD5 ou SHA512 selon le modèle)",
     "XMO_ACCESS_RESTRICTION_ERR": "ce compte n'a pas le droit de lire la box : essaie un autre utilisateur (admin, ou guest sur certaines Bell)",

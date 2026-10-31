@@ -108,7 +108,7 @@ Keep a copy of `config/` and `data/` before any update.
 **Nothing required to update.** No change to the compose file, the image's volumes or variables, or `config.json`.
 
 - **Command lines run by hand changed** (only if you use them): `python3 manage.py ...` is now `python3 -m msv.tools.manage ...`, `python3 setup.py ...` is `python3 -m msv.machines.setup ...`, `python3 import_install.py ...` is `python3 -m msv.tools.import_install ...`, always through `docker compose exec myservices`.
-- **Old installation without Docker (`install.sh`, systemd units, `refresh-api.py`)**: no longer maintained. The files moved to `legacy/` and the units start files that no longer exist under their old names. Move to the Docker image.
+- **Old installation without Docker (`install.sh`, systemd units, `refresh-api.py`)**: no longer maintained. The files were removed from the repository and the units start files that no longer exist under their old names. Move to the Docker image.
 - **Agents**: unchanged (Linux agent 4, Windows agent 9). Installed agents keep running as they are.
 - **Behaviour**: none. The python code moved into the `msv` package and the image starts `python3 -m msv.api.server`; scheduled tasks run as modules.
 
