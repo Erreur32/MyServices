@@ -28,7 +28,7 @@ export function ScanOrb() {
   const also = others.map(taskTitle).join(" · ");
   return (
     <div className="pointer-events-none hidden items-center justify-center gap-3 md:flex" role="status" aria-live="polite" aria-label={detail ? `${title} : ${detail}` : title}>
-      <Suspense fallback={<span className="block h-16 w-16" aria-hidden />}><Orb state="searching" size={64} {...orbLook(main)} /></Suspense>
+      <Suspense fallback={<span className="block h-16 w-16" aria-hidden />}><Orb state="searching" size={64} speed={0.6} {...orbLook(main)} /></Suspense>
       <span className="flex flex-col whitespace-nowrap text-xs leading-tight">
         <b className="text-sm" style={{ color: taskColor(main) }}>{title}</b>
         {detail && <span className="text-dim">{detail}</span>}
