@@ -23,7 +23,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 - **Agent first**: a machine with a fresh and complete agent report is no longer read over SSH for its inventory, ports and logins. Ports without a web page are followed from that report.
 - **Header colours**: each task has its own gradient and title colour, made from the theme's tokens, tasks with no percentage get a back-and-forth bar, and a short task stays on show for 4 seconds. The animations are slower. The orb follows the theme in use instead of the system's light or dark setting.
-- **Tasks and schedules**: a real table with state, schedule, next run and header columns on wide screens, and a task that ends shows at once instead of at the next read. The section "By hand or once" is now "Searches with no schedule" and says there is nothing to do day to day.
+- **Tasks and schedules**: the coming runs in a table sorted by time at the top of the page, a real table with state, schedule, next run and header columns on wide screens, and a task that ends shows at once instead of at the next read. The section "By hand or once" is now "Searches with no schedule" and says there is nothing to do day to day.
 - **Login page**: the button text uses the page font at its proper size.
 
 ### Removed

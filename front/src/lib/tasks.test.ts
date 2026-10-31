@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupOf, liveText, period, runLength, runState, summarize, type TaskInfo } from "./tasks";
+import { groupOf, liveText, period, runLength, runState, summarize, upcoming, type TaskInfo } from "./tasks";
 
 const task = (o: Partial<TaskInfo> = {}): TaskInfo => ({
   label: "Collecte", at: "10,40 *", next: null, minutes: [10, 40], hours: null, enabled: true, running: false, started: null, ended: null, result: null, ...o,
@@ -35,15 +35,16 @@ describe("tâches planifiées", () => {
     expect(runState(o)).toBe("idle");
   });
 
-  it("résume les tâches et trouve la prochaine", () => {
-    const s = summarize([
+  it("résume les tâches et range les prochains passages", () => {
+    const items = [
       { name: "a", enabled: true, running: false, result: "success", next: 500 },
       { name: "b", enabled: true, running: false, result: "boom", next: 300 },
       { name: "c", enabled: false, running: false, result: null, next: 100 },
       { name: "d", enabled: true, running: true, result: null, next: 50 },
-    ]);
-    expect(s).toEqual({ enabled: 3, running: 1, failed: 1, next: { name: "b", at: 300 } });
-    expect(summarize([]).next).toBeNull();
+      { name: "e", enabled: true, running: false, result: "success", next: null },
+    ];
+    expect(summarize(items)).toEqual({ enabled: 4, running: 1, failed: 1 });
+    expect(upcoming(items).map((t) => t.name)).toEqual(["b", "a"]);
   });
 
   it("range les tâches par section", () => {

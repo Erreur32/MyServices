@@ -14,7 +14,7 @@ import { useHeaderTask } from "../lib/headerTasks";
 import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
 import { GITHUB, releaseOf } from "../lib/links";
-import { groupOf, inText, liveText, parseAt, period, runLength, runState, summarize, TASK_GROUPS, type RunState } from "../lib/tasks";
+import { groupOf, inText, liveText, parseAt, period, runLength, runState, summarize, upcoming, TASK_GROUPS, type RunState } from "../lib/tasks";
 import { pokeScan } from "../lib/scan";
 import { onStream } from "../lib/stream";
 import { AutoDiscoveries, DISCOVERED_BY } from "../components/AutoDiscoveries";
@@ -140,7 +140,7 @@ function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[];
 /** Title, scheduler heartbeat and a one-line summary: how many tasks are on, which one is running or failed, which is next */
 function TasksHeader({ tasks, netscan, ago, alive, now, edit, setEdit }: Readonly<{ tasks: SystemTask[]; netscan: SystemState["netscan"]; ago: number | null; alive: boolean; now: number; edit: boolean; setEdit: (on: boolean) => void }>) {
   const items = netscan ? [...tasks, { name: "netscan", label: tx("Recherche réseau"), enabled: netscan.enabled, running: netscan.running, result: netscan.ended ? "success" : null, next: netscan.next }] : tasks;
-  const sum = summarize(items), label = items.find((t) => t.name === sum.next?.name)?.label;
+  const sum = summarize(items), runs = upcoming(items);
   return (
     <Card tone={alive ? undefined : "bad"}>
       <div className={`${STRIP} flex flex-wrap items-center gap-2`}>
@@ -156,8 +156,21 @@ function TasksHeader({ tasks, netscan, ago, alive, now, edit, setEdit }: Readonl
         <span>{tx("{0} tâche(s) active(s) sur {1}", sum.enabled, items.length)}</span>
         {sum.running > 0 && <Badge tone="info"><Loader2 size={12} aria-hidden className="motion-safe:animate-spin" />{tx("{0} en cours", sum.running)}</Badge>}
         {sum.failed > 0 && <Badge tone="bad"><TriangleAlert size={12} aria-hidden />{tx("{0} en échec", sum.failed)}</Badge>}
-        {sum.next && <span>{tx("prochaine : {0}, {1} ({2})", label ?? sum.next.name, hm(sum.next.at * 1000), inText(sum.next.at * 1000 - now))}</span>}
       </p>
+      {runs.length > 0 && (
+        <table className="mt-3 w-full text-sm">
+          <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+            <th className="w-40 px-3 py-1.5">{tx("Prochain passage")}</th><th className="w-40 px-3 py-1.5" aria-label={tx("Délai")} /><th className="px-3 py-1.5">{tx("Tâche")}</th>
+          </tr></thead>
+          <tbody>{runs.map((t) => (
+            <tr key={t.name} className="even:bg-bg/50" title={dateTime(t.next * 1000)}>
+              <td className="px-3 py-1.5 font-mono font-bold tabular-nums">{hm(t.next * 1000)}</td>
+              <td className="px-3 py-1.5 text-xs tabular-nums text-dim">{inText(t.next * 1000 - now)}</td>
+              <td className="px-3 py-1.5">{t.label}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      )}
       {!alive && (
         <p className="mt-3 rounded-lg border border-bad/50 bg-bad/10 px-3 py-2 text-sm">
           <b>{tx("Les horaires ne sont pas appliqués :")}</b> {tx("le planificateur intégré au conteneur (l'équivalent d'une crontab) ne tourne plus, aucune tâche ne part à son heure. Rien à activer : redémarrez le conteneur MyServices. Si le message revient, regardez Réglages → Journaux. En attendant, « Exécuter maintenant » marche toujours.")}
