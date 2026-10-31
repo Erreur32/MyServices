@@ -1,11 +1,11 @@
 // Machine page, « Software and services »: its web servers (Docker, service or binary), the path of each site (NPM → relay → app)
 // and every container of the machine, with or without a service. Data: machine.web and machine.containers (webservers.py).
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
 import type { Host, Machine, MachineContainer, Service, WebServer } from "../types";
 import { appIcon, appIconByText, serviceIcon } from "../lib/appIcons";
 import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
+import { DetailMore } from "./DetailSection";
 import { Dot } from "./marks";
 import { Dim } from "./ui";
 
@@ -16,7 +16,6 @@ const MODE: Record<WebServer["mode"], [string, string, string]> = {   // label, 
 };
 /** Short label of how a web server runs (also used in the tooltips of the Machines table) */
 export const modeLabel = (mode: WebServer["mode"]) => MODE[mode][0];
-const PATHS_SHOWN = 5;
 
 const Icon = ({ src }: { src: string | null }) => src ? <img src={src} alt="" className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" aria-hidden />;
 const ports = (ps: number[]) => ps.length ? ps.map((p) => `:${p}`).join(" ") : "-";
@@ -25,7 +24,7 @@ const ports = (ps: number[]) => ps.length ? ps.map((p) => `:${p}`).join(" ") : "
 function Sub({ title, count, action, children }: Readonly<{ title: string; count?: string; action?: React.ReactNode; children?: React.ReactNode }>) {
   return (
     <div className="flex flex-col gap-1.5 py-1.5">
-      <div className="flex flex-wrap items-baseline gap-x-2 px-2.5 text-xs">
+      <div className="flex flex-wrap items-baseline gap-x-2 text-xs">
         <b className="font-semibold uppercase tracking-wide text-muted">{title}</b>
         {count && <span className="text-dim">{count}</span>}
         {action && <span className="ml-auto">{action}</span>}
@@ -54,34 +53,28 @@ export function WebServersTable({ m, hosts, npmIps }: Readonly<{ m: Machine; hos
   const proxies = hosts.filter((r) => r.type === "proxy" && r.npm && mine.has(r.npm)).length;
   return (
     <Sub title={tx("Serveurs web")} count={String(web.length)}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead><tr className="text-left text-[11px] uppercase tracking-wide text-dim">
-            <th className="w-4 px-2 py-1" /><th className="px-2 py-1 font-semibold">{tx("Logiciel")}</th><th className="px-2 py-1 font-semibold">{tx("Tourne en")}</th>
-            <th className="px-2 py-1 font-semibold">{tx("Écoute")}</th><th className="px-2 py-1 font-semibold">{tx("Envoie vers")}</th>
-          </tr></thead>
-          <tbody className="[&>tr:nth-child(even)]:bg-bg/50">
-            {web.map((w) => {
-              const [mode, cls, tip] = MODE[w.mode];
-              let tone: "bad" | "warn" | "ok" = "ok";
-              if (!w.up) tone = "bad";
-              else if (w.mode === "binary") tone = "warn";
-              return (
-                <tr key={`${w.key}/${w.mode}/${w.name}`} className="align-middle">
-                  <td className="px-2 py-1.5"><Dot tone={tone} /></td>
-                  <td className="whitespace-nowrap px-2 py-1.5"><span className="inline-flex items-center gap-2"><Icon src={appIcon([w.label])} /><b className="font-medium">{w.label}</b>{!w.up && <span className="text-xs text-bad">{tx("arrêté")}</span>}</span></td>
-                  <td className="whitespace-nowrap px-2 py-1.5">
-                    <span className={`inline-flex items-center gap-1 rounded border px-1.5 text-xs ${cls}`} title={tip}>{mode} · <span className="font-mono">{w.name}</span></span>
-                    {w.host_net && <span className="ml-1.5 rounded border border-dashed border-line px-1 text-[11px] text-dim" title={tx("Réseau de l'hôte : pas de port publié, le port vient de sa configuration")}>{tx("réseau hôte")}</span>}
-                  </td>
-                  <td className="whitespace-nowrap px-2 py-1.5 font-mono text-xs">{ports(w.ports)}</td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-xs"><Sends w={w} proxies={proxies} /></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <ul className="flex flex-col divide-y divide-line/40">
+        {web.map((w) => {
+          const [mode, cls, tip] = MODE[w.mode];
+          let tone: "bad" | "warn" | "ok" = "ok";
+          if (!w.up) tone = "bad";
+          else if (w.mode === "binary") tone = "warn";
+          return (
+            <li key={`${w.key}/${w.mode}/${w.name}`} className="flex flex-col gap-0.5 py-1">
+              <span className="flex min-w-0 items-center gap-2">
+                <Dot tone={tone} /><Icon src={appIcon([w.label])} /><b className="truncate font-medium">{w.label}</b>
+                {!w.up && <span className="text-xs text-bad">{tx("arrêté")}</span>}
+                <span className="ml-auto shrink-0 font-mono text-xs">{ports(w.ports)}</span>
+              </span>
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pl-4 text-xs">
+                <span className={`inline-flex min-w-0 items-center gap-1 rounded border px-1.5 ${cls}`} title={tip}>{mode} · <span className="truncate font-mono">{w.name}</span></span>
+                {w.host_net && <span className="rounded border border-dashed border-line px-1 text-[11px] text-dim" title={tx("Réseau de l'hôte : pas de port publié, le port vient de sa configuration")}>{tx("réseau hôte")}</span>}
+                <span className="ml-auto min-w-0"><Sends w={w} proxies={proxies} /></span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </Sub>
   );
 }
@@ -98,21 +91,18 @@ function Hop({ icon, name, port, down }: Readonly<{ icon: string | null; name: s
 
 /** Each site served by this machine through NPM: domain, NPM, the service it reaches (an Anubis relay…), and what runs behind it */
 export function SitePaths({ m, hosts }: Readonly<{ m: Machine; hosts: Host[] }>) {
-  const [all, setAll] = useState(false);
   const rows = hosts.filter((r) => r.type === "proxy" && r.domains.length && r.service?.name && (r.host_ip || r.ip) === m.ip)
     .sort((a, b) => Number(!a.service?.behind) - Number(!b.service?.behind) || a.domains[0].localeCompare(b.domains[0]));
   if (!rows.length) return null;
-  const shown = all ? rows : rows.slice(0, PATHS_SHOWN);
   const npmIcon = appIcon(["Nginx Proxy Manager"]);
   return (
-    <Sub title={tx("Chemin des sites")} count={rows.length > PATHS_SHOWN && !all ? tx("{0} domaines · {1} montrés", rows.length, PATHS_SHOWN) : tx("{0} domaine(s)", rows.length)}
-      action={rows.length > PATHS_SHOWN ? <button type="button" className="text-xs font-semibold text-link hover:underline" onClick={() => setAll(!all)}>{all ? tx("réduire") : tx("tout voir")}</button> : undefined}>
+    <DetailMore label={tx("Chemin des {0} sites", rows.length)}>
       <ul className="flex flex-col text-xs [&>li:nth-child(even)]:bg-bg/50">
-        {shown.map((r) => {
+        {rows.map((r) => {
           const s = r.service!, b = s.behind;
           return (
             <li key={String(r.id)} className="flex flex-wrap items-center gap-1.5 rounded px-2.5 py-1.5">
-              <span className="min-w-40 font-semibold text-link">🌐 {r.domains[0]}</span>
+              <span className="w-full font-semibold text-link">🌐 {r.domains[0]}</span>
               <Hop icon={npmIcon} name={r.npm || "NPM"} />
               <span className="text-dim" aria-hidden>→</span>
               <Hop icon={serviceIcon(r)} name={s.name!} port={r.port ? `:${r.port}` : undefined} down={!hopUp(r, s)} />
@@ -121,7 +111,7 @@ export function SitePaths({ m, hosts }: Readonly<{ m: Machine; hosts: Host[] }>)
           );
         })}
       </ul>
-    </Sub>
+    </DetailMore>
   );
 }
 

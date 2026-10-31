@@ -15,7 +15,7 @@ import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { fibreLight, freeboxHealth, freeboxOf, type FibreLight } from "../lib/freebox";
 import { appIcon, modelIcon } from "../lib/appIcons";
-import { MachinePage } from "./MachinePage";
+import { MachinePage, type PageCards } from "./MachinePage";
 import { machineFromHash } from "../lib/machineHash";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, networkTool, osOfMachine, stateBadge, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
@@ -38,7 +38,7 @@ import { useNetworkHistory } from "../components/HistoryTile";
 import { BandwidthTile } from "../components/BandwidthTile";
 import { PageHead } from "../components/PageHead";
 import type { TilePoint } from "../lib/tileHistory";
-import { DetailRow, DetailSection } from "../components/DetailSection";
+import { DetailMore, DetailRow, DetailSection } from "../components/DetailSection";
 import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
 import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
 import { primary, quiet } from "../lib/forms";
@@ -706,11 +706,11 @@ function MiniTable({ rows }: Readonly<{ rows: { name: string; value: string; ton
   );
 }
 
-function BigLogsRow({ logs }: Readonly<{ logs: NonNullable<HealthHost["logs"]> }>) {
+function logRows(logs: HealthHost["logs"]) {
+  if (!logs?.available) return [];
   const files = [...logs.files.map((f) => ({ name: f.path.replace("/var/log/", ""), mb: f.mb, warn: f.mb >= LOG_BIG_MB }))];
   if (logs.journal_mb) files.push({ name: "journal (systemd)", mb: logs.journal_mb, warn: logs.journal_mb >= 4 * LOG_BIG_MB });
-  const rows = files.sort((a, b) => b.mb - a.mb).map((f) => ({ name: f.name, value: sizeText(f.mb), tone: f.warn ? "text-warn" : "" }));
-  return <DetailRow k={tx("Gros journaux")} title={tx("Gros journaux")}><MiniTable rows={rows} /></DetailRow>;
+  return files.sort((a, b) => b.mb - a.mb).map((f) => ({ name: f.name, value: sizeText(f.mb), tone: f.warn ? "text-warn" : "" }));
 }
 
 const SHARE_TONE: Record<string, string> = { ok: "text-ok", hang: "text-bad", error: "text-warn", missing: "text-warn" };
@@ -726,6 +726,27 @@ function raidTone(a: RaidArray): string {
 function zfsTone(health: string): string {
   if (health === "ONLINE") return "text-ok";
   return ZFS_BAD.includes(health) ? "text-bad" : "text-warn";
+}
+
+type Jail = NonNullable<NonNullable<HostSystem["fail2ban"]>["jails"]>[number];
+/** Fail2ban in one line, its jails are folded at the foot of the card */
+function JailsLine({ jails }: Readonly<{ jails: Jail[] }>) {
+  const banned = jails.reduce((n, j) => n + j.banned, 0);
+  return <span className={banned ? "text-warn" : ""}>{tx("{0} bannie(s) · {1} prison(s)", banned, jails.length)}</span>;
+}
+
+/** The long lists of the health card, folded at its foot: big log files, Fail2ban jails */
+function HealthMore({ h }: Readonly<{ h: HealthHost }>) {
+  const logs = logRows(h.logs), f2b = h.system?.fail2ban;
+  const jails = f2b?.available && f2b.access && !f2b.down ? f2b.jails ?? [] : [];
+  if (!logs.length && !jails.length) return null;
+  const what = [logs.length ? tx("Gros journaux") : "", jails.length ? tx("Prisons Fail2ban") : ""].filter(Boolean).join(" · ");
+  return (
+    <DetailMore label={`${what} (${logs.length + jails.length})`}>
+      {logs.length > 0 && <DetailRow k={tx("Gros journaux")} wide><MiniTable rows={logs} /></DetailRow>}
+      {jails.length > 0 && <DetailRow k="Fail2ban" wide><MiniTable rows={jails.map((j) => ({ name: j.name, value: tx("{0} bannie(s)", j.banned), tone: j.banned ? "text-warn" : "", dim: !j.banned }))} /></DetailRow>}
+    </DetailMore>
+  );
 }
 
 /** Services and storage of a Linux machine (PM2, RAID, ZFS, network shares, clock, timers, open sessions): a row each, only for what the machine has */
@@ -766,7 +787,7 @@ function SystemRows({ s }: Readonly<{ s: HostSystem }>) {
       {s.fail2ban?.available && (
         <DetailRow k="Fail2ban" title={tx("Prisons Fail2ban et adresses bannies en ce moment")}>
           {s.fail2ban.down && <span className="text-warn" title={tx("La règle sudo est en place, mais fail2ban-client ne répond pas : le service est arrêté ou son socket absent.")}>{tx("ne répond pas (service arrêté ?)")}</span>}
-          {!s.fail2ban.down && (s.fail2ban.access ? <MiniTable rows={(s.fail2ban.jails ?? []).map((j) => ({ name: j.name, value: tx("{0} bannie(s)", j.banned), tone: j.banned ? "text-warn" : "", dim: !j.banned }))} />
+          {!s.fail2ban.down && (s.fail2ban.access ? <JailsLine jails={s.fail2ban.jails ?? []} />
             : <SudoHint rule={s.fail2ban.rule} file="myservices-fail2ban" note={tx("Inutile si LogviewR lit déjà le Fail2ban de cette machine.")} />)}
         </DetailRow>
       )}
@@ -825,34 +846,35 @@ const bar = (label: string, pct: number | undefined, extra?: string) => pct == n
   <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><Pct value={Math.round(pct)} />{extra && <Dim>{extra}</Dim>}</DetailRow>
 );
 
+const DISKS_SHOWN = 3;
+
 /** The measures of the machine, in its « System » card: processor, memory, disks, temperature and probes, fans, memory and guests of a box */
 function ResourceRows({ h }: Readonly<{ h: HealthHost }>) {
+  const disks = (h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).sort((a, b) => b.used_pct - a.used_pct);   // the fullest first: an alert is never on a folded disk
+  const diskBar = (d: (typeof disks)[number]) => bar(d.mount, d.used_pct, d.avail_gb != null ? `${d.avail_gb.toFixed(0)} ${tx("Go libres")}` : undefined);
+  const moreDisks = disks.slice(DISKS_SHOWN), sensors = h.temp?.sensors ?? [], fans = h.fans ?? [];
+  const what = [moreDisks.length ? tx("Autres disques") : "", sensors.length ? tx("Sondes") : "", fans.length ? tx("Ventilateur") : ""].filter(Boolean).join(" · ");
   return (
     <>
       {h.res?.available && bar(tx("CPU"), h.res.cpu_pct)}
       {h.res?.available && bar(tx("Mémoire"), h.res.mem_pct,
         h.res.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} ${tx("Go")}` : undefined)}
-      {(h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).map((d) => bar(d.mount, d.used_pct, d.avail_gb != null ? `${d.avail_gb.toFixed(0)} ${tx("Go libres")}` : undefined))}
+      {disks.slice(0, DISKS_SHOWN).map(diskBar)}
       <TemperatureRow h={h} />
       {(h.drives ?? []).map((d) => (
         <DetailRow key={d.model ?? "disk"} k={tx("État du disque")} title={tx("État du disque")}><DriveStatus d={d} /></DetailRow>
       ))}
-      {!!h.temp?.sensors?.length && (
-        <DetailRow k={tx("Sondes")} title={tx("Sondes")}>
-          <ProbeChips items={h.temp.sensors.map((x) => ({ name: shortProbe(x.name), full: x.name, value: `${Math.round(x.celsius)} °C`, tone: heatClass(x.celsius) }))} />
-        </DetailRow>
-      )}
-      {!!h.fans?.length && (
-        <DetailRow k={tx("Ventilateur")} title={tx("Ventilateur")}>
-          <ProbeChips items={h.fans.map((f) => ({ name: f.name, value: `${Math.round(f.rpm)} ${tx("tr/min")}`, tone: "" }))} />
-        </DetailRow>
-      )}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (
         <DetailRow k={tx("Machines virtuelles")} title={tx("Machines virtuelles")}>
           <span className={h.vms.running ? "" : "text-dim"}>{tx("{0} en marche sur {1}", h.vms.running, h.vms.total)}</span>
         </DetailRow>
       )}
+      {what && <DetailMore label={`${what} (${moreDisks.length + sensors.length + fans.length})`}>
+        {moreDisks.map(diskBar)}
+        {sensors.length > 0 && <DetailRow k={tx("Sondes")} title={tx("Sondes")}><ProbeChips items={sensors.map((x) => ({ name: shortProbe(x.name), full: x.name, value: `${Math.round(x.celsius)} °C`, tone: heatClass(x.celsius) }))} /></DetailRow>}
+        {fans.length > 0 && <DetailRow k={tx("Ventilateur")} title={tx("Ventilateur")}><ProbeChips items={fans.map((f) => ({ name: f.name, value: `${Math.round(f.rpm)} ${tx("tr/min")}`, tone: "" }))} /></DetailRow>}
+      </DetailMore>}
     </>
   );
 }
@@ -861,7 +883,6 @@ function ResourceRows({ h }: Readonly<{ h: HealthHost }>) {
 function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   return (
     <>
-      {!!h.logs?.available && (h.logs.files.length > 0 || !!h.logs.journal_mb) && <BigLogsRow logs={h.logs} />}
       {h.system && <SystemRows s={h.system} />}
       {h.kernel?.has_errors && <KernelBlock id={h.id} lines={h.kernel.samples ?? []} />}
     </>
@@ -952,22 +973,21 @@ export function MachineBackupsSection({ m, backups }: Readonly<{ m: Machine; bac
       {veeam.mine.length > 0 && <VeeamBackedUp rows={veeam.mine} />}
       {veeam.hosted.length > 0 && <VeeamHosted rows={veeam.hosted} />}
       {sets.length > 0 && <Row wide k={tx("Jeux produits ici")}>
-        <ConsoleBox cols="auto minmax(0,1fr) auto auto auto">
+        <ConsoleBox cols="auto minmax(0,1fr) auto">
           {sets.map((s) => {
             const src = s.locations.find((l) => l.role === "source"), copies = s.locations.filter((l) => l.role !== "source");
             const locked = copies.filter((l) => l.encrypted).length, missing = s.expect_offsite !== false && !s.offsite;
             return (
               <Fragment key={s.id}>
                 <span className="self-center" title={s.why?.join("\n") || undefined}><Dot tone={BK_TONE[s.level] ?? "warn"} /></span>
-                <span className="min-w-0 [overflow-wrap:anywhere] text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> · {s.schedule}</span></span>
+                <span className="min-w-0 [overflow-wrap:anywhere] text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> · {s.schedule}{s.size ? ` · ${bytes(s.size)}` : ""} · </span><span className={missing ? "text-warn" : "text-dim"} title={tx("Copies ailleurs (🔒 = chiffrées)")}>{missing ? tx("aucune copie") : tx("{0} copie(s)", copies.length)}{locked ? ` · ${locked} 🔒` : ""}</span></span>
                 <span className={`whitespace-nowrap text-right ${bkText(src?.level ?? s.level)}`}>{src?.age != null ? ageDays(src.age) : tx("jamais vue")}</span>
-                <span className="whitespace-nowrap text-right text-dim">{s.size ? bytes(s.size) : ""}</span>
-                <span className={`whitespace-nowrap text-right ${missing ? "text-warn" : "text-dim"}`} title={tx("Copies ailleurs (🔒 = chiffrées)")}>{missing ? tx("aucune copie") : tx("{0} copie(s)", copies.length)}{locked ? ` · ${locked} 🔒` : ""}</span>
               </Fragment>
             );
           })}
         </ConsoleBox>
       </Row>}
+      {dirs.length + copies.length > 0 && <DetailMore label={`${tx("Dossiers et réplication")} (${dirs.length + copies.length})`}>
       {dirs.length > 0 && <Row wide k={tx("Dossiers")}>
         <ConsoleBox cols="minmax(0,1fr) auto auto">
           {dirs.map((d) => (
@@ -991,7 +1011,7 @@ export function MachineBackupsSection({ m, backups }: Readonly<{ m: Machine; bac
           ))}
         </ConsoleBox>
       </Row>}
-      <Row k=""><a href="#backups" className="text-xs text-link hover:underline">{tx("Voir dans Sauvegardes")} ›</a></Row>
+      </DetailMore>}
     </Section>
   );
 }
@@ -1004,41 +1024,51 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
   if (!host || (!host.storage && !hosted.length)) return null;
   const disk = [...host.disks].sort((a, b) => b.size - a.size)[0];
   const worst = hosted.reduce((n, { l }) => Math.max(n, ({ crit: 2, down: 2, warn: 1 } as Record<string, number>)[l.level] ?? 0), 0);
+  const late = hosted.filter(({ l }) => ["warn", "crit", "down"].includes(l.level)).length;
   return (
     <Section sec="share" icon={FolderOpen} title={tx("Partage")} tone={worst >= 2 ? "bad" : "link"} from={from}>
       <Row k={tx("Copies hébergées")}>{hosted.length ? tx("{0} jeu(x)", hosted.length) : <Dim>{tx("aucune")}</Dim>}</Row>
       {disk && <Row k={tx("Espace")}><Fill pct={disk.pct} /><Pct value={disk.pct} /><Dim>{bytes(disk.avail)} {tx("libres")} · {disk.mount}</Dim></Row>}
+      {late > 0 && <Row k={tx("En retard")}><span className="text-warn">{tx("{0} jeu(x)", late)}</span></Row>}
+      {host.sets.length > 0 && <Row k={tx("Jeux produits ici")}>{host.sets.length}</Row>}
       {hosted.length > 0 && (
-        <Row wide k={tx("Détail")}>
-          <ConsoleBox cols="minmax(0,3fr) minmax(0,2fr) auto">
+        <DetailMore label={tx("Les {0} copies", hosted.length)}>
+          <ConsoleBox cols="minmax(0,1fr) auto">
             {hosted.map(({ s, l }) => (
               <Fragment key={`${s.id}-${l.label}`}>
-                <span className="min-w-0 [overflow-wrap:anywhere] text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> ← {s.label.split(":")[0].trim()}</span></span>
-                <span className="min-w-0 text-dim">{l.via ?? ""}</span>
+                <span className="min-w-0 [overflow-wrap:anywhere] text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> ← {s.label.split(":")[0].trim()}{l.via ? ` · ${l.via}` : ""}</span></span>
                 <span className={`whitespace-nowrap text-right ${bkText(l.level)}`}>{l.age != null ? ageDays(l.age) : tx("jamais vue")}</span>
               </Fragment>
             ))}
           </ConsoleBox>
-        </Row>
+        </DetailMore>
       )}
-      {host.sets.length > 0 && <Row k={tx("Jeux produits ici")}>{host.sets.length}</Row>}
     </Section>
   );
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unifiNet, freebox, onFilter, focus, backups, pve, sheet, hosts, extra, stamp }: Readonly<{ stamp?: string; hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; extra?: React.ReactNode; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; npmIps?: Record<string, string>; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+/** One of the three columns of the machine page, always the same subjects at the same place; wide: across the two columns of a smaller screen */
+function PageColumn({ title, wide = false, children }: Readonly<{ title: string; wide?: boolean; children: React.ReactNode }>) {
+  return (
+    <div className={`min-w-0 ${wide ? "lg:col-span-2 xl:col-span-1" : ""}`}>
+      <h2 className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-dim">{title}</h2>
+      <div className={wide ? "gap-3 lg:columns-2 xl:columns-1" : ""}>{children}</div>
+    </div>
+  );
+}
+
+function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unifiNet, freebox, onFilter, focus, backups, pve, sheet, hosts, extra, stamp }: Readonly<{ stamp?: string; hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; extra?: PageCards; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; npmIps?: Record<string, string>; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
   const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
   const i = m.info, hw = hardwareRows(m.agent?.hardware);
   return (
-    <div ref={root} className="flex flex-col gap-4">
+    <div ref={root} className="flex flex-col gap-3">
       <WatchSummary items={watch} onShow={(kind) => showWatch(root.current, kind)} />
-      <div className="columns-1 gap-4 xl:columns-2">
-      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} ha={ha} />
+      <div className="grid items-start gap-3 lg:grid-cols-2 xl:grid-cols-3">
+      <PageColumn title={tx("État de la machine")}>
       <HealthSection h={h} from={from.health} />
-      <IdentitySection m={m} mac={mac} net={net} from={uniqueOrigins([...from.role, ...from.mac])} tool={freebox || unifi ? "MynetworK" : undefined} pve={pve} sheet={sheet} />
       <SystemSection h={h} from={uniqueOrigins([...from.os, ...from.health])}>
         <Row k={tx("Système")}>{i?.os || m.agent?.os || haSystemName(ha) || undefined}</Row>
         {ha?.system && <HaSystemRows sys={ha.system} />}
@@ -1049,23 +1079,30 @@ function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unif
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
         <GpuRows m={m} hosts={hosts} onFilter={onFilter} />
       </SystemSection>
-
-      {freebox && <FreeboxAccessSection fb={freebox} from={from.ssh} />}
+      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} ha={ha} />
       {freebox?.connection && <FreeboxLineSection fb={freebox} from={from.ssh} stamp={stamp ?? ""} />}
       {freebox?.ftth && <FreeboxFibreSection fb={freebox} from={from.ssh} />}
-      {!freebox && unifiOnly && <UnifiAccessSection d={unifi} sys={unifiSys} mac={mac} from={from.ssh} />}
-      {!freebox && !unifiOnly && <AccessSection m={m} from={from.ssh} />}
+      </PageColumn>
 
+      <PageColumn title={tx("Ce qui tourne dessus")}>
       {freebox && (freebox.vms || freebox.vm_system) && <FreeboxVmSection fb={freebox} from={from.services} />}
       {!freebox && unifiOnly && <UnifiNetworkSection d={unifi} sys={unifiSys} net={unifiNet} from={from.services} />}
       {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} down={watch.find((w) => w.kind === "services")?.detail} hosts={hosts ?? []} npmIps={npmIps} ha={ha} from={from.services} onFilter={onFilter} />}
 
-      {ha && <HaBackupsSection ha={ha} from={from.services} />}
+      {extra?.running}
       {ha && <HaInsideSection ha={ha} from={from.services} />}
+      <IdentitySection m={m} mac={mac} net={net} from={uniqueOrigins([...from.role, ...from.mac])} tool={freebox || unifi ? "MynetworK" : undefined} pve={pve} sheet={sheet} />
+      </PageColumn>
+
+      <PageColumn title={tx("Accès et protection")} wide>
       <MachineBackupsSection m={m} backups={backups} />
       <SharedBackupsSection m={m} backups={backups} from={from.services} />
-
-      {extra}
+      {ha && <HaBackupsSection ha={ha} from={from.services} />}
+      {extra?.protection}
+      {freebox && <FreeboxAccessSection fb={freebox} from={from.ssh} />}
+      {!freebox && unifiOnly && <UnifiAccessSection d={unifi} sys={unifiSys} mac={mac} from={from.ssh} />}
+      {!freebox && !unifiOnly && <AccessSection m={m} from={from.ssh} />}
+      </PageColumn>
       </div>
     </div>
   );
@@ -1472,13 +1509,13 @@ function SoftwareSection({ m, down, hosts, npmIps, ha, from, onFilter }: Readonl
         <Row k={tx("Services")}><ServicesValue m={m} down={down} onFilter={onFilter} /></Row>
         {down?.map((d) => <Row key={d} k=""><span className="text-[11px] text-bad">• {d}</span></Row>)}
         <WebServersTable m={m} hosts={hosts} npmIps={npmIps} />
-        <SitePaths m={m} hosts={hosts} />
-        {m.containers?.length ? <ContainerList m={m} hosts={hosts} />
-          : <Row k="Docker">{dockerValue(m)}</Row>}
+        {!m.containers?.length && <Row k="Docker">{dockerValue(m)}</Row>}
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
         {ha?.addons?.length ? <div className="py-1"><HaAddons s={ha} /></div> : null}
         <Row k={tx("Applis")}>{m.agent?.apps?.length ? <span className="flex flex-wrap gap-1">{m.agent.apps.map((a) => <Badge key={a.key} tone="info" title={tx("Vue par les services Windows du PC")}>{a.label}</Badge>)}</span> : undefined}</Row>
         {noSoftware(m) && <Dim>-</Dim>}
+        {!!m.containers?.length && <ContainerList m={m} hosts={hosts} />}
+        <SitePaths m={m} hosts={hosts} />
       </Section>
   );
 }
@@ -1623,6 +1660,7 @@ export function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Orig
           </Row>
           <HealthRows h={h} />
           <Row k="Systemd">{failed ? <span className="text-bad">{tx("{0} service(s) en échec", failed)}</span> : undefined}</Row>
+          <HealthMore h={h} />
         </> : <Dim>{tx("non suivie")}</Dim>}
       </Section>
   );
@@ -1831,7 +1869,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   useEffect(() => { if (target?.watch) setFocus((f) => ({ kind: target.watch as WatchKind, n: (f?.n ?? 0) + 1 })); }, [target?.ip, target?.watch]);   // a link from the home page: open on that notice's frame
   const pageM = target ? snap.data.machine_list.find((x) => x.ip === target.ip) : undefined;
   const admin = snap.me.role === "admin";
-  const detailOf = (m: Machine, extra?: React.ReactNode) => {
+  const detailOf = (m: Machine, extra?: PageCards) => {
     const h = hb.get(m.ip);
     return <Detail extra={extra} m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} npmIps={snap.data.npm_instances} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} stamp={snap.data.generated} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
   };

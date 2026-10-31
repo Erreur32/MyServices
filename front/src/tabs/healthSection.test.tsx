@@ -34,6 +34,18 @@ describe("section Mises à jour de la fiche d'une Freebox", () => {
   });
 });
 
+describe("listes repliées de la fiche", () => {
+  it("garde les disques les plus pleins visibles, jamais une alerte repliée", () => {
+    const disks = [12, 95, 30, 40, 8].map((used_pct, i) => ({ mount: `/d${i}`, used_pct, size_gb: 100 }));
+    const html = renderToStaticMarkup(<SystemSection h={{ name: "x", disks } as unknown as HealthHost} from={[]} />);
+    const fold = html.indexOf("<details");
+    expect(html.indexOf("/d1")).toBeLessThan(fold);
+    expect(html.indexOf("/d3")).toBeLessThan(fold);
+    expect(html.indexOf("/d4")).toBeGreaterThan(fold);
+    expect(html).toContain("Autres disques (2)");
+  });
+});
+
 describe("section Mises à jour quand rien n'attend mais qu'un souci la vise", () => {
   const card = (system: HealthHost["system"]) => renderToStaticMarkup(<UpdatesSection h={{ name: "PapoMintBeach (10.0.0.16)", system } as HealthHost} windows={false} from={[]} />);
   it("reste affichée pour des mises à jour automatiques en erreur, avec la ligne que vise le lien", () => {

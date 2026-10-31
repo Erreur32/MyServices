@@ -4,14 +4,14 @@ import { ShieldCheck } from "lucide-react";
 import type { Snapshot } from "../api";
 import { tx } from "../lib/i18n";
 import { scoreTone, vulnTone, wazuhOf } from "../lib/wazuh";
-import { DetailRow, DetailSection } from "./DetailSection";
+import { DetailMore, DetailRow, DetailSection } from "./DetailSection";
 import { COLOR } from "./StatTile";
 
 export function WazuhCard({ snap, ip, name }: Readonly<{ snap: Snapshot; ip: string; name: string }>) {
   const w = wazuhOf(snap.data.services_status, ip, name, new Set(snap.data.machine_list.map((x) => x.ip)));
   if (!w) return null;
   const { m } = w, v = m.vulns, hw = m.hardware;
-  const active = m.status === "active";
+  const active = m.status === "active", more = !!v?.worst.length || !!hw || m.packages != null || !!m.ports?.length;
   return (
     <DetailSection sec="wazuh" icon={ShieldCheck} title="Wazuh" tone={active ? "ok" : "warn"} right={<span className="text-dim">{w.instance}{w.stale && ` · ${tx("relevé périmé")}`}</span>}>
       <DetailRow k={tx("Agent Wazuh")}>
@@ -23,6 +23,13 @@ export function WazuhCard({ snap, ip, name }: Readonly<{ snap: Snapshot; ip: str
           <span className="text-dim">{tx("{0} moyennes, {1} basses", v.medium, v.low)}</span>
         </DetailRow>
       )}
+      {m.sca?.map((p) => (
+        <DetailRow key={p.name} k={tx("Conformité")} title={tx("Contrôle de configuration Wazuh (SCA)")}>
+          <span className={`font-semibold ${COLOR[scoreTone(p.score)]}`}>{p.score} %</span>
+          <span className="text-dim">{p.name} · {tx("{0} réussis, {1} en échec", p.pass, p.fail)}</span>
+        </DetailRow>
+      ))}
+      {more && <DetailMore label={tx("Failles et matériel")}>
       {v && v.worst.length > 0 && (
         <DetailRow k={tx("Les plus graves")} wide>
           <ul className="flex flex-col gap-0.5">
@@ -35,15 +42,10 @@ export function WazuhCard({ snap, ip, name }: Readonly<{ snap: Snapshot; ip: str
           </ul>
         </DetailRow>
       )}
-      {m.sca?.map((p) => (
-        <DetailRow key={p.name} k={tx("Conformité")} title={tx("Contrôle de configuration Wazuh (SCA)")}>
-          <span className={`font-semibold ${COLOR[scoreTone(p.score)]}`}>{p.score} %</span>
-          <span className="text-dim">{p.name} · {tx("{0} réussis, {1} en échec", p.pass, p.fail)}</span>
-        </DetailRow>
-      ))}
       {hw && <DetailRow k={tx("Matériel")}>{[hw.cpu, hw.cores && tx("{0} cœurs", hw.cores), hw.ram_gb && `${hw.ram_gb} Go`].filter(Boolean).join(" · ")}</DetailRow>}
       {m.packages != null && <DetailRow k={tx("Paquets")}>{m.packages}</DetailRow>}
       {!!m.ports?.length && <DetailRow k={tx("Ports en écoute")}>{tx("{0}, dans la carte Ports ouverts", m.ports.length)}</DetailRow>}
+      </DetailMore>}
     </DetailSection>
   );
 }
