@@ -1,4 +1,4 @@
-// The service page in editing (#services/edit/<key>): the same three blocks as in reading, each value that can be set becomes its field, in place,
+// A service's sheet in editing, under its row in the card: the same three blocks as in reading, each value that can be set becomes its field, in place,
 // with where it comes from and « Reset ». Written in services-meta.json by PUT services/meta; the page follows at once.
 import { Bell, BellOff, BellRing, Globe, Pause, Plug, RotateCcw, Save, Unplug, Webhook } from "lucide-react";
 import { useEffect, useState, type ReactNode, type SyntheticEvent } from "react";

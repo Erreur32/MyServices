@@ -68,7 +68,7 @@ function connTone(c: ServiceStatus, r?: Host): [Tone, string] {
   return (c.problems ?? []).length ? ["warn", tx("à regarder")] : ["ok", tx("en ligne")];
 }
 
-const itemHash = (r: Host) => `#services/item/${encodeURIComponent(serviceKey(r))}`;
+const cardHash = (r: Host) => `#services/all/${encodeURIComponent(serviceKey(r))}`;
 
 /** What the cards built so far cover: « ip:port » of a connector, « connector type @ ip » to skip the other ports of the same app */
 interface Covered { addr: Set<string>; readOn: Set<string> }
@@ -83,7 +83,7 @@ function connectorCard<R extends string>(c: ServiceStatus, kind: { role: R; titl
   return {
     key: `c:${c.connector}/${c.instance ?? c.name}`, title: kind.title, role: kind.role, engine: kind.title, ip, port: a?.port,
     machine: r?.machine || (ip ? ctx.names.get(ip) : undefined), version: c.version, tone, state, conn: c, host: r,
-    serviceHash: r ? itemHash(r) : undefined, problems: c.problems ?? [], unread: false, partial: !!kind.partial,
+    serviceHash: r ? cardHash(r) : undefined, problems: c.problems ?? [], unread: false, partial: !!kind.partial,
   };
 }
 
@@ -100,7 +100,7 @@ function rowCard<R extends string>(r: Host, k: string, fam: Family<R>, byAddr: M
   return {
     key: `h:${k}`, title: best.app?.label ?? best.name ?? hostName(best), app: best.app?.key, role: fam.roleOfApp(best.app?.key),
     ip: rowIp(best), port: best.port, machine, tone: cls, state: label, host: best,
-    serviceHash: itemHash(best), problems: [], unread: true, partial: false, connector: best.app?.connector ?? null,
+    serviceHash: cardHash(best), problems: [], unread: true, partial: false, connector: best.app?.connector ?? null,
     prefill: rowPrefill(best, machine),
   };
 }

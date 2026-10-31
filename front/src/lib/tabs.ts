@@ -45,7 +45,7 @@ export const NAV: NavGroup[] = [
       sub("machines-ssh", "settings/machines/ssh", "settings", KeyRound, tx("Connexions SSH")),
     ] },
     { id: "services", hash: "services", tab: "services", icon: Globe, label: tx("Services"), subs: [
-      { ...sub("services-all", "services/all", "services", Layers, tx("Tous les services")), also: ["services/item", "services/edit", "services/manual"] },
+      { ...sub("services-all", "services/all", "services", Layers, tx("Tous les services")), also: ["services/manual"] },
       sub("services-fresh", "services/fresh", "services", Sparkles, tx("Nouveaux services"), (s) => s.me.role === "admin"),   // found these 7 days, to keep or pause
       sub("services-new", "services/new", "settings", PenLine, tx("Déclarer un service")),
     ] },

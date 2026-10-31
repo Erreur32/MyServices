@@ -25,6 +25,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Assistant**: reopened once finished, it starts over at the first step and keeps what was validated; unfinished, it stays on the waiting step.
 - **Header**: the step of a running collection is shown in full.
 - **Agents**: an « Install the agent » link opens the agent's frame of that machine directly.
+- **Services**: one service, one place: its sheet now opens inside its card, under the table, and its pencil edits it there. The separate service and edit pages are gone; their old addresses open the card on the right row.
+- **Cloudflare**: small curves in the figure tiles of the overview and of Traffic, read in the same query, with no extra call.
 - **Services**: the pencil opens the settings of a service inside its card, without leaving the list, and the row buttons are easier to see.
 - **Machines › SSH connections**: a badge tells which machines must keep SSH and why (what the agent does not read, no agent possible on the system, an agent that no longer reports), with counters; the note says how to remove SSH where it is optional.
 - **Machine alert limits**: the fields show the values in force, so their arrows no longer start from 0; emptied, a field goes back to the default.

@@ -42,7 +42,7 @@ describe("AI page", () => {
       ["Ollama", "engine", "ok", false, "Jarvis"],
       ["vLLM", "engine", "ok", true, "Tower"],
     ]);
-    expect(cards[1].serviceHash).toBe("#services/item/local1");
+    expect(cards[1].serviceHash).toBe("#services/all/local1");
     expect(cards[2].prefill).toEqual({ type: "openai-compatible", name: "tower", url: "http://10.0.0.9:8000" });
   });
 
