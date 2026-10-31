@@ -2729,6 +2729,7 @@ export const EN: Record<string, string> = {
   "Pouls (ping des machines)": "Pulse (machine ping)",
   "Un ping de chaque machine suivie : l'état en ligne ou hors ligne est vivant. 0 = coupé.": "A ping of every followed machine: the online or offline state is live. 0 = off.",
   "Afficher dans l'en-tête": "Show in the header",
+  "En-tête": "Header",
   "Veille en cours": "Watch running",
   "Santé des machines en cours": "Machine health running",
   "Sauvegardes en cours": "Backups running",

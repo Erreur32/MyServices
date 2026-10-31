@@ -44,7 +44,7 @@ export function SystemSettings({ part, snap }: Readonly<{ part: "mail" | "export
 }
 
 /** Aligned columns from one row to the next: task, editable schedule, next run, button */
-const ROW_COLS = "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem_9rem_11rem]";
+const ROW_COLS = "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem_9rem_5rem_11rem]";
 const ICON: Record<string, LucideIcon> = { collect: RefreshCw, watch: Bell, health: HeartPulse, backups: HardDrive, netscan: Radar, pulse: Activity };
 const DESC: Record<string, string> = {
   collect: tx("Lit les machines, Docker, NPM et les connecteurs, puis met les pages à jour."),
@@ -129,7 +129,7 @@ function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[];
       <Card key={g.id}>
         <h3 className={`${STRIP} text-xs font-bold uppercase tracking-wider text-muted`}>{g.title()}</h3>
         <div className={`mb-1 hidden items-center gap-x-4 border-b border-line px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-dim ${ROW_COLS}`} aria-hidden>
-          <span>{tx("Tâche")}</span><span>{tx("Horaire")}</span><span>{tx("Prochain passage")}</span><span />
+          <span>{tx("Tâche")}</span><span>{tx("Horaire")}</span><span>{tx("Prochain passage")}</span><span>{tx("En-tête")}</span><span />
         </div>
         <ul className="flex flex-col divide-y divide-line/60" aria-label={g.title()}>{sections[g.id]}</ul>
       </Card>
@@ -227,7 +227,7 @@ function RunButton({ label, busy, disabled, onRun }: Readonly<{ label: string; b
 
 function HeaderSwitch({ task }: Readonly<{ task: string }>) {
   const [on, set] = useHeaderTask(task);
-  return <p className="mt-1 flex items-center gap-2 text-xs text-muted"><Switch on={on} onChange={set} label={tx("Afficher dans l'en-tête")} />{tx("Afficher dans l'en-tête")}</p>;
+  return <div className="flex items-center gap-2 text-xs text-dim"><Switch on={on} onChange={set} label={tx("Afficher dans l'en-tête")} /><span className="lg:hidden">{tx("Afficher dans l'en-tête")}</span></div>;
 }
 
 function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number; reload: () => void; edit: boolean }>) {
@@ -240,7 +240,6 @@ function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number
         <TaskHead name={t.name} title={t.label} state={state} note={note}
           about={<><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></>}>
           {t.enabled && <LastRun t={t} />}
-          <HeaderSwitch task={t.name} />
         </TaskHead>
         <div>
           <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
@@ -262,6 +261,7 @@ function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number
           </>}
         </div>
         <NextRun on={t.enabled} t={{ running: t.running, started: t.started, next: t.next ?? null }} now={now} />
+        <HeaderSwitch task={t.name} />
         <RunButton label={t.label} busy={t.running} disabled={!t.enabled}
           onRun={() => void act(() => send("POST", `system/tasks/${t.name}/run`), tx("lancée : son état se met à jour ici"), setNote).then((ok) => ok && reload())} />
       </div>
@@ -340,7 +340,6 @@ function NetscanRow({ n, now, reload, edit }: Readonly<{ n: NonNullable<SystemSt
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
         <TaskHead name="netscan" title={tx("Recherche réseau")} state={state} note={note} about={<><span>{desc("netscan")}</span><AlsoFinds task="netscan" /></>}>
           {n.enabled && <LastRun t={{ running: n.running, result: null, started: n.started, ended: n.ended }} />}
-          <HeaderSwitch task="netscan" />
         </TaskHead>
         <div>
           <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
@@ -366,6 +365,7 @@ function NetscanRow({ n, now, reload, edit }: Readonly<{ n: NonNullable<SystemSt
           </>}
         </div>
         <NextRun on={n.enabled} t={n} now={now} />
+        <HeaderSwitch task="netscan" />
         <RunButton label={tx("Recherche réseau")} busy={n.running}
           onRun={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => reload())} />
       </div>
