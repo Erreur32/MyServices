@@ -29,6 +29,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Machines, Services, Connectors**: the search field moves into the title of the frame, centred. Services shows its main filters on the left like Machines. Connectors gets the same frame, 6 cards a line at most, a tighter card body on its own background, and a footer that belongs to its card, with a short link.
 - **Services**: the ignored domains leave their frame for a small button in the title line, with the domains beside it and the full panel opening under the button.
 - **Cloudflare, Audit log**: the browser keeps the chosen period, and the chosen domain on the Cloudflare pages, like the other pages already do.
+- **Frigate**: with an account, the sign-in is kept in memory between readings and camera pictures instead of being done again each time. It stays out of any file, and a changed password is really tried.
 - **Login page**: the button text uses the page font at its proper size.
 
 ### Removed
