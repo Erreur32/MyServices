@@ -314,9 +314,11 @@ def ports_keys(hosts: list[dict]) -> dict[str, list[tuple[str, str | None]]]:
 
 
 def pulse_cost() -> list[dict]:
-    """What the pulses cost, for Settings > Requests: one connection (a ping, a TCP connection) per target and pass."""
-    return [{"name": name, "targets": len(p.state), "every": every, "per_min": round(len(p.state) * 60 / every, 1) if every > 0 else 0}
-            for name, p, every in (("machines", PULSE, CFG["pulse_every"]), ("ports", PORTS, CFG["ports_every"]))]
+    """What the pulses cost, for Settings > Requests: one connection (a ping, a TCP connection) per target and pass.
+    A port answered from an agent report costs none."""
+    costs = (("machines", len(PULSE.state), CFG["pulse_every"]), ("ports", sum(t not in AGENT_PORTS for t in PORTS.state), CFG["ports_every"]))
+    return [{"name": name, "targets": targets, "every": every, "per_min": round(targets * 60 / every, 1) if every > 0 else 0}
+            for name, targets, every in costs]
 
 
 HEALTH_TRIED: dict = {}
@@ -666,7 +668,9 @@ def _build_map() -> None:
             log(f"⚠ carte {out} : {e}")
         if ok:
             log(f"carte : régénérée ({out})")
-        elif r is not None:
+            continue
+        Path(spec).unlink(missing_ok=True)   # the next pass only draws what changed: without its spec, a failed map is tried again
+        if r is not None:
             log(f"⚠ carte {out} : non régénérée (Archify) : {archify_why(r.stdout, r.stderr)}")
     refresh_nav()
 

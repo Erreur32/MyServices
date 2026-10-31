@@ -163,8 +163,12 @@ def build_backups(bk: dict) -> dict:
                                      "label": h["label"][:22], "sublabel": " · ".join(x for x in (h.get("ip"), role) if x) or "machine",
                                      "row": first_row + i // cols, "col": start + i % cols, "size": [W, H]}, h.get("level"), ""))
         first_row += -(-len(group) // cols) + 1  # une ligne vide entre producteurs et stockages
-    ids = {c["id"] for c in comps}
-    conns = [c for c in conns if c["from"] in ids and c["to"] in ids]  # copie vers une machine hors liste : ignorée
+    rows = {c["id"]: c["row"] for c in comps}
+    conns = [c for c in conns if c["from"] in rows and c["to"] in rows]  # copie vers une machine hors liste : ignorée
+    for c in conns:
+        if rows[c["from"]] == rows[c["to"]]:   # same row: by the sides it would cross the machines between them
+            del c["route"]
+            c.update(fromSide="bottom", toSide="bottom")
     if not comps:
         comps.append({"id": "aucune", "type": "external", "label": "Aucune machine", "row": 0, "col": 0, "size": [W, H]})
     spec = diagram("Carte des sauvegardes", bk.get("generated", ""), "sauvegardes.html", cols, comps, conns)
