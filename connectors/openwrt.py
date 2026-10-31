@@ -74,7 +74,8 @@ class OpenWrt(StatusConnector):
              "puis ajoute dans /etc/config/rpcd une section « config login » avec option username, option password (« $p$ » suivi du nom d'un utilisateur système, ou un hash) et « list read 'myservices' », "
              "et relance rpcd (/etc/init.d/rpcd restart). Le paquet uhttpd-mod-ubus doit être installé (c'est le cas par défaut).",
              "Le routeur n'indique pas ici les appareils connectés, le Wi-Fi, les débits ni la température.",
-             "Après une erreur de mot de passe, MyServices ne réessaie pas tant que les réglages ne changent pas.")
+             "Après une erreur de mot de passe, MyServices ne réessaie pas tant que les réglages ne changent pas.",
+             "Non testé sur un vrai routeur.")
 
     def fingerprint(self) -> str:
         secret = f"{self.conf.get('username', '')}\0{self.conf.get('password', '')}"

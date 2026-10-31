@@ -91,7 +91,8 @@ class MikroTik(StatusConnector):
     guide = ("Il faut RouterOS 7.1 ou plus récent : RouterOS 6 n'a pas d'API REST et ne peut pas être lu.",
              "Dans le routeur, active le service www-ssl (HTTPS, recommandé) dans IP > Services ; le service www (HTTP simple) n'existe qu'à partir de RouterOS 7.9 et est déconseillé. Limite-le à l'adresse du serveur MyServices.",
              "Crée un groupe d'utilisateurs qui n'a que les droits read et api (System > Users > Groups), puis un compte de ce groupe : MyServices ne fait que des lectures (GET).",
-             "Le routeur ne donne pas ici le débit en cours, le type de ligne ni les mises à jour. L'état de la connexion et l'adresse publique viennent du client PPPoE ou DHCP : une adresse fixe ne les donne pas.")
+             "Le routeur ne donne pas ici le débit en cours, le type de ligne ni les mises à jour. L'état de la connexion et l'adresse publique viennent du client PPPoE ou DHCP : une adresse fixe ne les donne pas.",
+             "Non testé sur un vrai routeur.")
 
     def fingerprint(self) -> str:
         return hashlib.sha256(f"{self.conf.get('username', '')}\0{self.conf.get('password', '')}".encode()).hexdigest()

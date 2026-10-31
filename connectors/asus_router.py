@@ -120,7 +120,8 @@ class AsusRouter(StatusConnector):
     guide = ("Donne l'adresse du routeur (celle qui ouvre son interface web depuis le serveur), son utilisateur et son mot de passe : MyServices ne fait que lire.",
              "Le routeur n'accepte qu'une session web à la fois : si tu es connecté à son interface en même temps, MyServices est refusé. Il lit donc toutes les 15 minutes par défaut. Après quelques erreurs de mot de passe, il verrouille la connexion un moment ; MyServices ne réessaie pas.",
              "Pour les routeurs Asus sous AsusWRT et Asuswrt-Merlin. Les modèles récents à connexion par nonce (comme le GS-BE18000) ne sont pas pris en charge.",
-             "Le routeur ne donne pas ici le débit en cours, la température, la durée de connexion ni l'état des mises à jour.")
+             "Le routeur ne donne pas ici le débit en cours, la température, la durée de connexion ni l'état des mises à jour.",
+             "Non testé sur un vrai routeur.")
 
     def fingerprint(self) -> str:
         return hashlib.sha256(f"{self.conf.get('username', '')}:{self.conf.get('password', '')}".encode()).hexdigest()

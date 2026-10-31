@@ -153,7 +153,8 @@ class TplinkRouter(StatusConnector):
              "Le routeur TP-Link n'accepte qu'une seule session web à la fois : quand MyServices se connecte, la session ouverte de son propriétaire dans l'interface est fermée. MyServices lit donc toutes les 15 minutes par défaut : évite de raccourcir ce délai.",
              "Après quelques erreurs de mot de passe, le routeur bloque la connexion un moment : MyServices ne réessaie pas tant que les réglages ne changent pas.",
              "Seuls les Archer dont l'interface web est la version chiffrée « LuCI » sont lus (par exemple C6U, C6, C7, C80, C1200, AX10 à AX73 selon le firmware). Les séries MR, VR, EX et XDR et les firmwares les plus récents sont refusés avec un message. Non testé sur un vrai routeur. Les appareils Tapo ont leur propre connecteur.",
-             "Sont lus : le modèle, le firmware, l'adresse IP publique, la durée de la connexion, le nombre d'appareils et l'état du Wi-Fi. Ne sont pas lus : le type de ligne, les débits, la température et les mises à jour.")
+             "Sont lus : le modèle, le firmware, l'adresse IP publique, la durée de la connexion, le nombre d'appareils et l'état du Wi-Fi. Ne sont pas lus : le type de ligne, les débits, la température et les mises à jour.",
+             "Non testé sur un vrai routeur.")
 
     def opener(self) -> urllib.request.OpenerDirector:
         if getattr(self, "_op", None) is None:
