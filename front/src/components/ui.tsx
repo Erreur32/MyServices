@@ -165,16 +165,19 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   const wanted = shownGroups.filter((g) => primaryProp.includes(g.facet.key));
   const rowRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
+  const sideRef = useRef<HTMLDivElement>(null);
   const [tooWide, setTooWide] = useState(false);
   useLayoutEffect(() => {
     const row = rowRef.current;
     if (!oneLine || !row) return;
-    const check = () => setTooWide(220 + 400 + (measureRef.current?.scrollWidth ?? 0) > row.clientWidth);   // 220 = search field, 400 = counter, buttons and gaps
+    // 220 = search field, 400 = counter, buttons and gaps; no field here: only what stands on the right, and a gap
+    const taken = () => (searchBox ? 620 : (sideRef.current?.offsetWidth ?? 400) + 24);
+    const check = () => setTooWide(taken() + (measureRef.current?.scrollWidth ?? 0) > row.clientWidth);
     check();
     const ro = new ResizeObserver(check);
     ro.observe(row);
     return () => ro.disconnect();
-  }, [oneLine, wanted.length]);
+  }, [oneLine, searchBox, wanted.length]);
   const collapsed = oneLine && (tooWide || wanted.reduce((n, g) => n + g.chips.length, 0) > 10);
   const primary = collapsed ? [] : primaryProp;
   const inline = shownGroups.filter((g) => primary.includes(g.facet.key));
@@ -199,7 +202,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   );
   const inlineFilters = renderInline(inline, oneLine);
   return (
-    <div className={`my-4 flex flex-col gap-3 ${bare ? "" : "rounded-2xl border border-line bg-card/70 p-3"}`}>
+    <div className={`${searchBox ? "my-4" : "mb-4"} flex flex-col gap-3 ${bare ? "" : "rounded-2xl border border-line bg-card/70 p-3"}`}>
       <div ref={rowRef} className={`flex items-center gap-3 ${oneLine && !collapsed ? "flex-nowrap" : "flex-wrap"}`}>
         {searchBox && <SearchBox value={f.query} onChange={f.setQuery} placeholder={placeholder} count={[f.shown.length, f.total]} />}
         {oneLine && inlineFilters}
@@ -216,7 +219,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
           </button>
         )}
         {((groups.length > 0 || options.length > 0) || side || extra) && (
-          <div className="ml-auto flex flex-col items-end gap-1.5">
+          <div ref={sideRef} className="ml-auto flex flex-col items-end gap-1.5">
             <div className="flex flex-wrap items-center justify-end gap-2">
               {extra}
               {(groups.length > 0 || options.length > 0) && (

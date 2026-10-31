@@ -374,7 +374,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const groups = useMemo(() => groupServices(snap.data.hosts, snap.data.services_status ?? [], (r) => isHidden(r, hiddenMap)), [snap.data.hosts, snap.data.services_status, hiddenMap]);
   const facets = useMemo((): Facet<ServiceGroup>[] => [
-    { key: "todo", label: tx("À vérifier"), get: (g) => (toCheck(g) ? "on" : ""), name: () => tx("à vérifier"), mark: todoMark },
+    { key: "todo", label: tx("Alertes"), get: (g) => (toCheck(g) ? "on" : ""), name: () => tx("à vérifier"), mark: todoMark },
     { key: "expo", label: tx("Accès"), get: (g) => [...new Set(g.hosts.flatMap((r) => exposure(r) ?? []))], name: (v) => EXPO[v]?.[1].replace(/^\S+\s/, "") ?? v, order: ["public", "ouvert", "prive"] },
     { key: "domain", label: tx("Domaine"), get: domainFacet, name: (v) => (v === "with" ? tx("avec domaine") : tx("sans domaine")), order: ["with", "without"],
       mark: domainMark },
@@ -394,7 +394,6 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   // Everything shows by default; a filter asked elsewhere (home page counter, machine) is kept as it is
   const f = useFilter(groups, facets, text, route.startsWith("#services/watch") ? { alert: ["on"] } : initial);   // the old « To watch » address: the alerts
   const [byMachine, setByMachine] = useByMachine(), [opened, setOpened] = useState(""), [techOpen, setTechOpen] = useState(false);
-  const watching = groups.filter(toCheck).length;
   const keyOf = useCallback((g: ServiceGroup, k: string): string | number => {
     const r = g.hosts[0];
     switch (k) {
@@ -417,7 +416,8 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   }, [focused?.key]);   // eslint-disable-line react-hooks/exhaustive-deps -- once per link, a new reading must not reopen a card closed since
   const card = (g: ServiceGroup) => <ServiceCard key={g.key} g={g} hosts={snap.data.hosts} open={opened === g.key} focus={focused?.key === g.key} focusKey={focusKey} onToggle={() => setOpened(opened === g.key ? "" : g.key)} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />;
   const viewButton = (on: boolean, label: string, Icon: typeof Layers, pick: boolean) => (
-    <button type="button" onClick={() => setByMachine(pick)} aria-pressed={on} title={label} aria-label={label} className={`rounded-lg border p-2 transition-colors ${on ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}><Icon size={15} aria-hidden /></button>
+    <button type="button" onClick={() => setByMachine(pick)} aria-pressed={on} title={label}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-sm ${on ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
   );
 
   const [hours, setHours] = usePeriod();
@@ -440,18 +440,17 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
       {(view === "all" || view === "watch") && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={groups.filter((g) => !g.tech).length} pinned
         center={<SearchBox value={f.query} onChange={f.setQuery} placeholder={tx("Nom, domaine, IP…")} count={[shownReal.length, groups.filter((g) => !g.tech).length]} />}>
         <FilterBar f={{ ...f, shown: shownReal, total: groups.filter((g) => !g.tech).length }} oneLine bare searchBox={false} placeholder=""   // one line in the panel's frame; the others behind « More filters »
-          extra={<>{watching > 0 && <button type="button" onClick={() => f.toggle("todo", "on")} aria-pressed={!!f.sel.todo?.length} title={tx("Pannes, avertissements et points à contrôler")}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${f.sel.todo?.length ? "border-warn bg-warn/15 text-warn" : "border-warn/60 text-warn hover:bg-warn/10"}`}>
-            <span className="h-2 w-2 rounded-full bg-warn" aria-hidden />{tx("À vérifier")} <b>{watching}</b></button>}
-          <button type="button" onClick={() => f.toggle("domain", "with")} aria-pressed={!!f.sel.domain?.includes("with")} title={tx("Seulement les services qui ont un domaine")}
-            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${f.sel.domain?.includes("with") ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}><Globe size={14} aria-hidden />{tx("Domaine")}</button>
+          primary={["todo", "domain"]}
+          extra={<>
           <span className="inline-flex shrink-0 items-center gap-1">
             <select aria-label={tx("Trier par")} value={sort.key} onChange={(e) => sort.by(e.target.value)} className={`${input.replace("w-full", "w-auto")} !px-2 !py-1.5`}>
               {[["status", tx("État")], ["name", tx("Nom")], ["machine", tx("Machine")], ["target", tx("Adresse")]].map(([k, label]) => <option key={k} value={k}>{tx("Trier : {0}", label)}</option>)}
             </select>
             <button type="button" onClick={() => sort.by(sort.key)} className="rounded-lg border border-line p-2 text-link hover:bg-link/10" title={tx("Inverser l'ordre")} aria-label={tx("Inverser l'ordre")}>{sort.asc ? <ArrowUp size={14} aria-hidden /> : <ArrowDown size={14} aria-hidden />}</button>
           </span>
-          {viewButton(!byMachine, tx("Par application"), Layers, false)}{viewButton(byMachine, tx("Par machine"), Server, true)}</>} />
+          <span className="inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Affichage")}>
+            {viewButton(!byMachine, tx("Par application"), Layers, false)}{viewButton(byMachine, tx("Par machine"), Server, true)}
+          </span></>} />
         {f.shown.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : <div className="mt-3 flex flex-col gap-4">
           {sections(shownReal, byMachine).map((s) => (
             <section key={s.title} aria-label={s.title}>
