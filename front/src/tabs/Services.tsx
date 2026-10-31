@@ -153,12 +153,14 @@ function targetOf(r: Host): string {
 
 /** Hide a service from « To watch » or show it back, the same button as there: a service with a known problem (down, warning, point to check)
  *  is hidden until its problem changes, any other one (online, stopped on purpose) is no longer followed at all until shown back */
+const ROW_BUTTON = "shrink-0 rounded-md border border-txt/25 bg-bg p-1 text-txt hover:border-link hover:text-link aria-pressed:border-link aria-pressed:text-link";
+
 function HideToggle({ r, hidden, watched }: Readonly<{ r: Host; hidden: boolean; watched: boolean }>) {
   const toggle = (e: { stopPropagation: () => void }) => { e.stopPropagation(); void setServiceHidden(r, hostName(r), !hidden, !watched); };
-  if (hidden) return <button type="button" className="shrink-0 text-dim hover:text-txt" title={tx("Afficher de nouveau dans les alertes")} aria-label={tx("Afficher de nouveau dans les alertes")} onClick={toggle}><Undo2 size={15} aria-hidden /></button>;
+  if (hidden) return <button type="button" className={ROW_BUTTON} title={tx("Afficher de nouveau dans les alertes")} aria-label={tx("Afficher de nouveau dans les alertes")} onClick={toggle}><Undo2 size={16} aria-hidden /></button>;
   const tip = watched ? tx("Masquer des alertes et du point du menu tant que le problème ne change pas")
     : tx("Ne plus suivre ce service : plus jamais dans les alertes ni dans le point du menu, même en panne, jusqu'à ce qu'il soit réaffiché");
-  return <button type="button" className="shrink-0 text-dim hover:text-txt" title={tip} aria-label={tx("Masquer des alertes")} onClick={toggle}><EyeOff size={15} aria-hidden /></button>;
+  return <button type="button" className={ROW_BUTTON} title={tip} aria-label={tx("Masquer des alertes")} onClick={toggle}><EyeOff size={16} aria-hidden /></button>;
 }
 
 const SERVICE_VIEWS = ["watch", "all", "fresh", "item", "edit", "manual", "new"] as const;
@@ -172,7 +174,7 @@ const GROUP_EDGE: Record<GroupTone, string> = { ok: "border-dim/50", warn: "bord
 const groupState = (g: ServiceGroup) => ({ ok: tx("En ligne"), warn: tx("À vérifier"), bad: tx("En panne"), off: tx("Désactivé") })[g.tone];
 
 /** One row of an opened card: where the service runs; a click opens its page */
-function PlaceRow({ r, ports, hidden, watched, admin }: Readonly<{ r: Host; ports: Host[]; hidden: boolean; watched: boolean; admin: boolean }>) {
+function PlaceRow({ r, ports, hidden, watched, admin, editing, onEdit }: Readonly<{ r: Host; ports: Host[]; hidden: boolean; watched: boolean; admin: boolean; editing: boolean; onEdit: () => void }>) {
   const [cls, label, why] = status(r), domains = hostDomains(r), flags = checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => `⚑ ${CHECK[k][0]}`);
   return (
     <tr onClick={() => openService(r)} className={`cursor-pointer border-t border-line even:bg-bg/30 hover:!bg-link/10 ${r.enabled ? "" : "opacity-60"}`}>
@@ -183,11 +185,11 @@ function PlaceRow({ r, ports, hidden, watched, admin }: Readonly<{ r: Host; port
       <td className="px-3 py-1.5"><span className={hidden ? "opacity-40 grayscale" : ""}><StateBadges cls={cls} label={label} title={[label, why, ...flags].filter(Boolean).join("\n")} flagged={flags.length > 0} source={<Badge tone="off" title={sourceTip(r)}>{via(r)}</Badge>} /></span></td>
       <td className="px-3 py-1.5">{admin && <span className="flex items-center justify-end gap-2">
         {watched && exposure(r) === "ouvert" && r.domains[0] && (
-          <button type="button" className="text-dim hover:text-ok" title={tx("Ouvert à Internet volontairement (site, blog, page de contact) : ne plus le signaler")} aria-label={tx("Site public voulu")}
-            onClick={(e) => { e.stopPropagation(); void send("PUT", "services/public", { domain: r.domains[0], public: true }).catch(() => undefined); }}><Globe size={15} aria-hidden /></button>
+          <button type="button" className={ROW_BUTTON} title={tx("Ouvert à Internet volontairement (site, blog, page de contact) : ne plus le signaler")} aria-label={tx("Site public voulu")}
+            onClick={(e) => { e.stopPropagation(); void send("PUT", "services/public", { domain: r.domains[0], public: true }).catch(() => undefined); }}><Globe size={16} aria-hidden /></button>
         )}
         <HideToggle r={r} hidden={hidden} watched={watched} />
-        <button type="button" className="shrink-0 text-dim hover:text-link" title={tx("Modifier")} aria-label={tx("Modifier")} onClick={(e) => { e.stopPropagation(); location.hash = servicePage("edit", r); }}><Pencil size={15} aria-hidden /></button>
+        <button type="button" className={ROW_BUTTON} title={tx("Modifier")} aria-label={tx("Modifier")} aria-pressed={editing} onClick={(e) => { e.stopPropagation(); onEdit(); }}><Pencil size={16} aria-hidden /></button>
       </span>}</td>
     </tr>
   );
@@ -228,13 +230,13 @@ function GroupLogo({ name, lead }: Readonly<{ name: string; lead?: Host }>) {
 }
 
 /** The places of an opened card: a row per place, or the connector cards of a service that runs on no machine */
-function PlacesTable({ g, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
+function PlacesTable({ g, hiddenMap, watchKeys, admin, editKey, onEdit }: Readonly<{ g: ServiceGroup; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean; editKey: string | null; onEdit: (key: string) => void }>) {
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-card">
       <table className="w-full text-sm">
         <thead><tr className="text-left text-xs text-muted">{[tx("Machine"), tx("Adresse"), tx("Domaine"), tx("Accès"), tx("État"), ""].map((h) => <th key={h} className="px-3 py-1.5 font-semibold">{h}</th>)}</tr></thead>
         <tbody>
-          {mergePorts(g.hosts).map(({ lead: r, ports }) => <PlaceRow key={keyOfRow(r)} r={r} ports={ports} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(keyOfRow(r))} admin={admin} />)}
+          {mergePorts(g.hosts).map(({ lead: r, ports }) => <PlaceRow key={keyOfRow(r)} r={r} ports={ports} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(keyOfRow(r))} admin={admin} editing={editKey === keyOfRow(r)} onEdit={() => onEdit(keyOfRow(r))} />)}
           {!g.hosts.length && g.cards.map((c) => (   // read by a connector only: the same columns, nothing runs on a machine
             <tr key={c.name} className="border-t border-line">
               <td className="px-3 py-1.5 font-semibold">{g.cloud ? "Cloud" : tx("Lu par un connecteur")}</td>
@@ -247,6 +249,31 @@ function PlacesTable({ g, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGr
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** An opened card: where the service runs, what to check, and the settings of a row in place when its pencil is clicked */
+function CardDetail({ g, lead, reasons, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; lead?: Host; reasons: { k: Check; where: string }[]; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
+  const [editKey, setEditKey] = useState<string | null>(null);
+  const edited = g.hosts.find((r) => keyOfRow(r) === editKey);
+  return (
+    <div className="flex flex-col gap-3 border-t border-line/60 p-3">
+      {(g.hosts.length > 0 || g.cards.length > 0) && <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} editKey={editKey} onEdit={(k) => setEditKey(k === editKey ? null : k)} />}
+      {edited && <ServiceEdit key={editKey} r={edited} logo={<ServiceLogo r={edited} auto />} onClose={() => setEditKey(null)} />}
+      {reasons.length > 0 && <div data-watch="check" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+          <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À vérifier")}</h4>
+          <ul className="divide-y divide-warn/20 text-sm">{reasons.map(({ k, where }) => <li key={`${k}:${where}`} className="py-1"><b>{CHECK[k][0]}</b> <span className="text-muted">({where})</span> : {CHECK[k][1]}</li>)}</ul>
+        </div>}
+      {g.problems.length > 0 && <div data-watch="problems" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+          <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
+          <ul className="divide-y divide-warn/20 text-sm">{g.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
+        </div>}
+      <div className="flex flex-wrap gap-4 text-sm font-semibold">
+        {lead && <a href={`#${servicePage("item", lead)}`} className="text-link hover:underline">{tx("Fiche du service")}</a>}
+        {g.cards.some((c) => c.connector === "netatmo") && <a href="#domotique/netatmo" className="text-link hover:underline">{tx("Ouvrir la page")}</a>}
+        {g.cards.length > 0 && <a href="#settings/connectors" className="text-link hover:underline">{tx("Connecteur {0}", g.cards[0].label)}</a>}
+      </div>
     </div>
   );
 }
@@ -274,24 +301,7 @@ function ServiceCard({ g, open, focus, onToggle, hiddenMap, watchKeys, admin }: 
         {more && <span className="ml-auto shrink-0 text-muted">{more}</span>}
       </div>
       {ports.length > 1 && <p className="truncate px-3 pb-2.5 pl-[3.875rem] font-mono text-xs text-muted" title={tx("Ports : {0}", ports.join(", "))}>{ports.map((p) => `:${p}`).join(" ")}</p>}
-      {open && (
-        <div className="flex flex-col gap-3 border-t border-line/60 p-3">
-          {(g.hosts.length > 0 || g.cards.length > 0) && <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />}
-          {reasons.length > 0 && <div data-watch="check" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
-              <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À vérifier")}</h4>
-              <ul className="divide-y divide-warn/20 text-sm">{reasons.map(({ k, where }) => <li key={`${k}:${where}`} className="py-1"><b>{CHECK[k][0]}</b> <span className="text-muted">({where})</span> : {CHECK[k][1]}</li>)}</ul>
-            </div>}
-          {g.problems.length > 0 && <div data-watch="problems" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
-              <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
-              <ul className="divide-y divide-warn/20 text-sm">{g.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
-            </div>}
-          <div className="flex flex-wrap gap-4 text-sm font-semibold">
-            {lead && <a href={`#${servicePage("item", lead)}`} className="text-link hover:underline">{tx("Fiche du service")}</a>}
-            {g.cards.some((c) => c.connector === "netatmo") && <a href="#domotique/netatmo" className="text-link hover:underline">{tx("Ouvrir la page")}</a>}
-            {g.cards.length > 0 && <a href="#settings/connectors" className="text-link hover:underline">{tx("Connecteur {0}", g.cards[0].label)}</a>}
-          </div>
-        </div>
-      )}
+      {open && <CardDetail g={g} lead={lead} reasons={reasons} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />}
     </article>
   );
 }
