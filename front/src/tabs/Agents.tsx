@@ -2,7 +2,7 @@
 // Machines → Agents (tous les agents avec leurs gestes, agents révoqués). Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller.
 // Gérés seulement depuis une session admin.
 import { ArrowUpCircle, Check, KeyRound, MonitorUp, Plus, RotateCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
@@ -108,7 +108,10 @@ function AgentActions({ a, kind, onChanged, onInstall }: Readonly<{ a: AgentInfo
 /** `create`: the agent is created as soon as the block shows (the add-machine wizard, once « Agent » was chosen), no second click */
 export function AgentBlock({ ip, name, kind, agent, create, onChanged }: Readonly<{ ip: string; name: string; kind: AgentKind; agent?: AgentInfo; create?: boolean; onChanged: () => void }>) {
   const [install, setInstall] = useState<InstallTarget | null>(create && !agent ? { ip, name, kind, auto: true } : null), [note, setNote] = useState<Note>(null);
-  if (install) return <AgentInstall key={install.auto ? "renew" : "new"} target={install} onChanged={onChanged} onClose={() => setInstall(null)} />;
+  const [pointed, setPointed] = useState(() => location.hash === `#machines/${ip}/agent`), box = useRef<HTMLDivElement>(null);   // a link to this machine's agent: its frame opens, nothing is created before a choice
+  useEffect(() => { if (pointed) box.current?.scrollIntoView({ block: "center" }); }, [pointed]);
+  const frame = install ?? (pointed && !agent ? { ip, name, kind, choose: true } : null);
+  if (frame) return <div ref={box}><AgentInstall key={frame.auto ? "renew" : "new"} target={frame} onChanged={onChanged} onClose={() => { setInstall(null); setPointed(false); }} /></div>;
   if (!agent) {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
@@ -119,7 +122,7 @@ export function AgentBlock({ ip, name, kind, agent, create, onChanged }: Readonl
   }
   const [tone, label] = STATE[agent.state];
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
+    <div ref={box} className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <b>{tx("Agent")}</b><Badge tone={tone}>{label}</Badge>
         {agent.host_pending && <Badge tone="warn" title={tx("Nom de poste différent : {0} au lieu de {1}", agent.host_pending, agent.hostname ?? "?")}>{tx("nom à confirmer")}</Badge>}

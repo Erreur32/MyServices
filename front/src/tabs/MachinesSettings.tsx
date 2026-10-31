@@ -333,7 +333,7 @@ function WindowsConnection({ ip, m, st, agent, hw }: Readonly<{ ip: string; m: M
   }
   return (
     <p className="text-dim">{tx("Pas d'agent : ping et services web seulement.")}{" "}
-      <button type="button" className="text-link hover:underline" onClick={() => { location.hash = `settings/agents/${ip}`; }}>{tx("Installer l'agent")}</button>{tx(" pour lire sa santé sans SSH.")}</p>
+      <button type="button" className="text-link hover:underline" onClick={() => { location.hash = `machines/${ip}/agent`; }}>{tx("Installer l'agent")}</button>{tx(" pour lire sa santé sans SSH.")}</p>
   );
 }
 
@@ -915,7 +915,7 @@ function AccessTab({ tabbed, agentMode, sshBody, agentBody, connectorsBody, sshS
       <AccessCategory fold icon={KeyRound} title="SSH" badge={sshSummary}>
         {agentMode ? <p className="text-sm text-muted">{tx("Cette machine est lue par son agent, sans SSH.")}</p> : sshBody}
       </AccessCategory>
-      <AccessCategory fold open={agentActive} icon={MonitorUp} title={tx("Agent")} badge={agentSummary}>{agentBody}</AccessCategory>
+      <AccessCategory fold open={agentActive || location.hash.endsWith("/agent")} icon={MonitorUp} title={tx("Agent")} badge={agentSummary}>{agentBody}</AccessCategory>
       <AccessCategory fold open={connectorsActive} icon={Plug} title={tx("Connecteurs")} badge={connectorSummary}>{connectorsBody}</AccessCategory>
     </>
   );
@@ -1217,7 +1217,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
 }
 
 /** The settings of one machine, in its page (#machines/<ip>) ;
- *  `focusTab`: open on the Access tab (#machines/<ip>/access, old #settings/agents/<ip>) */
+ *  `focusTab`: open on the Access tab (#machines/<ip>/access, /agent with the agent's panel open, old #settings/agents/<ip>) */
 export function MachineModal({ ip, snap, focusTab, only }: Readonly<{ ip: string; snap: Snapshot; focusTab?: "access"; only?: AccessOnly }>) {
   const [st, setSt] = useState<State | null>(null), [agents, setAgents] = useState<AgentInfo[]>([]), [scan, setScan] = useState<NetHost | undefined>();
   const reload = useCallback(() => { read<State>("machines/settings").then(setSt).catch(() => undefined); }, []);

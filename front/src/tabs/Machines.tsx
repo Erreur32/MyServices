@@ -499,7 +499,7 @@ export interface Origin { label: string; ok?: boolean; tip?: string; href?: stri
 /** Where the OS of the machine was read: SSH, the MyServices agent or the network search */
 function osOrigins(m: Machine, here: string, scanned: boolean): Origin[] {
   if (m.info?.os && m.info.via !== "agent") return [{ label: "SSH", href: here }];
-  if (m.info?.os || m.agent) return [{ label: tx("agent MyServices"), href: `#settings/agents/${m.ip}` }];
+  if (m.info?.os || m.agent) return [{ label: tx("agent MyServices"), href: `#machines/${m.ip}/agent` }];
   return scanned ? [{ label: tx("recherche réseau"), href: "#settings/machines/devices" }] : [];
 }
 
@@ -509,7 +509,7 @@ function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanne
     .map((c) => ({ label: c.type === "docker" ? "Docker (SSH)" : c.type === "process" ? tx("Ports (SSH)") : "AdGuard Home", ok: c.ok, tip: `${c.name} : ${c.message}`, href: `#settings/machines/${m.ip}` }));
   const here = `#settings/machines/${m.ip}`, connectors = "#settings/connectors";
   const health: Origin[] = (h?.sources ?? []).map((x) => ({ label: x === "ssh" ? "SSH" : x === "agent" ? tx("agent MyServices") : x === "beszel" ? "Beszel" : x === "ha" ? "Home Assistant" : x,
-    href: x === "agent" ? `#settings/agents/${m.ip}` : x === "beszel" || x === "ha" ? connectors : here }));
+    href: x === "agent" ? `#machines/${m.ip}/agent` : x === "beszel" || x === "ha" ? connectors : here }));
   return {
     role: [{ label: tx("Réglages → Machines"), href: here }] as Origin[],
     mac: seen ? [{ label: "MynetworK", href: connectors }] : [],

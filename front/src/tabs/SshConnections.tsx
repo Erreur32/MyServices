@@ -42,8 +42,8 @@ function KeepSsh({ why, children }: Readonly<{ why: string; children?: ReactNode
 }
 
 function SshAdvice({ ip, need, uses, canInstall }: Readonly<{ ip: string; need: SshNeed; uses: string[]; canInstall: boolean }>) {
-  const install = <a href={`#machines/${ip}/access`} className="inline-flex items-center gap-1 text-xs text-link hover:underline"><Cpu size={13} aria-hidden />{tx("Installer l'agent")} ›</a>;
-  const agentPage = <a href={`#settings/agents/${ip}`} className="text-link hover:underline">{tx("Page de l'agent")} ›</a>;
+  const install = <a href={`#machines/${ip}/agent`} className="inline-flex items-center gap-1 text-xs text-link hover:underline"><Cpu size={13} aria-hidden />{tx("Installer l'agent")} ›</a>;
+  const agentPage = <a href={`#machines/${ip}/agent`} className="text-link hover:underline">{tx("Page de l'agent")} ›</a>;
   switch (need) {
     case "cut": return <Dim>-</Dim>;
     case "offer_agent": return install;

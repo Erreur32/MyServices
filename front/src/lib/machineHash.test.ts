@@ -7,6 +7,7 @@ describe("machine page address", () => {
     expect(machineFromHash("#machines/10.0.0.5")).toEqual({ ip: "10.0.0.5" });
     expect(machineFromHash("#machines/10.0.0.5/access")).toEqual({ ip: "10.0.0.5", tab: "access" });
     expect(machineFromHash("#machines/10.0.0.5/settings")).toEqual({ ip: "10.0.0.5", tab: "settings" });
+    expect(machineFromHash("#machines/10.0.0.5/agent")).toEqual({ ip: "10.0.0.5", tab: "access" });
     expect(machineFromHash("#machines/10.0.0.5/watch/ssh_auth")).toEqual({ ip: "10.0.0.5", watch: "ssh_auth" });
     expect(machineFromHash('#machines/10.0.0.5/watch/x"]')).toEqual({ ip: "10.0.0.5" });
   });
@@ -18,7 +19,7 @@ describe("machine page address", () => {
   });
   it("old settings links of a machine lead to its page", () => {
     expect(machineSettingsRedirect("#settings/machines/10.0.0.5")).toBe("machines/10.0.0.5");
-    expect(machineSettingsRedirect("#settings/agents/10.0.0.5")).toBe("machines/10.0.0.5/access");
+    expect(machineSettingsRedirect("#settings/agents/10.0.0.5")).toBe("machines/10.0.0.5/agent");
     expect(machineSettingsRedirect("#settings/machines")).toBeNull();
     expect(machineSettingsRedirect("#settings/backups/3")).toBeNull();
   });
