@@ -2,7 +2,10 @@
 // rechargement à chaud de Vite ne marche que sur un fichier qui n'exporte que des composants).
 import { LOGIN, LoginRequired } from "../api";
 
-export const input = "w-full rounded-lg border border-line bg-bg2 px-3 py-2 text-sm text-txt outline-none placeholder:text-dim focus:border-link";
+// Every field has the background of its theme (index.css, checked by fieldColors.test.ts): fieldFrame on what shows the field, fieldText on what is typed in
+export const fieldFrame = "rounded-lg border border-txt/25 bg-field focus-within:border-link";
+export const fieldText = "text-sm text-field-txt outline-none placeholder:text-field-txt/75";
+export const input = `w-full px-3 py-2 ${fieldFrame} ${fieldText}`;
 export const button = "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold disabled:opacity-50";
 // Plein (fond accent, texte blanc) : on ne le confond pas avec les cadres dépliables, qui sont bordés et teintés
 export const primary = `${button} border-accent bg-accent text-white shadow-sm hover:brightness-110`;

@@ -38,12 +38,13 @@ export function WatchPanel({ id, lines, admin }: Readonly<{ id: string; lines: W
 }
 
 /** One service: its state, its figures (only what was read), the way to its Services page, and what else it leads to (`links`) */
-export function FamilyCard<R extends string>({ c, role, facts, links, icon: Fallback, admin }: Readonly<{
+export function FamilyCard<R extends string>({ c, role, facts, links, icon: Fallback, admin, wide = false }: Readonly<{
   c: ServiceCard<R>; role: string; facts: [string, string][]; links?: ReactNode; icon: LucideIcon; admin: boolean;
+  wide?: boolean;   // alone in its grid: takes the whole width, its facts on two columns
 }>) {
   const icon = appIcon([c.title, c.engine ?? "", c.conn?.label ?? ""]);
   return (
-    <article className={`flex h-56 min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm ${c.unread ? "border-dashed border-line" : "border-line"}`}>
+    <article className={`flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm ${wide ? "md:col-span-2" : "h-56"} ${c.unread ? "border-dashed border-line" : "border-line"}`}>
       <div className="flex items-center gap-2 border-b border-line/60 bg-bg px-4 py-2.5">
         <Dot tone={c.tone} />
         {icon ? <Logo src={icon} /> : <Fallback size={14} className="text-muted" aria-hidden />}
@@ -51,7 +52,7 @@ export function FamilyCard<R extends string>({ c, role, facts, links, icon: Fall
         <Badge tone="off" outline>{role}</Badge>
         <span className="ml-auto truncate text-xs text-dim" title={c.state}>{c.state}</span>
       </div>
-      <dl className="grid flex-1 grid-cols-[max-content_minmax(0,1fr)] content-start gap-x-4 gap-y-1 px-4 py-3 text-sm">
+      <dl className={`grid flex-1 grid-cols-[max-content_minmax(0,1fr)] content-start gap-x-4 gap-y-1 px-4 py-3 text-sm ${wide ? "md:grid-cols-[max-content_minmax(0,1fr)_max-content_minmax(0,1fr)]" : ""}`}>
         {facts.map(([k, v]) => <div key={k} className="contents"><dt className="text-muted">{k}</dt><dd className="truncate tabular-nums" title={v}>{v}</dd></div>)}
       </dl>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line/60 px-4 py-2 text-sm">

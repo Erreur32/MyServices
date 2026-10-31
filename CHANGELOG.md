@@ -14,6 +14,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Changed
 
 - **Agents**: a new agent reports every 5 minutes instead of 15. An agent already installed keeps its rhythm until its install command is run again.
+- **Video and cameras**: the overview and the Frigate page are laid out on three columns, the detectors, GPUs and storage as compact cards.
+- **Fields**: every field has a background of its own in each theme, and the text typed in it, its example and what the browser fills in stay readable.
 
 ## v0.31.9 (2026-10-31)
 

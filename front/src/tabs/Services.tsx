@@ -22,7 +22,7 @@ import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
 import { ManualActions, ManualService, type ManualInitial } from "../components/ManualService";
 import { StatTile } from "../components/StatTile";
-import { primary, quiet } from "../lib/forms";
+import { input, primary, quiet } from "../lib/forms";
 import { figures, mergePorts, toWatch } from "../lib/servicesState";
 import { groupPorts, groupServices, groupsTitle, hostDomains, sections, toCheck, type GroupTone, type ServiceGroup } from "../lib/serviceGroups";
 import { HeadTags } from "../components/HeadTags";
@@ -403,7 +403,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
           <button type="button" onClick={() => f.toggle("domain", "with")} aria-pressed={!!f.sel.domain?.includes("with")} title={tx("Seulement les services qui ont un domaine")}
             className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${f.sel.domain?.includes("with") ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}><Globe size={14} aria-hidden />{tx("Domaine")}</button>
           <span className="inline-flex shrink-0 items-center gap-1">
-            <select aria-label={tx("Trier par")} value={sort.key} onChange={(e) => sort.by(e.target.value)} className="rounded-lg border border-line bg-bg2 px-2 py-1.5 text-sm text-txt outline-none focus:border-link">
+            <select aria-label={tx("Trier par")} value={sort.key} onChange={(e) => sort.by(e.target.value)} className={`${input.replace("w-full", "w-auto")} !px-2 !py-1.5`}>
               {[["status", tx("État")], ["name", tx("Nom")], ["machine", tx("Machine")], ["target", tx("Adresse")]].map(([k, label]) => <option key={k} value={k}>{tx("Trier : {0}", label)}</option>)}
             </select>
             <button type="button" onClick={() => sort.by(sort.key)} className="rounded-lg border border-line p-2 text-link hover:bg-link/10" title={tx("Inverser l'ordre")} aria-label={tx("Inverser l'ordre")}>{sort.asc ? <ArrowUp size={14} aria-hidden /> : <ArrowDown size={14} aria-hidden />}</button>

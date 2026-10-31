@@ -6,6 +6,7 @@ import type { Chip, Facet } from "../lib/filter";
 import { LEVEL, type Tone } from "../lib/level";
 import { tx } from "../lib/i18n";
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
+import { fieldFrame, fieldText } from "../lib/forms";
 
 export type { Tone };
 
@@ -21,10 +22,10 @@ const TONE: Record<Tone, string> = {
 export function SearchBox({ value, onChange, placeholder, count, className = "" }: Readonly<{ value: string; onChange: (q: string) => void; placeholder: string; count?: [number, number]; className?: string }>) {
   return (
     <>
-      <label className={`flex min-w-[220px] max-w-sm flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 focus-within:border-link ${className}`}>
-        <Search size={16} className="text-dim" aria-hidden />
+      <label className={`flex min-w-[220px] max-w-sm flex-1 items-center gap-2 px-3 py-1.5 ${fieldFrame} ${className}`}>
+        <Search size={16} className="text-field-txt/75" aria-hidden />
         <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder} type="search"
-          className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
+          className={`w-full bg-transparent ${fieldText}`} />
       </label>
       {count && <span className="whitespace-nowrap text-sm text-muted" title={tx("Lignes affichées sur le total, après la recherche et les filtres")}><b className="text-txt">{count[0]}</b> {tx("sur")} {count[1]}</span>}
     </>

@@ -2,7 +2,7 @@
 import { Check, Copy, Plus, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { copyText } from "../lib/clipboard";
-import { primary, type Note } from "../lib/forms";
+import { fieldFrame, fieldText, primary, type Note } from "../lib/forms";
 import { Overlay } from "./Overlay";
 import { tx } from "../lib/i18n";
 
@@ -56,7 +56,7 @@ export function TagInput({ value, onChange, label, suggestions = [], max = 200, 
   return (
     <div className="flex flex-col gap-1 text-sm text-muted">
       <span>{label}</span>
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-bg2 px-2 py-1.5 focus-within:border-link">
+      <div className={`flex flex-wrap items-center gap-1.5 px-2 py-1.5 ${fieldFrame}`}>
         {tags.map((t) => (
           <span key={t} className="inline-flex items-center gap-1 rounded-md border border-line bg-card px-2 py-0.5 text-xs font-semibold text-txt">
             {t}
@@ -64,7 +64,7 @@ export function TagInput({ value, onChange, label, suggestions = [], max = 200, 
           </span>
         ))}
         <input value={draft} maxLength={40} placeholder={tags.length ? "" : placeholder} aria-label={label}
-          className="min-w-[120px] flex-1 bg-transparent px-1 py-0.5 text-sm text-txt outline-none placeholder:text-dim"
+          className={`min-w-[120px] flex-1 bg-transparent px-1 py-0.5 ${fieldText}`}
           onChange={(e) => (e.target.value.includes(",") ? add(e.target.value) : setDraft(e.target.value))}
           onKeyDown={(e) => {
             if (e.key === "Enter") { e.preventDefault(); add(draft); }

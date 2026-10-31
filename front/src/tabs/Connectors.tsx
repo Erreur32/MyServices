@@ -8,7 +8,7 @@ import { Overlay } from "../components/Overlay";
 import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
-import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
+import { act, danger, fieldFrame, fieldText, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim, Th } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
@@ -165,10 +165,10 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
         <h2 className="flex items-center gap-2 font-bold"><Plus size={16} />{tx("Connecteurs disponibles")}</h2>
         {form}
         {!type && (
-          <label className="mt-3 flex max-w-md items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-2 focus-within:border-link">
-            <Search size={16} className="text-dim" aria-hidden />
+          <label className={`mt-3 flex max-w-md items-center gap-2 px-3 py-2 ${fieldFrame}`}>
+            <Search size={16} className="text-field-txt/75" aria-hidden />
             <input type="search" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tx("Chercher un connecteur (nom, catégorie…)")}
-              className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
+              className={`w-full bg-transparent ${fieldText}`} />
           </label>
         )}
         {!type && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
@@ -522,8 +522,8 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
 
 /** A required field stands out, and turns orange while it is empty; an optional one stays in the background */
 function fieldBox(need: boolean, empty: boolean): string {
-  if (!need) return `${input} !bg-transparent`;
-  return `${input} !bg-card ${empty ? "!border-warn" : "!border-link/70"}`;
+  if (!need) return input;
+  return `${input} ${empty ? "!border-warn" : "!border-link/70"}`;
 }
 
 function Required({ text }: Readonly<{ text: string }>) {
