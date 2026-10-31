@@ -15,14 +15,17 @@ export function DetailSection({ icon: Icon, title, tone, right, sec, children }:
   );
 }
 
+/** The darker left column of a card of labels and values */
+export const LABEL_BAND = "border-r border-line/60 bg-bg";
+
 /** A « label / value » line; nothing when the value is empty. The value wraps (long paths, keys) instead of being cut;
  *  `wide`: a table of its own, the label above it and the table across the whole card */
 export function DetailRow({ k, title, watch, wide = false, children }: Readonly<{ k: string; title?: string; watch?: string; wide?: boolean; children?: ReactNode }>) {
   if (children === undefined || children === null || children === false || children === "") return null;
   return (
-    <div data-watch={watch} className={`grid gap-x-3 rounded-md py-0.5 ${wide ? "grid-cols-1 gap-y-1" : "grid-cols-[6.5rem_minmax(0,1fr)]"}`}>
-      <dt className="text-muted" title={title}>{k}</dt>
-      <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 [overflow-wrap:anywhere]">{children}</dd>
+    <div data-watch={watch} className={`grid ${wide ? "grid-cols-1 gap-y-1 py-0.5" : "-mx-3 -my-0.5 grid-cols-[8rem_minmax(0,1fr)] first:-mt-3 last:-mb-3"}`}>
+      <dt className={wide ? "text-muted" : `${LABEL_BAND} px-3 py-1 text-muted`} title={title}>{k}</dt>
+      <dd className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 [overflow-wrap:anywhere] ${wide ? "" : "px-3 py-1"}`}>{children}</dd>
     </div>
   );
 }

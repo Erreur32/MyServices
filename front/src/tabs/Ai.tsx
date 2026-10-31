@@ -13,6 +13,7 @@ import { tx } from "../lib/i18n";
 import { usePageView } from "../lib/route";
 import { Badge, ChipButton, Dim, Empty, GradientFill, Pct, Td, Th } from "../components/ui";
 import { Dot } from "../components/marks";
+import { LABEL_BAND } from "../components/DetailSection";
 import { FoldPanel } from "../components/FoldPanel";
 import { FamilyCard, WatchPanel } from "../components/FamilyCards";
 import { HeadTags } from "../components/HeadTags";
@@ -296,10 +297,10 @@ function Node({ title, sub, hash, outside = false }: Readonly<{ title: string; s
 function Bar({ icon, label, pct, value }: Readonly<{ icon: React.ReactNode; label: string; pct: number | null; value: React.ReactNode }>) {
   if (pct == null && value == null) return null;
   return (
-    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)_7rem] items-center gap-3 text-sm">
-      <span className="flex items-center gap-1.5 text-muted">{icon}{label}</span>
-      <span className="block h-2.5 overflow-hidden rounded-full border border-line bg-bg2">{pct != null && <GradientFill pct={pct} />}</span>
-      <span className="text-right tabular-nums">{value}</span>
+    <div className="grid grid-cols-[9.5rem_minmax(0,1fr)_8rem] text-sm">
+      <span className={`flex items-center gap-1.5 ${LABEL_BAND} px-4 py-1.5 text-muted`}>{icon}{label}</span>
+      <span className="ml-3 block h-2.5 self-center overflow-hidden rounded-full border border-line bg-bg2">{pct != null && <GradientFill pct={pct} />}</span>
+      <span className="self-center pr-4 text-right tabular-nums">{value}</span>
     </div>
   );
 }
@@ -374,7 +375,7 @@ function GpuPanel({ c }: Readonly<{ c: GpuCard }>) {
     <FoldPanel id={`ai-gpu-${key}`} icon={Cpu} title={g.name ?? "GPU"} tone={gpuFull(pct) ? "warn" : "off"}
       extra={<><Dot tone={gpuDot(online, pct)} /><Dim>{machine}{total}</Dim></>}>
       <div className="flex flex-col gap-2">
-        <GpuBars g={g} pct={pct} />
+        <div className="-mx-4 -mt-4 flex flex-col"><GpuBars g={g} pct={pct} /></div>
         <Dim>{gpuNotes(g)}</Dim>
         {processes.length > 0 && (
           <ul className="mt-1 flex flex-col border-t border-line/60 pt-2 text-sm [&>li:nth-child(even)]:bg-bg/50">
