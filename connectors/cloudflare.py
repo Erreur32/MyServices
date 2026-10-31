@@ -1,26 +1,31 @@
 """Cloudflare: the domains of an account side by side, read only: six settings, DNS record counts and the traffic of the last 7 days.
 
 Routes read: GET /zones, GET /zones/{id}/settings/{setting} (one by one, the global read is deprecated), GET /zones/{id}/dns_records and POST /graphql
-(Analytics: queries only). DNS: the counts alone, per_page=1, so that the records and the origin addresses they hold never reach MyServices.
+(Analytics: queries only). DNS: only the name, type and proxied state of the web records are kept, never their content: origin addresses are not stored.
 A token without one of the optional rights (DNS, Zone Settings, Analytics) still lists its domains: what it cannot read is named in the problems.
 """
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from connectors.base import ConnectorError, Field, RateLimited
 from connectors.status_kit import StatusConnector, fact, num, size
 
 API = "https://api.cloudflare.com/client/v4"
 DAYS = 7
-MAX_ZONES = 20   # 9 calls per domain at about 0.5 s each, read by READERS at a time to stay in the 60 s of a pass; above that a problem says how many were left out
+MAX_ZONES = 20   # 8 calls per domain at about 0.5 s each, read by READERS at a time to stay in the 60 s of a pass; above that a problem says how many were left out
 READERS = 4
+MAX_RECORDS = 1000   # shortcut: one page of records, a zone beyond it shows its first 1000 in the checks; follow result_info if a user ever gets there
+WEB_RECORDS = ("A", "AAAA", "CNAME")
 SETTINGS = {"ssl": "SSL", "always_use_https": "HTTPS forcé", "min_tls_version": "TLS minimal", "security_header": "HSTS",
             "security_level": "Niveau de sécurité", "cache_level": "Cache"}
-# Variables left undeclared, as in Cloudflare's own example: its gateway fills them in by name
-TRAFFIC = ("{viewer{zones(filter:{zoneTag:$zone}){httpRequests1dGroups(limit:1,filter:{date_geq:$since,date_lt:$until}){"
-           "sum{requests cachedRequests bytes threats pageViews} uniq{uniques}}}}}")
+# Variables left undeclared, as in Cloudflare's own example: its gateway fills them in by name. Two reads of one table: the week as one group for its unique
+# visitors (a sum of days would count a visitor once per day), and the requests of each day for the curve.
+TRAFFIC = ("{viewer{zones(filter:{zoneTag:$zone}){"
+           "week:httpRequests1dGroups(limit:1,filter:{date_geq:$since,date_lt:$until}){sum{requests cachedRequests bytes threats pageViews} uniq{uniques}} "
+           f"days:httpRequests1dGroups(limit:{DAYS},orderBy:[date_ASC],filter:{{date_geq:$since,date_lt:$until}}){{dimensions{{date}} sum{{requests}}}}"
+           "}}}")
 
 
 def _spaced(n: int) -> str:
@@ -72,26 +77,34 @@ class Cloudflare(StatusConnector):
             return (value.get("strict_transport_security") or {}).get("enabled") is True if isinstance(value, dict) else None
         return value if isinstance(value, str) else None
 
-    def _dns_count(self, zone: str, only: str = "") -> int | None:
-        return (self._read(f"/zones/{zone}/dns_records?per_page=1{only}").get("result_info") or {}).get("total_count")
+    def _dns(self, zone: str) -> dict | None:
+        got = self._read(f"/zones/{zone}/dns_records?per_page={MAX_RECORDS}")
+        total = (got.get("result_info") or {}).get("total_count")
+        if total is None:
+            return None
+        records = [{"name": r.get("name"), "type": r.get("type"), "proxied": r.get("proxied") is True}
+                   for r in got.get("result") or [] if isinstance(r, dict) and r.get("type") in WEB_RECORDS]
+        return {"total": total, "proxied": sum(1 for r in records if r["proxied"]), "records": records}
 
     def _traffic(self, zone: str, since: str, until: str) -> dict | None:
         got = self._read("/graphql", method="POST", body={"query": TRAFFIC, "variables": {"zone": zone, "since": since, "until": until}})
         found = ((got.get("data") or {}).get("viewer") or {}).get("zones")
         if got.get("errors") or not found:
             return None   # a plan without this table answers 200 with an error
-        group = (found[0].get("httpRequests1dGroups") or [{}])[0]
+        group = (found[0].get("week") or [{}])[0]
         total = group.get("sum") or {}
+        by_day = {(d.get("dimensions") or {}).get("date"): int(num((d.get("sum") or {}).get("requests"), 0)) for d in found[0].get("days") or []}
+        first = date.fromisoformat(since)
         return {"requests": int(num(total.get("requests"), 0)), "cached": int(num(total.get("cachedRequests"), 0)), "bytes": int(num(total.get("bytes"), 0)),
                 "threats": int(num(total.get("threats"), 0)), "page_views": int(num(total.get("pageViews"), 0)),
-                "visitors": int(num((group.get("uniq") or {}).get("uniques"), 0))}
+                "visitors": int(num((group.get("uniq") or {}).get("uniques"), 0)),
+                "days": [{"date": day, "requests": by_day.get(day, 0)} for day in ((first + timedelta(days=i)).isoformat() for i in range(DAYS))]}   # a quiet day has no group
 
     def _zone(self, z: dict, since: str, until: str) -> dict:
         zone = z.get("id")
-        records = self._dns_count(zone)
         return {"name": z.get("name"), "status": z.get("status"), "paused": z.get("paused") is True, "plan": (z.get("plan") or {}).get("name"),
                 "settings": {k: self._setting(zone, k) for k in SETTINGS},
-                "dns": None if records is None else {"total": records, "proxied": self._dns_count(zone, "&proxied=true")},
+                "dns": self._dns(zone),
                 "traffic": self._traffic(zone, since, until)}
 
     def collect(self) -> dict:

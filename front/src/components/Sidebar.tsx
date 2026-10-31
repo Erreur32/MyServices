@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent 
 import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Snapshot } from "../api";
 import { activeNav, leaves, navGroups, type NavItem } from "../lib/tabs";
+import { cloudflareCounts } from "../lib/cloudflare";
 import { useRoute } from "../lib/route";
 import { HEADER_LOGOS, useFlyout, useHeaderLogo } from "../theme";
 import { securityFindings, type Area } from "../lib/securityFindings";
@@ -206,7 +207,7 @@ export function Sidebar({ snap, badges, why = {}, onNavigate, onBadge, mobileOpe
   const narrow = collapsed && !mobileOpen;   // the phone drawer always shows the names
   const [todo, setTodo] = useState(0);
   const security = useMemo(() => securityCounts(snap), [snap]);
-  const counts = useMemo(() => ({ ...security, discovery: todo }), [security, todo]);   // what the discovery asks for, on Collection › Discovery
+  const counts = useMemo(() => ({ ...security, ...cloudflareCounts(snap), discovery: todo }), [security, snap, todo]);   // what the discovery asks for, on Collection › Discovery
   const toggle = () => setCollapsed((c) => {
     try { localStorage.setItem(KEY, c ? "0" : "1"); } catch { /* storage refused: the choice lasts this visit */ }
     return !c;

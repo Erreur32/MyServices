@@ -64,6 +64,7 @@ export interface Host {
   http2?: boolean;
   websocket?: boolean;
   cloudflare?: boolean;
+  lan_only?: boolean | null;
   block_exploits?: boolean;
   nginx_err?: string;
   created?: string;
@@ -219,6 +220,14 @@ export interface NetScan {
 }
 
 /** État d'un service lu par son API (connecteur « status » : Home Assistant) */
+export interface CloudflareRecord { name: string; type: string; proxied: boolean }
+export interface CloudflareZone {
+  name: string; status: string; paused: boolean; plan?: string | null;
+  settings: Record<string, string | boolean | null>;
+  dns: { total: number; proxied: number; records: CloudflareRecord[] } | null;
+  traffic: { requests: number; cached: number; bytes: number; threats: number; page_views: number; visitors: number; days: { date: string; requests: number }[] } | null;
+}
+
 export interface ServiceStatus {
   connector: string;
   name: string;
@@ -231,6 +240,7 @@ export interface ServiceStatus {
   entities?: number;
   facts?: { label: string; value: string; tone?: "ok" | "warn" | "bad" }[];  // connecteurs « état d'un service » : chiffres clés
   problems?: string[];                                                       // et ce qui est à regarder
+  cloudflare?: { days: number; zones: CloudflareZone[] };
   box?: BoxReading | null;               // Internet box connectors: what the box tells
   modules?: NetatmoModule[];             // Netatmo only: every device of the account
   rooms?: { name: string; temperature: number | null; setpoint: number | null }[];   // Netatmo only: the heated rooms
