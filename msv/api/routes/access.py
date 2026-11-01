@@ -268,7 +268,8 @@ def agents_list(request: Request):
     from msv.machines import agents
     store = agents_store()
     reports = store.fresh_reports()
-    rows = [{**a, "gaps": agents.inventory_gaps(reports[a["ip"]]["report"]) if reports.get(a["ip"], {}).get("fresh") else []} for a in store.listing()]
+    fresh = lambda a: reports[a["ip"]]["report"] if reports.get(a["ip"], {}).get("fresh") else None  # noqa: E731
+    rows = [{**a, "gaps": agents.inventory_gaps(fresh(a)), "rights": agents.rights_gaps(fresh(a))} for a in store.listing()]
     return {"agents": rows, "report_path": AGENT_REPORT}
 
 

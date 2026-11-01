@@ -143,6 +143,7 @@ MCP = "/mcp"
 
 
 AGENT_REPORT = API + "/agent/report"  # seule route d'un agent : jeton msv_agent_, ni session ni CSRF
+AGENT_PATHS = {AGENT_REPORT, *(p for p in PUBLIC if p.startswith("/agent/"))}   # all a machine outside MYSERVICES_ALLOW may reach
 
 
 TOKENS = None
@@ -207,7 +208,8 @@ def token_guard(request: Request, path: str, raw: str) -> JSONResponse | None:
 
 @app.middleware("http")
 async def guard(request: Request, call_next):
-    if not client_allowed(request.client.host if request.client else None):
+    host = request.client.host if request.client else None
+    if not client_allowed(host) and not (request.url.path in AGENT_PATHS and agents_store().allows_ip(host)):
         return deny(403, "réservé au réseau local")
     write = request.method not in ("GET", "HEAD", "OPTIONS")
     if write and not same_origin(request):

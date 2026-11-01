@@ -11,4 +11,9 @@ describe("AgentTodo", () => {
     expect(renderToStaticMarkup(<AgentTodo a={agent} ssh />)).toBe("");
     expect(renderToStaticMarkup(<AgentTodo a={{ ...agent, gaps: [] }} ssh={false} />)).toBe("");
   });
+  it("garde les droits sudo même avec un SSH, qui ne les remplace pas", () => {
+    const out = renderToStaticMarkup(<AgentTodo a={{ ...agent, rights: ["fail2ban"] }} ssh />);
+    expect(out).toContain("fail2ban");
+    expect(out).not.toContain("MSV_DOCKER");
+  });
 });

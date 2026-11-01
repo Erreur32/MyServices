@@ -191,7 +191,7 @@ For Linux machines, the Linux agent (Python 3.6+, systemd) gives the same inform
 - One token per machine, shown once; only its SHA-256 fingerprint is stored. A new token for the same machine revokes the old one. The token opens a single route (sending its own report): it is refused everywhere else, and API or MCP tokens are refused on that route.
 - One report per minute per agent (more gets a `429`). An IP that presents 10 unknown tokens within 15 minutes is refused for the rest of the window (revoked tokens do not count).
 - The PC name seen in the first report is remembered. A report under another name (PC renamed, or token copied to another PC) is refused until you click **Confirm this name** on the agent's card; the event is written to the audit log.
-- Like the rest of MyServices, the page and the agent route only answer to the networks allowed by `MYSERVICES_ALLOW`. Plain HTTP is fine on a trusted LAN; behind a reverse proxy, give the agent the HTTPS address.
+- Like the rest of MyServices, the page and the agent route only answer to the networks allowed by `MYSERVICES_ALLOW`. One exception: the public address of a machine with a live agent reaches the agent routes (report and install scripts) and nothing else, until the agent is revoked. Plain HTTP is fine on a trusted LAN; behind a reverse proxy, give the agent the HTTPS address.
 
 **Updates.** The agent card shows its version. **Update now** or the per-agent **Automatic** switch (off by default) makes the agent fetch the new script from MyServices at its next report; it checks the SHA-256 and the syntax before replacing itself. The script is not signed: MyServices is the only source of trust.
 

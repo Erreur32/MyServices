@@ -144,6 +144,11 @@ class Agents:
             if not db.execute("UPDATE agents SET revoked = ? WHERE id = ? AND revoked IS NULL", (time.time(), aid)).rowcount:
                 raise AgentError("agent inconnu ou déjà révoqué")
 
+    def allows_ip(self, ip: str | None) -> bool:
+        """True when a live agent was created for this address: outside MYSERVICES_ALLOW, its machine still reaches the agent routes (common.AGENT_PATHS)."""
+        with self._db() as db:
+            return db.execute("SELECT 1 FROM agents WHERE ip = ? AND revoked IS NULL LIMIT 1", (ip,)).fetchone() is not None
+
     def purge(self, aid: int) -> None:
         """Efface un agent déjà révoqué (sa ligne seulement : son jeton ne marchait plus de toute façon). Un agent actif ne s'efface pas."""
         with self._db() as db:
@@ -333,6 +338,20 @@ def serves_inventory(report: dict | None) -> bool:
     """True when a Linux agent report carries the whole SSH inventory (machine info, Docker containers and networks, listening ports): the
     collection then opens no SSH connection to that machine. Any missing field (old agent, Docker unreadable) keeps the SSH read."""
     return linux_inventory(report) is not None and not inventory_gaps(report)
+
+
+def rights_gaps(report: dict | None) -> list[str]:
+    """What a Linux agent report cannot read for lack of sudo, and that no SSH read makes up for: "needrestart", "fail2ban". A tool that is not
+    installed, or an agent too old to send the section, is not a gap. Apart from inventory_gaps: it does not weigh on the SSH decision."""
+    from msv.collect import health
+    data = (report or {}).get("data") or {}
+    cmds = data.get("cmds")
+    got = cmds.get(health.SYSTEM_CMD) if data.get("kind") == "linux" and isinstance(cmds, dict) else None
+    if not isinstance(got, list) or len(got) != 2:
+        return []
+    secs = health._sections(str(got[1]))
+    parsers = (("needrestart", "nr", health.parse_needrestart), ("fail2ban", "f2b", health.parse_fail2ban))
+    return [gap for gap, sec, parse in parsers if parse(secs.get(sec, []), "").get("access") is False]
 
 
 def listening_ports(report: dict | None) -> set[int] | None:

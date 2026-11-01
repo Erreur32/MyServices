@@ -295,6 +295,15 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertEqual(agents.inventory_gaps(rep(nameless)), ["sudo"])
         self.assertEqual(agents.inventory_gaps(rep({k: v for k, v in full.items() if k != docker_ssh.NET_SH})), ["docker"])
 
+    def test_droits_manquants_lus_dans_la_section_sante(self):
+        rep = lambda out: {"data": {"kind": "linux", "cmds": {health.SYSTEM_CMD: [0, out]}}}  # noqa: E731
+        self.assertEqual(agents.rights_gaps(rep("@@nr\nNOSUDO\n@@f2b\nNOSUDO\n")), ["needrestart", "fail2ban"])
+        self.assertEqual(agents.rights_gaps(rep("@@nr\nNEEDRESTART-KSTA: 1\n@@f2b\nNOANSWER\n")), [])
+        self.assertEqual(agents.rights_gaps(rep("@@nr\n@@f2b\n")), [])   # tools not installed
+        self.assertEqual(agents.rights_gaps(rep("@@now 1\n")), [])        # agent too old for these sections
+        self.assertEqual(agents.rights_gaps({"data": {"disks": []}}), [])  # Windows report
+        self.assertEqual(agents.rights_gaps(None), [])
+
     def test_v4_info_machine_gardee_une_heure(self):
         from msv.collect import hostinfo
         ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
