@@ -23,6 +23,8 @@ import type { Selected } from "../lib/filter";
 import { hiddenNow, isHidden } from "../lib/servicesHidden";
 import { keyCounts } from "../lib/homeStory";
 
+const CONNECTORS = "settings/connectors";
+
 /** Groupes de compteurs, par onglet : la colonne de droite les empile tous, l'accueil range chacun sous son paragraphe */
 export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, ReactNode[]>> {
   const { data, health, backups } = snap;
@@ -77,7 +79,7 @@ function extraGroups(snap: Snapshot, nav: Open): ReactNode[] {
   const out: ReactNode[] = [], c = connectorCounts(snap), v = virtualCounts(snap), u = upkeepCounts(snap);
   if (c.ok + c.failing + c.agents > 0)
     out.push(<Group key="co" mark={<Mark Icon={Plug} />} title={tx("Connecteurs et agents")} sub={tx("{0} connecteurs", c.ok + c.failing)} accent="border-l-muted" tab="settings" nav={nav} cells={[
-      ["ok", c.ok, tx("répondent"), undefined, "settings/connectors"], ["bad", c.failing, tx("en erreur"), undefined, () => { pointConnectors(c.failingTypes); location.hash = "settings/connectors"; }], ["ok", c.agents, tx("agents"), undefined, "settings/machines/agents"]]} />);
+      ["ok", c.ok, tx("répondent"), undefined, CONNECTORS], ["bad", c.failing, tx("en erreur"), undefined, () => { pointConnectors(c.failingTypes); location.hash = CONNECTORS; }], ["ok", c.agents, tx("agents"), undefined, "settings/machines/agents"]]} />);
   if (v.guests + v.nodesDown > 0)
     out.push(<Group key="vi" mark={<Mark Icon={Layers} />} title={tx("Virtualisation")} sub={tx("{0} invités", v.guests)} accent="border-l-loc" tab="virtualization" nav={nav} cells={[
       ["ok", v.running, tx("en marche"), undefined, VIRT], ["off", v.stopped, tx("arrêtés"), undefined, VIRT], ["bad", v.nodesDown, tx("nœuds hors ligne"), undefined, VIRT], ["warn", v.problems, tx("à voir"), undefined, VIRT]]} />);
@@ -142,7 +144,7 @@ export function KeyFigures({ snap, go }: Readonly<{ snap: Snapshot; go: (t: TabI
       <StatTile n={`${k.servicesUp}/${k.services}`} label={tx("Services en ligne")} sub={tx("sites et applis du parc")} tone={ratioTone(k.servicesUp, k.services)} onClick={() => go("services")} />
       {k.health > 0 && <StatTile n={`${k.healthOk}/${k.health}`} label={tx("Santé")} sub={tx("disques et mémoire")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ratioTone(k.healthOk, k.health)} onClick={() => go("machines")} />}
       {k.backups > 0 && <StatTile n={`${k.backupsOk}/${k.backups}`} label={tx("Sauvegardes à jour")} sub={tx("{0} jeu(x) suivis", k.backups)} tone={ratioTone(k.backupsOk, k.backups)} onClick={() => go("backups")} />}
-      {k.connectors > 0 && <StatTile n={`${k.connectorsOk}/${k.connectors}`} label={tx("Connecteurs qui répondent")} sub={tx("tes outils reliés")} tone={ratioTone(k.connectorsOk, k.connectors)} onClick={() => { location.hash = "settings/connectors"; }} />}
+      {k.connectors > 0 && <StatTile n={`${k.connectorsOk}/${k.connectors}`} label={tx("Connecteurs qui répondent")} sub={tx("tes outils reliés")} tone={ratioTone(k.connectorsOk, k.connectors)} onClick={() => { location.hash = CONNECTORS; }} />}
       {week != null && <StatTile n={pct(week)} label={tx("Disponibilité sur 7 jours")} tone={tileTone(week)} sub={tx("services et machines")} onClick={() => { location.hash = "history/availability"; }} />}
     </nav>
   );

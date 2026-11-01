@@ -26,7 +26,8 @@ function Counter({ cell: [tone, n, label, filter, to], tab, nav }: Readonly<{ ce
       <div className="truncate text-[10px] leading-tight text-muted" title={label}>{label}</div>
     </>
   );
-  const open = filter ? () => nav.goFilter(tab, filter) : typeof to === "string" ? () => { location.hash = to; } : to;
+  const page = typeof to === "string" ? () => { location.hash = to; } : to;
+  const open = filter ? () => nav.goFilter(tab, filter) : page;
   return n && open
     ? <button type="button" onClick={open} title={tx("Afficher : {0}", label)} className="flex min-w-0 flex-col justify-center rounded-lg bg-bg2 px-1 py-0.5 text-center transition-colors hover:bg-link/15 hover:ring-1 hover:ring-link">{body}</button>
     : <div className={`flex min-w-0 flex-col justify-center rounded-lg bg-bg2 px-1 py-0.5 text-center ${n ? "" : "opacity-40"}`}>{body}</div>;
