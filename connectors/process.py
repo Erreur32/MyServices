@@ -10,7 +10,7 @@ import re
 import subprocess
 
 from connectors.base import Connector, ConnectorError, Field
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 # Process locaux sans intérêt dans l'annuaire (ports RPC/NFS éphémères, résolveur, docker)
 NOISE_PORTS = {53, 111, 631, 2049, 5355}  # même chose vue par le port seul : DNS local, RPC, CUPS, NFS, LLMNR
@@ -32,7 +32,7 @@ def listening_read(alias):
     cmd = ["ss", "-tlnpH"] if alias == "local" else \
         ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, LISTEN_SH]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        r = ssh_run("ports", alias, cmd, capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired:
         raise ConnectorError(f"{alias} : délai dépassé") from None
     if r.returncode != 0:

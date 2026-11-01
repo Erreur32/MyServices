@@ -34,7 +34,7 @@ from pathlib import Path
 from msv.core.config import CFG, HERE
 from connectors.backup_apis import DSM_FAIL, HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",), PbsBackups: ("proxmox-backup",), SynologyBackups: ("synology",)}  # types de config.json dont un hôte « connector » reprend les réglages
 META = Path(CFG["backups_meta"])
@@ -305,7 +305,7 @@ def run_py(ssh: str | None, src: str, arg: str, sudo: str | None = None) -> tupl
     py = (f"sudo -u {sudo} " if sudo else "") + "python3 - " + shlex.quote(arg)
     cmd = ["bash", "-c", py] if ssh in (None, "local") else ["ssh", *SSH_OPTS, ssh, py]
     try:
-        r = subprocess.run(cmd, input=src, capture_output=True, text=True, timeout=TIMEOUT)
+        r = ssh_run("backups", str(ssh), cmd, input=src, capture_output=True, text=True, timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         return None, f"timeout après {TIMEOUT}s"
     if r.returncode != 0:
@@ -326,7 +326,7 @@ def qm_crontab(spec: str) -> list[dict]:
     if not vmid.isdigit() or alias.startswith("-"):   # VM id put in a remote command: digits only; an alias is never an ssh option
         return []
     try:
-        r = subprocess.run(["ssh", *SSH_OPTS, alias, f"qm guest exec {vmid} -- crontab -l"],  # NOSONAR S6350: vmid checked as digits and alias never an option, just above
+        r = ssh_run("backups cron", alias, ["ssh", *SSH_OPTS, alias, f"qm guest exec {vmid} -- crontab -l"],  # NOSONAR S6350: vmid checked as digits and alias never an option, just above
                            capture_output=True, text=True, timeout=60)
         txt = json.loads(r.stdout).get("out-data", "")
     except Exception:

@@ -10,7 +10,7 @@ import json
 import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 MAX = 300
 LABEL = {"libvirt": "KVM / libvirt", "incus": "Incus", "lxd": "LXD", "virtualbox": "VirtualBox"}
@@ -103,7 +103,7 @@ def read(alias: str, tools: list[str], node: str) -> dict[str, tuple[dict | None
     cmd = "; ".join(STEP[t] for t in tools if t in STEP)
     argv = ["bash", "-c", cmd] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, cmd]
     try:
-        r = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        r = ssh_run("hypervisors", alias, argv, capture_output=True, text=True, timeout=60)
     except subprocess.TimeoutExpired:
         return {}
     return parse(r.stdout, node)

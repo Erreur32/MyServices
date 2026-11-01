@@ -125,7 +125,7 @@ export function RequestsSettings() {
         {copied === "no" && <output className="text-sm text-warn">{tx("Copie impossible ici : sélectionnez le tableau à la main")}</output>}
       </div>
       <div className="p-4">
-        <InfoNote className="mb-3">{tx("Appels de chaque connecteur vers son service, comptés par route depuis le démarrage du serveur ; relus toutes les {0} s. Une route proche d'une limite connue du service, ou un 429 reçu dans l'heure, est signalée.", POLL / 1000)}</InfoNote>
+        <InfoNote className="mb-3">{tx("Appels de chaque connecteur vers son service et lectures SSH (lignes ssh/machine, code retour de la commande), comptés depuis le démarrage du serveur ; relus toutes les {0} s. Une route proche d'une limite connue du service, ou un 429 reçu dans l'heure, est signalée.", POLL / 1000)}</InfoNote>
         {doc?.pulses && <PulseCosts pulses={doc.pulses} />}
         {failed && !doc ? <Empty>{tx("Lecture des compteurs impossible.")}</Empty> : doc && <RequestTable doc={doc} />}
       </div>

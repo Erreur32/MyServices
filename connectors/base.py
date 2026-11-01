@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from connectors import reqstats
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts", "status", "network", "security", "containers", "virtualization")
 MAX_BINARY = 3 * 1024 * 1024   # a camera image read for an admin, never kept
@@ -223,7 +223,7 @@ class Context:
         (installation classique : la collectrice elle-même) : commande lancée sur place."""
         argv = ["bash", "-c", cmd] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", alias, cmd]
         try:
-            r = subprocess.run(argv, input=stdin, capture_output=True, text=True, timeout=timeout or self.timeout)
+            r = ssh_run(self.owner or "connector", alias, argv, input=stdin, capture_output=True, text=True, timeout=timeout or self.timeout)
         except subprocess.TimeoutExpired:
             raise ConnectorError(f"SSH {alias} : délai dépassé") from None
         if r.returncode != 0:

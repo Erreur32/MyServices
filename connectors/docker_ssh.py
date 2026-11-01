@@ -10,7 +10,7 @@ import re
 import subprocess
 
 from connectors.base import Connector, Field, Result
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 DOCKER_FMT = ("{{.Names}}|{{.Image}}|{{.Ports}}|{{.Status}}|{{.Label \"com.docker.compose.project\"}}|"
               "{{.Label \"org.opencontainers.image.title\"}}|{{.Label \"org.opencontainers.image.description\"}}|"
@@ -88,7 +88,7 @@ def docker_containers(alias, absent: list | None = None):
     (`absent` reçoit alors True : l'appelant le distingue d'une machine Docker sans conteneur)."""
     cmd = ["sh", "-c", DOCKER_SH] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, DOCKER_SH]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        r = ssh_run("docker", alias, cmd, capture_output=True, text=True, timeout=20)
     except subprocess.TimeoutExpired:
         return None
     if r.returncode != 0:
@@ -133,7 +133,7 @@ def docker_internal_ips(alias):
     cmd = ["sh", "-c", NET_SH] if alias == "local" else \
         ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, NET_SH]
     try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=20).stdout
+        out = ssh_run("docker networks", alias, cmd, capture_output=True, text=True, timeout=20).stdout
     except subprocess.TimeoutExpired:
         return {}
     return parse_internal(out)

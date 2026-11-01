@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 MAX_VMS = 300
 SCRIPT = ("echo '##HOST'; vim-cmd hostsvc/hostsummary 2>&1; "
@@ -119,7 +119,7 @@ def parse(stdout: str) -> tuple[dict | None, str, str | None]:
 def read(alias: str) -> tuple[dict | None, str, str | None]:
     """VMs, host and datastores of an ESXi host read by SSH: (data, error, version)."""
     try:
-        r = subprocess.run(["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, SCRIPT], capture_output=True, text=True, timeout=90)
+        r = ssh_run("esxi", alias, ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, SCRIPT], capture_output=True, text=True, timeout=90)
     except subprocess.TimeoutExpired:
         return None, "vim-cmd : pas de réponse en 90 s", None
     if r.returncode == 255:

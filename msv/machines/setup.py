@@ -49,7 +49,7 @@ from msv.collect import hostinfo
 from msv.alerts import notify
 from msv.remote import npmapi
 from msv.core.config import CFG, DEFAULTS, HERE
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 HEALTH_URL = "health/"
 
@@ -108,7 +108,7 @@ def run(alias: str, cmd: str, timeout: int = 20) -> subprocess.CompletedProcess 
     """Commande locale (alias "local") ou via SSH, sans mot de passe ni question."""
     argv = ["sh", "-c", cmd] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", alias, cmd]
     try:
-        return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout)
+        return ssh_run("setup", alias, argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired):
         return None
 

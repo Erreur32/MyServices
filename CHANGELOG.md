@@ -13,8 +13,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 - **Agents**: the page now says when a Linux agent lacks the sudo right to read the services to restart or the Fail2ban bans, with a « Rights to complete » tile; the sudo box is already ticked in the new command of that agent.
+- **Settings, Requests**: SSH reads are now counted, per machine and per kind of read (health, Docker, ports, backups, Proxmox and so on), with their duration and errors.
 
 ### Changed
+- **Settings, Requests**: calls made by the scheduled tasks (collection, health, backups) now reach the counters; they were lost when each task ended.
 - **Agents outside the allowed networks**: a machine with a live agent, on a public address, no longer needs `MYSERVICES_ALLOW`. Its address only reaches the agent routes (report and install scripts); the page and the API stay closed, and revoking the agent removes the access.
 
 ## v0.33.6 (2026-11-01)

@@ -2,12 +2,18 @@
 
   python3 -m unittest discover -s tests
 """
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from connectors import reqstats  # noqa: E402
+from msv.remote import sshmux  # noqa: E402
 
 URL = "http://10.0.0.9:7505"
 
@@ -19,6 +25,46 @@ class Routes(unittest.TestCase):
         self.assertEqual(reqstats.route_of(URL + "/api/plugins/unifi/top-traffic?mode=live&limit=10"), "/api/plugins/unifi/top-traffic?mode=live")
         self.assertEqual(reqstats.route_of(URL + "/api/plugins/unifi/top-traffic"), "/api/plugins/unifi/top-traffic")
         self.assertEqual(reqstats.route_of(URL + "/api/lan/devices?compact=1"), "/api/lan/devices")
+
+
+class Tasks(unittest.TestCase):
+    """A task is a short process: its calls reach the server through a file."""
+    def setUp(self):
+        reqstats.reset()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.spool = str(Path(self.tmp.name) / "spool.jsonl")
+
+    def in_task(self):
+        return mock.patch.dict(os.environ, {reqstats.SPOOL_ENV: self.spool})
+
+    def test_a_task_writes_to_the_file_and_the_server_reads_it_once(self):
+        with self.in_task():
+            reqstats.record("mynetwork/lan", URL + "/api/lan/devices?key=secret", 12, 200, now=1000)
+            self.assertEqual(reqstats.snapshot()["rows"], [])
+        self.assertNotIn("secret", Path(self.spool).read_text())
+        with Path(self.spool).open("a") as f:
+            f.write('["cut short')   # a task killed mid-line
+        reqstats.drain(self.spool)
+        reqstats.drain(self.spool)
+        [row] = reqstats.snapshot(now=1010)["rows"]
+        self.assertEqual((row["owner"], row["route"], row["total"], row["per_min"]), ("mynetwork/lan", "/api/lan/devices", 1, 1))
+        self.assertEqual(os.listdir(self.tmp.name), [])
+
+    def test_no_file_is_nothing_to_read(self):
+        reqstats.drain(self.spool)
+        self.assertEqual(reqstats.snapshot()["rows"], [])
+
+    def test_ssh_counted_per_machine_and_read_local_is_not(self):
+        with mock.patch.object(sshmux.subprocess, "run", return_value=SimpleNamespace(returncode=1, stderr="", stdout="")):
+            sshmux.ssh_run("docker", "nas", ["ssh", "nas", "docker ps"])
+            sshmux.ssh_run("docker", "local", ["sh", "-c", "docker ps"])
+        with mock.patch.object(sshmux.subprocess, "run", return_value=SimpleNamespace(returncode=255, stderr="refused", stdout="")):
+            sshmux.ssh_run("health", "nas", ["ssh", "nas", "x"])
+        with mock.patch.object(sshmux.subprocess, "run", side_effect=subprocess.TimeoutExpired("ssh", 1)), self.assertRaises(subprocess.TimeoutExpired):
+            sshmux.ssh_run("ports", "nas", ["ssh", "nas", "x"])
+        rows = {(r["owner"], r["route"]): (r["last_code"], r["last_error"]) for r in reqstats.snapshot()["rows"]}
+        self.assertEqual(rows, {("ssh/nas", "docker"): (1, ""), ("ssh/nas", "health"): (None, "refused"), ("ssh/nas", "ports"): (None, "no answer")})
 
 
 class Counters(unittest.TestCase):

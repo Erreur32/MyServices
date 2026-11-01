@@ -3230,7 +3230,7 @@ export const EN: Record<string, string> = {
   "Ce que le conteneur écrit, comme « docker logs »": "What the container writes, like « docker logs »",
   "Aucun appel compté depuis le démarrage.": "No call counted since the start.",
   "Lecture des compteurs impossible.": "The counters cannot be read.",
-  "Appels de chaque connecteur vers son service, comptés par route depuis le démarrage du serveur ; relus toutes les {0} s. Une route proche d'une limite connue du service, ou un 429 reçu dans l'heure, est signalée.": "Calls of each connector to its service, counted per route since the server started; read again every {0} s. A route near a limit known on the service, or a 429 received in the last hour, is pointed out.",
+  "Appels de chaque connecteur vers son service et lectures SSH (lignes ssh/machine, code retour de la commande), comptés depuis le démarrage du serveur ; relus toutes les {0} s. Une route proche d'une limite connue du service, ou un 429 reçu dans l'heure, est signalée.": "Calls of each connector to its service and SSH reads (ssh/machine rows, with the return code of the command), counted since the server started; read again every {0} s. A route near a limit known on the service, or a 429 received in the last hour, is pointed out.",
   "relevé à {0}": "reading at {0}",
   "Copier le relevé": "Copy the reading",
   "Copie le relevé complet (JSON) : à coller pour analyse": "Copies the whole reading (JSON): paste it for analysis",

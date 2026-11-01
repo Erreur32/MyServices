@@ -69,7 +69,7 @@ from connectors import mynetwork as mynetwork_conn
 from msv.remote import npmapi
 
 from msv.core.config import CFG, next_timer_run
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 OUT = os.path.join(CFG["web_dir"], "data.json")
 META = CFG["meta"]
@@ -510,7 +510,7 @@ def adguard_sync_state(alias, container):
     None = illisible. La config d'adguardhome-sync (mots de passe) n'est jamais lue."""
     cmd = _on(alias, f"docker logs --since 24h {container} 2>&1 | grep -E 'Sync done|ERROR'")
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        r = ssh_run("adguard sync", alias, cmd, capture_output=True, text=True, timeout=20)
     except subprocess.TimeoutExpired:
         return None
     if r.returncode not in (0, 1):  # grep : 1 = aucune ligne
