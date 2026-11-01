@@ -6,7 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "./form";
 import { Badge, Card, Dim } from "./ui";
-import { cleanAgentUrl, installCommand, isPublicIp, outsideProblem } from "../lib/agentCommand";
+import { AgentLinuxOptions } from "./AgentLinuxOptions";
+import { cleanAgentUrl, installCommand, isPublicIp, outsideProblem, type AgentOptions } from "../lib/agentCommand";
 import { dateTime } from "../lib/format";
 import { input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
@@ -51,9 +52,9 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
   // Adresse de MyServices vue de la machine : par défaut celle de la page ; le champ ne s'affiche que pour la corriger
   const [url, setUrl] = useState(location.origin);
   const [created, setCreated] = useState<{ info: AgentInfo; token: string } | null>(null);   // jeton gardé en mémoire de la page seulement
-  const [sudo, setSudo] = useState(!!target.sudo);
+  const [options, setOptions] = useState<AgentOptions>({ sudo: !!target.sudo });
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [agents, setAgents] = useState<AgentsState | null>(null);
-  const command = created ? installCommand(url, created.token, created.info.kind, sudo) : null;   // suit le champ « Adresse » même après la création
+  const command = created ? installCommand(url, created.token, created.info.kind, options) : null;   // suit le champ « Adresse » même après la création
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
   const away = isPublicIp(target.ip), problem = outsideProblem(url);
 
@@ -111,12 +112,7 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
         {!folded && <div className="mt-2">
           <p className="mb-2 text-sm text-warn">{tx("À copier maintenant : le jeton qu'elle contient ne sera plus jamais affiché.")}</p>
           <InfoNote className="mb-2">{created.info.kind === "linux" ? tx("Sur la machine, ouvrez un terminal (compte avec sudo) et collez :") : tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</InfoNote>
-          {created.info.kind === "linux" && (
-            <label className="mb-2 flex items-start gap-2 text-sm text-muted">
-              <input type="checkbox" className="mt-1" checked={sudo} onChange={(e) => setSudo(e.target.checked)} />
-              <span>{tx("Autoriser des lectures avec sudo : le programme derrière chaque port, les services à relancer, les adresses bloquées par fail2ban, les machines virtuelles (KVM, Incus, LXD). Chacune est une règle exacte, en lecture seule.")}</span>
-            </label>
-          )}
+          {created.info.kind === "linux" && <AgentLinuxOptions value={options} onChange={setOptions} />}
           {command ? <Copyable key={command} text={command} />
             : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la ci-dessous, la commande se met à jour.")}</p>}
           {(!command || away || problem === "clear") && addressField}

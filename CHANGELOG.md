@@ -17,6 +17,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Nginx Proxy Manager, read by the agent**: a new connector mode reads NPM through the agent of its machine, with `npm-api.sh` run there (`MSV_NPM=<path>` at install, exact sudo rules), or set up by the installer with `MSV_NPM=install`. No SSH and no NPM account in MyServices; of the advanced configs, only the lines the checks need leave the machine.
 - **Backups, read by the agent**: with `MSV_BACKUPS=1`, a root script set by the installer reads the followed folders. It refuses any folder outside the list kept on the machine (`MSV_BACKUP_DIRS` adds folders); SSH remains the fallback, and still finds new folders and copies.
 - **Hypervisors, read by the agent**: KVM, Incus and LXD, with the sudo box of the install.
+- **Agent install**: boxes for the backup folders and Nginx Proxy Manager add their options to the command.
 
 ### Changed
 - **Settings, Requests**: calls made by the scheduled tasks (collection, health, backups) now reach the counters; they were lost when each task ended.

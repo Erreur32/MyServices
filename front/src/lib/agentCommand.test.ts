@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanAgentUrl, installCommand, isPublicIp, outsideProblem } from "./agentCommand";
+import { cleanAgentUrl, installCommand, isPublicIp, npmProblem, outsideProblem, type AgentOptions } from "./agentCommand";
 
 describe("commande d'installation de l'agent", () => {
   it("accepte une adresse http(s)://hôte[:port] et retire le « / » final", () => {
@@ -30,8 +30,21 @@ describe("commande d'installation de l'agent", () => {
 
   it("adds the sudo rules to a Linux command only when asked", () => {
     expect(installCommand("http://192.168.1.10:8091", "t", "linux")).not.toContain("MSV_SUDO");
-    expect(installCommand("http://192.168.1.10:8091", "t", "linux", true)).toContain("sudo env MSV_SUDO=1 MSV_URL=");
-    expect(installCommand("http://192.168.1.10:8091", "t", "windows", true)).not.toContain("MSV_SUDO");
+    expect(installCommand("http://192.168.1.10:8091", "t", "linux", { sudo: true })).toContain("sudo env MSV_SUDO=1 MSV_URL=");
+    expect(installCommand("http://192.168.1.10:8091", "t", "windows", { sudo: true })).not.toContain("MSV_SUDO");
+  });
+  it("adds the backup and NPM options, and only safe paths", () => {
+    const env = (o: AgentOptions) => /sudo env (.*)MSV_URL=/.exec(installCommand("http://192.168.1.10:8091", "t", "linux", o) ?? "")?.[1];
+    expect(env({ backups: true, backupDirs: "/mnt/a, /mnt/b" })).toBe("MSV_BACKUPS=1 MSV_BACKUP_DIRS=/mnt/a,/mnt/b ");
+    expect(env({ backups: true, backupDirs: "/mnt/a;rm -rf /" })).toBe("MSV_BACKUPS=1 ");
+    expect(env({ backups: false, backupDirs: "/mnt/a" })).toBe("");
+    expect(env({ npm: "" })).toBe("MSV_NPM=install ");
+    expect(env({ npm: " ", npmUrl: "http://127.0.0.1:8081" })).toBe("MSV_NPM=install MSV_NPM_URL=http://127.0.0.1:8081 ");
+    expect(env({ npm: "/opt/npm-api.sh", npmUrl: "http://x:1" })).toBe("MSV_NPM=/opt/npm-api.sh ");
+    expect(env({ npm: "/opt/$(id)" })).toBe("");
+    expect(env({ npm: "", npmUrl: "https://x" })).toBe("");
+    expect(npmProblem({ npm: "relatif/npm-api.sh" })).toBe(true);
+    expect(npmProblem({})).toBe(false);
   });
 
   it("tells a machine outside the network from one inside", () => {
