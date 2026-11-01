@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.34.2 → 0.34.3
+
+**Nothing to do.** No setting, volume, agent or database change. A new command now keeps the automatic update choice of the old agent. An agent that lost it with an earlier new command stays on manual: switch it back on from the Agents page if you want it. An install made with the new command clears the cache of the agent, so new rights show on the first report.
+
 ## 0.34.1 → 0.34.2
 
 **Nothing to do.** No setting, volume, agent or database change. The Agents page gets an Options column, filled once an agent is in version 8. The NPM mode « Through the agent of the machine » is now called « Machine agent »; saved connectors keep working.

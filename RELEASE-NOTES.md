@@ -1,20 +1,20 @@
-# Release notes: MyServices 0.34.2
+# Release notes: MyServices 0.34.3
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating.
 
-**0.34.2** (1 November 2026) shows what each agent reads, suggests the agent for Nginx Proxy Manager, and fixes the new command of the Agents page.
+**0.34.3** (1 November 2026) makes a new agent command easier: automatic update stays on, new rights show at once, and revoked agents are quicker to clean up.
 
 ## For everyone
 
 **What's new?**
-- **Options column on the Agents page**: every box of a Linux agent's install, ticked or not, so you can tell whether a new command is needed without creating one. The same list is on the machine's Access page.
-- **Nginx Proxy Manager connector**: when the agent of its machine already reads NPM, the « Machine agent » button turns green and pulses, with a message saying why. One click and NPM is no longer read twice.
-- **New command fixed**: on the Agents page, the frame with the boxes and the command closed by itself once the token had changed, and the new token was lost. It now stays open.
+- **New command keeps automatic update**: the new agent takes the choice of the old one, which used to be switched off each time.
+- **New rights show on the first report**: a reinstall clears what the agent had kept in cache, instead of showing the old rights for up to 6 hours.
+- **Revoked agents**: the « New agent » button is gone from their card, and deleting one no longer asks for confirmation, since its token already stopped working.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing else to do. See [MIGRATION.md](MIGRATION.md).
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.34.2` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
-- **Agent**: no change, Linux agent version 8. The column fills once an agent runs it.
+- **Image**: `ghcr.io/erreur32/myservices:0.34.3` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **Agent**: no change, Linux agent version 8. An agent switched to manual by an earlier new command stays on manual until you switch it back on.
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).
