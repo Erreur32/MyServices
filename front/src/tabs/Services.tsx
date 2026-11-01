@@ -9,7 +9,8 @@ import { send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ipNum } from "../lib/format";
 import { Dot, Logo } from "../components/marks";
-import { appIcon, serviceIcon } from "../lib/appIcons";
+import { appIcon, faviconUrl, serviceIcon } from "../lib/appIcons";
+import { LetterAvatar } from "../components/LetterAvatar";
 import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, openUrl, status, type Check } from "../lib/status";
 import type { Host } from "../types";
 import { Badge, ChipButton, Empty, FilterBar, SearchBox, type Tone } from "../components/ui";
@@ -112,7 +113,9 @@ function ServiceLogo({ r, auto = false }: Readonly<{ r: Host; auto?: boolean }>)
   const chosen = auto ? undefined : chosenIcon(r.icon);   // auto: the logo the detection picks, shown by the icon picker
   if (chosen) return <span className="grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2" title={chosen.label}><IconGlyph icon={chosen} size={28} /></span>;
   const src = serviceIcon(r);
-  return src ? <span className="grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2" title={r.app?.label || r.service?.name}><img src={src} alt="" className="h-7 w-7" /></span> : <span className="block h-10 w-10 shrink-0" aria-hidden />;
+  const box = "grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2", domain = r.domains?.[0];
+  if (src) return <span className={box} title={r.app?.label || r.service?.name}><img src={src} alt="" className="h-7 w-7 object-contain" /></span>;
+  return domain ? <span className={box}><LetterAvatar domain={domain} size={28} /></span> : <span className="block h-10 w-10 shrink-0" aria-hidden />;
 }
 
 const KIND_LOGO = new Set(["docker", "apache", "nginx"]);  // types de service qui ont un logo dans public/icons
@@ -316,6 +319,13 @@ function ServiceCard({ g, hosts, open, focus, focusKey, onToggle, hiddenMap, wat
   const lead = leadOf(g);
   const url = lead ? openUrl(lead) : g.cards[0]?.url;
   const text = g.domains[0] ?? addressOf(g, lead);
+  const favicon = g.hosts.find((r) => r.favicon)?.favicon;
+  const label = (
+    <>
+      {favicon ? <img src={faviconUrl(favicon)} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" /> : g.domains[0] && <LetterAvatar domain={g.domains[0]} size={14} />}
+      <span className="min-w-0 break-words">{text}</span>
+    </>
+  );
   const ports = groupPorts(g);
   const more = [moreDomains(g.domains.length), g.hosts.some((r) => exposure(r) === "public" || exposure(r) === "ouvert") ? tx("Public") : ""].filter(Boolean).join(" · ");
   const reasons = g.hosts.filter((r) => status(r)[0] !== "off").flatMap((r) => checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => ({ k, where: hostDomains(r)[0] ?? targetOf(r) })));   // what turned the card « À vérifier »
@@ -327,8 +337,8 @@ function ServiceCard({ g, hosts, open, focus, focusKey, onToggle, hiddenMap, wat
         <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold ${GROUP_TEXT[g.tone]}`}><span className={`h-2 w-2 rounded-full ${GROUP_DOT[g.tone]}`} aria-hidden />{groupState(g)}</span>
         <ChevronDown size={18} className={`shrink-0 text-muted transition-transform group-hover:text-link ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
-      <div className={`flex min-w-0 items-center gap-2 px-3 pl-[3.875rem] pt-0.5 text-xs ${ports.length > 1 ? "" : "pb-2.5"}`}>
-        {url ? <a href={url} target="_blank" rel="noopener" className="inline-flex min-w-0 items-center gap-1 font-semibold text-link hover:underline"><span className="truncate">{text}</span><ExternalLink size={12} className="shrink-0" aria-hidden /></a> : <span className="truncate text-muted">{text}</span>}
+      <div className={`flex min-w-0 flex-wrap items-center gap-x-2 px-3 pl-[3.875rem] pt-0.5 text-xs ${ports.length > 1 ? "" : "pb-2.5"}`}>
+        {url ? <a href={url} target="_blank" rel="noopener" className="inline-flex min-w-0 items-center gap-1 font-semibold text-link hover:underline">{label}<ExternalLink size={12} className="shrink-0" aria-hidden /></a> : <span className="inline-flex min-w-0 items-center gap-1 text-muted">{label}</span>}
         {more && <span className="ml-auto shrink-0 text-muted">{more}</span>}
       </div>
       {ports.length > 1 && <p className="truncate px-3 pb-2.5 pl-[3.875rem] font-mono text-xs text-muted" title={tx("Ports : {0}", ports.join(", "))}>{ports.map((p) => `:${p}`).join(" ")}</p>}

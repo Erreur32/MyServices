@@ -3,6 +3,7 @@
 import { ArrowRight, CircleCheck, ClipboardClock } from "lucide-react";
 import type { Snapshot } from "../api";
 import { serviceIcon } from "../lib/appIcons";
+import { LetterAvatar } from "./LetterAvatar";
 import { imageService, last24h, logoOf, serviceOfRow, sinceText, type Last24hRow } from "../lib/last24h";
 import { cardHash } from "../lib/serviceCards";
 import { tx } from "../lib/i18n";
@@ -18,7 +19,7 @@ const GO = "group/go inline-flex items-center gap-1 rounded-full border border-l
 function Who({ name, row, hosts }: Readonly<{ name: string; row: Last24hRow; hosts: Host[] }>) {
   const host = serviceOfRow(hosts, row, name), image = imageService(row, name);
   const icon = (host && serviceIcon(logoOf(host))) ?? (image && serviceIcon(image));
-  const body = <>{icon && <img src={icon} alt="" className="h-3.5 w-3.5 shrink-0" />}<span className="truncate"><Rich text={name} /></span></>;
+  const body = <>{icon ? <img src={icon} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" /> : host?.domains?.[0] && <LetterAvatar domain={host.domains[0]} size={14} />}<span className="truncate"><Rich text={name} /></span></>;
   const frame = "inline-flex max-w-[14rem] items-center gap-1 rounded-md border border-line/70 bg-bg px-1.5 py-0.5 text-muted";
   return host ? <a href={cardHash(host)} className={`${frame} no-underline hover:border-link hover:text-link`}>{body}</a> : <span className={frame}>{body}</span>;
 }

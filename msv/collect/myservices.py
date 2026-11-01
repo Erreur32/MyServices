@@ -62,6 +62,7 @@ from msv.api import api_link
 from msv.machines import known_apps
 from msv.machines import new_services
 from msv.core import last_known as last_known_services
+from msv.collect import favicons
 from msv.collect import webservers
 from msv.machines import matching
 from connectors import mynetwork as mynetwork_conn
@@ -1421,6 +1422,10 @@ def main():
             r["public_ignored"] = True
         new_services.apply_hand(r, m)
 
+    try:
+        favicons.refresh(rows, Path(CFG["cache_dir"]).expanduser() / "favicons", _opener_insecure, PROBE_TIMEOUT)
+    except OSError as e:   # an icon is never worth losing a collection
+        print(f"favicons: {e}", file=sys.stderr)
     webcheck_rows(rows)
     uptime_rows(rows)
 

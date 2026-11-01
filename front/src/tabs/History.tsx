@@ -15,7 +15,7 @@ import { StatTile } from "../components/StatTile";
 import { periodFigures } from "../lib/historyFigures";
 import { Square } from "../components/marks";
 import { tx } from "../lib/i18n";
-import { NOISE, collapse, saveHidden, savedHidden, unmasked, type NoiseId } from "../lib/historyNoise";
+import { NOISE, collapse, saveHidden, savedHidden, scopeOf, unmasked, type NoiseId } from "../lib/historyNoise";
 import { EVENT_LIMIT, GROUPS, GROUP_COLOR, GROUP_NAME, STYLES, buckets, dayBuckets, groupOf, stepFor, type ChartStyle } from "../lib/historyChart";
 
 /** Severity of an event kind (0 to 3) as the filter groups it */
@@ -23,6 +23,7 @@ function severityGroup(n: number): string {
   if (n >= 3) return "bad";
   return n === 2 ? "warn" : "info";
 }
+const SCOPE_NAME: Record<string, string> = { docker: tx("Mises à jour Docker"), machines: tx("Mises à jour machines"), services: tx("Services"), changes: tx("Nouveaux ou disparus") };
 const SEVERITY_NAME: Record<string, string> = { bad: tx("grave"), warn: tx("avertissement"), info: tx("information") };
 const SEVERITY_CLS: Record<string, string> = { bad: "bg-bad", warn: "bg-warn", info: "bg-dim" };
 const severityMark = (v: string) => <Square cls={SEVERITY_CLS[v] ?? "bg-dim"} />;
@@ -119,6 +120,7 @@ function Events({ snap, middle }: Readonly<{ snap: Snapshot; middle: ReactNode }
   const nHidden = hidden.reduce((n, k) => n + masked.counts[k], 0);
   const facets = useMemo((): Facet<StoredEvent>[] => [
     { key: "group", label: tx("Type"), get: (e) => groupOf(e.kind), name: (v) => GROUP_NAME[v] || v, order: GROUPS.map(([k]) => k), mark: (v) => <Square cls={GROUP_COLOR[v] ?? "bg-dim"} /> },
+    { key: "scope", label: tx("Seulement"), get: scopeOf, name: (v) => SCOPE_NAME[v] || v, order: ["docker", "machines", "services", "changes"] },
     { key: "kind", label: tx("Événement"), get: (e) => e.kind, name: (v) => label(v), mark: (v) => <Square cls={GROUP_COLOR[groupOf(v)] ?? "bg-dim"} /> },
     { key: "method", label: tx("Méthode"), get: (e) => originOf(e).method },
     { key: "via", label: tx("Lu par"), get: (e) => originOf(e).via },
@@ -186,9 +188,9 @@ function Events({ snap, middle }: Readonly<{ snap: Snapshot; middle: ReactNode }
         {truncated && style !== "bars" && <p className="mt-2 text-xs text-warn">{tx("Les {0} événements les plus récents seulement : choisissez une période plus courte pour tout voir.", EVENT_LIMIT)}</p>}
       </div>
 
-      <FilterBar f={f} placeholder={tx("Service, machine, détail…")}
-        optionsLabel={tx("Masquer")}
-        options={NOISE.map(([k, l]) => ({ id: k, label: l, on: hidden.includes(k), count: masked.counts[k],
+      <FilterBar f={f} placeholder={tx("Service, machine, détail…")} primary={["scope"]} primaryBeside
+        optionsLabel={tx("Afficher aussi")}
+        options={NOISE.filter(([k]) => k !== "appareil").map(([k, l]) => ({ id: k, label: l, on: !hidden.includes(k), count: masked.counts[k], tucked: k === "flap",
           toggle: () => setHide(hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]) }))}
         extra={<>
           {range && <button type="button" onClick={() => setRange(null)} className="rounded-lg border border-link px-2.5 py-1.5 text-sm text-txt">{range.label} ✕</button>}

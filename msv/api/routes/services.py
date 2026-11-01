@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import threading
 import json
 import time
@@ -14,6 +15,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from msv.api import server as core
+from msv.collect import favicons
 from msv.core import models
 from msv.core.auth import db_path
 from msv.api.common import API, BackupsOut, HealthOut, PNG, admin_only, admin_write, app, deny, ip_of, read_produced, session_admin, store, typed
@@ -220,6 +222,17 @@ def _camera_picture(connector: str, name: str, camera: str) -> bytes | JSONRespo
         return inst.snapshot(camera)
     except connectors.ConnectorError as e:
         return deny(502, str(e))
+
+
+@router.get(API + "/favicon/{name}", tags=["services"], summary="Icône d'un service, lue sur le service par la collecte")
+def favicon(name: str):
+    stem, _, ext = name.partition(".")
+    path = Path(core.CFG["cache_dir"]).expanduser() / "favicons" / name
+    if ext not in favicons.MEDIA or not re.fullmatch(r"[0-9a-f]{32}", stem) or not path.is_file():  # NOSONAR S2083: file name = the hash checked just before
+        return deny(404, "introuvable")
+    # Comes from a service: an SVG opened on its own must not run anything. The name holds the content's hash, so it never goes stale.
+    return Response(path.read_bytes(), media_type=favicons.MEDIA[ext], headers={  # NOSONAR S2083: file name = the hash checked just before
+        "Cache-Control": "private, max-age=604800, immutable", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"})
 
 
 @router.get(API + "/stream/snapshot", tags=["services"], summary="Image du moment d'une caméra, lue à la demande et jamais gardée (tout utilisateur connecté)")

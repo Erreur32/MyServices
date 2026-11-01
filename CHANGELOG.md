@@ -11,6 +11,20 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.33.6 (2026-11-01)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **Services, service icons**: a proxied service without a known logo now shows the favicon of its own site, in the Services list, on its card and in « What changed since yesterday ». The icon is read directly on the service, once a week, with no third-party service involved, so private domain names never leave your network. A service with no icon gets a coloured letter.
+- **History, Events**: new direct filters to show only Docker updates, machine updates, services, or services that are new or gone.
+- **History, machine updates**: a machine that gets pending system updates is now recorded as an event. It can be chosen in the alert rules and is not sent by default.
+
+### Changed
+- **Services**: a card shows its whole link, with the favicon of the service.
+- **History, Events**: « connectors back within an hour » moves behind the Filters button; these events stay hidden by default.
+- **History, Events**: the « Hide » chips become « Also show »: a lit chip always means its events are shown. Fail2ban threats stay off by default. The « new devices » chip is gone: devices are approved by hand.
+
 ## v0.33.5 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

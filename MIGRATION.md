@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.33.5 → 0.33.6
+
+**Nothing to do.** No setting, volume, agent or database change. Once a week the collection reads the favicon of each proxied service, directly on that service, and keeps it in the existing cache folder. Machine update events start from the first reading after the update: updates already pending do not count.
+
 ## 0.33.4 → 0.33.5
 
 **Nothing to do.** No setting, volume, agent or database change. « What changed since yesterday » now shows only what is still a problem: everything stays in History.
