@@ -27,7 +27,7 @@ export function Group({ title, sub, accent, tab, nav, cells, mark, href }: Reado
       <button type="button" onClick={() => { if (href) location.hash = href; else nav.go(tab); }} className="flex w-full items-center justify-between gap-2 text-left hover:text-link" title={tx("Ouvrir l'onglet")}>
         <b className="flex min-w-0 items-center gap-2 text-sm">{mark}<span className="truncate">{title.replace(/^\p{Extended_Pictographic}\s*/u, "")}</span></b><span className="max-w-[40%] shrink-0 truncate text-[11px] text-dim" title={sub}>{sub}</span>
       </button>
-      <div className="mt-1 grid grid-cols-2 gap-1">
+      <div className="mt-1 grid auto-cols-[minmax(0,1fr)] grid-flow-col gap-1">
         {cells.map(([tone, n, label, filter]) => {
           const body = (
             <>

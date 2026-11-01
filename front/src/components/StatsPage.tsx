@@ -126,7 +126,7 @@ export function Counters({ snap, go, goFilter }: Readonly<{ snap: Snapshot; go: 
         <h2 className="text-sm font-bold">{tx("Tout ton parc en chiffres")}</h2>
         <span className="text-xs text-dim">{tx("Clique sur un chiffre pour ouvrir la liste filtrée")}</span>
       </div>
-      <div className="grid items-start gap-2 p-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">{Object.values(statGroups(snap, { go, goFilter })).flat()}</div>
+      <div className="grid items-start gap-2 p-2 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">{Object.values(statGroups(snap, { go, goFilter })).flat()}</div>
     </section>
   );
 }
