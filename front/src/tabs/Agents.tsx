@@ -192,7 +192,7 @@ function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: M
 /** Machines → Agents: every agent in use with its gestures (the same block as on the machine's page), figures on top, one button to update
  *  the late ones, then the revoked ones. An agent is installed from the page of its machine, Access tab. */
 export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<string, MachineConf>; open?: string }>) {
-  const [st, setSt] = useState<AgentsState | null>(null), [install, setInstall] = useState<InstallTarget | null>(null);
+  const [st, setSt] = useState<AgentsState | null>(null);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const reload = useCallback(() => { read<AgentsState>("agents").then(setSt).catch(() => undefined); }, []);
   useEffect(reload, [reload]);
@@ -223,7 +223,6 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         <StatTile n={s.rights} label={tx("Droits à compléter")} tone={s.rights ? "warn" : undefined} />
         <HistoryTile n={s.outdated.length} label={tx("À mettre à jour")} tone={s.outdated.length ? "warn" : undefined} kind="strip" points={hist?.late ?? null} hours={hours} now={now} figure={late} fmt={(p) => tx("{0} à mettre à jour", late(p))} goodHigh={false} />
       </div>
-      {install && <AgentInstall key={`${install.ip}-auto`} target={install} onChanged={reload} onClose={() => setInstall(null)} />}
       <FoldPanel id="agents-list" icon={MonitorUp} title={tx("Agents")} count={s.live.length} pinned>
         <InfoNote>{tx("Un agent s'installe depuis la page d'une machine, onglet Accès. Ses gestes sont sur sa ligne : mise à jour automatique ou immédiate, nouveau jeton, révocation.")}</InfoNote>
         <NoteLine note={note} />
@@ -242,19 +241,18 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         )}
       </FoldPanel>
       {s.revoked.length > 0 && <FoldPanel id="agents-revoked" icon={KeyRound} title={tx("Agents révoqués")} count={s.revoked.length} startFolded>
-        <InfoNote className="mb-2">{tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}</InfoNote>
+        <InfoNote className="mb-2">{tx("Leur jeton ne marche plus. « Supprimer » les retire de la liste pour de bon.")}</InfoNote>
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {s.revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={install?.ip === a.ip && !!install.auto}
-            onNew={() => setInstall({ ip: a.ip, name: machines[a.ip]?.name ?? a.name, kind: a.kind ?? "windows", auto: true, options: a.options })} reload={reload} />)}
+          {s.revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} reload={reload} />)}
         </ul>
       </FoldPanel>}
     </div>
   );
 }
 
-/** Carte d'un agent révoqué : qui, quand, et deux gestes : en recréer un pour ce PC, ou l'effacer de la liste (confirmation) */
-function RevokedCard({ a, conf, ip, busy, onNew, reload }: Readonly<{ a: AgentInfo; conf?: MachineConf; ip: string; busy: boolean; onNew?: () => void; reload: () => void }>) {
-  const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
+/** Carte d'un agent révoqué : qui, quand, et l'effacer de la liste, déjà sans effet : pas de confirmation */
+function RevokedCard({ a, conf, ip, reload }: Readonly<{ a: AgentInfo; conf?: MachineConf; ip: string; reload: () => void }>) {
+  const [note, setNote] = useState<Note>(null);
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-dim/50 bg-card/60 p-3 text-sm">
       <div className="flex items-center gap-3">
@@ -269,17 +267,7 @@ function RevokedCard({ a, conf, ip, busy, onNew, reload }: Readonly<{ a: AgentIn
         {tx("révoqué le {0}", dateTime((a.revoked ?? 0) * 1000))}{a.last_seen ? ` · ${tx("dernier relevé {0}", dateTime(a.last_seen * 1000))}` : ""}
         {" · "}<code className="font-mono">{tx("msv_")}agent_…{a.hint}</code>
       </p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {!confirm && <>
-          {onNew && <button type="button" className={quiet} disabled={busy} onClick={onNew}><Plus size={14} />{tx("Nouvel agent")}</button>}
-          <button type="button" className={`${danger} ml-auto`} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Supprimer")}</button>
-        </>}
-        {confirm && <>
-          <span className="text-xs text-muted">{tx("Retiré de la liste pour de bon.")}</span>
-          <button type="button" className={`${danger} ml-auto`} onClick={() => void act(() => send("DELETE", `agents/${a.id}/purge`), tx("supprimé"), setNote).then((ok) => ok && reload())}>{tx("Confirmer")}</button>
-          <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
-        </>}
-      </div>
+      <button type="button" className={`${danger} ml-auto`} onClick={() => void act(() => send("DELETE", `agents/${a.id}/purge`), tx("supprimé"), setNote).then((ok) => ok && reload())}><Trash2 size={14} />{tx("Supprimer")}</button>
       <NoteLine note={note} />
     </li>
   );

@@ -93,9 +93,10 @@ class Agents:
         raw = PREFIX + secrets.token_urlsafe(32)
         now = time.time()
         with self._db() as db:
+            old = db.execute("SELECT auto_update FROM agents WHERE ip = ? AND revoked IS NULL", (ip,)).fetchone()   # a new token keeps the choice
             db.execute("UPDATE agents SET revoked = ? WHERE ip = ? AND revoked IS NULL", (now, ip))
-            aid = db.execute("INSERT INTO agents (ip, name, hash, hint, created, created_by, kind) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                             (ip, name, _h(raw), raw[-4:], now, by, kind)).lastrowid
+            aid = db.execute("INSERT INTO agents (ip, name, hash, hint, created, created_by, kind, auto_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                             (ip, name, _h(raw), raw[-4:], now, by, kind, old["auto_update"] if old else 0)).lastrowid
         return raw, self.get(aid)
 
     def get(self, aid: int) -> dict:
