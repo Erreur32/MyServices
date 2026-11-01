@@ -39,6 +39,7 @@ describe("commande d'installation de l'agent", () => {
     expect(env({ backups: true, backupDirs: "/mnt/a;rm -rf /" })).toBe("MSV_BACKUPS=1 ");
     expect(env({ backups: false, backupDirs: "/mnt/a" })).toBe("");
     expect(env({ dns: true })).toBe("MSV_DNS=1 ");
+    expect(env({ borgmatic: true })).toBe("MSV_BORGMATIC=1 ");
     expect(env({ npm: "" })).toBe("MSV_NPM=install ");
     expect(env({ npm: " ", npmUrl: "http://127.0.0.1:8081" })).toBe("MSV_NPM=install MSV_NPM_URL=http://127.0.0.1:8081 ");
     expect(env({ npm: "/opt/npm-api.sh", npmUrl: "http://x:1" })).toBe("MSV_NPM=/opt/npm-api.sh ");

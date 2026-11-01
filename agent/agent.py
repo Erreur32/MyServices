@@ -42,6 +42,7 @@ LOG_PATH = os.path.join(DIR, "agent.log")
 CACHE_PATH = os.path.join(DIR, "cache.json")
 BACKUP_STATE = os.path.join(DIR, "backups.json")   # what to read, and the last result
 DNS_STATE = os.path.join(DIR, "dns.json")
+BORGMATIC_FILE = "/var/lib/myservices-agent/borgmatic.json"   # left by the root timer of the install (MSV_BORGMATIC=1): Borg cannot run in this sandbox
 MAX_OUT = 50000                          # characters kept per command (the server accepts 60000)
 MAX_BODY = 240 * 1024                    # bytes: compressed report size kept under the server limit (256 KiB)
 CUT_TO = 12000                           # characters an output is cut to, longest first, when the report is still too big
@@ -125,6 +126,14 @@ def dns_scan(conf, now):
     result = root_script(conf, b"", 60)
     save_cache({"at": now, "result": result}, DNS_STATE)
     return result
+
+
+def borgmatic_result():
+    try:
+        with open(BORGMATIC_FILE) as f:
+            return [0, f.read(NPM_MAX)]
+    except OSError:
+        return None   # not read yet
 
 
 def backup_scan(conf, now):
@@ -299,6 +308,11 @@ def main():
         cmds.update(npm_lists(cfg["npm"]))
     if isinstance(cfg.get("dns"), dict):
         cmds["dns"] = dns_scan(cfg["dns"], time.time())
+    if isinstance(cfg.get("pve"), dict):
+        cmds["pve"] = root_script(cfg["pve"], b"", 60)
+    borgmatic = borgmatic_result() if cfg.get("borgmatic") else None
+    if borgmatic:
+        cmds["borgmatic"] = borgmatic
     if isinstance(cfg.get("backups"), dict):
         scan = backup_scan(cfg["backups"], time.time())
         if scan:

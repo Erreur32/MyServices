@@ -187,6 +187,20 @@ class Backups(Base):
         self.assertEqual(facts(d)["Dernière sauvegarde"]["value"], "il y a 4 h 00")
 
 
+    def test_borgmatic_par_l_agent(self):
+        out = json.dumps([{"repository": {"label": "nas"}, "archives": [{"name": "h", "end": HOURS(4)[:19]}]}])
+        conf = {"type": "borgmatic", "name": "b", "agent": "10.0.0.5"}
+        self.assertEqual(connectors.TYPES["borgmatic"].validate(conf), [])
+        self.assertTrue(connectors.TYPES["borgmatic"].validate({"type": "borgmatic", "name": "b"}))
+        c = connectors.TYPES["borgmatic"](conf, Context())
+        with mock.patch("msv.machines.agent_reports.fresh_output", return_value=out), mock.patch.object(Context, "ssh") as ssh:
+            d = c.collect()
+        ssh.assert_not_called()
+        self.assertEqual(facts(d)["Dernière sauvegarde"]["value"], "il y a 4 h 00")
+        with mock.patch("msv.machines.agent_reports.fresh_output", return_value=None), self.assertRaises(connectors.ConnectorError):
+            c.collect()
+
+
 class Hypervisors(Base):
     def test_unraid(self):
         answers = {"array {": {"data": {"info": {"os": {"hostname": "nas", "uptime": 3600}},

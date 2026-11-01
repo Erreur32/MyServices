@@ -27,6 +27,20 @@ class PveSsh(unittest.TestCase):
         self.assertEqual(run.call_args.args[0][:2], ["ssh", "-o"])
         return got
 
+    def test_agent_prend_la_place_du_ssh(self):
+        out = "pve-manager/8.2.4/x (running kernel: 6.8)\n@@res\n" + json.dumps(RES)
+        reports = {"10.0.0.6": {"data": {"cmds": {"pve": [0, out]}}}, "10.0.0.7": {"data": {"cmds": {"pve": [1, "sudo: refused"]}}},
+                   "10.0.0.8": {"data": {"cmds": {"pve": [0, out]}}}}
+        rows = pve_ssh.agent_rows(reports, [{"ip": "10.0.0.6", "name": "pve"}], {"10.0.0.8"})   # .8: read by a connector, .7: left to SSH
+        self.assertEqual([(r["name"], r["via"], r["version"], r["message"]) for r in rows], [("pve", "agent", "8.2.4", "lu par l'agent (pvesh)")])
+        self.assertEqual(rows[0]["totals"]["vm"], 1)
+
+    def test_droit_manquant_seulement_sur_un_hote_proxmox(self):
+        from msv.collect.hostinfo import REMOTE
+        self.assertTrue(pve_ssh.agent_refused({REMOTE: [0, "##PVE yes\n"]}))
+        self.assertFalse(pve_ssh.agent_refused({REMOTE: [0, "##PVE no\n"]}))
+        self.assertFalse(pve_ssh.agent_refused({REMOTE: [0, "##PVE yes\n"], "pve": [0, "@@res\n" + json.dumps(RES)]}))
+
     def test_lecture(self):
         data, err, version = self.run_with("pve-manager/8.2.4/faa83925c9641325 (running kernel: 6.8.12-1-pve)\n" + json.dumps(RES))
         self.assertEqual((err, version), ("", "8.2.4"))

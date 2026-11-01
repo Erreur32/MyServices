@@ -23,7 +23,7 @@ from msv.machines.agent_reports import DEFAULT_INTERVAL, FRESH_MULT, fresh_repor
 from msv.machines.winname import windows_name
 
 VERSION = "9"                # Windows agent (agent.ps1)
-LINUX_VERSION = "6"          # Linux agent (agent.py)
+LINUX_VERSION = "7"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
 PS_AGENT = "agent.ps1"       # script de l'agent Windows
 SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}
@@ -283,13 +283,27 @@ def docker_of(report: dict | None) -> list[dict] | None:
     return out
 
 
+# 24 h of the adguardhome-sync log, same filter as over SSH, the newest lines kept: its name first, as the agent finds the container itself
+SYNC_LOG_SH = ("c=$(docker ps --format '{{.Names}} {{.Image}}' 2>/dev/null | grep -m1 adguardhome-sync | cut -d' ' -f1); "
+               "[ -z \"$c\" ] || { echo \"##$c\"; timeout 15 docker logs --since 24h \"$c\" 2>&1 | grep -E 'Sync done|ERROR' | cut -c1-400 | tail -c 48000; }; true")
+
+
+def sync_log(report: dict | None, container: str) -> str | None:
+    """The adguardhome-sync log of a fresh Linux agent report; None for another container, or when the agent sends none."""
+    got = (((report or {}).get("data") or {}).get("cmds") or {}).get(SYNC_LOG_SH)
+    if not isinstance(got, list) or len(got) != 2:
+        return None
+    head, _, body = str(got[1]).partition("\n")
+    return body if head == f"##{container}" else None
+
+
 def inventory_commands() -> list[str]:
     """Commands of the SSH inventory the Linux agent runs too (version 4, running services from version 5): machine info, Docker containers and networks, listening ports."""
     from msv.collect import hostinfo
     from connectors.docker_ssh import DOCKER_SH, NET_SH
     from connectors.process import LISTEN_SH
     from msv.remote.virt_ssh import AGENT_CMD
-    return [hostinfo.REMOTE, hostinfo.UNITS_SH, DOCKER_SH, NET_SH, LISTEN_SH, AGENT_CMD]
+    return [hostinfo.REMOTE, hostinfo.UNITS_SH, DOCKER_SH, NET_SH, LISTEN_SH, AGENT_CMD, SYNC_LOG_SH]
 
 
 def inventory_cache() -> dict[str, int]:
@@ -345,7 +359,7 @@ def rights_gaps(report: dict | None) -> list[str]:
     """What a Linux agent report cannot read for lack of sudo: "needrestart", "fail2ban", "hypervisors". A tool that is not installed, or an agent
     too old to send the section, is not a gap. Apart from inventory_gaps: it does not weigh on the SSH decision."""
     from msv.collect import health
-    from msv.remote import virt_ssh
+    from msv.remote import pve_ssh, virt_ssh
     data = (report or {}).get("data") or {}
     cmds = data.get("cmds")
     if data.get("kind") != "linux" or not isinstance(cmds, dict):
@@ -354,7 +368,7 @@ def rights_gaps(report: dict | None) -> list[str]:
     secs = health._sections(str(got[1])) if isinstance(got, list) and len(got) == 2 else {}
     parsers = (("needrestart", "nr", health.parse_needrestart), ("fail2ban", "f2b", health.parse_fail2ban))
     gaps = [gap for gap, sec, parse in parsers if parse(secs.get(sec, []), "").get("access") is False]
-    return gaps + ["hypervisors"] if virt_ssh.agent_refused(cmds) else gaps
+    return gaps + ["hypervisors"] if virt_ssh.agent_refused(cmds) or pve_ssh.agent_refused(cmds) else gaps
 
 
 def listening_ports(report: dict | None) -> set[int] | None:
@@ -566,7 +580,8 @@ def script(name: str) -> str:
     text = (SCRIPTS / name).read_text(encoding="utf-8")
     if name == "install.sh":
         from msv.remote import npmapi
-        return text.replace("__NPM_SCRIPT_URL__", npmapi.SCRIPT_URL).replace("__NPM_SCRIPT_SHA256__", npmapi.SCRIPT_SHA256)
+        from msv.remote.pve_ssh import PVE_CMD
+        return text.replace("__NPM_SCRIPT_URL__", npmapi.SCRIPT_URL).replace("__NPM_SCRIPT_SHA256__", npmapi.SCRIPT_SHA256).replace("__PVE_CMD__", PVE_CMD)
     if name == PS_AGENT:
         from msv.collect import health
         text = text.replace("#__COLLECT__", health.WIN_PS.strip()).replace("__VERSION__", VERSION)

@@ -13,7 +13,6 @@ from __future__ import annotations
 import base64
 import json
 import shlex
-import sqlite3
 import urllib.parse
 import re
 
@@ -64,14 +63,10 @@ def normalize(rewrites: list, rules: list) -> dict:
 
 def agent_dns(ip: object) -> dict:
     """{tool: {rewrites, user_rules, version}} a fresh report of the agent of this address carries (MSV_DNS), empty without one."""
-    from msv.core.auth import db_path
-    from msv.core.config import CFG
-    from msv.machines.agent_reports import fresh_reports
+    from msv.machines.agent_reports import fresh_output
     try:
-        rep = fresh_reports(db_path(CFG)).get(str(ip)) or {}
-        got = (((rep.get("report") or {}).get("data") or {}).get("cmds") or {}).get("dns") if rep.get("fresh") else None
-        found = json.loads(got[1]) if isinstance(got, list) and len(got) == 2 and got[0] == 0 else {}
-    except (OSError, ValueError, sqlite3.Error):
+        found = json.loads(fresh_output(ip, "dns") or "{}")
+    except ValueError:
         return {}
     return found if isinstance(found, dict) else {}
 

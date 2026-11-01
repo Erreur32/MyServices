@@ -127,7 +127,7 @@ def _load_config():
     ADGUARD = {c.conf["ip"]: c for c in connectors.instances(CFG, kind="dns", meta=cfg)}
     # adguard_sync absent = détecté dans l'inventaire docker (adguard_sync_detect), false = jamais lu
     ADGUARD_SYNC = {ip: m.get("adguard_sync") for ip, m in cfg.get("machines", {}).items()
-                    if m.get("ssh") and m.get("adguard_sync") is not False}
+                    if m.get("adguard_sync") is not False}
     NPM_ONLY = {ip for ip, m in cfg.get("machines", {}).items() if m.get("npm_only")}
     MACHINES_OFF = {ip for ip, m in cfg.get("machines", {}).items() if m.get("off")} | off_ips
     cats = [(n, re.compile(p, re.I)) for n, p in cfg.get("categories", [])]
@@ -504,10 +504,13 @@ def _error_state(errors, times):
     return {"errors_open": len(open_), "last_error": errors[-1][1] if errors else None}
 
 
-def adguard_sync_state(alias, container):
-    """Journal 24 h d'adguardhome-sync : origine, dernière synchro réussie par réplique, intervalle entre
-    deux synchros (médiane, d'après le journal : pas besoin de connaître son cron), nombre d'erreurs.
-    None = illisible. La config d'adguardhome-sync (mots de passe) n'est jamais lue."""
+def adguard_sync_state(alias, container, log=None):
+    """Journal 24 h d'adguardhome-sync, envoyé par l'agent (log) ou lu par SSH. None = illisible.
+    La config d'adguardhome-sync (mots de passe) n'est jamais lue."""
+    if log is not None:
+        return _sync_read(log, container)
+    if not alias:
+        return None
     cmd = _on(alias, f"docker logs --since 24h {container} 2>&1 | grep -E 'Sync done|ERROR'")
     try:
         r = ssh_run("adguard sync", alias, cmd, capture_output=True, text=True, timeout=20)
@@ -515,8 +518,14 @@ def adguard_sync_state(alias, container):
         return None
     if r.returncode not in (0, 1):  # grep : 1 = aucune ligne
         return None
+    return _sync_read(r.stdout, container)
+
+
+def _sync_read(log, container):
+    """Origine, dernière synchro réussie par réplique, intervalle entre deux synchros (médiane, d'après le journal :
+    pas besoin de connaître son cron), nombre d'erreurs."""
     last, runs, origin, errors = {}, {}, None, []
-    for line in r.stdout.splitlines():
+    for line in log.splitlines():
         ts = line.split("\t", 1)[0]
         if "\tERROR\t" in line:
             errors.append((_sync_time(ts), line.split("\t", 4)[-1][:160] if line.count("\t") >= 4 else line[:160]))
@@ -651,7 +660,7 @@ def _name_answers(name, search, servers, asked):
     return got
 
 
-def dns_check(rows):
+def dns_check(rows, agent_fresh=None):
     """Contrôle DNS, lecture seule : chaque domaine NPM (et chaque nom de machine suivie) est demandé à chaque serveur DNS,
     les AdGuard branchés, sinon les résolveurs du conteneur ; les réécritures AdGuard sont comparées entre instances et aux
     hosts NPM. Problèmes par ligne dans r["dns"]. None quand aucun serveur DNS n'est joignable."""
@@ -667,7 +676,8 @@ def dns_check(rows):
         state = cbase.load_state(CONNECTORS_STATE)
         confs = {ip: ex.submit(cbase.run_isolated, c, state, 60) for ip, c in ADGUARD.items()}
         asked = {s: ex.submit(dns_ask_all, s, names + machine_names) for s in servers}
-        syncs = {ip: ex.submit(adguard_sync_state, MACHINES[ip][2], c) for ip, c in ADGUARD_SYNC.items()}
+        syncs = {ip: ex.submit(adguard_sync_state, MACHINES[ip][2] if ip in MACHINES else None, c, agents.sync_log((agent_fresh or {}).get(ip), c))
+                 for ip, c in ADGUARD_SYNC.items()}
     confs = {ip: f.result() for ip, f in confs.items()}
     cbase.save_state(CONNECTORS_STATE, state)
     CONNECTOR_STATUS.extend(st for _, st in confs.values())
@@ -1431,7 +1441,7 @@ def main():
 
     progress(7, "DNS : réponses de chaque serveur, réécritures AdGuard")
     adguard_sync_detect(dock)
-    dns = dns_check(rows)   # AdGuard when wired, else the resolvers of the container
+    dns = dns_check(rows, agent_fresh)   # AdGuard when wired, else the resolvers of the container
 
     progress(8, "machines : SSH et écriture de data.json")
     sshc = hostinfo.ssh_config()
@@ -1493,7 +1503,9 @@ def main():
     linked = api_link.by_machine([*services_status, *network, *security, *containers, *virtualization], {m["ip"] for m in machines_out})
     services_status += [fb for row in network if row.get("connector") == "mynetwork" and (fb := mynetwork_conn.freebox_status(row))]   # Freebox read through MynetworK
     # Proxmox hosts read by SSH (after api_link: SSH is not an API badge), unless a connector already reads them
-    virtualization += pve_ssh.rows(machines_out, sshc, {api_link.host_ip(c.get("url")) for c in virtualization if c.get("connector") == "proxmox"})
+    pve_taken = {api_link.host_ip(c.get("url")) for c in virtualization if c.get("connector") == "proxmox"}
+    pve_agent = pve_ssh.agent_rows(agent_fresh, machines_out, pve_taken)
+    virtualization += pve_agent + pve_ssh.rows(machines_out, sshc, pve_taken | {r["ip"] for r in pve_agent})
     # ESXi hosts read by SSH, unless a vCenter connector already lists them (by IP or by name)
     vc_hosts = {x for c in virtualization if c.get("connector") == "vcenter" for n in c.get("nodes") or [] for x in (n.get("ip"), n.get("name"))}
     virtualization += esxi_ssh.rows(machines_out, sshc, {m["ip"] for m in machines_out if m["ip"] in vc_hosts or m["name"] in vc_hosts})

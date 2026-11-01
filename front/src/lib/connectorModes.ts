@@ -2,12 +2,12 @@
 // montrés, de ceux qui sont requis et de ce qui est envoyé. Même règle que le serveur (connectors/npm.py : mode_of).
 import type { ConnectorType } from "../types";
 
-/** Mode d'après les réglages enregistrés : script si le chemin est donné, sinon SSH si une machine l'est, sinon direct */
+/** Mode d'après les réglages enregistrés : agent, puis script si le chemin est donné, puis SSH si une machine l'est, sinon direct */
 export function modeOf(type: ConnectorType, config: Record<string, unknown> | undefined): string {
   const modes = type.modes ?? [];
   if (!modes.length) return "";
   const has = (k: string) => !!config?.[k];
-  const id = has("api") ? "script" : has("ssh") ? "ssh" : "direct";
+  const id = ([["agent", "agent"], ["api", "script"], ["ssh", "ssh"]] as const).find(([key]) => has(key))?.[1] ?? "direct";
   return modes.some((m) => m.id === id) ? id : modes[0].id;
 }
 

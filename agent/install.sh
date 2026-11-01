@@ -13,9 +13,12 @@
 #                      account from MSV_NPM_USER and MSV_NPM_PASS or asked on the terminal; it stays in a file only the agent reads
 #   MSV_DNS=1          read the local DNS records as root, through one script set here (AdGuard Home, Pi-hole, dnsmasq, Unbound, found on the machine)
 #   MSV_BACKUPS=1      read the backup folders as root, through one script set here; MSV_BACKUP_DIRS=/a,/b adds folders to the list it accepts
+#   MSV_BORGMATIC=1    read the last archive of each Borg repository: a root timer of its own runs borgmatic every 6 h (Borg needs to write its
+#                      cache and locks, which the agent's sandbox forbids) and leaves the list in /var/lib/myservices-agent
 #   MSV_SMART=1        allow `sudo -n smartctl -H /dev/*` for the agent user (SMART health of the disks)
 #   MSV_SUDO=1         allow the three read-only commands that need root, each alone (exact sudo rules): services to restart after an
-#                      update (needrestart, list mode), Fail2ban bans, and the process names behind the listening ports (ss)
+#                      update (needrestart, list mode), Fail2ban bans, and the process names behind the listening ports (ss); virtual machines
+#                      too: KVM, Incus, LXD, and on a Proxmox VE host one script set here that runs pvesh
 #   MSV_ALLOW_HTTP=1   accept plain http beyond the local network or a VPN: the token then crosses the internet unencrypted
 #   MSV_UNINSTALL=1    remove the agent (revoke its token in MyServices: Settings -> Agents)
 # Re-running is safe: it downloads the agent again and renews the config and the timer.
@@ -28,6 +31,10 @@ SUDOERS=/etc/sudoers.d/myservices-agent
 SCAN_DIR=/usr/local/lib/myservices-agent
 SCAN="$SCAN_DIR/backup-scan.py"
 DNS_SCAN="$SCAN_DIR/dns-scan.py"
+PVE_SCAN="$SCAN_DIR/pve-scan.sh"
+BORG_SCAN="$SCAN_DIR/borgmatic-scan.sh"
+BORG_UNIT="$UNIT-borgmatic"
+BORG_STATE=/var/lib/$UNIT
 ETC_DIR=/etc/myservices-agent
 OLD_SUDOERS=/etc/sudoers.d/myservices-agent-smart   # name used up to agent 3 (SMART only)
 
@@ -37,9 +44,16 @@ ok() { echo "+ $*"; }
 [[ "$(id -u)" = 0 ]] || die "Run this as root (put sudo before bash)."
 command -v systemctl >/dev/null || die "systemd is required (systemctl not found)."
 
+remove_borgmatic() {
+  systemctl disable --now "$BORG_UNIT.timer" >/dev/null 2>&1 || true
+  rm -f "/etc/systemd/system/$BORG_UNIT.service" "/etc/systemd/system/$BORG_UNIT.timer" "$BORG_SCAN"
+  rm -rf "$BORG_STATE"
+}
+
 if [[ "${MSV_UNINSTALL:-}" = 1 ]]; then
   systemctl disable --now "$UNIT.timer" >/dev/null 2>&1 || true
   systemctl stop "$UNIT.service" >/dev/null 2>&1 || true
+  remove_borgmatic
   rm -f "/etc/systemd/system/$UNIT.service" "/etc/systemd/system/$UNIT.timer" "$SUDOERS" "$OLD_SUDOERS"
   rm -rf "$SCAN_DIR" "$ETC_DIR"
   systemctl daemon-reload
@@ -81,6 +95,17 @@ DNS=0
 if (( BACKUPS || DNS )); then
   command -v sudo >/dev/null || die "MSV_BACKUPS and MSV_DNS need sudo on this machine"
 fi
+BORG_RUN=""
+if [[ "${MSV_BORGMATIC:-}" = 1 ]]; then
+  BORG_RUN=$(command -v borgmatic || true)
+  if [[ -z "$BORG_RUN" ]]; then
+    BORG_BOX=$(docker ps --format '{{.Names}} {{.Image}}' 2>/dev/null | grep -m1 borgmatic | cut -d' ' -f1 || true)
+    [[ "$BORG_BOX" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || die "MSV_BORGMATIC: neither borgmatic nor its running container found on this machine"
+    BORG_RUN="$(command -v docker) exec $BORG_BOX borgmatic"
+  fi
+fi
+PVE=0
+if [[ "${MSV_SUDO:-}" = 1 && -d /etc/pve ]] && command -v pvesh >/dev/null; then PVE=1; fi
 if [[ "$NPM" = install ]]; then
   NPM_INSTALL=1
   command -v jq >/dev/null || die "MSV_NPM=install needs jq (apt install jq)"
@@ -161,11 +186,26 @@ if (( DNS )); then
   ok "DNS scan installed"
 fi
 
+if (( PVE )); then
+  mkdir -p "$SCAN_DIR"
+  cat > "$PVE_SCAN" <<'PVE_EOF'
+#!/bin/bash
+# Root read of this Proxmox VE host, set by the agent's installer (MSV_SUDO=1): read-only pvesh calls, it takes no input
+__PVE_CMD__
+true
+PVE_EOF
+  chown root:root "$PVE_SCAN"
+  chmod 755 "$PVE_SCAN"
+  ok "Proxmox VE scan installed"
+fi
+
 # Config: the token is in it, so only the agent account (and root) can read it
 NPM_JSON=""
 [[ -n "$NPM" ]] && NPM_JSON=$(printf ', "npm": {"path": "%s", "user": "%s"}' "$NPM" "$NPM_USER")
 (( BACKUPS )) && NPM_JSON+=$(printf ', "backups": {"python": "%s", "script": "%s"}' "$(command -v python3)" "$SCAN")
 (( DNS )) && NPM_JSON+=$(printf ', "dns": {"python": "%s", "script": "%s"}' "$(command -v python3)" "$DNS_SCAN")
+(( PVE )) && NPM_JSON+=$(printf ', "pve": {"python": "%s", "script": "%s"}' "$(command -v bash)" "$PVE_SCAN")
+[[ -n "$BORG_RUN" ]] && NPM_JSON+=', "borgmatic": true'
 ( umask 077; printf '{"url": "%s", "token": "%s", "interval": %d%s}\n' "$URL" "$TOKEN" $((MINUTES * 60)) "$NPM_JSON" > "$DIR/config.json" )
 chown "$USER_NAME:$USER_NAME" "$DIR/config.json"
 chmod 600 "$DIR/config.json"
@@ -188,6 +228,7 @@ if [[ "${MSV_SUDO:-}" = 1 ]]; then
   done
 fi
 (( DNS )) && RULES+=("$(command -v python3) $DNS_SCAN")
+(( PVE )) && RULES+=("$(command -v bash) $PVE_SCAN")
 if (( BACKUPS )); then
   RULES+=("$(command -v python3) $SCAN")
   PROTECT_HOME=read-only   # sudo stays in the sandbox of the service: even root would not see /home otherwise
@@ -246,6 +287,49 @@ EOF
 systemctl daemon-reload
 systemctl enable --now "$UNIT.timer" >/dev/null 2>&1
 ok "Timer '$UNIT.timer' enabled (every $MINUTES min, one minute after boot)"
+
+if [[ -n "$BORG_RUN" ]]; then
+  mkdir -p "$SCAN_DIR"
+  cat > "$BORG_SCAN" <<EOF
+#!/bin/bash
+# Root read of the Borg repositories, by its own timer: a fixed command, nothing from the server. Only a good answer replaces the last one.
+out=\$($BORG_RUN repo-list --last 1 --json 2>/dev/null || $BORG_RUN rlist --last 1 --json) || exit 1
+printf '%s' "\$out" > $BORG_STATE/borgmatic.json.tmp && mv $BORG_STATE/borgmatic.json.tmp $BORG_STATE/borgmatic.json
+EOF
+  chmod 755 "$BORG_SCAN"
+  cat > "/etc/systemd/system/$BORG_UNIT.service" <<EOF
+[Unit]
+Description=MyServices agent: last archives of borgmatic
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash $BORG_SCAN
+StateDirectory=$UNIT
+StateDirectoryMode=0755
+UMask=0022
+TimeoutStartSec=1800
+EOF
+  cat > "/etc/systemd/system/$BORG_UNIT.timer" <<EOF
+[Unit]
+Description=MyServices agent: borgmatic, every 6 h
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=6h
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now "$BORG_UNIT.timer" >/dev/null 2>&1
+  systemctl start --no-block "$BORG_UNIT.service"
+  ok "borgmatic timer enabled (every 6 h, first read now)"
+else
+  remove_borgmatic
+fi
 
 echo "  First report..."
 if systemctl start "$UNIT.service"; then

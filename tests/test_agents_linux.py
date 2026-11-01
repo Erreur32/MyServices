@@ -346,6 +346,15 @@ class LinuxAgentScripts(unittest.TestCase):
             ns["backup_scan"](conf, 1000 + ns["BACKUP_EVERY"])
             self.assertEqual(len(calls), 3)                    # other folders
 
+    def test_installeur_pose_pve_et_borgmatic_sans_entree_du_serveur(self):
+        import subprocess
+        from msv.remote.pve_ssh import PVE_CMD
+        text = agents.script("install.sh")
+        self.assertIn(PVE_CMD, text)
+        self.assertNotIn("__PVE_CMD__", text)
+        self.assertEqual(subprocess.run(["bash", "-n"], input=text.encode(), check=False).returncode, 0)
+        self.assertIn("$BORG_UNIT.timer", text)
+
     def test_scan_dns_lit_les_outils_sans_les_comptes(self):
         ns = {"__name__": "dns_test"}
         exec(compile(agents.script("dns-scan.py"), "dns-scan.py", "exec"), ns)
