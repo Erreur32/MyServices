@@ -41,7 +41,7 @@
 > - **Ce qui est solide** : le cœur (collecte, santé, historique, alertes, comptes, API et MCP) et les connecteurs utilisés tous les jours sur
 >   le réseau de l'auteur : **Nginx Proxy Manager, AdGuard Home, Beszel, Cloudflare, Dockhand, Dozzle, Frigate, Glances, GpuViewR, Hermes Agent, Home
 >   Assistant, LogviewR, MynetworK (et, par lui, UniFi et la Freebox), Netatmo, Nextcloud, Ollama, Open WebUI, Rybbit, Speedtest Tracker,
->   Tautulli, UniFi Network, Uptime Kuma, Wazuh et Web-Check**.
+>   Tapo, Tautulli, UniFi Network, Uptime Kuma, Wazuh et Web-Check**.
 > - **Ce qui est moins testé** : les autres connecteurs ont été écrits d'après la documentation de chaque service et essayés seulement contre
 >   des serveurs simulés ; ils peuvent donc ne pas correspondre à toutes les versions ou installations. C'est pareil pour l'agent Windows
 >   (un seul PC pour l'instant). Le [tableau des connecteurs](#connecteurs) plus bas dit lesquels sont lesquels. Si l'un ne correspond pas à
@@ -213,7 +213,7 @@ Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** 
 | Famille | Connecteurs |
 |---|---|
 | **Web et proxys** | **Nginx Proxy Manager**, **Web-Check** |
-| **Applis** | **Home Assistant**, **Netatmo**, Tapo, **Nextcloud**, Jellyfin, **Tautulli**, Overseerr / Jellyseerr, Sonarr / Radarr / Prowlarr…, Bazarr, qBittorrent, Transmission |
+| **Applis** | **Home Assistant**, **Netatmo**, **Tapo**, **Nextcloud**, Jellyfin, **Tautulli**, Overseerr / Jellyseerr, Sonarr / Radarr / Prowlarr…, Bazarr, qBittorrent, Transmission |
 | **DNS** | **AdGuard Home**, **Cloudflare**, Pi-hole, Technitium DNS |
 | **Supervision** | **Beszel**, **Uptime Kuma**, **Dozzle**, **Glances**, **LogviewR**, Prometheus, Healthchecks, Netdata, Pulse, **Speedtest Tracker**, Webmin, Umami, **Rybbit** |
 | **Réseau** | **MynetworK** (UniFi et Freebox par lui), **UniFi Network** (direct), Tailscale / Headscale, OPNsense, NetAlertX, Box internet (UPnP IGD), FRITZ!Box, SFR Box, Livebox, Vodafone Station, Sagemcom F@st, Bbox, Swisscom Internet-Box, Compal Connect Box, Telekom Speedport, Technicolor Homeware, T-Mobile Home Internet, Hitron CODA, Verizon Fios, Arris SURFboard, Liberty gateway, OpenWrt, MikroTik RouterOS, Asus (AsusWRT / Merlin), TP-Link Archer (ces quatre routeurs : pas encore testés sur un vrai routeur) |
