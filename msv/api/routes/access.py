@@ -292,7 +292,8 @@ def agents_list(request: Request):
     store = agents_store()
     reports = store.fresh_reports()
     fresh = lambda a: reports[a["ip"]]["report"] if reports.get(a["ip"], {}).get("fresh") else None  # noqa: E731
-    rows = [{**a, "gaps": agents.inventory_gaps(fresh(a)), "rights": agents.rights_gaps(fresh(a))} for a in store.listing()]
+    last = lambda a: reports.get(a["ip"], {}).get("report")  # noqa: E731
+    rows = [{**a, "gaps": agents.inventory_gaps(fresh(a)), "rights": agents.rights_gaps(fresh(a)), "options": agents.options_of(last(a))} for a in store.listing()]
     return {"agents": rows, "report_path": AGENT_REPORT}
 
 

@@ -23,12 +23,13 @@ from msv.machines.agent_reports import DEFAULT_INTERVAL, FRESH_MULT, fresh_repor
 from msv.machines.winname import windows_name
 
 VERSION = "9"                # Windows agent (agent.ps1)
-LINUX_VERSION = "7"          # Linux agent (agent.py)
+LINUX_VERSION = "8"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
 PS_AGENT = "agent.ps1"       # script de l'agent Windows
 SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}
 SCRIPTS = Path(__file__).resolve().parents[2] / "agent"
 PREFIX = "msv_agent_"
+SAFE_PATH = re.compile(r"/[A-Za-z0-9._/-]+")   # what install.sh accepts
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
 MAX_BODY = 256 * 1024     # octets : un relevé fait quelques ko (compressé en gzip par l'agent Linux depuis sa version 3)
 MAX_UNZIPPED = 2 * 1024 * 1024   # octets : un relevé gzip une fois décompressé (au-delà : refusé, jamais décompressé en entier)
@@ -369,6 +370,27 @@ def rights_gaps(report: dict | None) -> list[str]:
     parsers = (("needrestart", "nr", health.parse_needrestart), ("fail2ban", "f2b", health.parse_fail2ban))
     gaps = [gap for gap, sec, parse in parsers if parse(secs.get(sec, []), "").get("access") is False]
     return gaps + ["hypervisors"] if virt_ssh.agent_refused(cmds) or pve_ssh.agent_refused(cmds) else gaps
+
+
+def options_of(report: dict | None) -> dict:
+    """What a Linux agent says its install reads, in the words of the install page (AgentOptions): only what is set, and only safe paths,
+    because these values go in a command the admin pastes as root."""
+    got = (((report or {}).get("data") or {}).get("cmds") or {}).get("options")
+    try:
+        raw = json.loads(got[1]) if isinstance(got, list) and len(got) == 2 else {}
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    out: dict = {k: True for k in ("sudo", "dns", "backups", "borgmatic") if raw.get(k) is True}
+    found = raw.get("backupDirs")
+    dirs = [d for d in found if isinstance(d, str) and SAFE_PATH.fullmatch(d)] if isinstance(found, list) else []
+    if dirs:
+        out["backupDirs"] = ",".join(dirs)
+    npm = raw.get("npm")
+    if npm == "" or (isinstance(npm, str) and SAFE_PATH.fullmatch(npm)):
+        out["npm"] = npm
+    return out
 
 
 def listening_ports(report: dict | None) -> set[int] | None:

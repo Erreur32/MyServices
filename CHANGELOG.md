@@ -11,6 +11,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Agents, new command**: the boxes of a Linux agent are ticked from what it already reads, with its NPM path and backup folders. The agent sends only these options, and the server keeps only safe paths. Its automatic update to version 8 is enough.
+
+### Changed
+- **README**: the project's rule is now stated: local data only, no cloud, no subscription, no telemetry, and the few outgoing calls are listed.
+
 ## v0.34.0 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

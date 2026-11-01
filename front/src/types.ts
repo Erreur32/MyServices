@@ -1,3 +1,4 @@
+import type { AgentOptions } from "./lib/agentCommand";
 // Fichiers produits par les tâches (data.json, health/stats.json, backups.json, events.json) : seulement les
 // champs lus par le front. Source : myservices.py, health.py, backups.py, watcher.py.
 
@@ -812,6 +813,7 @@ export interface AgentInfo {
   outdated?: boolean;          // l'agent est plus ancien que le script servi
   gaps?: string[];             // what its fresh report lacks to replace SSH (agents.inventory_gaps)
   rights?: string[];           // what it cannot read for lack of sudo, SSH or not (agents.rights_gaps)
+  options?: AgentOptions;      // what its install reads (agents.options_of): ticks the boxes of its next command
   id: number;
   ip: string;
   name: string;

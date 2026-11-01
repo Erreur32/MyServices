@@ -19,7 +19,7 @@ import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 export type AgentKind = "windows" | "linux";
 
 /** Machine pour laquelle on installe : `choose` laisse changer le type, `auto` crée l'agent tout de suite (nouvelle commande) */
-export interface InstallTarget { ip: string; name: string; kind: AgentKind; choose?: boolean; auto?: boolean; sudo?: boolean }
+export interface InstallTarget { ip: string; name: string; kind: AgentKind; choose?: boolean; auto?: boolean; sudo?: boolean; options?: AgentOptions }
 
 // Exemple d'adresse du LAN : en local il n'y a pas de TLS, http est voulu
 const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
@@ -52,7 +52,7 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
   // Adresse de MyServices vue de la machine : par défaut celle de la page ; le champ ne s'affiche que pour la corriger
   const [url, setUrl] = useState(location.origin);
   const [created, setCreated] = useState<{ info: AgentInfo; token: string } | null>(null);   // jeton gardé en mémoire de la page seulement
-  const [options, setOptions] = useState<AgentOptions>({ sudo: !!target.sudo });
+  const [options, setOptions] = useState<AgentOptions>({ ...target.options, sudo: !!target.sudo || !!target.options?.sudo });
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [agents, setAgents] = useState<AgentsState | null>(null);
   const command = created ? installCommand(url, created.token, created.info.kind, options) : null;   // suit le champ « Adresse » même après la création
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
