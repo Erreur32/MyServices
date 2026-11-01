@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.34.0 (2026-11-01)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **Agents**: the page now says when a Linux agent lacks the sudo right to read the services to restart or the Fail2ban bans, with a « Rights to complete » tile; the sudo box is already ticked in the new command of that agent.
 - **Settings, Requests**: SSH reads are now counted, per machine and per kind of read (health, Docker, ports, backups, Proxmox and so on), with their duration and errors.
