@@ -5,6 +5,7 @@ Docker restart loops) and the SSH collection in one connection.
 """
 import subprocess
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -91,6 +92,14 @@ class System(unittest.TestCase):
         off = health.parse_unattended(["I install ok installed", 'APT::Periodic::Unattended-Upgrade "0";'], NOW)
         self.assertNotIn("auto_upd", health.system_levels({"auto_upd": off}))
         self.assertFalse(health.parse_unattended([], NOW)["available"])
+
+    def test_mises_a_jour_automatiques_ligne_sans_gravite(self):
+        at = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(NOW - 3600))
+        harmless = f"X {at},649 ERROR failed to read deb file /var/lib/apt/lists/auxfiles/_etc_apt_mirrors_debian-security.list (E:Invalid archive signature)"
+        real_deb = f"X {at},650 ERROR failed to read deb file /var/cache/apt/archives/libnss3_3.110_amd64.deb (E:Invalid archive signature)"
+        real_other = f"X {at},651 ERROR The URI http://deb.debian.org/x failed to download, aborting"
+        self.assertEqual(health._uu_errors([harmless], NOW), [])
+        self.assertEqual(health._uu_errors([harmless, real_deb, real_other], NOW), [real_deb[2:], real_other[2:]])
 
     def test_snap_et_sessions(self):
         s = health.parse_snap(["Name     Version  Rev   Size  Publisher  Notes", "firefox  131.0    5000  80MB  mozilla**  -"])
