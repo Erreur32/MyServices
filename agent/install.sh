@@ -11,6 +11,7 @@
 #   MSV_NPM=/path/npm-api.sh  read this Nginx Proxy Manager through its script, as the owner of the script (exact sudo rules, one per list)
 #   MSV_NPM=install    download npm-api.sh (fixed version, checked) for the agent alone; MSV_NPM_URL (default http://127.0.0.1:81), and the NPM
 #                      account from MSV_NPM_USER and MSV_NPM_PASS or asked on the terminal; it stays in a file only the agent reads
+#   MSV_DNS=1          read the local DNS records as root, through one script set here (AdGuard Home, Pi-hole, dnsmasq, Unbound, found on the machine)
 #   MSV_BACKUPS=1      read the backup folders as root, through one script set here; MSV_BACKUP_DIRS=/a,/b adds folders to the list it accepts
 #   MSV_SMART=1        allow `sudo -n smartctl -H /dev/*` for the agent user (SMART health of the disks)
 #   MSV_SUDO=1         allow the three read-only commands that need root, each alone (exact sudo rules): services to restart after an
@@ -26,6 +27,7 @@ UNIT=myservices-agent
 SUDOERS=/etc/sudoers.d/myservices-agent
 SCAN_DIR=/usr/local/lib/myservices-agent
 SCAN="$SCAN_DIR/backup-scan.py"
+DNS_SCAN="$SCAN_DIR/dns-scan.py"
 ETC_DIR=/etc/myservices-agent
 OLD_SUDOERS=/etc/sudoers.d/myservices-agent-smart   # name used up to agent 3 (SMART only)
 
@@ -74,8 +76,10 @@ BACKUP_DIRS=${MSV_BACKUP_DIRS:-}
 for d in ${BACKUP_DIRS//,/ }; do
   [[ "$d" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "MSV_BACKUP_DIRS: full paths separated by commas, no space"
 done
-if (( BACKUPS )); then
-  command -v sudo >/dev/null || die "MSV_BACKUPS needs sudo on this machine"
+DNS=0
+[[ "${MSV_DNS:-}" = 1 ]] && DNS=1
+if (( BACKUPS || DNS )); then
+  command -v sudo >/dev/null || die "MSV_BACKUPS and MSV_DNS need sudo on this machine"
 fi
 if [[ "$NPM" = install ]]; then
   NPM_INSTALL=1
@@ -149,10 +153,19 @@ if (( BACKUPS )); then
   ok "Backup scan installed, folders in $ETC_DIR/backup-dirs"
 fi
 
+if (( DNS )); then
+  mkdir -p "$SCAN_DIR"
+  curl -fsSL "$URL/agent/dns-scan.py" -o "$TMP" || die "Cannot download the DNS scan from $URL"
+  python3 -m py_compile "$TMP" || die "The downloaded DNS scan has syntax errors"
+  install -o root -g root -m 644 "$TMP" "$DNS_SCAN"
+  ok "DNS scan installed"
+fi
+
 # Config: the token is in it, so only the agent account (and root) can read it
 NPM_JSON=""
 [[ -n "$NPM" ]] && NPM_JSON=$(printf ', "npm": {"path": "%s", "user": "%s"}' "$NPM" "$NPM_USER")
 (( BACKUPS )) && NPM_JSON+=$(printf ', "backups": {"python": "%s", "script": "%s"}' "$(command -v python3)" "$SCAN")
+(( DNS )) && NPM_JSON+=$(printf ', "dns": {"python": "%s", "script": "%s"}' "$(command -v python3)" "$DNS_SCAN")
 ( umask 077; printf '{"url": "%s", "token": "%s", "interval": %d%s}\n' "$URL" "$TOKEN" $((MINUTES * 60)) "$NPM_JSON" > "$DIR/config.json" )
 chown "$USER_NAME:$USER_NAME" "$DIR/config.json"
 chmod 600 "$DIR/config.json"
@@ -174,6 +187,7 @@ if [[ "${MSV_SUDO:-}" = 1 ]]; then
     p=$(command -v "$t" || true); [[ -n "$p" ]] && RULES+=("$p list --format json")
   done
 fi
+(( DNS )) && RULES+=("$(command -v python3) $DNS_SCAN")
 if (( BACKUPS )); then
   RULES+=("$(command -v python3) $SCAN")
   PROTECT_HOME=read-only   # sudo stays in the sandbox of the service: even root would not see /home otherwise

@@ -346,6 +346,39 @@ class LinuxAgentScripts(unittest.TestCase):
             ns["backup_scan"](conf, 1000 + ns["BACKUP_EVERY"])
             self.assertEqual(len(calls), 3)                    # other folders
 
+    def test_scan_dns_lit_les_outils_sans_les_comptes(self):
+        ns = {"__name__": "dns_test"}
+        exec(compile(agents.script("dns-scan.py"), "dns-scan.py", "exec"), ns)
+        yaml = "users:\n  - name: admin\n    password: $2a$secret\nfiltering:\n  rewrites:\n    - domain: A.lan\n      answer: 10.0.0.1\n  user_rules:\n    - '||x.com^'\n"
+        ns["read"] = lambda p: yaml if p == ns["ADGUARD_FILES"][0] else None
+        got = ns["adguard"]({})
+        self.assertEqual([x["domain"] for x in got["rewrites"]], ["a.lan"])
+        self.assertEqual(got["user_rules"], ["||x.com^"])
+        self.assertNotIn("secret", json.dumps(got))
+        toml = 'x = 1\n  hosts = [\n    "10.0.0.2 nas.lan nas",\n    "10.0.0.3 tv.lan"\n  ] ### CHANGED\n'
+        self.assertEqual([(x["domain"], x["answer"]) for x in ns["pihole_records"](toml, "10.0.0.4 old.lan\n")],
+                         [("nas.lan", "10.0.0.2"), ("nas", "10.0.0.2"), ("tv.lan", "10.0.0.3"), ("old.lan", "10.0.0.4")])
+        self.assertEqual([(x["domain"], x["answer"]) for x in ns["dnsmasq_records"]("address=/a.lan/10.0.0.5\n#address=/b/1\nhost-record=c.lan,10.0.0.6\n")],
+                         [("a.lan", "10.0.0.5"), ("c.lan", "10.0.0.6")])
+        self.assertEqual([(x["domain"], x["answer"]) for x in ns["unbound_records"]('  local-data: "d.lan. 3600 IN A 10.0.0.7"\n  local-data: "e.lan A 10.0.0.8"\n')],
+                         [("d.lan", "10.0.0.7"), ("e.lan", "10.0.0.8")])
+
+    def test_connecteur_dns_agent_reunit_les_outils_et_adguard_passe_par_l_agent(self):
+        from unittest import mock
+        from connectors import adguard
+        tools = {"pihole": {"rewrites": [{"domain": "a", "answer": "1", "enabled": True}], "user_rules": []}, "adguard": {"rewrites": [], "user_rules": ["r"], "version": "0.107"}}
+        c = adguard.LocalDns({"name": "x", "ip": "10.0.0.2"}, mock.Mock())
+        with mock.patch.object(adguard, "agent_dns", return_value=tools):
+            got = c.collect()
+            self.assertEqual((got["tools"], got["user_rules"]), (["adguard", "pihole"], ["r"]))
+            ssh = mock.Mock()
+            ag = adguard.AdGuard({"name": "x", "ip": "10.0.0.2", "ssh": "nas", "target": "c"}, ssh)
+            self.assertEqual(ag.collect()["user_rules"], ["r"])
+            self.assertEqual(ag.version(), "0.107")
+            ssh.ssh.assert_not_called()
+        with mock.patch.object(adguard, "agent_dns", return_value={}), self.assertRaisesRegex(adguard.ConnectorError, "case DNS"):
+            c.collect()
+
     def test_install_sh_regles_npm_exactes(self):
         from msv.remote import npmapi
         text = agents.script("install.sh")

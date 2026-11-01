@@ -254,6 +254,12 @@ def agent_script(name: str):
     return Response(agents.script(name + ".ps1"), media_type=PLAIN)
 
 
+@router.get("/agent/dns-scan.py", tags=["agents"], summary="Lecture root du DNS local de l'agent Linux (sans secret)")
+def agent_dns_scan():
+    from msv.machines import agents
+    return Response(agents.script("dns-scan.py"), media_type=PLAIN)
+
+
 @router.get("/agent/backup-scan.py", tags=["agents"], summary="Lecture root des sauvegardes de l'agent Linux (sans secret)")
 def agent_backup_scan():
     from msv.machines import agents

@@ -555,6 +555,11 @@ def _h(raw: str) -> str:
 def script(name: str) -> str:
     """agent.ps1 (relevé de health.WIN_PS inclus : une seule source pour SSH et agent) ou install.ps1, tels que servis.
     ASCII seulement : Windows PowerShell 5.1 lit un script sans BOM en ANSI."""
+    if name == "dns-scan.py":
+        import inspect
+        from connectors import adguard
+        head, _, tail = (SCRIPTS / name).read_text(encoding="utf-8").partition("\n\ndef rec(")
+        return head + "\n\n" + "\n\n".join(inspect.getsource(f) for f in (adguard._scalar, adguard.normalize, adguard.parse_yaml)) + "\n\ndef rec(" + tail
     if name == "backup-scan.py":
         from msv.backups import backups
         return backups.SCAN_HEAD + backups.AGENT

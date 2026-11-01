@@ -24,7 +24,7 @@ export function outsideProblem(url: string): "private" | "clear" | null {
 }
 
 /** Options of a Linux agent, the variables of agent/install.sh. `npm`: absent = not read, empty = have the script installed, else its path */
-export interface AgentOptions { sudo?: boolean; backups?: boolean; backupDirs?: string; npm?: string; npmUrl?: string }
+export interface AgentOptions { sudo?: boolean; dns?: boolean; backups?: boolean; backupDirs?: string; npm?: string; npmUrl?: string }
 
 const SAFE_PATH = /^\/[A-Za-z0-9._/-]+$/;   // what the installer accepts; nothing else goes in a command to paste
 const NPM_URL = /^http:\/\/[A-Za-z0-9.-]+(:\d{1,5})?$/;
@@ -41,7 +41,7 @@ export function npmProblem({ npm, npmUrl }: AgentOptions): boolean {
 
 function linuxEnv(o: AgentOptions): string {
   const dirs = o.backups ? backupDirs(o.backupDirs ?? "") : [], path = o.npm?.trim(), address = (o.npmUrl ?? "").trim();
-  const env = [o.sudo && "MSV_SUDO=1", o.backups && "MSV_BACKUPS=1", dirs.length > 0 && `MSV_BACKUP_DIRS=${dirs.join(",")}`];
+  const env = [o.sudo && "MSV_SUDO=1", o.dns && "MSV_DNS=1", o.backups && "MSV_BACKUPS=1", dirs.length > 0 && `MSV_BACKUP_DIRS=${dirs.join(",")}`];
   if (o.npm !== undefined && !npmProblem(o)) env.push(`MSV_NPM=${path || "install"}`, !path && address !== "" && `MSV_NPM_URL=${address}`);
   return env.filter(Boolean).map((v) => `${v} `).join("");
 }

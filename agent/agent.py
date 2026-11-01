@@ -32,6 +32,7 @@ SMART_FMT = __SMART_FMT__
 CACHED = __CACHED__                      # {command: seconds}: outputs kept and sent again for that long instead of running the command
 SMART_CACHE = __SMART_CACHE__            # seconds: SMART of each disk
 NPM_LISTS = __NPM_LISTS__                # options of npm-api.sh, read when the install gave its path (MSV_NPM)
+DNS_EVERY = 3600                         # seconds between two reads of the local DNS records
 BACKUP_EVERY = 6 * 3600                  # seconds between two scans of the backup folders (kept and sent again meanwhile)
 NPM_MAX = 200000                         # characters of one NPM list (the server limit)
 # The only lines of an advanced config the server needs; the others can hold secrets and stay on the machine
@@ -40,6 +41,7 @@ DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(DIR, "agent.log")
 CACHE_PATH = os.path.join(DIR, "cache.json")
 BACKUP_STATE = os.path.join(DIR, "backups.json")   # what to read, and the last result
+DNS_STATE = os.path.join(DIR, "dns.json")
 MAX_OUT = 50000                          # characters kept per command (the server accepts 60000)
 MAX_BODY = 240 * 1024                    # bytes: compressed report size kept under the server limit (256 KiB)
 CUT_TO = 12000                           # characters an output is cut to, longest first, when the report is still too big
@@ -104,6 +106,27 @@ def run_cached(cmd, timeout, ttl, cache, now):
     return rc, out
 
 
+def root_script(conf, stdin, timeout):
+    """[rc, output] of a script set by the installer as root, through its exact sudo rule."""
+    try:
+        r = subprocess.run(["sudo", "-n", str(conf.get("python")), str(conf.get("script"))], input=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return [1, str(e)[:500]]
+    if r.returncode != 0:
+        return [r.returncode, r.stderr.decode("utf-8", "replace")[-500:]]
+    text = r.stdout.decode("utf-8", "replace")
+    return [0, text] if len(text) <= NPM_MAX else [1, "answer too long"]
+
+
+def dns_scan(conf, now):
+    state = load_cache(DNS_STATE)
+    if now - state.get("at", 0) < DNS_EVERY and state.get("result"):
+        return state["result"]
+    result = root_script(conf, b"", 60)
+    save_cache({"at": now, "result": result}, DNS_STATE)
+    return result
+
+
 def backup_scan(conf, now):
     """[rc, output] of the root scan of the backup folders, every BACKUP_EVERY or when the server asks for other folders. The scan is the script
     set by the installer, through its exact sudo rule; it refuses any folder outside the list kept on this machine, whatever the server asks."""
@@ -114,15 +137,7 @@ def backup_scan(conf, now):
     # Followed folders only: the archive names to look for change with every backup
     if state.get("scanned") == req.get("locs") and now - state.get("at", 0) < BACKUP_EVERY and state.get("result"):
         return state["result"]
-    try:
-        r = subprocess.run(["sudo", "-n", str(conf.get("python")), str(conf.get("script"))], input=json.dumps(req).encode("utf-8"),
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=270)
-        text = r.stdout.decode("utf-8", "replace")
-        result = [r.returncode, text] if r.returncode == 0 else [r.returncode, r.stderr.decode("utf-8", "replace")[-500:]]
-    except (OSError, subprocess.TimeoutExpired) as e:
-        result = [1, str(e)[:500]]
-    if len(result[1]) > NPM_MAX:
-        result = [1, "backup scan: answer too long"]
+    result = root_script(conf, json.dumps(req).encode("utf-8"), 270)
     state.update(scanned=req.get("locs"), at=now, result=result)
     save_cache(state, BACKUP_STATE)
     return result
@@ -282,6 +297,8 @@ def main():
     cmds = collect()
     if isinstance(cfg.get("npm"), dict):
         cmds.update(npm_lists(cfg["npm"]))
+    if isinstance(cfg.get("dns"), dict):
+        cmds["dns"] = dns_scan(cfg["dns"], time.time())
     if isinstance(cfg.get("backups"), dict):
         scan = backup_scan(cfg["backups"], time.time())
         if scan:

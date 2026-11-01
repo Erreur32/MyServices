@@ -47,6 +47,8 @@ def _ssh_uses(machines: dict) -> dict[str, list[str]]:
         declared = connectors.declared(core.CFG)
     except connectors.ConnectorError:
         declared = []
+    from connectors.adguard import agent_dns
+    machines = {ip: ({k: v for k, v in m.items() if k != "adguard"} if m.get("adguard") and agent_dns(ip).get("adguard") else m) for ip, m in machines.items()}
     return access_advice.ssh_uses(machines, declared, hosts if isinstance(hosts, list) else [], (read_produced(core.DATA_FILE) or {}).get("virtualization") or [])
 
 

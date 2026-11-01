@@ -197,6 +197,8 @@ For Linux machines, the Linux agent (Python 3.6+, systemd) gives the same inform
 
 **Backups.** Tick the backups box when creating the agent (`MSV_BACKUPS=1` in the command): a root script set by the installer reads the followed folders (names, sizes, dates, never the content) and refuses any folder outside the list kept on the machine, `/etc/myservices-agent/backup-dirs`. `/home/backup`, `/var/backups`, `/backup` and `/backups` are in it; `MSV_BACKUP_DIRS=/a,/b` adds others. New folders, Proxmox dumps and copies are found the same way, and SSH stays the fallback.
 
+**Local DNS.** Tick the DNS box when creating the agent (`MSV_DNS=1`): a root script finds AdGuard Home, Pi-hole, dnsmasq and Unbound on the machine, native or in Docker, and sends only their records and rules. An AdGuard already followed then needs no SSH; for the others, add the connector **Local DNS (through the agent)**. Technitium is read through its API.
+
 **Hypervisors.** With the sudo box ticked, the agent reads KVM, Incus and LXD. VirtualBox, Proxmox and ESXi stay read over SSH or their API.
 
 **Nginx Proxy Manager.** On a machine that has [npm-api.sh](https://github.com/Erreur32/nginx-proxy-manager-Bash-API), tick the NPM box when creating the agent and give the path of the script (`MSV_NPM=<path>`), or leave it empty to have it set up (`MSV_NPM=install`, with the NPM account asked on the terminal and kept on the machine) and pick the connector mode **Through the agent of the machine**: the agent reads NPM as the owner of the script (exact sudo rules), MyServices needs neither SSH nor an NPM account, and only the lines of the advanced configs its checks use leave the machine.

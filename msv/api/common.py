@@ -89,7 +89,7 @@ COOKIE, CSRF_COOKIE = "ms_session", "ms_csrf"
 
 
 # Accessibles sans session : page de connexion et ce qu'elle charge, connexion, santé du conteneur
-PUBLIC = {"/healthz", "/agent/backup-scan.py", "/agent/install.ps1", "/agent/agent.ps1", "/agent/install.sh", "/agent/agent.py", "/login.html", "/login.js", "/login.css", "/favicon.svg",
+PUBLIC = {"/healthz", "/agent/dns-scan.py", "/agent/backup-scan.py", "/agent/install.ps1", "/agent/agent.ps1", "/agent/install.sh", "/agent/agent.py", "/login.html", "/login.js", "/login.css", "/favicon.svg",
           API + "/login", API + "/setup", API + "/password/forgot", API + "/password/reset"}
 
 

@@ -198,6 +198,8 @@ Pour les machines Linux, l'agent Linux (Python 3.6+, systemd) donne les mêmes i
 
 **Sauvegardes.** Cochez la case sauvegardes à la création de l'agent (`MSV_BACKUPS=1` dans la commande) : un script root posé par l'installation lit les dossiers suivis (noms, tailles, dates, jamais le contenu) et refuse tout dossier absent de la liste gardée sur la machine, `/etc/myservices-agent/backup-dirs`. `/home/backup`, `/var/backups`, `/backup` et `/backups` y sont ; `MSV_BACKUP_DIRS=/a,/b` en ajoute d'autres. Nouveaux dossiers, sauvegardes Proxmox et copies sont trouvés de la même façon, et le SSH reste le relais.
 
+**DNS local.** Cochez la case DNS à la création de l'agent (`MSV_DNS=1`) : un script root trouve AdGuard Home, Pi-hole, dnsmasq et Unbound sur la machine, natifs ou en Docker, et n'envoie que leurs enregistrements et règles. Un AdGuard déjà suivi n'a alors plus besoin du SSH ; pour les autres, ajoutez le connecteur **DNS local (par l'agent)**. Technitium est lu par son API.
+
 **Hyperviseurs.** Avec la case sudo cochée, l'agent lit KVM, Incus et LXD. VirtualBox, Proxmox et ESXi restent lus par SSH ou par leur API.
 
 **Nginx Proxy Manager.** Sur une machine qui a [npm-api.sh](https://github.com/Erreur32/nginx-proxy-manager-Bash-API), cochez la case NPM à la création de l'agent et donnez le chemin du script (`MSV_NPM=<chemin>`), ou laissez-le vide pour le faire poser (`MSV_NPM=install`, le compte NPM étant demandé dans le terminal et gardé sur la machine) et choisissez le mode de connecteur **Par l'agent de la machine** : l'agent lit NPM avec le compte propriétaire du script (règles sudo exactes), MyServices n'a besoin ni du SSH ni d'un compte NPM, et seules les lignes des configurations avancées utiles aux contrôles quittent la machine.
