@@ -2,12 +2,13 @@
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating.
 
-**0.34.2** (1 November 2026) shows what each agent reads, and fixes the new command of the Agents page.
+**0.34.2** (1 November 2026) shows what each agent reads, suggests the agent for Nginx Proxy Manager, and fixes the new command of the Agents page.
 
 ## For everyone
 
 **What's new?**
 - **Options column on the Agents page**: every box of a Linux agent's install, ticked or not, so you can tell whether a new command is needed without creating one. The same list is on the machine's Access page.
+- **Nginx Proxy Manager connector**: when the agent of its machine already reads NPM, the « Machine agent » button turns green and pulses, with a message saying why. One click and NPM is no longer read twice.
 - **New command fixed**: on the Agents page, the frame with the boxes and the command closed by itself once the token had changed, and the new token was lost. It now stays open.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing else to do. See [MIGRATION.md](MIGRATION.md).

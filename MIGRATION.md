@@ -7,7 +7,7 @@ Keep a copy of `config/` and `data/` before any update.
 
 ## 0.34.1 → 0.34.2
 
-**Nothing to do.** No setting, volume, agent or database change. The Agents page gets an Options column, filled once an agent is in version 8.
+**Nothing to do.** No setting, volume, agent or database change. The Agents page gets an Options column, filled once an agent is in version 8. The NPM mode « Through the agent of the machine » is now called « Machine agent »; saved connectors keep working.
 
 ## 0.34.0 → 0.34.1
 
