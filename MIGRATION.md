@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.34.0 → 0.34.1
+
+**Nothing to do.** No setting, volume or database change. Linux agents update themselves to version 8 when automatic update is on. After that, Create a new command opens with the boxes of what the agent already reads ticked. A port wrongly shown down on a machine with a root agent (Docker ports such as 80 and 443) comes back at the next collection.
+
 ## 0.33.6 → 0.34.0
 
 **Nothing to change for the update itself.** No setting, volume or database change. Linux agents update themselves to version 7 when automatic update is on; adguardhome-sync, on a machine whose agent has Docker access, then needs nothing more.

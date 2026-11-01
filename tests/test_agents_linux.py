@@ -357,6 +357,33 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertEqual(subprocess.run(["bash", "-n"], input=text.encode(), check=False).returncode, 0)
         self.assertIn("$BORG_UNIT.timer", text)
 
+    def test_options_de_l_installation_sans_jeton(self):
+        import tempfile as tf
+        ns = {"__name__": "agent_test", "__file__": "agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        with tf.TemporaryDirectory() as d:
+            ns.update(DIR=d, SUDO_STATE=str(Path(d, "sudo.json")), BACKUP_DIRS=str(Path(d, "dirs")))
+            Path(d, "dirs").write_text("/home/backup\n/backup\n/mnt/nas\n")
+            calls = []
+            ns["run"] = lambda cmd, timeout: calls.append(cmd) or (0, "    (root) NOPASSWD: /usr/sbin/needrestart -b -r l\n")
+            cfg = {"token": "msv_agent_secret", "dns": {}, "backups": {}, "borgmatic": True, "npm": {"path": d + "/npm/npm-api.sh"}}
+            got = ns["install_options"](cfg, 100000)
+            ns["install_options"](cfg, 101000)
+            self.assertEqual(len(calls), 1)    # one line in the system log, not one per report
+            self.assertEqual(got, {"sudo": True, "dns": True, "borgmatic": True, "backups": True, "backupDirs": ["/mnt/nas"], "npm": ""})
+            self.assertNotIn("secret", json.dumps(got))
+            self.assertEqual(ns["install_options"]({"npm": {"path": "/srv/npm-api.sh"}}, 100000 + ns["SUDO_EVERY"])["npm"], "/srv/npm-api.sh")
+
+    def test_options_lues_par_le_serveur_sans_chemin_dangereux(self):
+        rep = lambda o: {"data": {"cmds": {"options": [0, json.dumps(o)]}}}  # noqa: E731
+        self.assertEqual(agents.options_of(rep({"sudo": True, "dns": False, "backups": True, "backupDirs": ["/mnt/nas", "/x; rm", 3], "npm": "/a/npm-api.sh"})),
+                         {"sudo": True, "backups": True, "backupDirs": "/mnt/nas", "npm": "/a/npm-api.sh"})
+        self.assertEqual(agents.options_of(rep({"npm": "/a;reboot", "dns": "yes"})), {})
+        self.assertEqual(agents.options_of(rep({"npm": ""})), {"npm": ""})
+        self.assertEqual(agents.options_of(None), {})
+        self.assertEqual(agents.options_of({"data": {"cmds": {"options": [0, "not json"]}}}), {})
+        self.assertEqual(agents.options_of(rep(["x"])), {})
+
     def test_scan_dns_lit_les_outils_sans_les_comptes(self):
         ns = {"__name__": "dns_test"}
         exec(compile(agents.script("dns-scan.py"), "<dns-scan>", "exec"), ns)

@@ -43,6 +43,10 @@ LOG_PATH = os.path.join(DIR, "agent.log")
 CACHE_PATH = os.path.join(DIR, "cache.json")
 BACKUP_STATE = os.path.join(DIR, "backups.json")   # what to read, and the last result
 DNS_STATE = os.path.join(DIR, "dns.json")
+SUDO_STATE = os.path.join(DIR, "sudo.json")
+SUDO_EVERY = 6 * 3600                    # seconds between two checks of the sudo rules (each one is a line in the system log)
+BACKUP_DIRS = "/etc/myservices-agent/backup-dirs"
+BACKUP_DEFAULT_DIRS = ("/home/backup", "/var/backups", "/backup", "/backups")   # always in that list (install.sh)
 BORGMATIC_FILE = "/var/lib/myservices-agent/borgmatic.json"   # left by the root timer of the install (MSV_BORGMATIC=1): Borg cannot run in this sandbox
 MAX_OUT = 50000                          # characters kept per command (the server accepts 60000)
 MAX_BODY = 240 * 1024                    # bytes: compressed report size kept under the server limit (256 KiB)
@@ -158,6 +162,34 @@ def keep_backup_request(req):
     if state.get("req") != req:
         state["req"] = req
         save_cache(state, BACKUP_STATE)
+
+
+def has_sudo(now):
+    """True when the install gave the sudo rules (MSV_SUDO): needrestart is always one of them."""
+    state = load_cache(SUDO_STATE)
+    if now - state.get("at", 0) >= SUDO_EVERY:
+        state = {"at": now, "on": "needrestart" in run("sudo -n -l", 10)[1]}
+        save_cache(state, SUDO_STATE)
+    return bool(state.get("on"))
+
+
+def extra_backup_dirs():
+    try:
+        with open(BACKUP_DIRS) as f:
+            return [d for d in f.read().split() if d not in BACKUP_DEFAULT_DIRS]
+    except OSError:
+        return []
+
+
+def install_options(cfg, now):
+    """What this install reads, so that the page ticks the same boxes for its next command. Options and paths only, never the token."""
+    out = {"sudo": has_sudo(now), "dns": isinstance(cfg.get("dns"), dict), "borgmatic": bool(cfg.get("borgmatic")), "backups": isinstance(cfg.get("backups"), dict)}
+    if out["backups"]:
+        out["backupDirs"] = extra_backup_dirs()
+    if isinstance(cfg.get("npm"), dict):
+        path = str(cfg["npm"].get("path"))
+        out["npm"] = "" if path.startswith(DIR + os.sep) else path   # empty: set by the install, as the box says
+    return out
 
 
 def npm_clean(opt, text):
@@ -318,6 +350,7 @@ def main():
         scan = backup_scan(cfg["backups"], time.time())
         if scan:
             cmds["backups"] = scan
+    cmds["options"] = [0, json.dumps(install_options(cfg, time.time()))]
     body = pack({"version": VERSION, "os": os_name(), "host": socket.gethostname(), "interval": int(cfg.get("interval") or 900)}, cmds)
     answer = send(cfg, body)
     if answer is None:

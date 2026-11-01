@@ -49,6 +49,17 @@ describe("commande d'installation de l'agent", () => {
     expect(npmProblem({})).toBe(false);
   });
 
+  it("adds the plain-http choice only for an address the installer would refuse", () => {
+    const cmd = (url: string, kind: "linux" | "windows", allowHttp = true) => installCommand(url, "msv_agent_x", kind, { allowHttp, sudo: true });
+    expect(cmd("http://203.0.113.7:8032", "linux")).toContain("sudo env MSV_ALLOW_HTTP=1 MSV_SUDO=1 MSV_URL=");
+    expect(cmd("http://203.0.113.7:8032", "windows")).toContain("$env:MSV_ALLOW_HTTP = '1'\n$env:MSV_URL");
+    expect(cmd("http://203.0.113.7:8032", "linux", false)).not.toContain("ALLOW_HTTP");
+    for (const url of ["https://ms.example.org", "http://192.168.1.10:8090", "http://100.100.1.1:8090"]) {
+      expect(cmd(url, "linux"), url).not.toContain("ALLOW_HTTP");
+      expect(cmd(url, "windows"), url).not.toContain("ALLOW_HTTP");
+    }
+  });
+
   it("tells a machine outside the network from one inside", () => {
     expect(isPublicIp("203.0.113.7")).toBe(true);
     for (const ip of ["192.168.1.10", "10.0.0.2", "172.16.0.1", "100.100.1.1", "ms.lan"]) expect(isPublicIp(ip), ip).toBe(false);

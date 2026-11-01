@@ -64,7 +64,8 @@ class SaveAndSwitch(unittest.TestCase):
         d = Path(tmp.name)
         self.file = d / "config.json"
         self.file.write_text(json.dumps({"connectors": []}))
-        for p in (mock.patch.object(settings, "config_file", return_value=self.file),
+        for p in (mock.patch.object(routes_services, "_tests_file", return_value=d / "connectors-tests.json"),   # the config is reloaded in place by each save
+                  mock.patch.object(settings, "config_file", return_value=self.file),
                   mock.patch.object(routes_services, "reread_connector")):
             self.reread = p.start()
             self.addCleanup(p.stop)
@@ -89,6 +90,7 @@ class SaveAndSwitch(unittest.TestCase):
         self.assertTrue(out["enabled"])
         self.assertEqual(settings.names("beszel"), ["hub"])
         self.reread.assert_called_once()
+        self.assertEqual(routes_services._tests()["beszel/hub"]["message"], "1 système(s)")   # the card shows it at once
 
     def test_failing_test_saves_switched_off(self):
         out, _ = self.save((False, "HTTP 400"))
@@ -112,9 +114,13 @@ class SaveAndSwitch(unittest.TestCase):
         self.assertEqual(r.status_code, 409)
         self.assertIn("injoignable", r.text)
         self.assertEqual(settings.names("beszel"), [])
+        self.assertNotIn("beszel/hub", routes_services._tests())
         with mock.patch.object(settings, "check_saved", return_value=(True, "ok")):
             self.assertEqual(self.c.patch(url, json={"enabled": True}, headers=self.h).status_code, 200)
         self.assertEqual(settings.names("beszel"), ["hub"])
+        self.assertEqual(routes_services._tests()["beszel/hub"]["message"], "ok")
+        settings.set_enabled("beszel", "hub", False)
+        self.assertEqual(self.c.patch(url, json={"enabled": True, "force": True}, headers=self.h).status_code, 200)   # forced: no fresh test to show
 
 
 if __name__ == "__main__":

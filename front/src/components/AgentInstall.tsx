@@ -19,7 +19,7 @@ import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 export type AgentKind = "windows" | "linux";
 
 /** Machine pour laquelle on installe : `choose` laisse changer le type, `auto` crée l'agent tout de suite (nouvelle commande) */
-export interface InstallTarget { ip: string; name: string; kind: AgentKind; choose?: boolean; auto?: boolean; sudo?: boolean }
+export interface InstallTarget { ip: string; name: string; kind: AgentKind; choose?: boolean; auto?: boolean; sudo?: boolean; options?: AgentOptions }
 
 // Exemple d'adresse du LAN : en local il n'y a pas de TLS, http est voulu
 const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
@@ -52,7 +52,7 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
   // Adresse de MyServices vue de la machine : par défaut celle de la page ; le champ ne s'affiche que pour la corriger
   const [url, setUrl] = useState(location.origin);
   const [created, setCreated] = useState<{ info: AgentInfo; token: string } | null>(null);   // jeton gardé en mémoire de la page seulement
-  const [options, setOptions] = useState<AgentOptions>({ sudo: !!target.sudo });
+  const [options, setOptions] = useState<AgentOptions>({ ...target.options, sudo: !!target.sudo || !!target.options?.sudo });
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [agents, setAgents] = useState<AgentsState | null>(null);
   const command = created ? installCommand(url, created.token, created.info.kind, options) : null;   // suit le champ « Adresse » même après la création
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
@@ -95,6 +95,10 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
       {away && problem === "private" && <p className="mt-2 text-sm text-warn">{tx("Cette machine est hors de votre réseau : elle ne joindra pas cette adresse. Mettez une adresse qu'elle peut joindre, par exemple celle d'un VPN (Tailscale, WireGuard). Sans cela, gardez l'accès SSH.")}</p>}
       {away && <p className="mt-2 text-sm text-muted">{tx("Machine hors de votre réseau : une fois l'agent créé, MyServices accepte cette adresse pour l'envoi des relevés et l'installation, rien d'autre (ni la page, ni l'API). Ouvrez le port sur votre box pour cette seule adresse : il lui faut une IP fixe, sinon passez par un VPN. Révoquer l'agent retire cet accès.")}</p>}
       {problem === "clear" && <p className="mt-2 text-sm text-warn">{tx("Cette adresse passe par internet en clair : le jeton de l'agent serait lisible, et l'installation la refusera. Utilisez https ou un VPN.")}</p>}
+      {problem === "clear" && <label className="mt-2 flex items-start gap-2 text-sm text-muted">
+        <input type="checkbox" className="mt-1" checked={!!options.allowHttp} onChange={(e) => setOptions({ ...options, allowHttp: e.target.checked })} />
+        <span>{tx("Accepter quand même cette adresse en http : l'adresse et le port sont directs et filtrés sur ma box. Le jeton et les relevés restent lisibles sur le trajet.")}</span>
+      </label>}
     </div>
   );
 

@@ -97,7 +97,7 @@ function AgentActions({ a, kind, onChanged, onInstall }: Readonly<{ a: AgentInfo
           {confirm !== "" && <>
             <span className="text-xs text-muted">{confirm === "renew" ? tx("L'ancien jeton cessera de marcher.") : tx("La machine n'enverra plus rien.")}</span>
             <button type="button" className={danger} onClick={() => {
-              if (confirm === "renew") { setConfirm(""); onInstall({ ip: a.ip, name: a.name, kind: a.kind ?? kind, auto: true, sudo: !!a.rights?.length || !!a.gaps?.includes("sudo") }); }
+              if (confirm === "renew") { setConfirm(""); onInstall({ ip: a.ip, name: a.name, kind: a.kind ?? kind, auto: true, sudo: !!a.rights?.length || !!a.gaps?.includes("sudo"), options: a.options }); }
               else void act(() => send("DELETE", `agents/${a.id}`), tx("révoqué"), setNote).then((ok) => ok && onChanged());
             }}>{tx("Confirmer")}</button>
             <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
@@ -234,7 +234,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         <InfoNote className="mb-2">{tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}</InfoNote>
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {s.revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={install?.ip === a.ip && !!install.auto}
-            onNew={() => setInstall({ ip: a.ip, name: machines[a.ip]?.name ?? a.name, kind: a.kind ?? "windows", auto: true })} reload={reload} />)}
+            onNew={() => setInstall({ ip: a.ip, name: machines[a.ip]?.name ?? a.name, kind: a.kind ?? "windows", auto: true, options: a.options })} reload={reload} />)}
         </ul>
       </FoldPanel>}
     </div>

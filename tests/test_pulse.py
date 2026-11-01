@@ -11,12 +11,22 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from connectors import process  # noqa: E402
 from msv.collect import pulse  # noqa: E402
 from msv.collect import watcher  # noqa: E402
 
 
 class AgentPorts(unittest.TestCase):
     row = {"enabled": True, "ip": "10.0.0.5", "port": 22, "backend": {"up": True}, "web": "none"}
+
+    def test_port_missing_from_the_report_is_not_read_by_the_agent(self):
+        ss = ('LISTEN 0 4096 0.0.0.0:80 0.0.0.0:* users:(("docker-proxy",pid=7,fd=4))\n'
+              'LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=9,fd=3))\n')
+        listening = {"10.0.0.5": set(process.parse_listening(ss)[0])}   # a root agent: docker-proxy is left out of its ports
+        self.assertTrue(pulse.read_by_agent(self.row, listening))
+        self.assertFalse(pulse.read_by_agent({**self.row, "port": 80}, listening))   # the bug: :80 and :443 of a root agent shown as down
+        self.assertFalse(pulse.read_by_agent({**self.row, "web": "ui"}, listening))
+        self.assertFalse(pulse.read_by_agent(self.row, {}))
 
     def test_silent_port_followed_only_when_read_by_the_agent(self):
         self.assertIsNone(pulse.port_of(self.row))

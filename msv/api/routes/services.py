@@ -433,12 +433,17 @@ def last_statuses() -> list[dict]:
     except ValueError:
         at = 0
     saved = {k: v for k, v in _saved().items() if v > at}
+    tests = _tests()
     rows = list(data.get("connectors", []))
     from msv.collect import fast
     rows += fast.statuses_missing(fast.read(core.WEB / "live.json"), {(st.get("type"), st.get("name")) for st in rows})   # read lightly, never by the collection
-    tests = _tests()
     rows = [_with_test(st, tests.get(f"{st.get('type')}/{st.get('name')}"), at) for st in rows]
-    return [{**st, "pending": True} if f"{st.get('type')}/{st.get('name')}" in saved else st for st in rows]
+    return [{**st, "pending": True} if _pending(f"{st.get('type')}/{st.get('name')}", saved, tests) else st for st in rows]
+
+
+def _pending(key: str, saved: dict, tests: dict) -> bool:
+    """Saved since the last collection and not tested since: the card says it is being read again (a test made since the save is already the state)."""
+    return key in saved and tests.get(key, {}).get("at", 0) < saved[key]
 
 
 def _tests_file() -> Path:
@@ -455,8 +460,12 @@ def _tests() -> dict[str, dict]:
 
 def _with_test(st: dict, test: dict | None, generated: float) -> dict:
     """A test made from the page, newer than the last collection (or on a connector the collection never reads), is the freshest state."""
-    if not test or (test["at"] <= generated and st.get("version")):
+    if not test:
         return st
+    if test["at"] <= generated:   # the collection is newer: it keeps the state (ok, message) and only gets what it does not read itself
+        if st.get("version"):
+            return st
+        return {**st, "version": test.get("version"), "version_tested": test.get("version_tested"), "found": st.get("found") or test.get("found") or []}
     return {**st, "ok": test["ok"], "message": test["message"], "stale": False, "version": test.get("version") or st.get("version"),
             "version_tested": test.get("version_tested"), "found": test.get("found") or st.get("found") or []}
 
@@ -558,13 +567,14 @@ def connector_save(type_: str, body: ConnectorConf, request: Request):
     if not body.collect:
         settings.set_enabled(type_, body.name, False)
         return {"ok": True, "enabled": False, "message": "enregistré sans collecte : l'allumer quand le service répond (un test passe d'abord)"}
-    ok, _ = settings.check_saved(type_, body.name)
+    ok, tested = settings.check_saved(type_, body.name)
     if not ok:   # never collect untested settings: saved, but the collection stays off until a test passes
         settings.set_enabled(type_, body.name, False)
         store().audit("connecteur coupé", request.state.user["username"], ip_of(request), f"{type_} {body.name} : test en échec")
         # the reason is shown by the page through the test route: no error text in this answer
         return {"ok": True, "enabled": False, "failed": True, "message": "enregistré, collecte coupée : le test a échoué"}
     reread_connector(type_, body.name, f"connecteur {type_} « {body.name} » enregistré")
+    remember_test(type_, body.name, {"ok": True, "message": tested})   # the card shows this reading at once, the collection takes over
     return {**out, "enabled": True, "message": "enregistré : relecture lancée, l'état se met à jour dans une minute"}
 
 
@@ -600,17 +610,20 @@ class Toggle(BaseModel):
 @router.patch(API + "/connectors/settings/{type_}/{name}", tags=["connecteurs"], summary="Allumer ou couper un connecteur (admin)")
 def connector_toggle(type_: str, name: str, body: Toggle, request: Request):
     from connectors import settings
+    tested = None
     if body.enabled and not body.force and not admin_write(request) and type_ in settings.TYPES:
         try:
-            ok, msg = settings.check_saved(type_, name)
+            ok, tested = settings.check_saved(type_, name)
         except settings.SettingsError as e:
             return deny(400, str(e))
         if not ok:   # never collect untested settings
-            return deny(409, f"collecte non allumée : le test a échoué ({msg}). Vous pouvez la rallumer quand même.")
+            return deny(409, f"collecte non allumée : le test a échoué ({tested}). Vous pouvez la rallumer quand même.")
     out = connector_call(request, "connecteur allumé" if body.enabled else "connecteur coupé", f"{type_} {name}",
                          lambda s: s.set_enabled(type_, name, body.enabled))
     if body.enabled and isinstance(out, dict) and out.get("ok"):
         reread_connector(type_, name, f"connecteur {type_} « {name} » rallumé")
+        if tested is not None:   # forced without a test: the card says « being read again » until the collection
+            remember_test(type_, name, {"ok": True, "message": tested})
     return out
 
 

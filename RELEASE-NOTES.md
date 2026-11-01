@@ -1,24 +1,23 @@
-# Release notes: MyServices 0.34.0
+# Release notes: MyServices 0.34.1
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating.
 
-**0.34.0** (1 November 2026) lets the Linux agent read most of what needed SSH, so a machine can be followed without opening SSH to it.
+**0.34.1** (1 November 2026) fixes a false alert on Docker ports and makes reinstalling an agent easier.
 
 ## For everyone
 
 **What's new?**
-- **Less SSH**: the Linux agent can now read backup folders, Nginx Proxy Manager, the local DNS (AdGuard Home, Pi-hole, dnsmasq, Unbound, BIND), Proxmox VE, KVM, Incus, LXD, adguardhome-sync and borgmatic.
-- **Boxes in the install command**: tick what the agent may read, the command is written for you.
-- **Your secrets stay put**: the server never sends a command or a path to the agent. Passwords and passphrases stay on the machine.
-- **Agents page**: it now says when an agent lacks a right, and the sudo box is ticked by default.
-- **Settings, Requests**: SSH reads are counted, per machine and per kind of read, including those of scheduled tasks.
-- **Agents outside your network**: a machine with a live agent on a public address no longer needs a special setting.
+- **False port alert fixed**: on a machine with a root agent, ports published by Docker, such as 80 and 443 of Nginx Proxy Manager, could show as down although they answered.
+- **New agent command**: the boxes are ticked from what the agent already reads, with its NPM path and backup folders, so nothing is lost when you reinstall it.
+- **Plain http for an agent outside your network**: a box adds `MSV_ALLOW_HTTP=1` to the command, off by default, with the warning kept.
+- **Connectors**: switching one on, or saving it, shows its tested state on its card at once.
+- **README**: the project's rule is written down: local data only, no cloud, no subscription, no telemetry.
 
-**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). The new reads are optional: each needs the agent installed again with its option. Nothing stops working if you wait, SSH stays in use. See [MIGRATION.md](MIGRATION.md).
+**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing else to do. See [MIGRATION.md](MIGRATION.md).
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.34.0` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
-- **Agent**: Linux agent version 7. Options `MSV_DNS`, `MSV_BACKUPS`, `MSV_BACKUP_DIRS`, `MSV_BORGMATIC`, `MSV_NPM`, `MSV_SUDO`.
-- **Not tested on every setup**: Pi-hole, dnsmasq, Unbound, BIND, KVM, Incus, LXD and borgmatic were tested on sample outputs only. Try one machine first.
+- **Image**: `ghcr.io/erreur32/myservices:0.34.1` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **Agent**: Linux agent version 8, updated automatically. It sends the names of its install options, never a secret.
+- **Port pulse**: a silent port is judged from the agent only when the agent shows it listening; otherwise the collection decides.
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).
