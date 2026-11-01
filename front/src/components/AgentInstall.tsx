@@ -95,6 +95,10 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
       {away && problem === "private" && <p className="mt-2 text-sm text-warn">{tx("Cette machine est hors de votre réseau : elle ne joindra pas cette adresse. Mettez une adresse qu'elle peut joindre, par exemple celle d'un VPN (Tailscale, WireGuard). Sans cela, gardez l'accès SSH.")}</p>}
       {away && <p className="mt-2 text-sm text-muted">{tx("Machine hors de votre réseau : une fois l'agent créé, MyServices accepte cette adresse pour l'envoi des relevés et l'installation, rien d'autre (ni la page, ni l'API). Ouvrez le port sur votre box pour cette seule adresse : il lui faut une IP fixe, sinon passez par un VPN. Révoquer l'agent retire cet accès.")}</p>}
       {problem === "clear" && <p className="mt-2 text-sm text-warn">{tx("Cette adresse passe par internet en clair : le jeton de l'agent serait lisible, et l'installation la refusera. Utilisez https ou un VPN.")}</p>}
+      {problem === "clear" && <label className="mt-2 flex items-start gap-2 text-sm text-muted">
+        <input type="checkbox" className="mt-1" checked={!!options.allowHttp} onChange={(e) => setOptions({ ...options, allowHttp: e.target.checked })} />
+        <span>{tx("Accepter quand même cette adresse en http : l'adresse et le port sont directs et filtrés sur ma box. Le jeton et les relevés restent lisibles sur le trajet.")}</span>
+      </label>}
     </div>
   );
 

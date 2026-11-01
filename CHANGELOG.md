@@ -13,6 +13,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 - **Agents, new command**: the boxes of a Linux agent are ticked from what it already reads, with its NPM path and backup folders. The agent sends only these options, and the server keeps only safe paths. Its automatic update to version 8 is enough.
+- **Agents, plain http**: for a machine outside the network and a direct http address, a box adds `MSV_ALLOW_HTTP=1` (Linux) or `$env:MSV_ALLOW_HTTP` (Windows) to the command, instead of typing it by hand. Off by default, with the warning kept.
 
 ### Changed
 - **README**: the project's rule is now stated: local data only, no cloud, no subscription, no telemetry, and the few outgoing calls are listed.
