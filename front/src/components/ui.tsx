@@ -154,7 +154,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   /** Filtres visibles sur la même ligne que la recherche ; au-delà de 10 pastilles ou si la ligne déborde, ils passent derrière le bouton « Filtres » */
   oneLine?: boolean; bare?: boolean   // bare: no frame of its own (the page's list right under it has one);
   searchBox?: boolean;   // false: the field lives in the title of the panel (FoldPanel center)
-  /** Given: the options are toggles shown on the search line under this caption (« Masquer »), not behind the « Filtres » button */
+  /** Given: the options are toggles shown on the search line under this caption (« Afficher aussi »), not behind the « Filtres » button */
   optionsLabel?: string;
 }>) {
   const options = allOptions.filter((o) => !optionsLabel || o.tucked);

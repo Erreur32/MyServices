@@ -19,6 +19,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Changed
 - **Services**: a card shows its whole link, with the favicon of the service.
 - **History, Events**: « connectors back within an hour » moves behind the Filters button; these events stay hidden by default.
+- **History, Events**: the « Hide » chips become « Also show »: a lit chip always means its events are shown. Fail2ban threats stay off by default.
 
 ## v0.33.5 (2026-11-01)
 

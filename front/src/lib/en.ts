@@ -1818,7 +1818,7 @@ export const EN: Record<string, string> = {
   "Service, machine, détail…": "Service, machine, detail…",
   "Services": "Services",
   "Seulement": "Only",
-  "Masquer : {0}": "Hide: {0}",
+  "Afficher aussi": "Also show",
   "Mises à jour Docker": "Docker updates",
   "Mises à jour machines": "Machine updates",
   "services hors Docker": "services outside Docker",
