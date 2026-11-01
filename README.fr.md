@@ -54,6 +54,12 @@
 > Chaque version est étiquetée et publiée comme image Docker. Les numéros restent **sous la 2.0.0** tant que le projet n'est pas déclaré stable (`0.34.0`, `0.34.1`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (en anglais).
 
+## Local uniquement, respect de la vie privée
+
+**Toutes vos données restent sur votre machine.** Pas de cloud, pas d'abonnement, pas de compte chez nous, pas de télémétrie. MyServices n'envoie rien sur votre réseau à qui que ce soit.
+
+Il ne sort que pour ce que vous voyez et choisissez : la recherche d'une nouvelle version (GitHub), les connecteurs que vous ajoutez pour un service en ligne, et les canaux de notification que vous activez (Telegram, Discord, e-mail). Les icônes des services sont lues directement sur vos services, jamais par un tiers. Les agents n'envoient qu'à votre propre MyServices, et leurs secrets restent sur chaque machine.
+
 ## En bref
 
 MyServices rassemble les services de toutes les machines de votre réseau local et en montre l'état en direct, **sur une seule page**. Il

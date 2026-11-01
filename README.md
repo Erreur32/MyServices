@@ -53,6 +53,12 @@
 > Every version is tagged and published as a Docker image. Numbers stay **below 2.0.0** until the project is declared stable (`0.34.0`, `0.34.1`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in English).
 
+## Local only, private by design
+
+**All your data stays on your own machine.** No cloud, no subscription, no account with us, no telemetry. MyServices sends nothing about your network to anyone.
+
+It reaches outside only for what you can see and choose: the check for a new version (GitHub), the connectors you add for an online service, and the notification channels you turn on (Telegram, Discord, e-mail). Service icons are read directly on your own services, never through a third party. Agents send only to your own MyServices, and their secrets stay on each machine.
+
 ## At a glance
 
 MyServices brings together the services of every machine on your local network and shows their live state **on a single page**. It
