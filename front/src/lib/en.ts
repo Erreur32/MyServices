@@ -4086,4 +4086,9 @@ export const EN: Record<string, string> = {
   "{0} : port ouvert, page web en erreur ({1})": "{0}: port open, web page in error ({1})",
   "{0} répond en {1} ms": "{0} answers in {1} ms",
   "{0} répond : code {1} en {2} ms": "{0} answers: code {1} in {2} ms",
+  "L'agent de {0} lit déjà ce NPM. Choisissez « Agent Machine » : plus besoin du SSH ni du compte NPM ici, et NPM n'est plus lu deux fois.": "The agent of {0} already reads this NPM. Pick « Machine agent »: no more SSH or NPM account needed here, and NPM is no longer read twice.",
+  "posé par l'installation": "set by the install",
+  "connues après sa mise à jour": "known after its update",
+  "non installé": "not installed",
+  "DNS local": "local DNS",
 };

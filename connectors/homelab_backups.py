@@ -123,7 +123,7 @@ class Borgmatic(_Backups):
     modes = (
         {"id": "ssh", "label": "Par SSH", "fields": ["ssh", "config", "container", "max_age_h"], "required": ["ssh"],
          "help": "MyServices lance « borgmatic repo-list --last 1 --json » sur la machine, avec un compte qui lit sa configuration."},
-        {"id": "agent", "label": "Par l'agent de la machine", "fields": ["agent", "max_age_h"], "required": ["agent"],
+        {"id": "agent", "label": "Agent Machine", "fields": ["agent", "max_age_h"], "required": ["agent"],
          "help": "Un minuteur root posé par l'installation de l'agent lance cette même lecture toutes les 6 h, et l'agent envoie le résultat : ni SSH, ni droit sudo. "
                  "Installez l'agent avec la case borgmatic (MSV_BORGMATIC=1)."},
     )

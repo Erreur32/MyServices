@@ -14,9 +14,10 @@ import { Badge, Card, Count, Dim, SearchBox, Th } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
-import type { ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias } from "../types";
+import type { AgentInfo, AgentsState, ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias } from "../types";
 import { cardNotice, cardsTitle, cardView, noticeTip, toWatch, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
-import { configFor, modeOf } from "../lib/connectorModes";
+import { agentSummary } from "../lib/accessLists";
+import { configFor, modeOf, npmAgent } from "../lib/connectorModes";
 import { readConnector, RereadButton } from "../components/Reread";
 import { pointedHits, takeFocus, takePointed, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
@@ -474,7 +475,7 @@ function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: C
           <h4 className="text-xs font-bold uppercase tracking-wide text-muted">{tx("Ce que le connecteur lit")}</h4>
           {page && <a href={`#${page}`} className="text-xs font-semibold text-link hover:underline">{tx("Ouvrir la page")}</a>}
         </div>
-        <dl className="grid overflow-hidden rounded-lg border border-line bg-bg2 [grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr))]">{/* the negative margins hide the separators on the outer edge */}
+        <dl className="grid overflow-hidden rounded-lg border border-line bg-bg2 [grid-template-columns:repeat(auto-fill,minmax(7rem,1fr))]">{/* the negative margins hide the separators on the outer edge */}
           {view.facts.map((f) => <div key={f.label} className="-mb-px -mr-px min-w-0 border-b border-r border-line px-3 py-2"><dd className={`break-words text-sm font-semibold ${f.tone ? TEXT[f.tone] : ""}`}>{f.value}</dd><dt className="text-xs text-muted">{f.label}</dt></div>)}
         </dl>
       </div>}
@@ -525,6 +526,13 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
       </div>
     </div></div>
   );
+}
+
+/** The buttons of a connector's modes: the agent's in green, and pulsing when an agent already reads this service */
+function modeLook(picked: boolean, agent: boolean, suggested: boolean): string {
+  if (agent && suggested) return "nudge-ok border-ok bg-ok/15 text-ok";
+  if (agent) return picked ? "border-ok bg-ok/15 text-txt" : "border-ok/50 text-ok hover:border-ok";
+  return picked ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt";
 }
 
 /** A required field stands out, and turns orange while it is empty; an optional one stays in the background */
@@ -624,9 +632,13 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
   const shown = (modeDef ? type.fields.filter((f) => modeDef.fields.includes(f.name)) : type.fields).filter((f) => f.name !== "verify_tls" || !noCertificate);
   const [aliases, setAliases] = useState<MachinesSettings["aliases"]>([]);
   useEffect(() => { if (type.modes?.length) read<MachinesSettings>("machines/settings").then((m) => setAliases(m.aliases)).catch(() => undefined); }, [type.modes]);
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  useEffect(() => { if (type.type === "npm") read<AgentsState>("agents").then((a) => setAgents(agentSummary(a.agents).live)).catch(() => undefined); }, [type.type]);
+  const reader = mode === "agent" ? undefined : npmAgent(agents, conf, aliases);   // this NPM is read twice: the agent is the better way
   const pickMode = (id: string) => {
     setMode(id);
     if (id === "ssh" && !conf.url) setConf((c) => ({ ...c, url: "http://127.0.0.1:81" }));  // vu de la machine de NPM
+    if (id === "agent" && reader) setConf((c) => ({ ...c, agent: reader.ip }));
   };
   const body = (collect = true) => ({ name, config: configFor(type, mode, conf), original: inst?.name ?? null, collect });
   const [report, setReport] = useState<TestOut | null>(null);
@@ -665,14 +677,15 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
   };
   const fields = <>
       {modeDef && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2.5">
           <span className="text-sm text-muted">{tx("Comment MyServices lit ce service")}</span>
           <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={tx("Comment MyServices lit ce service")}>
             {(type.modes ?? []).map((m) => (
               <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} onClick={() => pickMode(m.id)}
-                className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${mode === m.id ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>{tx(m.label)}</button>
+                className={`flex-1 whitespace-nowrap rounded-lg border px-3 py-1.5 text-center text-sm font-semibold ${modeLook(mode === m.id, m.id === "agent", !!reader)}`}>{tx(m.label)}</button>
             ))}
           </div>
+          {reader && <p className="rounded-lg border border-ok/40 bg-ok/10 px-3 py-2 text-sm">{tx("L'agent de {0} lit déjà ce NPM. Choisissez « Agent Machine » : plus besoin du SSH ni du compte NPM ici, et NPM n'est plus lu deux fois.", reader.name)}</p>}
           <InfoNote>{tx(modeDef.help)}</InfoNote>
         </div>
       )}
@@ -732,7 +745,7 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
         </div>
       )}
       {inst ? (
-        <div className="grid gap-x-6 gap-y-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+        <div className="grid gap-x-6 gap-y-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
           <div className="flex min-w-0 flex-col gap-4">{fields}</div>
           <div className="flex min-w-0 flex-col gap-3">{aside}{extras}{buttons}</div>
         </div>

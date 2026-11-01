@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.34.1 → 0.34.2
+
+**Nothing to do.** No setting, volume, agent or database change. The Agents page gets an Options column, filled once an agent is in version 8. The NPM mode « Through the agent of the machine » is now called « Machine agent »; saved connectors keep working.
+
 ## 0.34.0 → 0.34.1
 
 **Nothing to do.** No setting, volume or database change. Linux agents update themselves to version 8 when automatic update is on. After that, Create a new command opens with the boxes of what the agent already reads ticked. A port wrongly shown down on a machine with a root agent (Docker ports such as 80 and 443) comes back at the next collection.

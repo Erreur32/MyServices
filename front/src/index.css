@@ -128,6 +128,10 @@ body {
 @keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--link) / .8); } 60% { box-shadow: 0 0 0 11px rgb(var(--link) / 0); } }
 .nudge { animation: nudge 1.8s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .nudge { animation: none; box-shadow: 0 0 0 2px rgb(var(--link) / .6); } }
+/* Same halo in green: a better way is available */
+@keyframes nudge-ok { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--ok) / .8); } 60% { box-shadow: 0 0 0 11px rgb(var(--ok) / 0); } }
+.nudge-ok { animation: nudge-ok 1.8s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .nudge-ok { animation: none; box-shadow: 0 0 0 2px rgb(var(--ok) / .6); } }
 
 /* Cadre visé par un lien de découverte (#settings/discovery/suggestions) : il s'allume quelques secondes pour qu'on le repère */
 @keyframes flash { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--link) / 0); } 30%, 70% { box-shadow: 0 0 0 3px rgb(var(--link) / .7); } }

@@ -11,6 +11,19 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.34.2 (2026-11-01)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **Agents**: a new Options column shows every box of a Linux agent's install, ticked or not (sudo, local DNS, backups, borgmatic, NPM), also on its machine's Access page, so you can tell whether a new command is needed without creating one. It fills once the agent is in version 8.
+
+### Changed
+- **Connectors, Nginx Proxy Manager**: when the agent of its machine already reads NPM, the « Machine agent » button turns green and pulses, a message explains why, and picking it fills in the machine. The mode has a shorter name, and the mode buttons stay on one line.
+
+### Fixed
+- **Agents page**: « New command » changed the agent's token, then closed the frame with the boxes and the command at once, so the new token was lost. The frame now stays open under the row.
+
 ## v0.34.1 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

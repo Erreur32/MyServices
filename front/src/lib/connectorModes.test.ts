@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { configFor, modeOf } from "./connectorModes";
+import { configFor, modeOf, npmAgent } from "./connectorModes";
+import type { AgentInfo } from "../types";
 import type { ConnectorType } from "../types";
 
 const npm = {
@@ -28,5 +29,19 @@ describe("modes d'un connecteur", () => {
     expect(Object.keys(configFor(npm, "script", all)).sort()).toEqual(["api", "ip", "ssh"]);
     expect(Object.keys(configFor(npm, "direct", all)).sort()).toEqual(["ip", "password", "url", "user"]);
     expect(configFor({ ...npm, modes: [] }, "", all)).toBe(all);
+  });
+});
+
+describe("agent qui lit déjà NPM", () => {
+  const agent = { ip: "10.0.0.5", name: "a", options: { npm: "/a/npm-api.sh" } } as AgentInfo;
+  const aliases = [{ alias: "nas", host: "10.0.0.5", ip: null }];
+  it("le trouve par l'adresse, l'alias SSH ou l'IP", () => {
+    expect(npmAgent([agent], { url: "http://10.0.0.5:81" }, [])).toBe(agent);
+    expect(npmAgent([agent], { url: "http://127.0.0.1:81", ssh: "nas" }, aliases)).toBe(agent);
+    expect(npmAgent([agent], { ip: "10.0.0.5" }, [])).toBe(agent);
+  });
+  it("ne propose rien sur une autre machine, ni un agent sans NPM", () => {
+    expect(npmAgent([agent], { url: "http://10.0.0.9:81" }, [])).toBeUndefined();
+    expect(npmAgent([{ ...agent, options: {} }], { ip: "10.0.0.5" }, [])).toBeUndefined();
   });
 });
