@@ -3,7 +3,7 @@ import { tx } from "./i18n";
 
 export interface Origin { method: string; via: string[] }
 
-const CONNECTOR: Record<string, string> = {
+export const CONNECTOR: Record<string, string> = {
   npm: "NPM", adguard: "AdGuard Home", beszel: "Beszel", "uptime-kuma": "Uptime Kuma", dozzle: "Dozzle", "web-check": "Web-Check", docker: "Docker (SSH)",
   process: "Ports (SSH)", "home-assistant": "Home Assistant", mynetwork: "MynetworK", logviewr: "LogviewR", dockhand: "Dockhand", proxmox: "Proxmox VE",
   "proxmox-backup": "Proxmox Backup", veeam: "Veeam", discord: "Discord", telegram: "Telegram",

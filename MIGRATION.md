@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.33.3 → 0.33.4
+
+**Nothing to do.** No setting, volume, agent or database change. The home page gets new frames and clickable counters. A false « automatic updates failing » on servers using `mirror+file` sources goes away at the next health reading.
+
 ## 0.33.2 → 0.33.3
 
 **Nothing to do.** No setting, volume, agent or database change. The Agents page shows a mark only when something is to be done.

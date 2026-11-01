@@ -1,6 +1,6 @@
 // Home page figures: a line of key figures, then the counters of each subject in a compact grid (two to six columns with the width);
 // a click on a group title opens its page, a click on a counter opens it filtered.
-import { Boxes, HardDrive, HeartPulse, Layers, Monitor, PackageCheck, Plug, ShieldCheck } from "lucide-react";
+import { Bot, Boxes, Camera, Cloud, HardDrive, HeartPulse, Layers, Monitor, PackageCheck, Plug, ShieldCheck } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read } from "../api";
 import { StatTile } from "./StatTile";
@@ -11,12 +11,19 @@ import { mState } from "../lib/machines";
 import type { TabId } from "../lib/summary";
 import { tx } from "../lib/i18n";
 import { hasNetwork } from "../lib/network";
-import { connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCounts } from "../lib/statsExtra";
+import { dnsFigures } from "../lib/dnsState";
+import { aiAlerts, aiCards, aiFigures, aiGpus, hasAi } from "../lib/ai";
+import { cloudflareCounts, connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCounts } from "../lib/statsExtra";
+import { streamCards, streamFigures } from "../lib/video";
 import { NetworkGroup } from "./NetworkGroup";
+import { SecurityGroup } from "./SecurityGroup";
+import { pointConnectors } from "../lib/connectorPrefill";
 import { Group, Mark, type Cell, type Open } from "./StatGroup";
 import type { Selected } from "../lib/filter";
 import { hiddenNow, isHidden } from "../lib/servicesHidden";
 import { keyCounts } from "../lib/homeStory";
+
+const CONNECTORS = "settings/connectors";
 
 /** Groupes de compteurs, par onglet : la colonne de droite les empile tous, l'accueil range chacun sous son paragraphe */
 export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, ReactNode[]>> {
@@ -40,14 +47,18 @@ export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, Rea
       ["warn", local.filter((r) => r.web === "ui" && !r.direct_ok).length, tx("UI sans domaine"), { src: ["local"] }], ["off", n(local, "off"), tx("non testés"), { src: ["local"], status: ["off"] }]]} />,
     health && <Group key="hl" mark={<Mark Icon={HeartPulse} tone="text-ok" />} title={tx("🩺 Santé")} sub={tx("{0} machines", health.hosts.length)} accent="border-l-ok" tab="machines" nav={nav} cells={[
       ["ok", hl("ok"), tx("OK"), { health: ["ok"] }], ["warn", hl("warn"), tx("à surveiller"), { health: ["warn"] }], ["bad", hl("crit"), tx("critiques"), { health: ["crit"] }], ["bad", hl("down"), tx("injoignables"), { health: ["down"] }]]} />,
-    dns && <Group key="dns" mark={<Mark app="AdGuard Home" Icon={Boxes} />} title={tx("🌍 AdGuard")} sub={dnsSync(dns, Date.parse(data.generated)).label} accent="border-l-link" tab="dns" nav={nav} cells={[
-      ["ok", data.hosts.filter((r) => r.dns && r.enabled && !r.dns.issues.length).length, tx("domaines OK"), { anchor: ["domains"] }],
-      ["warn", data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length).length, tx("à vérifier"), { anchor: ["domains"] }],
-      ["warn", dns.orphans.length, tx("orphelines"), { anchor: ["orphans"] }],
-      ["bad", Object.values(dns.servers).filter((s) => !s.readable || s.silent).length, tx("injoignables"), { anchor: ["servers"] }]]} />,
+    dns && <Group key="dns" mark={<Mark app="AdGuard Home" Icon={Boxes} />} title="DNS" sub={dnsSync(dns, Date.parse(data.generated)).label} accent="border-l-link" tab="dns" nav={nav} sides={[
+      [tx("Domaines"), [
+        ["ok", data.hosts.filter((r) => r.dns && r.enabled && !r.dns.issues.length).length, tx("OK"), { anchor: ["domains"] }],
+        ["warn", data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length).length, tx("à vérifier"), { anchor: ["domains"] }],
+        ["warn", dns.orphans.length, tx("orphelines"), { anchor: ["orphans"] }]]],
+      [tx("Serveurs"), [
+        ["ok", dnsFigures(dns, data.hosts).serversUp, tx("répondent"), undefined, "dns/servers"],
+        ["bad", Object.values(dns.servers).filter((s) => !s.readable || s.silent).length, tx("injoignables"), { anchor: ["servers"] }]]]]} />,
     backups && <Group key="bk" mark={<Mark Icon={HardDrive} />} title={tx("💾 Sauvegardes")} sub={tx("{0} jeux", backups.summary.sets)} accent="border-l-apache" tab="backups" nav={nav} cells={[
       ["ok", backups.summary.ok, tx("à jour"), { state: ["ok"] }], ["warn", backups.summary.warn, tx("en retard"), { state: ["warn"] }],
-      ["bad", backups.summary.crit, tx("critiques"), { state: ["crit", "down"] }], ["bad", backups.summary.no_offsite, tx("sans copie")]]} />,
+      ["bad", backups.summary.crit, tx("critiques"), { state: ["crit", "down"] }], ["bad", backups.summary.no_offsite, tx("sans copie"), undefined, "backups/all"]]} />,
+    <SecurityGroup key="sec" tab="security" snap={snap} nav={nav} />,
     hasNetwork(snap) && <NetworkGroup key="net" tab="network" snap={snap} nav={nav} counts={networkCounts(snap)} />,
     ...extraGroups(snap, nav),
   ];
@@ -62,24 +73,45 @@ export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, Rea
   return byTab;
 }
 
-/** Connectors and agents, virtual machines, updates and certificates: worked out from the snapshot (lib/statsExtra.ts) */
+/** Connectors and agents, virtual machines and updates: worked out from the snapshot (lib/statsExtra.ts) */
 function extraGroups(snap: Snapshot, nav: Open): ReactNode[] {
+  const VIRT = "virtualization", WZ = "security/wazuh";
   const out: ReactNode[] = [], c = connectorCounts(snap), v = virtualCounts(snap), u = upkeepCounts(snap);
   if (c.ok + c.failing + c.agents > 0)
     out.push(<Group key="co" mark={<Mark Icon={Plug} />} title={tx("Connecteurs et agents")} sub={tx("{0} connecteurs", c.ok + c.failing)} accent="border-l-muted" tab="settings" nav={nav} cells={[
-      ["ok", c.ok, tx("répondent")], ["bad", c.failing, tx("en erreur")], ["ok", c.agents, tx("agents")]]} />);
+      ["ok", c.ok, tx("répondent"), undefined, CONNECTORS], ["bad", c.failing, tx("en erreur"), undefined, () => { pointConnectors(c.failingTypes); location.hash = CONNECTORS; }], ["ok", c.agents, tx("agents"), undefined, "settings/machines/agents"]]} />);
   if (v.guests + v.nodesDown > 0)
     out.push(<Group key="vi" mark={<Mark Icon={Layers} />} title={tx("Virtualisation")} sub={tx("{0} invités", v.guests)} accent="border-l-loc" tab="virtualization" nav={nav} cells={[
-      ["ok", v.running, tx("en marche")], ["off", v.stopped, tx("arrêtés")], ["bad", v.nodesDown, tx("nœuds hors ligne")], ["warn", v.problems, tx("à voir")]]} />);
+      ["ok", v.running, tx("en marche"), undefined, VIRT], ["off", v.stopped, tx("arrêtés"), undefined, VIRT], ["bad", v.nodesDown, tx("nœuds hors ligne"), undefined, VIRT], ["warn", v.problems, tx("à voir"), undefined, VIRT]]} />);
   const w = wazuhCounts(snap);
   if (w)
     out.push(<Group key="wz" mark={<Mark app="Wazuh" Icon={ShieldCheck} />} title="Wazuh" sub={tx("{0} agents", w.total)} accent="border-l-link" tab="security" href="security/wazuh" nav={nav} cells={[
-      ["ok", w.active, tx("actifs")], ["bad", w.disconnected, tx("déconnectés")],
-      ...(w.serious != null ? [["bad", w.serious, tx("alertes graves 24 h")] as Cell] : [["warn", w.never, tx("jamais connectés")] as Cell]),
-      ...(w.critical != null ? [["bad", w.critical, tx("vulnérabilités critiques")] as Cell] : [])]} />);
-  if (snap.health || snap.data.hosts.length > 0)
-    out.push(<Group key="up" mark={<Mark Icon={PackageCheck} />} title={tx("Mises à jour et certificats")} sub={tx("{0} machines relevées", snap.health?.hosts.length ?? 0)} accent="border-l-apache" tab="machines" nav={nav} cells={[
-      ["warn", u.updates, tx("à mettre à jour")], ["warn", u.reboot, tx("à redémarrer")], ["warn", u.certSoon, tx("certificats bientôt")], ["bad", u.certBad, tx("certificats invalides")]]} />);
+      ["ok", w.active, tx("actifs"), undefined, WZ], ["bad", w.disconnected, tx("déconnectés"), undefined, WZ],
+      ...(w.serious != null ? [["bad", w.serious, tx("alertes graves 24 h"), undefined, WZ] as Cell] : [["warn", w.never, tx("jamais connectés"), undefined, WZ] as Cell]),
+      ...(w.critical != null ? [["bad", w.critical, tx("vulnérabilités critiques"), undefined, WZ] as Cell] : [])]} />);
+  if (snap.health)
+    out.push(<Group key="up" mark={<Mark Icon={PackageCheck} />} title={tx("Mises à jour")} sub={tx("{0} machines relevées", snap.health?.hosts.length ?? 0)} accent="border-l-apache" tab="machines" nav={nav} sides={[
+      [tx("Machines"), [["warn", u.updates, tx("à mettre à jour"), { upkeep: ["updates"] }], ["warn", u.reboot, tx("à redémarrer"), { upkeep: ["reboot"] }]]],
+      [tx("Services"), [["warn", u.containers, tx("conteneurs"), undefined, VIRT]]]]} />);
+  out.push(...serviceGroups(snap, nav));
+  return out;
+}
+
+/** Cloudflare, cameras and AI: each frame only where the subject exists */
+function serviceGroups(snap: Snapshot, nav: Open): ReactNode[] {
+  const CAMS = "stream/cameras";
+  const out: ReactNode[] = [], cf = cloudflareCounts(snap), cam = streamFigures(streamCards(snap));
+  if (cf.domains > 0)
+    out.push(<Group key="cf" mark={<Mark app="Cloudflare" Icon={Cloud} />} title="Cloudflare" sub={tx("{0} domaines", cf.domains)} accent="border-l-apache" tab="cloudflare" nav={nav} cells={[
+      ["ok", cf.active, tx("actifs"), undefined, "cloudflare/overview"], ["warn", cf.toImprove, tx("à améliorer"), undefined, "cloudflare/overview"], ["warn", cf.threats, tx("menaces"), undefined, "cloudflare/security"], ["ok", cf.visitors, tx("visiteurs"), undefined, "cloudflare/traffic"]]} />);
+  if (cam.cameras > 0)
+    out.push(<Group key="cam" mark={<Mark Icon={Camera} />} title={tx("Caméras")} sub={tx("{0} caméras", cam.cameras)} accent="border-l-loc" tab="stream" href="stream/cameras" nav={nav} cells={[
+      ["ok", cam.filming, tx("filment"), undefined, CAMS], ["bad", cam.cameras - cam.filming, tx("silencieuses"), undefined, CAMS], ["ok", cam.recording, tx("enregistrent"), undefined, CAMS], ["ok", cam.detecting, tx("détectent"), undefined, CAMS]]} />);
+  if (hasAi(snap)) {
+    const cards = aiCards(snap), ai = aiFigures(snap, cards);
+    out.push(<Group key="ai" mark={<Mark Icon={Bot} />} title={tx("IA")} sub={tx("{0} services", cards.length)} accent="border-l-link" tab="ai" nav={nav} cells={[
+      ["ok", ai.enginesUp, tx("moteurs"), undefined, "ai/overview"], ["ok", ai.models, tx("modèles"), undefined, "ai/models"], ["ok", ai.platformsUp, tx("agents"), undefined, "ai/agents"], ["warn", aiAlerts(cards, aiGpus(snap)).length, tx("à voir"), undefined, "ai/overview"]]} />);
+  }
   return out;
 }
 
@@ -112,8 +144,8 @@ export function KeyFigures({ snap, go }: Readonly<{ snap: Snapshot; go: (t: TabI
       <StatTile n={`${k.servicesUp}/${k.services}`} label={tx("Services en ligne")} sub={tx("sites et applis du parc")} tone={ratioTone(k.servicesUp, k.services)} onClick={() => go("services")} />
       {k.health > 0 && <StatTile n={`${k.healthOk}/${k.health}`} label={tx("Santé")} sub={tx("disques et mémoire")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ratioTone(k.healthOk, k.health)} onClick={() => go("machines")} />}
       {k.backups > 0 && <StatTile n={`${k.backupsOk}/${k.backups}`} label={tx("Sauvegardes à jour")} sub={tx("{0} jeu(x) suivis", k.backups)} tone={ratioTone(k.backupsOk, k.backups)} onClick={() => go("backups")} />}
-      {k.connectors > 0 && <StatTile n={`${k.connectorsOk}/${k.connectors}`} label={tx("Connecteurs qui répondent")} sub={tx("tes outils reliés")} tone={ratioTone(k.connectorsOk, k.connectors)} />}
-      {week != null && <StatTile n={pct(week)} label={tx("Disponibilité sur 7 jours")} tone={tileTone(week)} sub={tx("services et machines")} />}
+      {k.connectors > 0 && <StatTile n={`${k.connectorsOk}/${k.connectors}`} label={tx("Connecteurs qui répondent")} sub={tx("tes outils reliés")} tone={ratioTone(k.connectorsOk, k.connectors)} onClick={() => { location.hash = CONNECTORS; }} />}
+      {week != null && <StatTile n={pct(week)} label={tx("Disponibilité sur 7 jours")} tone={tileTone(week)} sub={tx("services et machines")} onClick={() => { location.hash = "history/availability"; }} />}
     </nav>
   );
 }
@@ -126,7 +158,7 @@ export function Counters({ snap, go, goFilter }: Readonly<{ snap: Snapshot; go: 
         <h2 className="text-sm font-bold">{tx("Tout ton parc en chiffres")}</h2>
         <span className="text-xs text-dim">{tx("Clique sur un chiffre pour ouvrir la liste filtrée")}</span>
       </div>
-      <div className="grid items-start gap-2 p-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">{Object.values(statGroups(snap, { go, goFilter })).flat()}</div>
+      <div className="grid gap-2 p-2 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">{Object.values(statGroups(snap, { go, goFilter })).flat()}</div>
     </section>
   );
 }

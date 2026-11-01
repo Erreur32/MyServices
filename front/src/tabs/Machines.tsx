@@ -1831,6 +1831,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: Readonly<{ snap
     { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, quiet: ["api", "network", "manual"], mark: stateMark },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },
       name: (v) => ({ ok: "OK", warn: tx("à surveiller"), crit: "critique", down: "injoignable" } as Record<string, string>)[v] || v, order: ["ok", "warn", "crit", "down"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
+    { key: "upkeep", label: tx("Mises à jour"), get: (m) => { const h = hb.get(m.ip); return [...((h?.apt?.upgradable ?? 0) > 0 ? ["updates"] : []), ...(h?.reboot_required ? ["reboot"] : [])]; },
+      name: (v) => (v === "reboot" ? tx("à redémarrer") : tx("à mettre à jour")), quiet: ["updates", "reboot"] },   // only reached from the home page counters
     { key: "alert", label: tx("Alertes"), get: (m) => { const w = worst(watchOf(m)); return w ? TONE_OF_RANK[w] : ""; },
       name: (v) => ({ bad: tx("problème à regarder"), warn: tx("à surveiller"), info: tx("information") } as Record<string, string>)[v] || v, order: ["bad", "warn", "info"], mark: (v) => <Dot tone={v === "bad" ? "bad" : v === "warn" ? "warn" : "info"} /> },
     { key: "load", label: tx("Charge"), get: (m) => { const l = loadOf(hb.get(m.ip)); return [...(l.cpu !== null && l.cpu >= LOAD_HIGH ? ["cpu"] : []), ...(l.mem !== null && l.mem >= LOAD_HIGH ? ["mem"] : [])]; },

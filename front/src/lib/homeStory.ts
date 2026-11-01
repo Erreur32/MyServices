@@ -1,6 +1,7 @@
 // Home page: the figures it is built on, the sentence that tells them, and the short list of machines shown live.
 import type { Snapshot } from "../api";
 import type { Machine } from "../types";
+import { CONNECTOR } from "./eventOrigin";
 import { tx } from "./i18n";
 import { mState } from "./machines";
 import { hiddenNow, isHidden } from "./servicesHidden";
@@ -31,6 +32,23 @@ export function keyCounts(snap: Snapshot): KeyCounts {
     backups: backups?.summary.sets ?? 0, backupsOk: backups?.summary.ok ?? 0,
     connectors: c.ok + c.failing, connectorsOk: c.ok,
   };
+}
+
+/** One tool of « Ton installation »: every connector of that type, with one line per instance for its tooltip */
+export interface InstallTool { type: string; label: string; count: number; failing: number; lines: string[] }
+
+/** Every tool once, by name: the name the connector reads for itself, else the known one, else its type */
+export function installTools(snap: Snapshot): InstallTool[] {
+  const read = new Map((snap.data.services_status ?? []).map((s) => [s.connector, s.label]));
+  const tools = new Map<string, InstallTool>();
+  for (const c of snap.data.connectors ?? []) {
+    const t = tools.get(c.type) ?? { type: c.type, label: read.get(c.type) || CONNECTOR[c.type] || c.type, count: 0, failing: 0, lines: [] };
+    t.count += 1;
+    if (!c.ok) t.failing += 1;
+    t.lines.push(c.ok ? c.name : `${c.name} : ${c.message}`);
+    tools.set(c.type, t);
+  }
+  return [...tools.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export type Tone = "ok" | "warn" | "bad";

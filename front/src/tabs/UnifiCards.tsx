@@ -26,6 +26,7 @@ const THEME_VARS: Record<string, string> = {
   "--udc-chrome-bg": "rgb(var(--bg2))",
   "--udc-panel-bg": "rgb(var(--bg2))",
   "--udc-label-color": "rgb(var(--muted))",
+  "--udc-port-label-color": "rgb(var(--muted))",   // port numbers and WAN / LAN marks: the card's own greys are too dark on bg2
   "--udc-bg": "rgb(var(--bg))",
   "--udc-surface": "rgb(var(--bg2))",
   "--udc-surf2": "rgb(var(--card))",
