@@ -34,7 +34,7 @@ class NPM(Connector):
         {"id": "script", "label": "Script npm-api.sh", "fields": ["ssh", "api", "ip"], "required": ["api"],
          "help": "MyServices lance npm-api.sh (--json) sur la machine où il est installé (le script et son npm-api.conf gardent le compte NPM). "
                  "Le conteneur n'a pas ce script : choisissez la machine, ou installez-le d'ici."},
-        {"id": "agent", "label": "Par l'agent de la machine", "fields": ["agent", "ip"], "required": ["agent"],
+        {"id": "agent", "label": "Agent Machine", "fields": ["agent", "ip"], "required": ["agent"],
          "help": "L'agent de la machine lance npm-api.sh et envoie les listes dans son relevé : ni SSH, ni compte NPM dans MyServices. "
                  "Installez l'agent avec MSV_NPM=<chemin de npm-api.sh> après « sudo env », ou MSV_NPM=install pour que l'installation pose le script."},
     )

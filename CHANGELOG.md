@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Connectors, Nginx Proxy Manager**: when the agent of its machine already reads NPM, the « Machine agent » button turns green and pulses, a message explains why, and picking it fills in the machine. The mode has a shorter name, and the mode buttons stay on one line.
+
 ## v0.34.2 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

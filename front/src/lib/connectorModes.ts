@@ -1,6 +1,6 @@
 // Connecteurs qui se relient de plusieurs façons (NPM : API directe, API par SSH, script npm-api.sh) : le mode choisi décide des champs
 // montrés, de ceux qui sont requis et de ce qui est envoyé. Même règle que le serveur (connectors/npm.py : mode_of).
-import type { ConnectorType } from "../types";
+import type { AgentInfo, ConnectorType, SshAlias } from "../types";
 
 /** Mode d'après les réglages enregistrés : agent, puis script si le chemin est donné, puis SSH si une machine l'est, sinon direct */
 export function modeOf(type: ConnectorType, config: Record<string, unknown> | undefined): string {
@@ -16,4 +16,11 @@ export function configFor(type: ConnectorType, mode: string, conf: Record<string
   const def = (type.modes ?? []).find((m) => m.id === mode);
   if (!def) return conf;
   return Object.fromEntries(Object.entries(conf).filter(([k]) => def.fields.includes(k)));
+}
+
+/** The agent, among those in use, that already reads this NPM: on the machine named by the address, the SSH alias or the IP of the connector */
+export function npmAgent(agents: AgentInfo[], conf: Record<string, unknown>, aliases: SshAlias[]): AgentInfo | undefined {
+  const alias = aliases.find((a) => a.alias === conf.ssh);
+  const ips = [conf.ip, conf.agent, /^https?:\/\/([^:/]+)/.exec(String(conf.url ?? ""))?.[1], alias?.ip ?? alias?.host];
+  return agents.find((a) => a.options?.npm !== undefined && ips.includes(a.ip));
 }
