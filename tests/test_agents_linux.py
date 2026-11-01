@@ -284,8 +284,10 @@ class LinuxAgentScripts(unittest.TestCase):
                    "discover": ["/*"], "find": {"names": ["a"], "roots": ["/"]}}
             r = subprocess.run([sys.executable, "-c", src], input=json.dumps(req), capture_output=True, text=True, timeout=20)
             out = json.loads(r.stdout)
+            kept = [d["path"] for d in out["local"]]   # the fixed patterns of the scan may find real folders on the machine running the test
+            self.assertIn(str(ok.resolve()), kept)
+            self.assertNotIn(str(other.resolve()), kept)   # the patterns of the server are not used
         self.assertEqual(list(out["locs"]), ["a"])
-        self.assertEqual([d["path"] for d in out["local"]], [str(ok.resolve())])   # the patterns of the server are not used
         self.assertNotIn("found", out)                                             # no name to look for here
 
     def test_scan_root_cherche_les_copies_sous_la_liste_seulement(self):

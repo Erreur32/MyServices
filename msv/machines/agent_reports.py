@@ -13,8 +13,7 @@ FRESH_MULT = 2.5          # un relevé plus vieux que 2,5 × l'intervalle est p�
 
 def fresh_output(ip: object, key: str) -> str | None:
     """What a fresh report of the agent of this address sent under this key, when it worked; None otherwise."""
-    from msv.core.auth import db_path
-    from msv.core.config import CFG
+    from msv.core.config import CFG, db_path
     try:
         rep = fresh_reports(db_path(CFG)).get(str(ip)) or {}
     except (OSError, ValueError, sqlite3.Error):

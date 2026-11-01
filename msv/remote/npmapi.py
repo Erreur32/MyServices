@@ -144,8 +144,7 @@ def _script(path: str, opt: str, ssh: str | None = None):
 
 def _from_agent(inst: dict) -> dict[str, list]:
     """The lists the machine's agent sent in its last report (npm-api.sh run there, MSV_NPM): no account of NPM here, no SSH."""
-    from msv.core.auth import db_path
-    from msv.core.config import CFG
+    from msv.core.config import CFG, db_path
     from msv.machines.agent_reports import fresh_reports
     rep = fresh_reports(db_path(CFG)).get(inst["agent"]) or {}
     if not rep.get("fresh"):

@@ -522,7 +522,7 @@ def agent_scan(h: dict, req: dict, reports: dict) -> dict | None:
 
 
 def agent_reports() -> dict:
-    from msv.core.auth import db_path
+    from msv.core.config import db_path
     from msv.machines.agent_reports import fresh_reports
     try:
         return fresh_reports(db_path(CFG))
