@@ -82,7 +82,7 @@ export function TooltipLayer() {
       timer.current = setTimeout(() => {
         const r = t.getBoundingClientRect();
         const below = r.top < 80;  // pas de place au-dessus : sous l'élément
-        setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom : r.top, below, large: t.hasAttribute("data-tip-large") });
+        setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom : r.top, below, large: (t as HTMLElement).dataset.tipLarge !== undefined });
       }, DELAY_MS);
     };
     const out = (e: Event) => { if (target.current && (!(e instanceof MouseEvent) || !target.current.contains(e.relatedTarget as Node | null))) hide(); };
