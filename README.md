@@ -77,7 +77,7 @@ Checked on the author's real network (about 20 machines and 200 services):
 
 - **Machines**: SSH on Linux, the Linux agent, the Windows agent (one PC so far), ping and network scan.
 - **Services**: Nginx Proxy Manager hosts, Docker containers, local services, domains and their icons.
-- **Follow-up**: history, availability, health checks and alert rules.
+- **Follow-up**: history, availability, health checks, alert rules, and alerts on Discord and Telegram.
 - **Backups**: folders followed over SSH, and their copies on a Freebox share.
 - **Access**: accounts, REST API and MCP server.
 - **Connectors**: those [in bold in the table](#connectors).

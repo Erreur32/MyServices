@@ -78,7 +78,7 @@ Vérifié sur le vrai réseau de l'auteur (environ 20 machines et 200 services) 
 
 - **Machines** : SSH sous Linux, agent Linux, agent Windows (un seul PC pour l'instant), ping et recherche réseau.
 - **Services** : hôtes Nginx Proxy Manager, conteneurs Docker, services locaux, domaines et leurs icônes.
-- **Suivi** : historique, disponibilité, contrôles de santé et règles d'alerte.
+- **Suivi** : historique, disponibilité, contrôles de santé, règles d'alerte, et alertes sur Discord et Telegram.
 - **Sauvegardes** : dossiers suivis par SSH, et leurs copies sur un partage Freebox.
 - **Accès** : comptes, API REST et serveur MCP.
 - **Connecteurs** : ceux [en gras dans le tableau](#connecteurs).
