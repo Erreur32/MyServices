@@ -11,6 +11,7 @@ Deux accès :
 from __future__ import annotations
 
 import base64
+import json
 import shlex
 import urllib.parse
 import re
@@ -60,6 +61,35 @@ def normalize(rewrites: list, rules: list) -> dict:
             "user_rules": [x for x in rules if x and not x.startswith("!")]}
 
 
+def agent_dns(ip: object) -> dict:
+    """{tool: {rewrites, user_rules, version}} a fresh report of the agent of this address carries (MSV_DNS), empty without one."""
+    from msv.machines.agent_reports import fresh_output
+    try:
+        found = json.loads(fresh_output(ip, "dns") or "{}")
+    except ValueError:
+        return {}
+    return found if isinstance(found, dict) else {}
+
+
+class LocalDns(Connector):
+    """Local records of the DNS tools of a machine (AdGuard Home, Pi-hole, dnsmasq, Unbound, BIND), read by its agent: no SSH, no account here."""
+    type = "dns-agent"
+    label = "DNS local (par l'agent)"
+    kinds = ("dns",)
+    fields = (Field("ip", "IP de la machine et du serveur DNS", required=True, help="agent installé avec la case DNS (MSV_DNS=1)"),)
+    setup_fields = ("ip",)
+
+    def version(self) -> str | None:
+        return None
+
+    def collect(self) -> dict:
+        tools = agent_dns(self.conf["ip"])
+        if not tools:
+            raise ConnectorError("pas de relevé DNS récent de l'agent (installation avec la case DNS à faire)")
+        return {"tools": sorted(tools), "rewrites": [x for t in tools.values() for x in t.get("rewrites", [])],
+                "user_rules": [x for t in tools.values() for x in t.get("user_rules", [])]}
+
+
 class AdGuard(Connector):
     type = "adguard"
     label = "AdGuard Home"
@@ -107,6 +137,8 @@ class AdGuard(Connector):
 
     def version(self) -> str | None:
         if not self.conf.get("url"):
+            if read := agent_dns(self.conf.get("ip")).get("adguard"):
+                return read.get("version")
             # SSH: not in AdGuardHome.yaml; a container says it in its image label (docker inspect, read only), an install on the host does not
             t = str(self.conf.get("target") or "")
             if t.startswith("/") or not t:
@@ -125,6 +157,8 @@ class AdGuard(Connector):
             if not isinstance(rewrites, list):
                 raise ConnectorError("réponse inattendue de /control/rewrite/list")
             return normalize(rewrites, rules)
+        if read := agent_dns(self.conf.get("ip")).get("adguard"):   # its agent sends it: no SSH connection
+            return {"rewrites": read.get("rewrites", []), "user_rules": read.get("user_rules", [])}
         t = self.conf["target"]
         sh = (f"cat {t} 2>/dev/null || sudo -n cat {t}" if t.startswith("/")
               else f"docker exec {t} cat {CONF_IN_CONTAINER}")

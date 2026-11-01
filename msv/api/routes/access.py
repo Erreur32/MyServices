@@ -213,6 +213,15 @@ async def agent_report(request: Request):
     return await run_in_threadpool(_agent_report, a, raw, ip_of(request))
 
 
+def backup_request(ip: str) -> dict | None:
+    from msv.backups import backups, backups_admin
+    try:
+        req = backups.agent_request(ip)
+        return {**req, "names": backups_admin.agent_find_names()} if req else None
+    except (OSError, ValueError, KeyError):   # no backups-meta.json, or unreadable: the report is still taken
+        return None
+
+
 def _agent_report(a: dict, raw: bytes, ip: str):
     from msv.machines import agents
     try:
@@ -230,6 +239,8 @@ def _agent_report(a: dict, raw: bytes, ip: str):
     before, now = agents_store().store_report(a["id"], report, ip)
     refresh_after_report(a, report, before, now)
     out = {"ok": True, "interval": agents.DEFAULT_INTERVAL}
+    if a.get("kind") == "linux" and (scan := backup_request(a["ip"])):
+        out["backups"] = scan
     if upd := agents_store().update_for(a["id"], str(report.get("version") or "")):   # mise à jour automatique ou demandée : l'agent s'en charge
         out["update"] = upd
     return out
@@ -241,6 +252,18 @@ def agent_script(name: str):
     if name not in ("install", "agent"):
         return deny(404, "introuvable")
     return Response(agents.script(name + ".ps1"), media_type=PLAIN)
+
+
+@router.get("/agent/dns-scan.py", tags=["agents"], summary="Lecture root du DNS local de l'agent Linux (sans secret)")
+def agent_dns_scan():
+    from msv.machines import agents
+    return Response(agents.script("dns-scan.py"), media_type=PLAIN)
+
+
+@router.get("/agent/backup-scan.py", tags=["agents"], summary="Lecture root des sauvegardes de l'agent Linux (sans secret)")
+def agent_backup_scan():
+    from msv.machines import agents
+    return Response(agents.script("backup-scan.py"), media_type=PLAIN)
 
 
 @router.get("/agent/agent.py", tags=["agents"], summary="Agent Linux (sans secret, réseau local)")
@@ -268,7 +291,8 @@ def agents_list(request: Request):
     from msv.machines import agents
     store = agents_store()
     reports = store.fresh_reports()
-    rows = [{**a, "gaps": agents.inventory_gaps(reports[a["ip"]]["report"]) if reports.get(a["ip"], {}).get("fresh") else []} for a in store.listing()]
+    fresh = lambda a: reports[a["ip"]]["report"] if reports.get(a["ip"], {}).get("fresh") else None  # noqa: E731
+    rows = [{**a, "gaps": agents.inventory_gaps(fresh(a)), "rights": agents.rights_gaps(fresh(a))} for a in store.listing()]
     return {"agents": rows, "report_path": AGENT_REPORT}
 
 

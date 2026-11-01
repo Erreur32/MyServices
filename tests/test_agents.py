@@ -121,6 +121,24 @@ class Agents(unittest.TestCase):
         before, now = common.agents_store().store_report(info["id"], REPORT, "192.168.1.60")
         self.assertEqual(before, now)   # the previous level comes from the column, the old report is not parsed again
 
+    def test_agent_externe_autorise_par_son_ip_sur_ses_seules_routes(self):
+        ip = "203.0.113.7"
+        out = TestClient(api.app, client=(ip, 50000))
+        token = {"Authorization": "Bearer msv_agent_inconnu"}
+        self.assertEqual(out.post(BASE + "/agent/report", json=REPORT, headers=token).status_code, 403)   # no agent for this address yet
+        self.assertEqual(out.get("/agent/install.sh").status_code, 403)
+        raw, info = self.create(ip)
+        self.assertEqual(out.post(BASE + "/agent/report", json=REPORT, headers={"Authorization": f"Bearer {raw}"}).status_code, 200)
+        self.assertEqual(out.post(BASE + "/agent/report", json=REPORT, headers=token).status_code, 401)   # the token is still required
+        for path in ("/agent/install.sh", "/agent/agent.py", "/agent/install.ps1", "/agent/agent.ps1"):
+            self.assertEqual(out.get(path).status_code, 200, path)
+        for path in ("/", "/healthz", "/login.html", BASE + "/agents", BASE + "/status"):
+            self.assertEqual(out.get(path).status_code, 403, path)
+        self.assertEqual(out.post(BASE + "/login", json={"username": "admin", "password": PW}).status_code, 403)
+        self.c.delete(f"{BASE}/agents/{info['id']}", headers=self.h)
+        self.assertEqual(out.get("/agent/install.sh").status_code, 403)   # revoking closes the door
+        self.assertEqual(TestClient(api.app, client=("203.0.113.8", 50000)).get("/agent/install.sh").status_code, 403)
+
     def test_sans_jeton_ou_mauvais_jeton_refuse(self):
         self.assertEqual(self.anon.post(BASE + "/agent/report", json=REPORT).status_code, 401)
         self.assertEqual(self.send("msv_agent_faux").status_code, 401)

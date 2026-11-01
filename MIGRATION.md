@@ -5,6 +5,12 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.33.6 → 0.34.0
+
+**Nothing to change for the update itself.** No setting, volume or database change. Linux agents update themselves to version 7 when automatic update is on; adguardhome-sync, on a machine whose agent has Docker access, then needs nothing more.
+
+The new reads are optional, and each needs the agent installed again with its option (create a new command on the machine's Access page): `MSV_SUDO=1` on a Proxmox VE host, `MSV_DNS=1` for AdGuard Home, Pi-hole, dnsmasq, Unbound and BIND, `MSV_BACKUPS=1` for the backup folders, `MSV_BORGMATIC=1` for borgmatic, `MSV_NPM=<path of npm-api.sh>` or `MSV_NPM=install` for Nginx Proxy Manager. Then pick « Through the machine's agent » in the NPM or borgmatic connector, or add « Local DNS (through the agent) ». With backups or NPM, the service sees `/home` read only instead of hiding it. Try one machine first. Nothing stops working if you skip this: SSH stays in use.
+
 ## 0.33.5 → 0.33.6
 
 **Nothing to do.** No setting, volume, agent or database change. Once a week the collection reads the favicon of each proxied service, directly on that service, and keeps it in the existing cache folder. Machine update events start from the first reading after the update: updates already pending do not count.

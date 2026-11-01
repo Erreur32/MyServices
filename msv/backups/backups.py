@@ -34,7 +34,7 @@ from pathlib import Path
 from msv.core.config import CFG, HERE
 from connectors.backup_apis import DSM_FAIL, HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",), PbsBackups: ("proxmox-backup",), SynologyBackups: ("synology",)}  # types de config.json dont un hôte « connector » reprend les réglages
 META = Path(CFG["backups_meta"])
@@ -305,7 +305,7 @@ def run_py(ssh: str | None, src: str, arg: str, sudo: str | None = None) -> tupl
     py = (f"sudo -u {sudo} " if sudo else "") + "python3 - " + shlex.quote(arg)
     cmd = ["bash", "-c", py] if ssh in (None, "local") else ["ssh", *SSH_OPTS, ssh, py]
     try:
-        r = subprocess.run(cmd, input=src, capture_output=True, text=True, timeout=TIMEOUT)
+        r = ssh_run("backups", str(ssh), cmd, input=src, capture_output=True, text=True, timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         return None, f"timeout après {TIMEOUT}s"
     if r.returncode != 0:
@@ -326,7 +326,7 @@ def qm_crontab(spec: str) -> list[dict]:
     if not vmid.isdigit() or alias.startswith("-"):   # VM id put in a remote command: digits only; an alias is never an ssh option
         return []
     try:
-        r = subprocess.run(["ssh", *SSH_OPTS, alias, f"qm guest exec {vmid} -- crontab -l"],  # NOSONAR S6350: vmid checked as digits and alias never an option, just above
+        r = ssh_run("backups cron", alias, ["ssh", *SSH_OPTS, alias, f"qm guest exec {vmid} -- crontab -l"],  # NOSONAR S6350: vmid checked as digits and alias never an option, just above
                            capture_output=True, text=True, timeout=60)
         txt = json.loads(r.stdout).get("out-data", "")
     except Exception:
@@ -461,10 +461,79 @@ def resolve_ssh(hosts: list[dict], by_ip: dict[str, str], known: set[str], docke
     return out
 
 
+# ───────────── Lecture par l'agent ─────────────
+
+# Head of the root script set by the agent's installer (/agent/backup-scan.py), in front of AGENT. The server chooses no place: followed folders must
+# be in the list kept on the machine, new folders are looked for with the patterns below and that list, copies by name under that list and the
+# network shares. Anything else it sends is dropped here, on the machine.
+SCAN_HEAD = r'''
+import json, os, sys
+raw = json.load(sys.stdin)
+with open("/etc/myservices-agent/backup-dirs") as f:
+    dirs = [os.path.realpath(l.strip()) for l in f if l.strip().startswith("/")]
+def listed(p):
+    real = os.path.realpath(str(p))
+    return any(real == d or real.startswith(d.rstrip("/") + "/") for d in dirs)
+locs = {k: v for k, v in (raw.get("locs") or {}).items() if isinstance(v, dict) and listed(v.get("path", ""))}
+names = [str(n) for n in (raw.get("names") or [])][:500]
+sys.argv = ["scan", json.dumps({"locs": locs, "disks": bool(raw.get("disks")), "crons": bool(raw.get("crons")), "vzdump": True,
+                                "discover": ["/home/backup*", "/home/*/backup*", "/root/*ackup*", "/mnt/*/backup*", "/mnt/*/*-backup/*", "/srv/*backup*",
+                                             "/data/*backup*"] + dirs,
+                                "find": {"names": names, "roots": dirs, "depth": 5, "budget": 60} if names else None})]
+'''
+
+
+def agent_request(ip: str) -> dict | None:
+    """What the agent of this address is asked to read: followed folders, as data only. None when this machine has no folder declared."""
+    meta = json.loads(META.read_text(encoding="utf-8"))
+    hosts = {h["id"]: h for h in meta["hosts"]}
+    hid = next((h["id"] for h in meta["hosts"] if h.get("ip") == ip and not h.get("api") and not h.get("mount")), None)
+    if hid is None:
+        return None
+    req = scan_requests(meta, hosts)[hid]
+    return {k: req[k] for k in ("locs", "disks", "crons")}
+
+
+def report_scan(rep: dict | None) -> dict | None:
+    """The scan of the backup folders in a fresh agent report, in the shape of AGENT; None without one."""
+    data = ((rep.get("report") or {}).get("data") or {}) if rep and rep.get("fresh") else {}
+    got = (data.get("cmds") or {}).get("backups")
+    if not isinstance(got, list) or len(got) != 2 or got[0] != 0:
+        return None
+    try:
+        out = json.loads(got[1])
+    except (TypeError, ValueError):
+        return None
+    return out if isinstance(out, dict) else None
+
+
+def agent_scan(h: dict, req: dict, reports: dict) -> dict | None:
+    """The scan a fresh agent report carries, in the shape of AGENT. None to read over SSH: no such report, or folders out of the agent's list on a
+    machine that has SSH; without SSH they are shown as refused."""
+    out = None if h.get("mount") else report_scan(reports.get(h.get("ip") or ""))
+    if out is None:
+        return None
+    missing = [k for k in req["locs"] if k not in out.get("locs", {})]
+    if missing and h.get("ssh") not in (None, "local"):
+        return None
+    for k in missing:
+        out["locs"][k] = {"exists": False, "error": "dossier hors de la liste de l'agent (MSV_BACKUP_DIRS)"}
+    return out
+
+
+def agent_reports() -> dict:
+    from msv.core.config import db_path
+    from msv.machines.agent_reports import fresh_reports
+    try:
+        return fresh_reports(db_path(CFG))
+    except Exception:   # base absente ou illisible : lecture par SSH
+        return {}
+
+
 # ───────────── Collecte ─────────────
 
-def collect(meta: dict) -> tuple[dict, dict]:
-    hosts = {h["id"]: h for h in resolve_ssh(meta["hosts"], machine_aliases(), ssh_aliases(), os.environ.get("MYSERVICES_DOCKER") == "1")}
+def scan_requests(meta: dict, hosts: dict[str, dict]) -> dict[str, dict]:
+    """{id: what to read on that machine}."""
     # Machine « mount » (NAS monté sur la collectrice) : disque du point de montage seulement, ni cron ni discover
     reqs: dict[str, dict] = {hid: {"locs": {}, "disks": True, "crons": not h.get("mount"), "mount": h.get("mount"),
                                    "discover": [] if h.get("mount") else meta.get("discover", []),
@@ -474,9 +543,18 @@ def collect(meta: dict) -> tuple[dict, dict]:
         for i, loc in enumerate(s["locations"]):
             if loc.get("path") and not loc.get("syncthing") and loc["host"] in reqs:
                 reqs[loc["host"]]["locs"][f"{s['id']}#{i}"] = {k: loc[k] for k in ("path", "pattern", "depth", "exclude") if k in loc}
+    return reqs
+
+
+def collect(meta: dict) -> tuple[dict, dict]:
+    hosts = {h["id"]: h for h in resolve_ssh(meta["hosts"], machine_aliases(), ssh_aliases(), os.environ.get("MYSERVICES_DOCKER") == "1")}
+    reqs, reports = scan_requests(meta, hosts), agent_reports()
 
     def one(hid):
-        return hid, run_py(hosts[hid].get("ssh"), AGENT, json.dumps(reqs[hid]))
+        scan = agent_scan(hosts[hid], reqs[hid], reports)
+        if scan is None and hosts[hid].get("agent"):   # no SSH on this machine: never read here instead
+            return hid, (None, "agent : pas de relevé récent des sauvegardes")
+        return hid, (scan, "") if scan is not None else run_py(hosts[hid].get("ssh"), AGENT, json.dumps(reqs[hid]))
 
     def st(node):
         return node["host"], run_py(hosts[node["host"]]["ssh"], ST_AGENT, node["conf"], node.get("sudo"))

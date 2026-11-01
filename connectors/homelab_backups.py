@@ -108,26 +108,49 @@ class Backrest(_Backups):
 
 
 class Borgmatic(_Backups):
-    """borgmatic (Borg): last archive of each repository, read over SSH with « borgmatic repo-list --last 1 --json » (rlist before
-    borgmatic 1.9). The repository passphrase stays in borgmatic's own configuration on the machine; MyServices only reads the list."""
+    """borgmatic (Borg): last archive of each repository, from « borgmatic repo-list --last 1 --json » (rlist before borgmatic 1.9), read over SSH
+    or left by the root timer of the agent (MSV_BORGMATIC=1). The repository passphrase stays in borgmatic's own configuration on the machine."""
     type = "borgmatic"
     label = "borgmatic (Borg)"
     images = ("ghcr.io/borgmatic-collective/borgmatic", "b3vis/borgmatic")
     fields = (
-        Field("ssh", "Alias SSH de la machine", required=True, help="celle où tourne borgmatic (compte qui lit sa configuration, root en général)"),
+        Field("ssh", "Alias SSH de la machine", help="celle où tourne borgmatic (compte qui lit sa configuration, root en général)"),
         Field("config", "Fichier de configuration", help="facultatif : /etc/borgmatic/config.yaml par défaut"),
         Field("container", "Conteneur borgmatic", help="facultatif : borgmatic tourne dans ce conteneur Docker"),
+        Field("agent", "IP de la machine de borgmatic (celle de son agent)", help="agent installé avec la case borgmatic (MSV_BORGMATIC=1)"),
         MAX_AGE,
+    )
+    modes = (
+        {"id": "ssh", "label": "Par SSH", "fields": ["ssh", "config", "container", "max_age_h"], "required": ["ssh"],
+         "help": "MyServices lance « borgmatic repo-list --last 1 --json » sur la machine, avec un compte qui lit sa configuration."},
+        {"id": "agent", "label": "Par l'agent de la machine", "fields": ["agent", "max_age_h"], "required": ["agent"],
+         "help": "Un minuteur root posé par l'installation de l'agent lance cette même lecture toutes les 6 h, et l'agent envoie le résultat : ni SSH, ni droit sudo. "
+                 "Installez l'agent avec la case borgmatic (MSV_BORGMATIC=1)."},
     )
     setup_fields = ("ssh",)
     guide = ("borgmatic doit déjà savoir lire ses dépôts (phrase de passe dans sa configuration). MyServices lance seulement « borgmatic repo-list --last 1 --json » par SSH.",
              "Rien n'est créé ni supprimé : ni sauvegarde, ni purge, ni vérification.")
 
-    def collect(self) -> dict:
+    @classmethod
+    def validate(cls, conf: dict) -> list[str]:
+        missing = super().validate(conf)
+        return missing if conf.get("ssh") or conf.get("agent") else [*missing, "« Alias SSH de la machine » requis"]
+
+    def _over_ssh(self) -> str:
         conf = f" -c {shlex.quote(self.conf['config'])}" if self.conf.get("config") else ""
         run = f"docker exec {shlex.quote(self.conf['container'])} " if self.conf.get("container") else ""
         cmd = f"{run}borgmatic{conf} repo-list --last 1 --json 2>/dev/null || {run}borgmatic{conf} rlist --last 1 --json"
-        out = self.ctx.ssh(str(self.conf.get("ssh", "")), cmd, timeout=120)
+        return self.ctx.ssh(str(self.conf.get("ssh", "")), cmd, timeout=120)
+
+    def _from_agent(self) -> str:
+        from msv.machines.agent_reports import fresh_output
+        out = fresh_output(self.conf["agent"], "borgmatic")
+        if out is None:
+            raise ConnectorError("pas de résultat borgmatic récent de l'agent (installation avec la case borgmatic à faire ; premier résultat dans les minutes qui suivent)")
+        return out
+
+    def collect(self) -> dict:
+        out = self._from_agent() if self.conf.get("agent") else self._over_ssh()
         try:
             repos = json.loads(out[out.find("["):]) if "[" in out else None
         except ValueError:

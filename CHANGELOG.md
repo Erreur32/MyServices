@@ -11,6 +11,26 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.34.0 (2026-11-01)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **Agents**: the page now says when a Linux agent lacks the sudo right to read the services to restart or the Fail2ban bans, with a « Rights to complete » tile; the sudo box is already ticked in the new command of that agent.
+- **Settings, Requests**: SSH reads are now counted, per machine and per kind of read (health, Docker, ports, backups, Proxmox and so on), with their duration and errors.
+- **Nginx Proxy Manager, read by the agent**: a new connector mode reads NPM through the agent of its machine, with `npm-api.sh` run there (`MSV_NPM=<path>` at install, exact sudo rules), or set up by the installer with `MSV_NPM=install`. No SSH and no NPM account in MyServices; of the advanced configs, only the lines the checks need leave the machine.
+- **Backups, read by the agent**: with `MSV_BACKUPS=1`, a root script set by the installer reads the followed folders. It refuses any folder outside the list kept on the machine (`MSV_BACKUP_DIRS` adds folders); new folders and copies are found there too, and a machine read this way no longer needs SSH for its backups. SSH remains the fallback.
+- **Hypervisors, read by the agent**: KVM, Incus and LXD, with the sudo box of the install.
+- **Proxmox VE, read by the agent**: with `MSV_SUDO=1` on a Proxmox host, the install sets one root script that runs the same read-only `pvesh` calls as SSH. VMs, containers, nodes and storages then need no SSH, and a host whose agent cannot read them shows in « Rights to complete ».
+- **adguardhome-sync, read by the agent**: an agent with Docker access sends the filtered log of the container, with no new option and no reinstall (automatic update of the agent).
+- **borgmatic, read by the agent**: with `MSV_BORGMATIC=1`, a root timer of its own runs borgmatic every 6 h, outside the agent's sandbox because Borg must write its cache and locks. The connector gains « Through the machine's agent », with no SSH and no sudo. Native or in Docker.
+- **Local DNS, read by the agent**: with `MSV_DNS=1`, a root script finds AdGuard Home, Pi-hole, dnsmasq, Unbound and BIND on the machine, native or in Docker, and sends only their records and rules. An AdGuard read over SSH uses it first, with no setting to change; the new « Local DNS (through the agent) » connector covers the others and machines without SSH. All feed the DNS check.
+- **Agent install**: boxes for the local DNS, the backup folders and Nginx Proxy Manager add their options to the command.
+
+### Changed
+- **Settings, Requests**: calls made by the scheduled tasks (collection, health, backups) now reach the counters; they were lost when each task ended.
+- **Agents outside the allowed networks**: a machine with a live agent, on a public address, no longer needs `MYSERVICES_ALLOW`. Its address only reaches the agent routes (report and install scripts); the page and the API stay closed, and revoking the agent removes the access.
+
 ## v0.33.6 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

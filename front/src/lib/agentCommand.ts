@@ -23,11 +23,33 @@ export function outsideProblem(url: string): "private" | "clear" | null {
   return base.startsWith("http:") ? "clear" : null;
 }
 
-/** Texte à coller dans un PowerShell administrateur (Windows) ou un terminal (Linux, sudo) ; null si l'adresse n'est pas valable.
- *  `sudo` (Linux) : l'installation pose les règles sudo exactes des trois lectures qui demandent root (MSV_SUDO, agent/install.sh) */
-export function installCommand(url: string, token: string, kind: "windows" | "linux" = "windows", sudo = false): string | null {
+/** Options of a Linux agent, the variables of agent/install.sh. `npm`: absent = not read, empty = have the script installed, else its path */
+export interface AgentOptions { sudo?: boolean; dns?: boolean; backups?: boolean; backupDirs?: string; borgmatic?: boolean; npm?: string; npmUrl?: string }
+
+const SAFE_PATH = /^\/[A-Za-z0-9._/-]+$/;   // what the installer accepts; nothing else goes in a command to paste
+const NPM_URL = /^http:\/\/[A-Za-z0-9.-]+(:\d{1,5})?$/;
+
+/** The folders typed that the installer accepts */
+export const backupDirs = (raw: string) => raw.split(/[\s,]+/).filter((d) => SAFE_PATH.test(d));
+
+/** What is typed for NPM cannot go in the command */
+export function npmProblem({ npm, npmUrl }: AgentOptions): boolean {
+  if (npm === undefined) return false;
+  const path = npm.trim(), address = (npmUrl ?? "").trim();
+  return path ? !SAFE_PATH.test(path) : address !== "" && !NPM_URL.test(address);
+}
+
+function linuxEnv(o: AgentOptions): string {
+  const dirs = o.backups ? backupDirs(o.backupDirs ?? "") : [], path = o.npm?.trim(), address = (o.npmUrl ?? "").trim();
+  const env = [o.sudo && "MSV_SUDO=1", o.dns && "MSV_DNS=1", o.backups && "MSV_BACKUPS=1", dirs.length > 0 && `MSV_BACKUP_DIRS=${dirs.join(",")}`, o.borgmatic && "MSV_BORGMATIC=1"];
+  if (o.npm !== undefined && !npmProblem(o)) env.push(`MSV_NPM=${path || "install"}`, !path && address !== "" && `MSV_NPM_URL=${address}`);
+  return env.filter(Boolean).map((v) => `${v} `).join("");
+}
+
+/** Texte à coller dans un PowerShell administrateur (Windows) ou un terminal (Linux, sudo) ; null si l'adresse n'est pas valable */
+export function installCommand(url: string, token: string, kind: "windows" | "linux" = "windows", options: AgentOptions = {}): string | null {
   const base = cleanAgentUrl(url);
   if (!base) return null;
-  if (kind === "linux") return `export MSV_URL='${base}'\nexport MSV_TOKEN='${token}'\ncurl -fsSL "$MSV_URL/agent/install.sh" | sudo env ${sudo ? "MSV_SUDO=1 " : ""}MSV_URL="$MSV_URL" MSV_TOKEN="$MSV_TOKEN" bash`;
+  if (kind === "linux") return `export MSV_URL='${base}'\nexport MSV_TOKEN='${token}'\ncurl -fsSL "$MSV_URL/agent/install.sh" | sudo env ${linuxEnv(options)}MSV_URL="$MSV_URL" MSV_TOKEN="$MSV_TOKEN" bash`;
   return `Set-ExecutionPolicy Bypass -Scope Process -Force\n$env:MSV_URL = '${base}'\n$env:MSV_TOKEN = '${token}'\niex (iwr "$env:MSV_URL/agent/install.ps1" -UseBasicParsing).Content`;
 }

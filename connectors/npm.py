@@ -22,6 +22,7 @@ class NPM(Connector):
         Field("ssh", "Machine de NPM (accès SSH)", help="MyServices s'y connecte avec sa clé"),
         Field("ip", "IP de ce NPM vue du LAN", help="pour le contrôle DNS ; déduite de l'URL ou de la machine si vide"),
         Field("api", "Chemin de npm-api.sh sur cette machine", help="ex. /home/vous/npm-api/npm-api.sh"),
+        Field("agent", "IP de la machine de NPM (celle de son agent)", help="agent installé avec MSV_NPM=<chemin de npm-api.sh> ou MSV_NPM=install"),
     )
     # Trois façons de lire NPM : la page ne montre que les champs utiles à celle choisie, et marque ceux qui sont requis
     modes = (
@@ -33,12 +34,18 @@ class NPM(Connector):
         {"id": "script", "label": "Script npm-api.sh", "fields": ["ssh", "api", "ip"], "required": ["api"],
          "help": "MyServices lance npm-api.sh (--json) sur la machine où il est installé (le script et son npm-api.conf gardent le compte NPM). "
                  "Le conteneur n'a pas ce script : choisissez la machine, ou installez-le d'ici."},
+        {"id": "agent", "label": "Par l'agent de la machine", "fields": ["agent", "ip"], "required": ["agent"],
+         "help": "L'agent de la machine lance npm-api.sh et envoie les listes dans son relevé : ni SSH, ni compte NPM dans MyServices. "
+                 "Installez l'agent avec MSV_NPM=<chemin de npm-api.sh> après « sudo env », ou MSV_NPM=install pour que l'installation pose le script."},
     )
     setup_fields = ("url", "user", "password")
 
     @staticmethod
     def mode_of(conf: dict) -> str:
-        return "script" if conf.get("api") else "ssh" if conf.get("ssh") else "direct"
+        for key, mode in (("agent", "agent"), ("api", "script"), ("ssh", "ssh")):
+            if conf.get(key):
+                return mode
+        return "direct"
 
     @classmethod
     def validate(cls, conf: dict) -> list[str]:
@@ -47,7 +54,7 @@ class NPM(Connector):
         return [f"« {labels[k]} » requis" for k in mode["required"] if not conf.get(k)]
 
     def version(self) -> str | None:
-        if self.conf.get("api") or self.conf.get("ssh"):
+        if self.conf.get("api") or self.conf.get("ssh") or self.conf.get("agent"):
             return None  # npm-api.sh / admin non exposé : version non lue
         v = (self.ctx.http(self.conf["url"].rstrip("/") + "/api/", timeout=5) or {}).get("version") or {}
         return ".".join(str(v[k]) for k in ("major", "minor", "revision") if k in v) or None

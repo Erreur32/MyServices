@@ -7,6 +7,8 @@ kept for top-traffic (MynetworK limits its « live » mode on its own).
 """
 from __future__ import annotations
 
+import json
+import os
 import re
 import threading
 import time
@@ -14,7 +16,7 @@ from collections import deque
 from urllib.parse import parse_qs, urlsplit
 
 MINUTE, HOUR = 60.0, 3600.0
-MAX_ROUTES = 300   # rows kept in all: beyond, the oldest untouched row goes
+MAX_ROUTES = 1000   # rows kept in all: beyond, the oldest untouched row goes
 KEEP = 600         # call times kept per route: enough for the hour window of a route called every few seconds
 KEY_IN_PATH = re.compile(r"/[A-Za-z0-9_-]{20,}(?=/|$)")
 GROUPED = ("/api/search/ip-details/",)   # the address at the end is not part of the route
@@ -25,7 +27,10 @@ ROUTE_LIMITS = {"mynetwork": {"/api/search/ip-details/*": 30, "/api/plugins/unif
 TOTAL_LIMITS = {"mynetwork": 300}
 NEAR = 0.8   # share of a limit from which a route is to watch
 
+SPOOL_ENV = "MYSERVICES_REQ_SPOOL"   # set on a task's process: it dies with its counters, so its calls go to this file for the server (drain)
+
 _lock = threading.Lock()
+_drain_lock = threading.Lock()
 _rows: dict[tuple[str, str], dict] = {}
 
 
@@ -58,6 +63,9 @@ def _row(owner: str, route: str) -> dict:
 def record(owner: str, url: str, ms: float, code: int | None, error: str = "", retry_after: float | None = None, now: float | None = None) -> None:
     """One call made: its duration, HTTP code (None: no answer), error text and, on a 429, the delay the service asked for."""
     now = time.time() if now is None else now
+    if spool := os.environ.get(SPOOL_ENV):
+        _to_spool(spool, [owner, route_of(url), ms, code, (error or "")[:200], retry_after, now])
+        return
     with _lock:
         row = _row(owner or "?", route_of(url))
         row["times"].append(now)
@@ -67,6 +75,35 @@ def record(owner: str, url: str, ms: float, code: int | None, error: str = "", r
         if code == 429:
             row["n429"] += 1
             row["retry_after"] = retry_after
+
+
+def _to_spool(path: str, call: list) -> None:
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        try:
+            os.write(fd, (json.dumps(call) + "\n").encode())   # one write in append mode: lines of parallel calls never mix
+        finally:
+            os.close(fd)
+    except OSError:
+        pass   # a counter is never worth failing a read
+
+
+def drain(path: str) -> None:
+    """Adds the calls a task wrote to its file to the counters of this process, with their own dates. Called when a task ends, which bounds the file."""
+    taken = f"{path}.reading"
+    with _drain_lock:
+        try:
+            os.replace(path, taken)
+            with open(taken, encoding="utf-8") as f:
+                lines = f.readlines()
+            os.unlink(taken)
+        except OSError:
+            return
+    for line in lines:
+        try:
+            record(*json.loads(line))
+        except (ValueError, TypeError):
+            continue   # a line cut short by a killed task
 
 
 def hit(owner: str, what: str) -> None:

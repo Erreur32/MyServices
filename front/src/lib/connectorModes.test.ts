@@ -8,6 +8,7 @@ const npm = {
     { id: "direct", label: "API directe", help: "", fields: ["url", "user", "password", "ip"], required: ["url", "user", "password"] },
     { id: "ssh", label: "API par SSH", help: "", fields: ["ssh", "url", "user", "password", "ip"], required: ["ssh", "url", "user", "password"] },
     { id: "script", label: "Script", help: "", fields: ["ssh", "api", "ip"], required: ["api"] },
+    { id: "agent", label: "Agent", help: "", fields: ["agent", "ip"], required: ["agent"] },
   ],
 } as unknown as ConnectorType;
 
@@ -16,6 +17,7 @@ describe("modes d'un connecteur", () => {
     expect(modeOf(npm, { url: "http://x" })).toBe("direct");
     expect(modeOf(npm, { url: "http://127.0.0.1:81", ssh: "nas" })).toBe("ssh");
     expect(modeOf(npm, { api: "/a/npm-api.sh", ssh: "nas" })).toBe("script");
+    expect(modeOf(npm, { agent: "10.0.0.5", ip: "10.0.0.5" })).toBe("agent");
     expect(modeOf(npm, undefined)).toBe("direct");
   });
   it("un connecteur sans mode n'en a pas", () => {

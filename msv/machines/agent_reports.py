@@ -11,6 +11,17 @@ DEFAULT_INTERVAL = 900    # s : 15 min
 FRESH_MULT = 2.5          # un relevé plus vieux que 2,5 × l'intervalle est périmé
 
 
+def fresh_output(ip: object, key: str) -> str | None:
+    """What a fresh report of the agent of this address sent under this key, when it worked; None otherwise."""
+    from msv.core.config import CFG, db_path
+    try:
+        rep = fresh_reports(db_path(CFG)).get(str(ip)) or {}
+    except (OSError, ValueError, sqlite3.Error):
+        return None
+    got = (((rep.get("report") or {}).get("data") or {}).get("cmds") or {}).get(key) if rep.get("fresh") else None
+    return got[1] if isinstance(got, list) and len(got) == 2 and got[0] == 0 else None
+
+
 def fresh_reports(path: str | Path) -> dict[str, dict]:
     """{IP: {"report": relevé, "seen": date, "fresh": bool}} pour les agents actifs ayant déjà envoyé un relevé."""
     out, now = {}, time.time()

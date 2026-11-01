@@ -145,9 +145,25 @@ def _machines() -> dict:
     """Machines de services-meta.json lues par SSH : {ip: {name, ssh}} (les machines non suivies et sans accès sont ignorées)."""
     if not setup.META.exists():
         return {}
+    from msv.backups import backups
     machines = json.loads(setup.META.read_text(encoding="utf-8")).get("machines", {})
-    return {ip: {"name": m.get("name") or ip, "ssh": m["ssh"]} for ip, m in machines.items()
-            if m.get("ssh") and not m.get("disabled")}
+    reports = backups.agent_reports()   # a machine without SSH counts once its agent sends the scan
+    return {ip: {"name": m.get("name") or ip, "ssh": m.get("ssh") or None} for ip, m in machines.items()
+            if not m.get("disabled") and (m.get("ssh") or backups.report_scan(reports.get(ip)))}
+
+
+def _read_machine(ip: str, ssh: str | None, req: dict, key: str) -> tuple[dict | None, str]:
+    """What the scan of a machine says on `key`: from its agent when it sent it, else over SSH."""
+    from msv.backups import backups
+    scan = backups.report_scan(backups.agent_reports().get(ip))
+    if scan is not None and key in scan:
+        return scan, ""
+    return backups.run_py(ssh, backups.AGENT, json.dumps(req)) if ssh else (None, "agent : pas de relevé récent des sauvegardes")
+
+
+def agent_find_names() -> list[str]:
+    """Names of the newest archives, for the agent to look for their copies."""
+    return sorted(_wanted(_read(), _last_report()))
 
 
 def current() -> dict:
@@ -197,10 +213,8 @@ def _last_report() -> dict:
 
 
 def _scan(item: tuple[str, dict], patterns: list[str]) -> dict:
-    from msv.backups import backups
     ip, m = item
-    req = {"locs": {}, "disks": False, "crons": False, "discover": patterns}
-    out, err = backups.run_py(m["ssh"], backups.AGENT, json.dumps(req))
+    out, err = _read_machine(ip, m["ssh"], {"locs": {}, "disks": False, "crons": False, "discover": patterns}, "local")
     folders = [{"path": d["path"], "size": d.get("size"), "newest": d.get("newest"), "newest_name": d.get("newest_name", ""),
                 "readable": d.get("readable", True)} for d in (out or {}).get("local", [])]
     return {"ip": ip, "name": m["name"], "ssh": m["ssh"], "ok": out is not None, "error": err, "folders": folders}
@@ -286,7 +300,7 @@ def _machine_host(meta: dict, hosts: dict, ip: str, m: dict) -> str:
         hid = _slug(m["name"])
         while hid in hosts:
             hid += "-2"
-        hosts[hid] = {"id": hid, "label": m["name"], "ip": ip, "ssh": m["ssh"], "kind": "machine"}
+        hosts[hid] = {"id": hid, "label": m["name"], "ip": ip, "ssh": m["ssh"], "kind": "machine", **({} if m["ssh"] else {"agent": True})}
         meta["hosts"].append(hosts[hid])
     elif hosts[hid].get("ssh") != m["ssh"]:
         hosts[hid]["ssh"] = m["ssh"]
@@ -559,17 +573,16 @@ def copies_from_hits(meta: dict, want: dict, hits: list[dict]) -> list[dict]:
 def find_copies() -> dict:
     """Looks on every machine read by SSH (network shares included) for the newest archive of each followed folder: where it is found,
     the folder is probably a copy. Read only ; nothing is linked until the page asks."""
-    from msv.backups import backups
     meta = _read()
     want = _wanted(meta, _last_report())
     if not want:
         return {"copies": [], "searched": 0, "reason": "aucune archive connue : attendre le premier relevé des sauvegardes"}
     machines = _machines()
-    req = json.dumps({"locs": {}, "disks": False, "crons": False, "find": {"names": sorted(want), "roots": COPY_ROOTS, "depth": 5, "budget": 60}})
+    req = {"locs": {}, "disks": False, "crons": False, "find": {"names": sorted(want), "roots": COPY_ROOTS, "depth": 5, "budget": 60}}
 
     def one(item):
         ip, m = item
-        out, err = backups.run_py(m["ssh"], backups.AGENT, req)
+        out, err = _read_machine(ip, m["ssh"], req, "found")
         return {"ip": ip, "name": m["name"], "found": (out or {}).get("found") or {}, "error": err if out is None else ""}
     with ThreadPoolExecutor(max(1, min(8, len(machines)))) as ex:
         hits = list(ex.map(one, machines.items()))
@@ -990,9 +1003,8 @@ VZDUMP_SIDE = ["*.log", "*.notes", "*.protected"]   # written next to each dump:
 
 
 def _vzdump_scan(item: tuple[str, dict]) -> dict:
-    from msv.backups import backups
     ip, m = item
-    out, err = backups.run_py(m["ssh"], backups.AGENT, json.dumps({"locs": {}, "disks": False, "crons": False, "vzdump": True}))
+    out, err = _read_machine(ip, m["ssh"], {"locs": {}, "disks": False, "crons": False, "vzdump": True}, "vzdump")
     return {"ip": ip, "name": m["name"], "ok": out is not None, "error": err or (out or {}).get("vzdump_error", ""),
             "groups": (out or {}).get("vzdump", []), "proxmox": out is not None and "vzdump" in out}
 

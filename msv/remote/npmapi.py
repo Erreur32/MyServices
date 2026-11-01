@@ -24,7 +24,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 # Clé de résultat -> (point d'API, option npm-api.sh)
 LISTS = {
@@ -52,7 +52,7 @@ def instances(cfg: dict) -> list[dict]:
     if any(not n for n in names) or len(set(names)) != len(names):
         raise NPMError("config.json npm : chaque instance doit avoir un « name » unique")
     for i in out:
-        if not (i.get("api") or (i.get("url") and i.get("user") and i.get("password"))):
+        if not (i.get("api") or i.get("agent") or (i.get("url") and i.get("user") and i.get("password"))):
             raise NPMError(f"instance NPM {i['name']} : « api », ou « url » + « user » + « password » requis")
     return out
 
@@ -76,8 +76,8 @@ def instance_ip(inst: dict, machines: dict) -> str | None:
 
 
 def _instance_ip(inst: dict, machines: dict) -> str | None:
-    if inst.get("ip"):
-        return inst["ip"]
+    if inst.get("ip") or inst.get("agent"):
+        return inst.get("ip") or inst["agent"]
     if inst.get("ssh"):
         return next((ip for ip, m in machines.items() if m[2] == inst["ssh"]), None)
     if inst.get("api"):
@@ -103,7 +103,7 @@ def _request(inst: dict, path: str, body: dict | None = None, token: str | None 
         curl = ["curl", "-sS", "--fail-with-body", "--max-time", str(TIMEOUT), "-H", "Content-Type: application/json"]
         curl += ["--data-binary", "@-", url] if body is not None else ["-H", "@-", url]
         try:
-            r = subprocess.run(["ssh", *SSH_MUX, "-o", SSH_BATCH, "-o", SSH_CONNECT_TIMEOUT, inst["ssh"], shlex.join(curl)],
+            r = ssh_run("npm", inst["ssh"], ["ssh", *SSH_MUX, "-o", SSH_BATCH, "-o", SSH_CONNECT_TIMEOUT, inst["ssh"], shlex.join(curl)],
                                input=stdin, capture_output=True, text=True, timeout=TIMEOUT + 10)
         except (OSError, subprocess.TimeoutExpired) as e:
             raise NPMError(f"{what} : {e}") from e
@@ -132,7 +132,7 @@ def _script(path: str, opt: str, ssh: str | None = None):
     cmd = f"npm-api.sh {opt}" + (f" (via ssh {ssh})" if ssh else "")
     argv = [path, "--json", opt] if not ssh else ["ssh", *SSH_MUX, "-o", SSH_BATCH, "-o", SSH_CONNECT_TIMEOUT, ssh, shlex.join([path, "--json", opt])]
     try:
-        r = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        r = ssh_run("npm", str(ssh), argv, capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as e:
         raise NPMError(f"{cmd} : {e}") from e
     try:
@@ -142,9 +142,33 @@ def _script(path: str, opt: str, ssh: str | None = None):
         raise NPMError(f"{cmd} a échoué (code {r.returncode}) : {err}") from e
 
 
+def _from_agent(inst: dict) -> dict[str, list]:
+    """The lists the machine's agent sent in its last report (npm-api.sh run there, MSV_NPM): no account of NPM here, no SSH."""
+    from msv.core.config import CFG, db_path
+    from msv.machines.agent_reports import fresh_reports
+    rep = fresh_reports(db_path(CFG)).get(inst["agent"]) or {}
+    if not rep.get("fresh"):
+        raise NPMError(f"NPM {inst['name']} : pas de relevé récent de l'agent de {inst['agent']}")
+    cmds = (((rep.get("report") or {}).get("data") or {}).get("cmds")) or {}
+    out = {}
+    for key, (_, opt) in LISTS.items():
+        rc, text = (cmds.get(f"npm {opt}") or [None, ""])[:2]
+        if rc is None:
+            raise NPMError(f"NPM {inst['name']} : l'agent n'envoie pas NPM (installation avec MSV_NPM à faire)")
+        if rc != 0:
+            raise NPMError(f"NPM {inst['name']} : {text[-200:]}")
+        try:
+            out[key] = json.loads(text)
+        except ValueError as e:
+            raise NPMError(f"NPM {inst['name']} {key} : réponse de l'agent illisible") from e
+    return out
+
+
 def fetch(inst: dict) -> dict[str, list]:
     """{hosts, redirects, dead, streams, acls} bruts de l'API NPM ; NPMError si une lecture échoue."""
-    if inst.get("api"):
+    if inst.get("agent"):
+        out = _from_agent(inst)
+    elif inst.get("api"):
         out = {k: _script(inst["api"], opt, inst.get("ssh")) for k, (_, opt) in LISTS.items()}
     else:
         token = _request(inst, "tokens", body={"identity": inst["user"], "secret": inst["password"]}).get("token")
@@ -172,7 +196,7 @@ def _run_remote(ssh: str | None, script: str, stdin: str | None = None, timeout:
     """Exécute un petit script sh sur la machine (SSH, sans mot de passe demandé) ou ici ; (code, sortie). Les secrets passent par stdin."""
     argv = ["sh", "-c", script] if not ssh else ["ssh", *SSH_MUX, "-o", SSH_BATCH, "-o", SSH_CONNECT_TIMEOUT, ssh, shlex.join(["sh", "-c", script])]
     try:
-        r = subprocess.run(argv, input=stdin, capture_output=True, text=True, timeout=timeout)
+        r = ssh_run("npm", str(ssh), argv, input=stdin, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as e:
         return 255, f"{type(e).__name__}"
     return r.returncode, (r.stdout + ("\n" + r.stderr if r.returncode and r.stderr else "")).strip()

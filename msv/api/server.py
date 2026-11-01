@@ -28,6 +28,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from connectors import reqstats
 from msv.collect import fast
 from msv.collect import netscan
 from msv.collect import pulse
@@ -115,6 +116,10 @@ def enabled(name: str) -> bool:
     return True
 
 
+def req_spool() -> str:
+    return str(Path(CFG["state_dir"]) / "reqstats-spool.jsonl")
+
+
 def run_task(name: str, why: str, args: tuple = ()) -> bool:
     """Lance la tâche si elle ne tourne pas déjà ; False sinon. Le watcher suit chaque collecte. args : arguments du script
     (ex. health.py --only <ip> : une seule machine)."""
@@ -125,6 +130,7 @@ def run_task(name: str, why: str, args: tuple = ()) -> bool:
         env = dict(os.environ, MYSERVICES_PROGRESS=PROGRESS, PYTHONDONTWRITEBYTECODE="1")
         if name in ("watch", "health") and alerts_on():
             env["MYSERVICES_ALERTS_ENGINE"] = "1"  # Réglages → Alertes envoie : le script se tait (pas de doublon)
+        env[reqstats.SPOOL_ENV] = req_spool()
         t["proc"] = subprocess.Popen([sys.executable, "-m", t["script"], *args], cwd=HERE, env=env,
                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         t["start"], t["end"], t["result"] = time.time(), None, None
@@ -182,6 +188,7 @@ def _wait(name: str) -> None:
         print(f"  [{name}] {line.rstrip()}", flush=True)
     code = proc.wait()
     timer.cancel()
+    reqstats.drain(req_spool())
     result = "success" if code == 0 else "timeout" if code == -9 else f"exit-code {code}"
     if code == 0:
         _after_success(name)

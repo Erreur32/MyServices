@@ -97,7 +97,7 @@ function AgentActions({ a, kind, onChanged, onInstall }: Readonly<{ a: AgentInfo
           {confirm !== "" && <>
             <span className="text-xs text-muted">{confirm === "renew" ? tx("L'ancien jeton cessera de marcher.") : tx("La machine n'enverra plus rien.")}</span>
             <button type="button" className={danger} onClick={() => {
-              if (confirm === "renew") { setConfirm(""); onInstall({ ip: a.ip, name: a.name, kind: a.kind ?? kind, auto: true }); }
+              if (confirm === "renew") { setConfirm(""); onInstall({ ip: a.ip, name: a.name, kind: a.kind ?? kind, auto: true, sudo: !!a.rights?.length || !!a.gaps?.includes("sudo") }); }
               else void act(() => send("DELETE", `agents/${a.id}`), tx("révoqué"), setNote).then((ok) => ok && onChanged());
             }}>{tx("Confirmer")}</button>
             <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
@@ -210,6 +210,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         <HistoryTile n={avg ?? "-"} label={tx("Santé des agents")} tone={avg == null ? undefined : healthTone(avg)} fact={tx("moyenne sur 100")} scale={100} kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]} / 100`} goodHigh />
         <StatTile n={s.silent} label={tx("Silencieux")} tone={s.silent ? "warn" : undefined} />
         <StatTile n={s.pending} label={tx("En attente")} />
+        <StatTile n={s.rights} label={tx("Droits à compléter")} tone={s.rights ? "warn" : undefined} />
         <HistoryTile n={s.outdated.length} label={tx("À mettre à jour")} tone={s.outdated.length ? "warn" : undefined} kind="strip" points={hist?.late ?? null} hours={hours} now={now} figure={late} fmt={(p) => tx("{0} à mettre à jour", late(p))} goodHigh={false} />
       </div>
       {install && <AgentInstall key={`${install.ip}-auto`} target={install} onChanged={reload} onClose={() => setInstall(null)} />}

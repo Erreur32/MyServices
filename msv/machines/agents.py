@@ -23,7 +23,7 @@ from msv.machines.agent_reports import DEFAULT_INTERVAL, FRESH_MULT, fresh_repor
 from msv.machines.winname import windows_name
 
 VERSION = "9"                # Windows agent (agent.ps1)
-LINUX_VERSION = "5"          # Linux agent (agent.py)
+LINUX_VERSION = "7"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
 PS_AGENT = "agent.ps1"       # script de l'agent Windows
 SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}
@@ -36,7 +36,7 @@ MAX_UNZIPPED = 2 * 1024 * 1024   # octets : un relevé gzip une fois décompress
 # from the previous one, so the machine does not lose them between two full reads
 SLOW_KEYS = ("hw", "pd", "sv")
 MIN_INTERVAL, MAX_INTERVAL = 60, 86400
-MAX_LINUX_CMDS, MAX_LINUX_OUT, MAX_LINUX_CMD = 60, 60_000, 4000   # a Linux report: commands per report, characters per output and per command
+MAX_LINUX_CMDS, MAX_LINUX_OUT, MAX_LINUX_CMD = 60, 200_000, 4000   # a Linux report: commands per report, characters per output and per command
 MIN_GAP = 60              # s: an agent sends at most one report per minute (the rest gets 429)
 LEGACY_HOST = "[Environment]::MachineName"   # what agents up to version 7 sent instead of the real name (script bug): means "unknown"
 BAD_MAX, BAD_WINDOW = 10, 15 * 60   # bad tokens tolerated per IP, then refused until the window ends
@@ -143,6 +143,11 @@ class Agents:
         with self._db() as db:
             if not db.execute("UPDATE agents SET revoked = ? WHERE id = ? AND revoked IS NULL", (time.time(), aid)).rowcount:
                 raise AgentError("agent inconnu ou déjà révoqué")
+
+    def allows_ip(self, ip: str | None) -> bool:
+        """True when a live agent was created for this address: outside MYSERVICES_ALLOW, its machine still reaches the agent routes (common.AGENT_PATHS)."""
+        with self._db() as db:
+            return db.execute("SELECT 1 FROM agents WHERE ip = ? AND revoked IS NULL LIMIT 1", (ip,)).fetchone() is not None
 
     def purge(self, aid: int) -> None:
         """Efface un agent déjà révoqué (sa ligne seulement : son jeton ne marchait plus de toute façon). Un agent actif ne s'efface pas."""
@@ -278,12 +283,27 @@ def docker_of(report: dict | None) -> list[dict] | None:
     return out
 
 
+# 24 h of the adguardhome-sync log, same filter as over SSH, the newest lines kept: its name first, as the agent finds the container itself
+SYNC_LOG_SH = ("c=$(docker ps --format '{{.Names}} {{.Image}}' 2>/dev/null | grep -m1 adguardhome-sync | cut -d' ' -f1); "
+               "[ -z \"$c\" ] || { echo \"##$c\"; timeout 15 docker logs --since 24h \"$c\" 2>&1 | grep -E 'Sync done|ERROR' | cut -c1-400 | tail -c 48000; }; true")
+
+
+def sync_log(report: dict | None, container: str) -> str | None:
+    """The adguardhome-sync log of a fresh Linux agent report; None for another container, or when the agent sends none."""
+    got = (((report or {}).get("data") or {}).get("cmds") or {}).get(SYNC_LOG_SH)
+    if not isinstance(got, list) or len(got) != 2:
+        return None
+    head, _, body = str(got[1]).partition("\n")
+    return body if head == f"##{container}" else None
+
+
 def inventory_commands() -> list[str]:
     """Commands of the SSH inventory the Linux agent runs too (version 4, running services from version 5): machine info, Docker containers and networks, listening ports."""
     from msv.collect import hostinfo
     from connectors.docker_ssh import DOCKER_SH, NET_SH
     from connectors.process import LISTEN_SH
-    return [hostinfo.REMOTE, hostinfo.UNITS_SH, DOCKER_SH, NET_SH, LISTEN_SH]
+    from msv.remote.virt_ssh import AGENT_CMD
+    return [hostinfo.REMOTE, hostinfo.UNITS_SH, DOCKER_SH, NET_SH, LISTEN_SH, AGENT_CMD, SYNC_LOG_SH]
 
 
 def inventory_cache() -> dict[str, int]:
@@ -333,6 +353,22 @@ def serves_inventory(report: dict | None) -> bool:
     """True when a Linux agent report carries the whole SSH inventory (machine info, Docker containers and networks, listening ports): the
     collection then opens no SSH connection to that machine. Any missing field (old agent, Docker unreadable) keeps the SSH read."""
     return linux_inventory(report) is not None and not inventory_gaps(report)
+
+
+def rights_gaps(report: dict | None) -> list[str]:
+    """What a Linux agent report cannot read for lack of sudo: "needrestart", "fail2ban", "hypervisors". A tool that is not installed, or an agent
+    too old to send the section, is not a gap. Apart from inventory_gaps: it does not weigh on the SSH decision."""
+    from msv.collect import health
+    from msv.remote import pve_ssh, virt_ssh
+    data = (report or {}).get("data") or {}
+    cmds = data.get("cmds")
+    if data.get("kind") != "linux" or not isinstance(cmds, dict):
+        return []
+    got = cmds.get(health.SYSTEM_CMD)
+    secs = health._sections(str(got[1])) if isinstance(got, list) and len(got) == 2 else {}
+    parsers = (("needrestart", "nr", health.parse_needrestart), ("fail2ban", "f2b", health.parse_fail2ban))
+    gaps = [gap for gap, sec, parse in parsers if parse(secs.get(sec, []), "").get("access") is False]
+    return gaps + ["hypervisors"] if virt_ssh.agent_refused(cmds) or pve_ssh.agent_refused(cmds) else gaps
 
 
 def listening_ports(report: dict | None) -> set[int] | None:
@@ -533,15 +569,29 @@ def _h(raw: str) -> str:
 def script(name: str) -> str:
     """agent.ps1 (relevé de health.WIN_PS inclus : une seule source pour SSH et agent) ou install.ps1, tels que servis.
     ASCII seulement : Windows PowerShell 5.1 lit un script sans BOM en ANSI."""
+    if name == "dns-scan.py":
+        import inspect
+        from connectors import adguard
+        head, _, tail = (SCRIPTS / name).read_text(encoding="utf-8").partition("\n\ndef rec(")
+        return head + "\n\n" + "\n\n".join(inspect.getsource(f) for f in (adguard._scalar, adguard.normalize, adguard.parse_yaml)) + "\n\ndef rec(" + tail
+    if name == "backup-scan.py":
+        from msv.backups import backups
+        return backups.SCAN_HEAD + backups.AGENT
     text = (SCRIPTS / name).read_text(encoding="utf-8")
+    if name == "install.sh":
+        from msv.remote import npmapi
+        from msv.remote.pve_ssh import PVE_CMD
+        return text.replace("__NPM_SCRIPT_URL__", npmapi.SCRIPT_URL).replace("__NPM_SCRIPT_SHA256__", npmapi.SCRIPT_SHA256).replace("__PVE_CMD__", PVE_CMD)
     if name == PS_AGENT:
         from msv.collect import health
         text = text.replace("#__COLLECT__", health.WIN_PS.strip()).replace("__VERSION__", VERSION)
     elif name == "agent.py":   # the Linux agent runs the commands the SSH collection runs: one list, here
         from msv.collect import health
+        from msv.remote import npmapi
         text = (text.replace("__VERSION__", LINUX_VERSION).replace("__COMMANDS__", json.dumps(health.LINUX_AGENT_COMMANDS + inventory_commands()))
                 .replace("__SMART_LIST__", json.dumps(health.SMART_LIST_CMD)).replace("__SMART_FMT__", json.dumps(health.smart_cmd("{target}")))
-                .replace("__CACHED__", json.dumps({**health.LINUX_AGENT_CACHE, **inventory_cache()})).replace("__SMART_CACHE__", str(health.SMART_CACHE)))
+                .replace("__CACHED__", json.dumps({**health.LINUX_AGENT_CACHE, **inventory_cache()})).replace("__SMART_CACHE__", str(health.SMART_CACHE))
+                .replace("__NPM_LISTS__", json.dumps([opt for _, opt in npmapi.LISTS.values()])))
     return text
 
 

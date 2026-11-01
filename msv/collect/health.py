@@ -47,7 +47,7 @@ from msv.core import inventory_cache
 from msv.machines.winname import windows_name
 from msv.core.docker_state import allowed_names, intended_stop
 from msv.collect import readers
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 DOCKER_LABEL = "🐳 Docker"
 
@@ -154,7 +154,7 @@ def make_runner(host: dict):
             marked = host.get("os") != "windows"  # PowerShell n'a pas printf : Windows garde sa commande telle quelle
             full = ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", target, f"printf '%s\\n' {SSH_MARK}; {cmd}" if marked else cmd]
             try:
-                r = subprocess.run(full, capture_output=True, text=True, timeout=timeout, input=data)
+                r = ssh_run("health", target, full, capture_output=True, text=True, timeout=timeout, input=data)
             except subprocess.TimeoutExpired:
                 return 124, f"timeout après {timeout}s"
             except Exception as e:

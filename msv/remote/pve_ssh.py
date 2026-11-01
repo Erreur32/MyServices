@@ -8,7 +8,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 
 from connectors.proxmox import node_extra, resources as pve_resources
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 # One SSH run, sections introduced by « @@name » lines: cluster resources, per-node status (load, swap, root disk, kernel, CPU) and, if
 # lm-sensors is installed on the host, its readings (CPU temperature, fans). Everything is read only.
@@ -64,20 +64,16 @@ def sensor_readings(data: object) -> dict:
     return out
 
 
-def read(alias: str) -> tuple[dict | None, str, str | None]:
-    """Guests, nodes and storages of a Proxmox VE host, read on the host itself by SSH (pvesh, read only): (data, error, version)."""
-    cmd = ["bash", "-c", PVE_CMD] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, PVE_CMD]
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    except subprocess.TimeoutExpired:
-        return None, "pvesh : pas de réponse en 60 s", None
-    head, secs = _sections(r.stdout)
+def parse(stdout: str, stderr: str = "") -> tuple[dict | None, str, str | None]:
+    """Guests, nodes and storages in the output of PVE_CMD: (data, error, version)."""
+    head, secs = _sections(stdout)
     first = head.strip().splitlines()[0] if head.strip() else ""
     m = re.match(r"pve-manager/([\w.~-]+)", first)
     # older shape (a version line, then the resources JSON): kept readable
-    res = _json(secs["res"]) if "res" in secs else _json(r.stdout.partition("\n")[2] if m else r.stdout)
+    older = stdout.partition("\n")[2] if m else stdout
+    res = _json(secs.get("res", older))
     if res is None:
-        return None, ("pvesh : " + (r.stderr.strip().splitlines() or ["réponse illisible"])[-1])[:200], None
+        return None, ("pvesh : " + (stderr.strip().splitlines() or ["réponse illisible"])[-1])[:200], None
     if not isinstance(res, list):
         return None, "pvesh : réponse inattendue", None
     data = pve_resources(res)
@@ -90,6 +86,48 @@ def read(alias: str) -> tuple[dict | None, str, str | None]:
     return data, "", m.group(1) if m else None
 
 
+def read(alias: str) -> tuple[dict | None, str, str | None]:
+    """Guests, nodes and storages of a Proxmox VE host, read on the host itself by SSH (pvesh, read only): (data, error, version)."""
+    cmd = ["bash", "-c", PVE_CMD] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, PVE_CMD]
+    try:
+        r = ssh_run("proxmox", alias, cmd, capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return None, "pvesh : pas de réponse en 60 s", None
+    return parse(r.stdout, r.stderr)
+
+
+def _row(name: str, ip: str, data: dict | None, err: str, version: str | None, via: str) -> dict:
+    how = "SSH" if via == "ssh" else "l'agent"
+    return {"connector": "proxmox", "name": name, "label": "Proxmox VE", "ok": data is not None, "stale": False,
+            "message": err or f"lu par {how} (pvesh)", "version": version, "url": f"https://{ip}:8006", "via": via, "ip": ip, **(data or {})}
+
+
+def _agent_read(cmds: dict) -> tuple[dict | None, str, str | None]:
+    got = cmds.get("pve")
+    if not isinstance(got, list) or len(got) != 2 or got[0] != 0:
+        return None, "", None
+    return parse(str(got[1]))
+
+
+def agent_refused(cmds: dict) -> bool:
+    """True on a Proxmox host whose agent does not send pvesh (installed without MSV_SUDO, or an output it could not read)."""
+    from msv.collect.hostinfo import REMOTE
+    got = cmds.get(REMOTE)
+    return isinstance(got, list) and len(got) == 2 and "##PVE yes" in str(got[1]) and _agent_read(cmds)[0] is None
+
+
+def agent_rows(reports: dict, machines_out: list[dict], taken: set[str]) -> list[dict]:
+    """Proxmox VE hosts a fresh Linux agent report read; what it could not read is left to SSH."""
+    names = {m["ip"]: m["name"] for m in machines_out}
+    out = []
+    for ip, rep in reports.items():
+        cmds = ((rep or {}).get("data") or {}).get("cmds")
+        got = _agent_read(cmds) if isinstance(cmds, dict) and ip not in taken else (None, "", None)
+        if got[0] is not None:
+            out.append(_row(names.get(ip, ip), ip, *got, "agent"))
+    return out
+
+
 def rows(machines_out: list[dict], sshc: dict, taken: set[str]) -> list[dict]:
     """Proxmox VE hosts read by SSH, in the shape of the « proxmox » connector rows (data.json « virtualization »): no API token needed.
     A host already read by a Proxmox connector (its URL on the same IP) is left to it."""
@@ -99,6 +137,4 @@ def rows(machines_out: list[dict], sshc: dict, taken: set[str]) -> list[dict]:
     names = {m["ip"]: m["name"] for m in machines_out}
     with ThreadPoolExecutor(max(1, min(4, len(hosts)))) as ex:
         got = dict(zip(hosts, ex.map(read, hosts.values())))
-    return [{"connector": "proxmox", "name": names[ip], "label": "Proxmox VE", "ok": data is not None, "stale": False,
-             "message": err or "lu par SSH (pvesh)", "version": version, "url": f"https://{ip}:8006", "via": "ssh", "ip": ip, **(data or {})}
-            for ip, (data, err, version) in got.items()]
+    return [_row(names[ip], ip, data, err, version, "ssh") for ip, (data, err, version) in got.items()]

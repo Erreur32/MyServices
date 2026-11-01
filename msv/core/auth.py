@@ -22,6 +22,7 @@ from pathlib import Path
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+from msv.core.config import db_path  # noqa: F401  (re-exported: most callers import it from here)
 
 ROLES = ("admin", "viewer")
 SESSION_DAYS = 14                # modifiable (Réglages → Comptes) : set_session_days
@@ -59,11 +60,6 @@ CREATE TABLE IF NOT EXISTS audit (
   id INTEGER PRIMARY KEY, ts REAL NOT NULL, username TEXT, ip TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS audit_ts ON audit(ts);
 """
-
-
-def db_path(cfg: dict) -> Path:
-    """/data/myservices.db : à côté de l'état (state_dir), dans le volume /data."""
-    return Path(cfg["state_dir"]).parent / "myservices.db"
 
 
 class AuthError(Exception):

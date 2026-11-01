@@ -811,6 +811,7 @@ export interface AgentInfo {
   latest_version?: string;     // version du script d'agent servi par cette installation
   outdated?: boolean;          // l'agent est plus ancien que le script servi
   gaps?: string[];             // what its fresh report lacks to replace SSH (agents.inventory_gaps)
+  rights?: string[];           // what it cannot read for lack of sudo, SSH or not (agents.rights_gaps)
   id: number;
   ip: string;
   name: string;

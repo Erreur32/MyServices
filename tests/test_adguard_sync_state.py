@@ -53,5 +53,17 @@ class ErrorState(unittest.TestCase):
         self.assertEqual(myservices._error_state([(None, "x")], [])["errors_open"], 1)
 
 
+class AgentLog(unittest.TestCase):
+    def test_journal_de_l_agent_sans_ssh(self):
+        from msv.machines import agents
+        rep = {"data": {"cmds": {agents.SYNC_LOG_SH: [0, "##sync\n2026-11-01T10:00:00.000+0100\tERROR\tx\ty\tboom\n"]}}}
+        self.assertIsNone(agents.sync_log(rep, "autre"))
+        with mock.patch.object(myservices, "ssh_run") as run:
+            got = myservices.adguard_sync_state(None, "sync", agents.sync_log(rep, "sync"))
+            self.assertIsNone(myservices.adguard_sync_state(None, "sync"))
+        run.assert_not_called()
+        self.assertEqual((got["errors_24h"], got["container"]), (1, "sync"))
+
+
 if __name__ == "__main__":
     unittest.main()

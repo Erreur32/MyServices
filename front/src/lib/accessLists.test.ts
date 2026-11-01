@@ -19,6 +19,9 @@ describe("agentSummary", () => {
     expect(s.outdated.map((a) => a.name)).toEqual(["z"]);
     expect(s.live[0].name).toBe("y");
   });
+  it("counts the live agents missing a right", () => {
+    expect(agentSummary([agent(1, "a", "actif", { rights: ["fail2ban"] }), agent(2, "b", "actif", { rights: [] }), agent(3, "c", "révoqué", { rights: ["needrestart"] })]).rights).toBe(1);
+  });
 });
 
 describe("agentNews", () => {

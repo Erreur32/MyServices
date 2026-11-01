@@ -3,9 +3,13 @@ through the same collectors (health.collect_linux). Nothing sent by an agent is 
 
   python3 -m unittest tests.test_agents_linux
 """
+import json
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from msv.machines import agents  # noqa: E402
@@ -238,6 +242,179 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertIn(') -tlnpH"', text)
         self.assertNotIn("ALL=(root) NOPASSWD: ALL", text)
 
+    def test_npm_filtre_ce_qui_quitte_la_machine(self):
+        ns = {"__name__": "agent_test", "__file__": "/tmp/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        adv = "location / {\n  proxy_pass http://10.0.0.5:8080;\n  proxy_set_header Authorization \"Bearer s3cret\";\n}\nset $acl_lan 1;\nauth_basic_user_file /x;"
+        out = json.loads(ns["npm_clean"]("--host-list", json.dumps([{"id": 1, "owner": {"email": "a@b"}, "access_list": {"id": 2}, "advanced_config": adv}, {"id": 2, "advanced_config": "add_header X secret;"}])))
+        self.assertEqual(out[0], {"id": 1, "advanced_config": "location / {\n  proxy_pass http://10.0.0.5:8080;\n}\nset $acl_lan 1;"})
+        self.assertEqual(out[1]["advanced_config"], "# kept on the machine")   # still seen as set by the checks
+        self.assertEqual(json.loads(ns["npm_clean"]("--access-list", '[{"id": 2, "name": "lan", "items": [{"username": "u"}]}]')), [{"id": 2, "name": "lan"}])
+
+    def test_install_sh_rendu_sans_marqueur_et_empreinte_du_script_npm(self):
+        from msv.remote import npmapi
+        text = agents.script("install.sh")
+        self.assertNotIn("__NPM_", text)
+        self.assertIn(npmapi.SCRIPT_SHA256, text)
+        self.assertIn(npmapi.SCRIPT_URL, text)
+
+    def test_hyperviseurs_lus_par_l_agent(self):
+        from msv.remote import virt_ssh
+        incus = '[{"name": "web", "status": "Running", "type": "container"}]'
+        rep = {"data": {"kind": "linux", "cmds": {virt_ssh.AGENT_CMD: [0, f"##INCUS\n{incus}\n##VIRSH\nsudo: a password is required\n"]}}}
+        rows = virt_ssh.agent_rows(rep, "nas", "10.0.0.9")
+        self.assertEqual([(r["connector"], r["via"], r["ip"]) for r in rows], [("incus", "agent", "10.0.0.9")])
+        self.assertEqual(agents.rights_gaps(rep), ["hypervisors"])
+        self.assertEqual(virt_ssh.agent_rows({"data": {"kind": "linux", "cmds": {virt_ssh.AGENT_CMD: [0, ""]}}}, "nas", "10.0.0.9"), [])   # no hypervisor here
+        for _, args in virt_ssh.AGENT_STEP.values():   # the install writes these exact rules
+            self.assertIn(args.replace("qemu:", "qemu\\:").split(" ", 1)[1], agents.script("install.sh"))
+
+    def test_scan_root_refuse_ce_qui_sort_de_la_liste(self):
+        from msv.backups import backups
+        with tempfile.TemporaryDirectory() as d:
+            ok, other = Path(d, "ok"), Path(d, "other")
+            for p in (ok, other):
+                p.mkdir()
+                (p / "a.tar").write_text("x")
+            (ok / "out").symlink_to(other)
+            lst = Path(d, "dirs")
+            lst.write_text(f"{ok}\n")
+            src = backups.SCAN_HEAD.replace("/etc/myservices-agent/backup-dirs", str(lst)) + backups.AGENT
+            req = {"locs": {"a": {"path": str(ok)}, "b": {"path": str(other)}, "c": {"path": str(ok / "out")}}, "disks": False, "crons": False,
+                   "discover": ["/*"], "find": {"names": ["a"], "roots": ["/"]}}
+            r = subprocess.run([sys.executable, "-c", src], input=json.dumps(req), capture_output=True, text=True, timeout=20)
+            out = json.loads(r.stdout)
+            kept = [d["path"] for d in out["local"]]   # the fixed patterns of the scan may find real folders on the machine running the test
+            self.assertIn(str(ok.resolve()), kept)
+            self.assertNotIn(str(other.resolve()), kept)   # the patterns of the server are not used
+        self.assertEqual(list(out["locs"]), ["a"])
+        self.assertNotIn("found", out)                                             # no name to look for here
+
+    def test_scan_root_cherche_les_copies_sous_la_liste_seulement(self):
+        from msv.backups import backups
+        with tempfile.TemporaryDirectory() as d:
+            ok, other = Path(d, "ok"), Path(d, "other")
+            for p in (ok, other):
+                p.mkdir()
+                (p / "a.tar").write_text("x")
+            lst = Path(d, "dirs")
+            lst.write_text(f"{ok}\n")
+            src = backups.SCAN_HEAD.replace("/etc/myservices-agent/backup-dirs", str(lst)) + backups.AGENT
+            req = {"names": ["a.tar"], "find": {"names": ["a.tar"], "roots": [str(other)]}}
+            r = subprocess.run([sys.executable, "-c", src], input=json.dumps(req), capture_output=True, text=True, timeout=20)
+        self.assertEqual([h["dir"] for h in json.loads(r.stdout)["found"]["a.tar"]], [str(ok.resolve())])
+
+    def test_machine_sans_ssh_lue_par_l_agent_seulement(self):
+        from unittest import mock
+        from msv.backups import backups, backups_admin
+        scan = {"user": "root", "locs": {}, "local": [{"path": "/home/backup", "size": 1, "newest": 2}]}
+        rep = {"10.0.0.9": {"fresh": True, "report": {"data": {"cmds": {"backups": [0, json.dumps(scan)]}}}}}
+        with mock.patch.object(backups, "agent_reports", return_value=rep), mock.patch.object(backups, "run_py") as ssh:
+            got = backups_admin._scan(("10.0.0.9", {"name": "vps", "ssh": None}), ["/x"])
+            self.assertIsNone(backups_admin._read_machine("10.0.0.8", None, {}, "local")[0])
+            ssh.assert_not_called()
+        self.assertEqual((got["ok"], got["folders"][0]["path"]), (True, "/home/backup"))
+
+    def test_scan_de_l_agent_prefere_au_ssh(self):
+        from msv.backups import backups
+        scan = json.dumps({"user": "root", "locs": {"s#0": {"exists": True, "count": 1}}})
+        rep = {"10.0.0.9": {"fresh": True, "report": {"data": {"cmds": {"backups": [0, scan]}}}}}
+        req = {"locs": {"s#0": {"path": "/x"}}}
+        self.assertEqual(backups.agent_scan({"ip": "10.0.0.9", "ssh": "nas"}, req, rep)["user"], "root")
+        self.assertIsNone(backups.agent_scan({"ip": "10.0.0.8", "ssh": "nas"}, req, rep))
+        self.assertIsNone(backups.agent_scan({"ip": "10.0.0.9", "ssh": "nas"}, {"locs": {"s#1": {}}}, rep))   # out of its list: SSH reads it
+        refused = backups.agent_scan({"ip": "10.0.0.9"}, {"locs": {"s#1": {}}}, rep)                         # no SSH: said on the page
+        self.assertIn("MSV_BACKUP_DIRS", refused["locs"]["s#1"]["error"])
+        rep["10.0.0.9"]["report"]["data"]["cmds"]["backups"] = [1, "sudo: a password is required"]
+        self.assertIsNone(backups.agent_scan({"ip": "10.0.0.9", "ssh": "nas"}, req, rep))
+
+    def test_agent_rescanne_quand_le_serveur_demande_autre_chose(self):
+        ns = {"__name__": "agent_test", "__file__": "/tmp/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        with tempfile.TemporaryDirectory() as d:
+            ns["BACKUP_STATE"] = str(Path(d, "backups.json"))
+            calls = []
+            done = SimpleNamespace(returncode=0, stdout=b'{"locs": {}}', stderr=b"")
+            ns["subprocess"] = SimpleNamespace(run=lambda *a, **k: (calls.append(k["input"]) or done), PIPE=-1, TimeoutExpired=TimeoutError)
+            conf = {"python": "/usr/bin/python3", "script": "/x"}
+            self.assertIsNone(ns["backup_scan"](conf, 1000))   # nothing asked yet
+            ns["keep_backup_request"]({"locs": {"a": {}}})
+            self.assertEqual(ns["backup_scan"](conf, 1000), [0, '{"locs": {}}'])
+            ns["backup_scan"](conf, 2000)
+            self.assertEqual(len(calls), 1)                    # kept
+            ns["backup_scan"](conf, 1000 + ns["BACKUP_EVERY"])
+            self.assertEqual(len(calls), 2)                    # too old
+            ns["keep_backup_request"]({"locs": {"b": {}}})
+            ns["backup_scan"](conf, 1000 + ns["BACKUP_EVERY"])
+            self.assertEqual(len(calls), 3)                    # other folders
+
+    def test_installeur_pose_pve_et_borgmatic_sans_entree_du_serveur(self):
+        import subprocess
+        from msv.remote.pve_ssh import PVE_CMD
+        text = agents.script("install.sh")
+        self.assertIn(PVE_CMD, text)
+        self.assertNotIn("__PVE_CMD__", text)
+        self.assertEqual(subprocess.run(["bash", "-n"], input=text.encode(), check=False).returncode, 0)
+        self.assertIn("$BORG_UNIT.timer", text)
+
+    def test_scan_dns_lit_les_outils_sans_les_comptes(self):
+        ns = {"__name__": "dns_test"}
+        exec(compile(agents.script("dns-scan.py"), "<dns-scan>", "exec"), ns)
+        yaml = "users:\n  - name: admin\n    password: $2a$secret\nfiltering:\n  rewrites:\n    - domain: A.lan\n      answer: 10.0.0.1\n  user_rules:\n    - '||x.com^'\n"
+        ns["read"] = lambda p: yaml if p == ns["ADGUARD_FILES"][0] else None
+        got = ns["adguard"]({})
+        self.assertEqual([x["domain"] for x in got["rewrites"]], ["a.lan"])
+        self.assertEqual(got["user_rules"], ["||x.com^"])
+        self.assertNotIn("secret", json.dumps(got))
+        toml = 'x = 1\n  hosts = [\n    "10.0.0.2 nas.lan nas",\n    "10.0.0.3 tv.lan"\n  ] ### CHANGED\n'
+        self.assertEqual([(x["domain"], x["answer"]) for x in ns["pihole_records"](toml, "10.0.0.4 old.lan\n")],
+                         [("nas.lan", "10.0.0.2"), ("nas", "10.0.0.2"), ("tv.lan", "10.0.0.3"), ("old.lan", "10.0.0.4")])
+        self.assertEqual([(x["domain"], x["answer"]) for x in ns["dnsmasq_records"]("address=/a.lan/10.0.0.5\n#address=/b/1\nhost-record=c.lan,10.0.0.6\n")],
+                         [("a.lan", "10.0.0.5"), ("c.lan", "10.0.0.6")])
+        self.assertEqual([(x["domain"], x["answer"]) for x in ns["unbound_records"]('  local-data: "d.lan. 3600 IN A 10.0.0.7"\n  local-data: "e.lan A 10.0.0.8"\n')],
+                         [("d.lan", "10.0.0.7"), ("e.lan", "10.0.0.8")])
+
+    def test_scan_dns_lit_les_zones_bind(self):
+        ns = {"__name__": "dns_test"}
+        exec(compile(agents.script("dns-scan.py"), "<dns-scan>", "exec"), ns)
+        files = {"/etc/bind/named.conf": 'include "/etc/bind/local.conf";\noptions { directory "/var/cache/bind"; };\n',
+                 "/etc/bind/local.conf": '// comment\nzone "home.lan" { type master; file "db.home"; };\nzone "0.0.10.in-addr.arpa" { type master; file "db.rev"; };\n'
+                                         'zone "fwd.lan" { type forward; forwarders { 10.0.0.9; }; };\n',
+                 "/var/cache/bind/db.home": '$TTL 3600\n@ IN SOA ns.home.lan. a.home.lan. (\n  2026 ; serial\n  1h )\n@ IN NS ns\n  IN A 10.0.0.1\nnas 3600 IN A 10.0.0.2 ; note\n'
+                                            '  AAAA fd00::2\nabs.other.lan. A 10.0.0.3\n$ORIGIN sub.home.lan.\ntv A 10.0.0.4\nwww CNAME nas\n'}
+        zones, base = ns["bind_zones"](files.get)
+        self.assertEqual(zones, [("home.lan", "db.home")])
+        ns["read"] = files.get
+        from unittest import mock
+        with mock.patch("os.path.exists", side_effect=lambda path: path == "/etc/bind/named.conf"):
+            got = ns["bind"]({})
+        self.assertEqual([(x["domain"], x["answer"]) for x in got["rewrites"]],
+                         [("home.lan", "10.0.0.1"), ("nas.home.lan", "10.0.0.2"), ("nas.home.lan", "fd00::2"), ("abs.other.lan", "10.0.0.3"), ("tv.sub.home.lan", "10.0.0.4")])
+        self.assertEqual(base, "/var/cache/bind")
+
+    def test_connecteur_dns_agent_reunit_les_outils_et_adguard_passe_par_l_agent(self):
+        from unittest import mock
+        from connectors import adguard
+        tools = {"pihole": {"rewrites": [{"domain": "a", "answer": "1", "enabled": True}], "user_rules": []}, "adguard": {"rewrites": [], "user_rules": ["r"], "version": "0.107"}}
+        c = adguard.LocalDns({"name": "x", "ip": "10.0.0.2"}, mock.Mock())
+        with mock.patch.object(adguard, "agent_dns", return_value=tools):
+            got = c.collect()
+            self.assertEqual((got["tools"], got["user_rules"]), (["adguard", "pihole"], ["r"]))
+            ssh = mock.Mock()
+            ag = adguard.AdGuard({"name": "x", "ip": "10.0.0.2", "ssh": "nas", "target": "c"}, ssh)
+            self.assertEqual(ag.collect()["user_rules"], ["r"])
+            self.assertEqual(ag.version(), "0.107")
+            ssh.ssh.assert_not_called()
+        with mock.patch.object(adguard, "agent_dns", return_value={}), self.assertRaisesRegex(adguard.ConnectorError, "case DNS"):
+            c.collect()
+
+    def test_install_sh_regles_npm_exactes(self):
+        from msv.remote import npmapi
+        text = agents.script("install.sh")
+        for _, opt in npmapi.LISTS.values():
+            self.assertIn(opt, text.split("for o in ")[1].split(";")[0].split())
+        self.assertIn('ALL=($NPM_USER) NOPASSWD: $NPM --json $o', text)
+
     def test_v5_services_en_marche(self):
         from msv.collect import hostinfo
         out = "##UNITS /lib/systemd/system/cron.service /etc/systemd/system/backup-job.service /usr/lib/systemd/system/getty@.service /usr/local/lib/systemd/system/tool.service\n"
@@ -294,6 +471,15 @@ class LinuxAgentScripts(unittest.TestCase):
         nameless = {**full, process.LISTEN_SH: [0, "LISTEN 0 128 0.0.0.0:22 0.0.0.0:*\n"]}   # `ss` without root: ports, no process
         self.assertEqual(agents.inventory_gaps(rep(nameless)), ["sudo"])
         self.assertEqual(agents.inventory_gaps(rep({k: v for k, v in full.items() if k != docker_ssh.NET_SH})), ["docker"])
+
+    def test_droits_manquants_lus_dans_la_section_sante(self):
+        rep = lambda out: {"data": {"kind": "linux", "cmds": {health.SYSTEM_CMD: [0, out]}}}  # noqa: E731
+        self.assertEqual(agents.rights_gaps(rep("@@nr\nNOSUDO\n@@f2b\nNOSUDO\n")), ["needrestart", "fail2ban"])
+        self.assertEqual(agents.rights_gaps(rep("@@nr\nNEEDRESTART-KSTA: 1\n@@f2b\nNOANSWER\n")), [])
+        self.assertEqual(agents.rights_gaps(rep("@@nr\n@@f2b\n")), [])   # tools not installed
+        self.assertEqual(agents.rights_gaps(rep("@@now 1\n")), [])        # agent too old for these sections
+        self.assertEqual(agents.rights_gaps({"data": {"disks": []}}), [])  # Windows report
+        self.assertEqual(agents.rights_gaps(None), [])
 
     def test_v4_info_machine_gardee_une_heure(self):
         from msv.collect import hostinfo

@@ -139,3 +139,8 @@ def next_timer_run(timer: str) -> str | None:
 
 
 CFG = load()
+
+
+def db_path(cfg: dict) -> Path:
+    """/data/myservices.db : à côté de l'état (state_dir), dans le volume /data."""
+    return Path(cfg["state_dir"]).parent / "myservices.db"

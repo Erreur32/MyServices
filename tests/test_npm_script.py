@@ -27,10 +27,43 @@ except ImportError:
 NPM = connectors.TYPES["npm"]
 
 
+class ByAgent(unittest.TestCase):
+    INST = {"name": "vps", "agent": "203.0.113.7"}
+
+    def fetch(self, rep):
+        with mock.patch("msv.machines.agent_reports.fresh_reports", return_value=rep):
+            return npmapi.fetch(self.INST)
+
+    @staticmethod
+    def report(cmds):
+        return {"203.0.113.7": {"fresh": True, "report": {"data": {"kind": "linux", "cmds": cmds}}}}
+
+    def test_lists_of_the_report(self):
+        cmds = {f"npm {opt}": [0, "[]"] for _, opt in npmapi.LISTS.values()}
+        cmds["npm --host-list"] = [0, '[{"id": 1}]']
+        got = self.fetch(self.report(cmds))
+        self.assertEqual(got["hosts"], [{"id": 1}])
+        self.assertEqual(set(got), set(npmapi.LISTS))
+
+    def test_errors_say_why(self):
+        with self.assertRaisesRegex(npmapi.NPMError, "relevé récent"):
+            self.fetch({})
+        nothing = self.report({})
+        with self.assertRaisesRegex(npmapi.NPMError, "MSV_NPM"):
+            self.fetch(nothing)
+        bad = self.report({f"npm {opt}": [1, "sudo: a password is required"] for _, opt in npmapi.LISTS.values()})
+        with self.assertRaisesRegex(npmapi.NPMError, "password is required"):
+            self.fetch(bad)
+
+    def test_mode_needs_only_the_address(self):
+        self.assertEqual(NPM.mode_of({"agent": "203.0.113.7"}), "agent")
+        self.assertEqual(NPM.validate({"agent": "203.0.113.7"}), [])
+
+
 class Modes(unittest.TestCase):
     def test_trois_modes_declares_et_champs_connus(self):
         names = {f.name for f in NPM.fields}
-        self.assertEqual([m["id"] for m in NPM.modes], ["direct", "ssh", "script"])
+        self.assertEqual([m["id"] for m in NPM.modes], ["direct", "ssh", "script", "agent"])
         for m in NPM.modes:
             self.assertTrue(set(m["fields"]) <= names and set(m["required"]) <= set(m["fields"]), m["id"])
 
@@ -50,10 +83,10 @@ class Modes(unittest.TestCase):
     def test_schema_expose_les_modes_a_la_page(self):
         from connectors import settings
         npm = next(t for t in settings.schema() if t["type"] == "npm")
-        self.assertEqual([m["id"] for m in npm["modes"]], ["direct", "ssh", "script"])
+        self.assertEqual([m["id"] for m in npm["modes"]], ["direct", "ssh", "script", "agent"])
         adguard = next(t for t in settings.schema() if t["type"] == "adguard")   # its API, or AdGuardHome.yaml over SSH
         self.assertEqual([m["id"] for m in adguard["modes"]], ["direct", "ssh"])
-        self.assertTrue(all(not t["modes"] for t in settings.schema() if t["type"] not in ("npm", "adguard")))
+        self.assertTrue(all(not t["modes"] for t in settings.schema() if t["type"] not in ("npm", "adguard", "borgmatic")))
 
 
 class ScriptParSsh(unittest.TestCase):

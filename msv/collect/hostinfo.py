@@ -13,7 +13,7 @@ import subprocess
 from pathlib import Path
 
 from msv.core.config import CFG
-from msv.remote.sshmux import SSH_MUX
+from msv.remote.sshmux import SSH_MUX, ssh_run
 
 SSH_DIR = Path.home() / ".ssh"
 
@@ -295,7 +295,7 @@ def host_info(alias: str) -> dict | None:
     cmd = ["bash", "-c", script] if alias == "local" else \
         ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, script]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
+        r = ssh_run("machine info", alias, cmd, capture_output=True, text=True, timeout=25)
     except subprocess.TimeoutExpired:
         return None
     return None if r.returncode == 255 else parse_host_info(r.stdout)

@@ -5,7 +5,7 @@ import { tx } from "./i18n";
 
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
 
-export interface AgentSummary { live: AgentInfo[]; revoked: AgentInfo[]; active: number; silent: number; pending: number; outdated: AgentInfo[] }
+export interface AgentSummary { live: AgentInfo[]; revoked: AgentInfo[]; active: number; silent: number; pending: number; outdated: AgentInfo[]; rights: number }
 
 /** The agents in use (alphabetical, the ones needing a look first) and the revoked ones; counts for the figures on top */
 export function agentSummary(agents: AgentInfo[]): AgentSummary {
@@ -18,6 +18,7 @@ export function agentSummary(agents: AgentInfo[]): AgentSummary {
     silent: live.filter((a) => a.state === "silencieux").length,
     pending: live.filter((a) => a.state === "en attente").length,
     outdated: live.filter((a) => a.outdated && !a.update_requested),
+    rights: live.filter((a) => a.rights?.length).length,
   };
 }
 

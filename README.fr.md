@@ -39,8 +39,9 @@
 > les données enregistrées peuvent changer d'une version à l'autre.
 >
 > - **Ce qui est solide** : le cœur (collecte, santé, historique, alertes, comptes, API et MCP) et les connecteurs utilisés tous les jours sur
->   le réseau de l'auteur : **Nginx Proxy Manager, AdGuard Home, Beszel, Dockhand, Dozzle, Frigate, Glances, GpuViewR, Hermes Agent, Home
->   Assistant, LogviewR, MynetworK (et, par lui, UniFi et la Freebox), Uptime Kuma, Wazuh et Web-Check**.
+>   le réseau de l'auteur : **Nginx Proxy Manager, AdGuard Home, Beszel, Cloudflare, Dockhand, Dozzle, Frigate, Glances, GpuViewR, Hermes Agent, Home
+>   Assistant, LogviewR, MynetworK (et, par lui, UniFi et la Freebox), Netatmo, Nextcloud, Ollama, Open WebUI, Rybbit, Speedtest Tracker,
+>   Tapo, Tautulli, UniFi Network, Uptime Kuma, Wazuh et Web-Check**.
 > - **Ce qui est moins testé** : les autres connecteurs ont été écrits d'après la documentation de chaque service et essayés seulement contre
 >   des serveurs simulés ; ils peuvent donc ne pas correspondre à toutes les versions ou installations. C'est pareil pour l'agent Windows
 >   (un seul PC pour l'instant). Le [tableau des connecteurs](#connecteurs) plus bas dit lesquels sont lesquels. Si l'un ne correspond pas à
@@ -50,7 +51,7 @@
 > - **Les retours sont les bienvenus** : [questions et idées](https://github.com/Erreur32/MyServices/discussions), bugs et demandes de
 >   connecteur (voir plus bas). Les pull requests ne sont pas encore traitées.
 >
-> Chaque version est étiquetée et publiée comme image Docker. Les numéros restent **sous la 2.0.0** tant que le projet n'est pas déclaré stable (`0.33.6`, `0.33.7`…).
+> Chaque version est étiquetée et publiée comme image Docker. Les numéros restent **sous la 2.0.0** tant que le projet n'est pas déclaré stable (`0.34.0`, `0.34.1`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (en anglais).
 
 ## En bref
@@ -63,12 +64,26 @@ signale ce qui demande votre attention.
 - **Un seul conteneur** : collecte, veille, santé, sauvegardes, comptes, API et page web.
 - Un **assistant de démarrage** : une décision à la fois, qui recommande la façon la plus simple de lire chaque machine.
 - **Machines** lues par SSH (Linux), par un agent PowerShell (Windows), par l'API d'une appli, ou simplement par ping.
-- **Environ 60 connecteurs** : Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, UniFi, MynetworK, Beszel, Ollama, Frigate… (lesquels sont éprouvés : voir [Connecteurs](#connecteurs)).
+- **Plus de 80 connecteurs** : Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, UniFi, MynetworK, Beszel, Ollama, Frigate… (lesquels sont éprouvés : voir [Connecteurs](#connecteurs)).
 - **Cadres en direct avec historique** : joignabilité, santé, processeur et mémoire, services, sauvegardes, et le débit de votre accès Internet (Freebox et UniFi), sur 24 heures, 3 jours ou 7 jours.
 - **Un historique** de chaque événement, avec ce qui l'a détecté et d'où vient l'information.
+- **Des icônes de services** : chaque service affiche son logo ou le favicon de son propre site, lu directement sur le service, jamais par un tiers.
 - **Schémas** générés pour vous (réseau, accès aux machines, sauvegardes, alertes, et d'autres en un clic).
 - **Alertes et notifications** sur Discord, Telegram et webhook.
 - Une **API REST** et un **serveur MCP** pour vos outils et assistants IA.
+
+## Ce qui est testé et fonctionne
+
+Vérifié sur le vrai réseau de l'auteur (environ 20 machines et 200 services) :
+
+- **Machines** : SSH sous Linux, agent Linux, agent Windows (un seul PC pour l'instant), ping et recherche réseau.
+- **Services** : hôtes Nginx Proxy Manager, conteneurs Docker, services locaux, domaines et leurs icônes.
+- **Suivi** : historique, disponibilité, contrôles de santé, règles d'alerte, et alertes sur Discord et Telegram.
+- **Sauvegardes** : dossiers suivis par SSH, et leurs copies sur un partage Freebox.
+- **Accès** : comptes, API REST et serveur MCP.
+- **Connecteurs** : ceux [en gras dans le tableau](#connecteurs).
+
+Pas encore validé sur une vraie installation : les autres connecteurs, dont Proxmox, Veeam et Synology (en attente d'un testeur).
 
 ## Démarrage rapide (sur une machine de test)
 
@@ -81,11 +96,11 @@ docker compose up -d
 ```
 
 Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anciennes adresses `/myservices/…` marchent toujours et redirigent) **dans les 30 minutes** pour créer le compte admin (passé ce délai :
-`docker compose restart myservices`), et suivez l'**assistant de démarrage**, qui s'ouvre tout seul la première fois (six courtes étapes : cette machine, le réseau, la façon de lire chaque machine, vos outils, les alertes ; chaque étape se passe et se refait, depuis le menu du compte : « Revoir l'assistant de démarrage »), puis la page **Aide** du menu du compte. La clé SSH de l'app et la commande pour l'autoriser sur une machine sont dans **Machines › Connexions SSH**.
+`docker compose restart myservices`), et suivez l'**assistant de démarrage**, qui s'ouvre tout seul la première fois (cinq courtes étapes : bienvenue, cette machine, le réseau, la façon de lire chaque machine, et la suite ; chaque étape se passe et se refait, depuis le menu du compte : « Revoir l'assistant de démarrage »), puis la page **Aide** du menu du compte. La clé SSH de l'app et la commande pour l'autoriser sur une machine sont dans **Machines › Connexions SSH**.
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.33.6` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.34.0` une version précise, `:main` le dernier commit de la branche `main`.
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---
@@ -104,12 +119,12 @@ Les pull requests ne sont pas encore traitées (voir l'avertissement en haut).
 <details>
 <summary><b>Ce que l'on voit : le menu</b></summary>
 
-Un menu à gauche réunit toutes les pages, en quatre groupes ; les vues d'une page sont ses sous-pages, rangées dessous, chacune avec son adresse. Ce qui demande votre attention est le filtre « Alertes » de chaque liste (Sécurité : sa Vue d'ensemble). Une entrée apparaît dès que sa source est reliée.
+Un menu à gauche réunit toutes les pages, en cinq groupes ; les vues d'une page sont ses sous-pages, rangées dessous, chacune avec son adresse. Ce qui demande votre attention est le filtre « Alertes » de chaque liste (Sécurité : sa Vue d'ensemble). Une entrée apparaît dès que sa source est reliée.
 
 | Groupe | Pages |
 |---|---|
-| **En bref** | **Accueil** (tableau de bord : ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; puis l'historique : les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur, et la disponibilité ; statistiques) |
-| **Inventaire** | **Machines** (chaque machine, avec sa page et ses réglages ; appareils vus par vos outils mais pas suivis ; agents ; connexions SSH et clé SSH de l'app), **Services** (hôtes NPM et services locaux, chacun avec sa page, lue et modifiée sur place ; nouveaux services ; déclarer un service), **Réseau** (UniFi, Freebox, scan, équipements et appareils, diagnostic), **DNS** (AdGuard Home : serveurs, détails), **Cloudflare** (quoi améliorer et pourquoi, trafic, sécurité, serveur et cache, DNS, domaines côte à côte, chaque nom proxifié vérifié face à NPM, Apache ou nginx), **Virtualisation**, **IA et agents** (vue d'ensemble, modèles, agents et MCP, GPU ; visible dès qu'un service ou un connecteur IA existe), **Vidéo et caméras** (vue d'ensemble, caméras, flux, enregistrements ; visible dès qu'un service Stream ou un connecteur vidéo existe), **Schémas** |
+| **En bref** | **Accueil** (tableau de bord : ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; Événements : de 24 h à un an, en points, barres, courbe ou carte de chaleur ; Disponibilité) |
+| **Inventaire** | **Machines** (chaque machine, avec sa page et ses réglages ; appareils vus par vos outils mais pas suivis ; agents ; connexions SSH et clé SSH de l'app), **Services** (hôtes NPM et services locaux, chacun avec sa page, lue et modifiée sur place ; nouveaux services ; déclarer un service), **Réseau** (UniFi, box internet, scan, équipements et appareils, diagnostic), **DNS** (AdGuard Home : serveurs, détails), **Cloudflare** (quoi améliorer et pourquoi, trafic, sécurité, serveur et cache, DNS, domaines côte à côte, chaque nom proxifié vérifié face à NPM, Apache ou nginx), **Virtualisation**, **Domotique** (vue d'ensemble, Netatmo, Tapo), **IA et agents** (vue d'ensemble, modèles, agents et MCP, GPU ; visible dès qu'un service ou un connecteur IA existe), **Vidéo et caméras** (vue d'ensemble, caméras, flux, enregistrements, Frigate ; visible dès qu'un service Stream ou un connecteur vidéo existe), **Schémas** |
 | **Protection** | **Sécurité** (vue d'ensemble, sites exposés, accès SSH, ports du réseau, certificats, Fail2ban, Wazuh), **Sauvegardes** (par machine, jeux, ajouter des sauvegardes, à relier, copies ailleurs, emplacements cherchés) |
 | **Collecte** | **Connecteurs** (les miens, disponibles, détectés à relier, déjà lus par SSH ou agent), **Découverte** (mode automatique, à faire, autres suggestions), **Tâches et horaires** |
 | **Administration** | **Notifications** (canaux, règles d'alerte, mes notifications, exemples, derniers envois), **Comptes et accès** (comptes et sessions, jetons API et MCP), **Application** (mises à jour, e-mail, export et import, requêtes, journal d'audit, journaux, informations) |
@@ -132,7 +147,7 @@ Une machine peut être suivie de trois façons, qui se combinent. La première s
 3. **Ping et recherche réseau** : indiquent seulement si une machine est allumée et quelles applis y répondent. La première recherche sur le réseau local se lance toute seule, puis se répète à la fréquence choisie. En mode manuel, vous choisissez les machines à suivre ; en mode automatique, les plus utiles sont ajoutées pour vous.
 
 > **Lequel choisir ? Une règle simple.**
-> - **Un PC Windows ou une machine Linux** : l'agent. Il relit la machine chaque minute et l'envoie lui-même, sans clé SSH sur la machine.
+> - **Un PC Windows ou une machine Linux** : l'agent. Il relit la machine toutes les 5 minutes par défaut et l'envoie lui-même, sans clé SSH sur la machine.
 > - **SSH** : gardé pour ce que l'agent ne lit pas (sauvegardes, Proxmox ou ESXi, NPM, AdGuard), pour un Mac (pas d'agent macOS), ou si l'agent ne peut pas être installé. Machines › Connexions SSH dit, machine par machine, si le SSH sert encore.
 > - **Une box, une passerelle, une appli** (Freebox, UniFi, Home Assistant...) : le connecteur, pas d'agent.
 >
@@ -169,7 +184,7 @@ Pour les machines Linux, l'agent Linux (Python 3.6+, systemd) donne les mêmes i
 <details>
 <summary><b>Agent Windows : installation, sécurité, mises à jour</b></summary>
 
-**Installation.** Ouvrez la page du PC (Machines › Toutes les machines, puis le PC), onglet **Accès**, puis « Installer l'agent Windows ». MyServices affiche une commande d'une ligne, avec le jeton, **une seule fois**. Collez-la dans un PowerShell **administrateur** sur le PC. L'installateur télécharge l'agent depuis MyServices, écrit ses réglages, crée la tâche planifiée *MyServices Agent* (exécutée en SYSTEM au démarrage, à l'ouverture de session et toutes les 15 minutes par défaut ; `-Minutes` change cela) et envoie un premier relevé. Seuls SYSTEM et les Administrateurs peuvent lire le dossier de l'agent (`C:\ProgramData\MyServices-Agent`), car le jeton s'y trouve. Pour le retirer : lancez l'installateur avec `-Uninstall`, puis révoquez le jeton dans ce même onglet **Accès**.
+**Installation.** Ouvrez la page du PC (Machines › Toutes les machines, puis le PC), onglet **Accès**, puis « Installer l'agent Windows ». MyServices affiche une commande d'une ligne, avec le jeton, **une seule fois**. Collez-la dans un PowerShell **administrateur** sur le PC. L'installateur télécharge l'agent depuis MyServices, écrit ses réglages, crée la tâche planifiée *MyServices Agent* (exécutée en SYSTEM au démarrage, à l'ouverture de session et toutes les 5 minutes par défaut ; `-Minutes` change cela) et envoie un premier relevé. Seuls SYSTEM et les Administrateurs peuvent lire le dossier de l'agent (`C:\ProgramData\MyServices-Agent`), car le jeton s'y trouve. Pour le retirer : lancez l'installateur avec `-Uninstall`, puis révoquez le jeton dans ce même onglet **Accès**.
 
 **Ce qu'il fait et ne fait pas.** L'agent lit seulement le PC et **envoie** son relevé à MyServices (rien n'est ouvert sur le PC). Il n'exécute aucune commande reçue du serveur, n'écoute sur aucun port et n'installe rien d'autre.
 
@@ -177,9 +192,19 @@ Pour les machines Linux, l'agent Linux (Python 3.6+, systemd) donne les mêmes i
 - Un jeton par machine, montré une seule fois ; seule son empreinte SHA-256 est gardée. Un nouveau jeton pour la même machine révoque l'ancien. Le jeton n'ouvre qu'une route (envoyer son propre relevé) : il est refusé partout ailleurs, et les jetons d'API ou de MCP sont refusés sur cette route.
 - Un relevé par minute et par agent (au-delà : `429`). Une IP qui présente 10 jetons inconnus en 15 minutes est refusée jusqu'à la fin de la fenêtre (les jetons révoqués ne comptent pas).
 - Le nom du PC vu au premier relevé est retenu. Un relevé sous un autre nom (PC renommé, ou jeton copié sur un autre PC) est refusé tant que vous n'avez pas cliqué sur **Confirmer ce nom** sur la carte de l'agent ; l'événement est écrit au journal d'audit.
-- Comme le reste de MyServices, la page et la route de l'agent ne répondent qu'aux réseaux autorisés par `MYSERVICES_ALLOW`. Le HTTP simple convient sur un réseau local de confiance ; derrière un proxy inverse, donnez à l'agent l'adresse HTTPS.
+- Comme le reste de MyServices, la page et la route de l'agent ne répondent qu'aux réseaux autorisés par `MYSERVICES_ALLOW`. Une exception : l'adresse publique d'une machine qui a un agent actif joint les routes de l'agent (relevé et scripts d'installation), rien d'autre, jusqu'à la révocation de l'agent. Le HTTP simple convient sur un réseau local de confiance ; derrière un proxy inverse, donnez à l'agent l'adresse HTTPS.
 
 **Mises à jour.** La carte de l'agent affiche sa version. **Mettre à jour maintenant** ou l'interrupteur **Automatique** par agent (coupé par défaut) fait récupérer le nouveau script à MyServices au prochain relevé ; l'agent contrôle le SHA-256 et la syntaxe avant de se remplacer. Le script n'est pas signé : MyServices est la seule source de confiance.
+
+**Sauvegardes.** Cochez la case sauvegardes à la création de l'agent (`MSV_BACKUPS=1` dans la commande) : un script root posé par l'installation lit les dossiers suivis (noms, tailles, dates, jamais le contenu) et refuse tout dossier absent de la liste gardée sur la machine, `/etc/myservices-agent/backup-dirs`. `/home/backup`, `/var/backups`, `/backup` et `/backups` y sont ; `MSV_BACKUP_DIRS=/a,/b` en ajoute d'autres. Nouveaux dossiers, sauvegardes Proxmox et copies sont trouvés de la même façon, et le SSH reste le relais.
+
+**Proxmox VE, adguardhome-sync, borgmatic.** Sur un hôte Proxmox, la case sudo (`MSV_SUDO=1`) pose aussi un script root qui lance `pvesh` en lecture seule. adguardhome-sync demande seulement l'accès à Docker. La case borgmatic (`MSV_BORGMATIC=1`) ajoute un minuteur root toutes les 6 h, car Borg ne peut pas tourner dans le bac à sable de l'agent ; choisissez ensuite « Par l'agent de la machine » dans le connecteur borgmatic.
+
+**DNS local.** Cochez la case DNS à la création de l'agent (`MSV_DNS=1`) : un script root trouve AdGuard Home, Pi-hole, dnsmasq, Unbound et BIND sur la machine, natifs ou en Docker, et n'envoie que leurs enregistrements et règles. Un AdGuard déjà suivi n'a alors plus besoin du SSH ; pour les autres, ajoutez le connecteur **DNS local (par l'agent)**. Technitium est lu par son API.
+
+**Hyperviseurs.** Avec la case sudo cochée, l'agent lit KVM, Incus et LXD. VirtualBox, Proxmox et ESXi restent lus par SSH ou par leur API.
+
+**Nginx Proxy Manager.** Sur une machine qui a [npm-api.sh](https://github.com/Erreur32/nginx-proxy-manager-Bash-API), cochez la case NPM à la création de l'agent et donnez le chemin du script (`MSV_NPM=<chemin>`), ou laissez-le vide pour le faire poser (`MSV_NPM=install`, le compte NPM étant demandé dans le terminal et gardé sur la machine) et choisissez le mode de connecteur **Par l'agent de la machine** : l'agent lit NPM avec le compte propriétaire du script (règles sudo exactes), MyServices n'a besoin ni du SSH ni d'un compte NPM, et seules les lignes des configurations avancées utiles aux contrôles quittent la machine.
 
 **macOS.** Pas d'agent pour macOS : un Mac est lu par SSH.
 
@@ -191,22 +216,22 @@ Les machines trouvées mais pas suivies, les clés SSH à autoriser et les agent
 
 <details>
 <a id="connecteurs"></a>
-<summary><b>Connecteurs (environ 60)</b></summary>
+<summary><b>Connecteurs (plus de 80)</b></summary>
 
 Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** : donnez-lui une clé ou un compte qui ne peut rien modifier. Collecte › Connecteurs › Mes connecteurs les liste, teste chacun (bouton **Tester**) et montre ce que la dernière collecte a lu. La sous-page **Détectés à relier** propose ceux qu'il a reconnus sur votre réseau, avec le formulaire déjà rempli ; **Déjà lus par SSH ou agent** liste les outils qu'une machine suivie donne déjà.
 
 | Famille | Connecteurs |
 |---|---|
 | **Web et proxys** | **Nginx Proxy Manager**, **Web-Check** |
-| **Applis** | **Home Assistant**, Netatmo, Tapo, Nextcloud, Jellyfin, Tautulli, Overseerr / Jellyseerr, Sonarr / Radarr / Prowlarr…, Bazarr, qBittorrent, Transmission |
-| **DNS** | **AdGuard Home**, Cloudflare, Pi-hole, Technitium DNS |
-| **Supervision** | **Beszel**, **Uptime Kuma**, **Dozzle**, **Glances**, **LogviewR**, Prometheus, Healthchecks, Netdata, Pulse, Speedtest Tracker, Webmin, Umami, Rybbit |
-| **Réseau** | **MynetworK** (UniFi et Freebox par lui), UniFi Network (direct), Tailscale / Headscale, OPNsense, NetAlertX, Box internet (UPnP IGD), FRITZ!Box, SFR Box, Livebox, Vodafone Station, Sagemcom F@st, Bbox, Swisscom Internet-Box, Compal Connect Box, Telekom Speedport, Technicolor Homeware, T-Mobile Home Internet, Hitron CODA, Verizon Fios, Arris SURFboard, Liberty gateway, OpenWrt, MikroTik RouterOS, Asus (AsusWRT / Merlin), TP-Link Archer (ces quatre routeurs : pas encore testés sur un vrai routeur) |
+| **Applis** | **Home Assistant**, **Netatmo**, **Tapo**, **Nextcloud**, Jellyfin, **Tautulli**, Overseerr / Jellyseerr, Sonarr / Radarr / Prowlarr…, Bazarr, qBittorrent, Transmission |
+| **DNS** | **AdGuard Home**, **Cloudflare**, Pi-hole, Technitium DNS |
+| **Supervision** | **Beszel**, **Uptime Kuma**, **Dozzle**, **Glances**, **LogviewR**, Prometheus, Healthchecks, Netdata, Pulse, **Speedtest Tracker**, Webmin, Umami, **Rybbit** |
+| **Réseau** | **MynetworK** (UniFi et Freebox par lui), **UniFi Network** (direct), Tailscale / Headscale, OPNsense, NetAlertX, Box internet (UPnP IGD), FRITZ!Box, SFR Box, Livebox, Vodafone Station, Sagemcom F@st, Bbox, Swisscom Internet-Box, Compal Connect Box, Telekom Speedport, Technicolor Homeware, T-Mobile Home Internet, Hitron CODA, Verizon Fios, Arris SURFboard, Liberty gateway, OpenWrt, MikroTik RouterOS, Asus (AsusWRT / Merlin), TP-Link Archer (ces quatre routeurs : pas encore testés sur un vrai routeur) |
 | **Sécurité** | **Wazuh**, CrowdSec |
 | **Virtualisation et conteneurs** | **Dockhand**, Proxmox VE, Proxmox Datacenter Manager, VMware vCenter, Portainer, Arcane, Unraid |
 | **Stockage et sauvegardes** | Proxmox Backup Server, Veeam Backup & Replication, Veeam pour Microsoft 365, Backrest, borgmatic, UrBackup, TrueNAS, Synology DSM, dossier distant (FTP, FTPS, Samba) |
 | **Énergie** | Onduleur (NUT) |
-| **IA** | **Hermes Agent**, **GpuViewR**, Ollama, llama.cpp, Open WebUI, API compatible OpenAI (vLLM, LM Studio, LocalAI, KoboldCpp, LiteLLM) |
+| **IA** | **Hermes Agent**, **GpuViewR**, **Ollama**, llama.cpp, **Open WebUI**, API compatible OpenAI (vLLM, LM Studio, LocalAI, KoboldCpp, LiteLLM) |
 | **Vidéo et caméras** | **Frigate**, Shinobi, go2rtc, MediaMTX, Owncast |
 | **Canaux** | Discord, Telegram, webhook |
 
@@ -271,7 +296,7 @@ La page **Schémas** en propose aussi que vous créez en un clic, construits ave
 <details>
 <summary><b>Sécurité et accès</b></summary>
 
-- **Lecture seule par construction** : les connecteurs n'envoient que des requêtes GET (ou des commandes de lecture par SSH). Mots de passe et jetons sont stockés chiffrés (`enc:v1`) et jamais renvoyés à la page ; la clé SSH privée reste dans `config/ssh` (mode 600) et n'est jamais montrée.
+- **Lecture seule par construction** : les connecteurs ne font que lire (appels d'API ou commandes de lecture par SSH) : un POST sert seulement à se connecter ou à lancer une requête que certaines API imposent. Mots de passe et jetons sont stockés chiffrés (`enc:v1`) et jamais renvoyés à la page ; la clé SSH privée reste dans `config/ssh` (mode 600) et n'est jamais montrée.
 - **Comptes** : comptes locaux (admin ou lecture seule), règles de mot de passe, liste des sessions, journal d'audit (filtrable, export CSV).
 - **Réseau** : la page ne répond par défaut qu'aux réseaux privés et à la boucle locale (`MYSERVICES_ALLOW` pour changer). Ne l'exposez pas sur Internet ; passez par un VPN ou un proxy avec authentification pour un accès à distance (`MYSERVICES_COOKIE_SECURE=1` derrière HTTPS).
 - **Le conteneur** : l'app tourne sous l'utilisateur `10001` (jamais root). Le conteneur démarre en root seulement le temps de donner `./config` et `./data` à ce compte, puis passe dessus sans plus aucune capacité noyau ; système de fichiers en lecture seule, `no-new-privileges`, pas de socket Docker (l'hôte est lu par SSH comme les autres).
@@ -291,10 +316,10 @@ Presque tout se règle dans la page (Réglages). Fichiers et variables, pour mé
 | `MYSERVICES_PORT` | port de la page (défaut `8090`) |
 | `MYSERVICES_ALLOW` | réseaux autorisés à ouvrir la page (défaut : réseaux privés et boucle locale) |
 | `MYSERVICES_HOST_USER` | compte SSH de l'alias `hote` (la machine hôte) |
-| `MYSERVICES_COLLECT_AT` | horaire de la collecte, `minutes heures` (défaut `0,15,30,45 *`) ; idem pour la veille et la santé |
+| `MYSERVICES_COLLECT_AT` | horaire de la collecte, `minutes heures` (défaut `0,15,30,45 *`) ; idem avec `MYSERVICES_WATCH_AT`, `MYSERVICES_HEALTH_AT` et `MYSERVICES_BACKUPS_AT` |
 | `TZ` | fuseau horaire |
 
-Les horaires se modifient aussi à chaud dans Collecte › Tâches et horaires. Un exemple complet : [`deploy/compose.example.yaml`](deploy/compose.example.yaml).
+Les horaires se modifient aussi à chaud dans Collecte › Tâches et horaires, sauf ceux fixés par une variable. Un exemple complet : [`deploy/compose.example.yaml`](deploy/compose.example.yaml).
 
 </details>
 
@@ -315,7 +340,6 @@ cd front && npm ci && npm test && npm run dev      # :5180
 ```
 
 Versions : `python3 scripts/release.py` vérifie que la version, les deux README, le journal des changements et les notes de version sont d'accord ; `release.py patch|minor|X.Y.Z` en applique une nouvelle partout (il ne commit, ne tague et ne pousse rien).
-`.claude/` n'est jamais versionné.
 
 </details>
 

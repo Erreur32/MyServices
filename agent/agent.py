@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -30,9 +31,19 @@ SMART_LIST = __SMART_LIST__              # lists the disks; one SMART command pe
 SMART_FMT = __SMART_FMT__
 CACHED = __CACHED__                      # {command: seconds}: outputs kept and sent again for that long instead of running the command
 SMART_CACHE = __SMART_CACHE__            # seconds: SMART of each disk
+NPM_LISTS = __NPM_LISTS__                # options of npm-api.sh, read when the install gave its path (MSV_NPM)
+DNS_EVERY = 3600                         # seconds between two reads of the local DNS records
+BACKUP_EVERY = 6 * 3600                  # seconds between two scans of the backup folders (kept and sent again meanwhile)
+NPM_MAX = 200000                         # characters of one NPM list (the server limit)
+# The only lines of an advanced config the server needs; the others can hold secrets and stay on the machine
+NPM_KEEP = re.compile(r"^\s*(location\s|proxy_pass\s|deny\s|return\s+444|\})")
+NPM_KEEP_ANYWHERE = ("acl_", "CF-Connecting-IP")
 DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(DIR, "agent.log")
 CACHE_PATH = os.path.join(DIR, "cache.json")
+BACKUP_STATE = os.path.join(DIR, "backups.json")   # what to read, and the last result
+DNS_STATE = os.path.join(DIR, "dns.json")
+BORGMATIC_FILE = "/var/lib/myservices-agent/borgmatic.json"   # left by the root timer of the install (MSV_BORGMATIC=1): Borg cannot run in this sandbox
 MAX_OUT = 50000                          # characters kept per command (the server accepts 60000)
 MAX_BODY = 240 * 1024                    # bytes: compressed report size kept under the server limit (256 KiB)
 CUT_TO = 12000                           # characters an output is cut to, longest first, when the report is still too big
@@ -54,7 +65,7 @@ def log(msg):
 def run(cmd, timeout):
     """(return code, output) the way the SSH collection reads it: stdout when it worked, stdout + stderr when it failed."""
     try:
-        r = subprocess.run(["bash", "-c", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+        r = subprocess.run(["bash", "-c", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)  # NOSONAR S6350: fixed commands of this file, and a path checked by the installer in a config only this account reads
     except subprocess.TimeoutExpired:
         return 124, "timeout apres %ds" % timeout
     except OSError as e:
@@ -65,21 +76,22 @@ def run(cmd, timeout):
     return r.returncode, (out + r.stderr.decode("utf-8", "replace")).strip()
 
 
-def load_cache():
+def load_cache(path=None):
     try:
-        with open(CACHE_PATH) as f:
+        with open(path or CACHE_PATH) as f:
             got = json.load(f)
         return got if isinstance(got, dict) else {}
     except (OSError, ValueError):
         return {}
 
 
-def save_cache(cache):
+def save_cache(cache, path=None):
+    path = path or CACHE_PATH
     try:
-        tmp = CACHE_PATH + ".tmp"
+        tmp = path + ".tmp"
         with open(tmp, "w") as f:
             json.dump(cache, f)
-        os.replace(tmp, CACHE_PATH)
+        os.replace(tmp, path)
     except OSError:
         pass   # no cache: the slow commands simply run again next time
 
@@ -94,6 +106,90 @@ def run_cached(cmd, timeout, ttl, cache, now):
     if ttl and rc == 0:
         cache[cmd] = [now, rc, out]
     return rc, out
+
+
+def root_script(conf, stdin, timeout):
+    """[rc, output] of a script set by the installer as root, through its exact sudo rule."""
+    try:
+        r = subprocess.run(["sudo", "-n", str(conf.get("python")), str(conf.get("script"))], input=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return [1, str(e)[:500]]
+    if r.returncode != 0:
+        return [r.returncode, r.stderr.decode("utf-8", "replace")[-500:]]
+    text = r.stdout.decode("utf-8", "replace")
+    return [0, text] if len(text) <= NPM_MAX else [1, "answer too long"]
+
+
+def dns_scan(conf, now):
+    state = load_cache(DNS_STATE)
+    if now - state.get("at", 0) < DNS_EVERY and state.get("result"):
+        return state["result"]
+    result = root_script(conf, b"", 60)
+    save_cache({"at": now, "result": result}, DNS_STATE)
+    return result
+
+
+def borgmatic_result():
+    try:
+        with open(BORGMATIC_FILE) as f:
+            return [0, f.read(NPM_MAX)]
+    except OSError:
+        return None   # not read yet
+
+
+def backup_scan(conf, now):
+    """[rc, output] of the root scan of the backup folders, every BACKUP_EVERY or when the server asks for other folders. The scan is the script
+    set by the installer, through its exact sudo rule; it refuses any folder outside the list kept on this machine, whatever the server asks."""
+    state = load_cache(BACKUP_STATE)
+    req = state.get("req")
+    if not isinstance(req, dict):
+        return None
+    # Followed folders only: the archive names to look for change with every backup
+    if state.get("scanned") == req.get("locs") and now - state.get("at", 0) < BACKUP_EVERY and state.get("result"):
+        return state["result"]
+    result = root_script(conf, json.dumps(req).encode("utf-8"), 270)
+    state.update(scanned=req.get("locs"), at=now, result=result)
+    save_cache(state, BACKUP_STATE)
+    return result
+
+
+def keep_backup_request(req):
+    state = load_cache(BACKUP_STATE)
+    if state.get("req") != req:
+        state["req"] = req
+        save_cache(state, BACKUP_STATE)
+
+
+def npm_clean(opt, text):
+    """A list of npm-api.sh without what the server does not need: access lists reduced to id and name, no owner, advanced configs filtered."""
+    rows = json.loads(text)
+    if opt == "--access-list":
+        return json.dumps([{"id": a.get("id"), "name": a.get("name")} for a in rows])
+    for x in rows:
+        x.pop("owner", None)
+        x.pop("access_list", None)
+        adv = x.get("advanced_config") or ""
+        if adv.strip():
+            kept = [ln for ln in adv.splitlines() if NPM_KEEP.search(ln) or any(k in ln for k in NPM_KEEP_ANYWHERE)]
+            x["advanced_config"] = "\n".join(kept) or "# kept on the machine"
+    return json.dumps(rows)
+
+
+def npm_lists(npm):
+    """{label: [rc, output]} of the local NPM. Not cached: nothing raw is left on the disk. The path comes from the install, never from the server."""
+    out = {}
+    for opt in NPM_LISTS:
+        who = "sudo -n -u %s " % shlex.quote(str(npm["user"])) if npm.get("user") else ""  # NOSONAR S6350: account set by the installer, quoted; none: the script was installed for this account
+        rc, text = run("%s%s --json %s" % (who, shlex.quote(str(npm.get("path"))), opt), 30)  # NOSONAR S6350: path checked by the installer, quoted, never from the server
+        if rc == 0:
+            try:
+                text = npm_clean(opt, text)
+            except (ValueError, AttributeError, TypeError):
+                rc, text = 1, "npm-api.sh: unexpected answer"
+        if len(text) > NPM_MAX:
+            rc, text = 1, "npm-api.sh: list too long"
+        out["npm " + opt] = [rc, text[-500:] if rc else text]
+    return out
 
 
 def collect():
@@ -208,11 +304,27 @@ def main():
     cfg = load_config()
     if cfg is None:
         return 1
-    body = pack({"version": VERSION, "os": os_name(), "host": socket.gethostname(), "interval": int(cfg.get("interval") or 900)}, collect())
+    cmds = collect()
+    if isinstance(cfg.get("npm"), dict):
+        cmds.update(npm_lists(cfg["npm"]))
+    if isinstance(cfg.get("dns"), dict):
+        cmds["dns"] = dns_scan(cfg["dns"], time.time())
+    if isinstance(cfg.get("pve"), dict):
+        cmds["pve"] = root_script(cfg["pve"], b"", 60)
+    borgmatic = borgmatic_result() if cfg.get("borgmatic") else None
+    if borgmatic:
+        cmds["borgmatic"] = borgmatic
+    if isinstance(cfg.get("backups"), dict):
+        scan = backup_scan(cfg["backups"], time.time())
+        if scan:
+            cmds["backups"] = scan
+    body = pack({"version": VERSION, "os": os_name(), "host": socket.gethostname(), "interval": int(cfg.get("interval") or 900)}, cmds)
     answer = send(cfg, body)
     if answer is None:
         return 1
     log("report sent to %s (agent %s)" % (cfg["url"], VERSION))
+    if isinstance(answer.get("backups"), dict) and isinstance(cfg.get("backups"), dict):
+        keep_backup_request(answer["backups"])
     if isinstance(answer.get("update"), dict):
         self_update(cfg, answer["update"])
     return 0
