@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { ConnectorInstance, ServiceStatus } from "../types";
 import { connectorAdvice } from "./connectorAdvice";
-import { cardNotice, cardsTitle, cardView, toWatch } from "./connectorCards";
+import { cardNotice, cardsTitle, cardView, noticeTip, toWatch } from "./connectorCards";
 
 const inst = (status: Partial<NonNullable<ConnectorInstance["status"]>> | null, enabled = true) => ({
   type: "x", label: "X", name: "x", config: {}, set: {}, enabled,
@@ -73,5 +73,11 @@ describe("the trouble of a connector", () => {
     expect(notice({})).toBeNull();
     expect(notice({ ok: false, message: "x" }, false)).toBeNull();
     expect(notice({ pending: true, ok: false, message: "x" })).toBeNull();
+  });
+  it("the hover of the state gives its name, the trouble, the tool's words and the other points", () => {
+    const tip = (status: Parameters<typeof inst>[0], c?: ServiceStatus) => { const i = inst(status), v = cardView(i, c); return noticeTip(cardNotice(i, v), v); };
+    expect(tip({})).toBeUndefined();
+    expect(tip({}, card({ problems: ["a", "b"] }))).toBe("2 points\n[[warn:a]]\n• b");
+    expect(tip({ ok: false, message: "HTTP 502" })).toBe("En échec\n[[bad:Le service ne répond pas (502)]]\n`HTTP 502`");
   });
 });

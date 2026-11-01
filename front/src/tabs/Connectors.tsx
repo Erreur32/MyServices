@@ -15,7 +15,7 @@ import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import type { ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias } from "../types";
-import { cardNotice, cardsTitle, cardView, toWatch, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
+import { cardNotice, cardsTitle, cardView, noticeTip, toWatch, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { readConnector, RereadButton } from "../components/Reread";
 import { pointedHits, takeFocus, takePointed, takePrefill, type Prefill } from "../lib/connectorPrefill";
@@ -420,8 +420,8 @@ function openTip(locked: boolean, open: boolean): string {
 }
 
 /** The first line of a card: logo, name, version and state */
-function CardHead({ inst, category, view, open }: Readonly<{ inst: ConnectorInstance; category?: string; view: CardView; open: boolean }>) {
-  const s = inst.status, icon = appIcon([inst.label]);
+function CardHead({ inst, category, view, notice, open }: Readonly<{ inst: ConnectorInstance; category?: string; view: CardView; notice: CardNotice | null; open: boolean }>) {
+  const s = inst.status, icon = appIcon([inst.label]), tip = noticeTip(notice, view);
   const sub = [inst.name === inst.type ? "" : inst.name, category ? catName(category) : ""].filter(Boolean).join(" · ");
   return (
     <span className="flex items-center gap-2.5 rounded-t-xl border-b border-line/40 bg-bg px-3 py-2.5">
@@ -432,7 +432,7 @@ function CardHead({ inst, category, view, open }: Readonly<{ inst: ConnectorInst
         <b className="block truncate text-sm">{inst.label}</b>
         <span className="block truncate text-xs text-muted" title={sub}>{sub}{s?.version && <>{sub && " · "}<span className={s.version_tested === false ? "text-warn" : ""} title={s.version_tested === false ? tx("version non testée") : undefined}>v{s.version}</span></>}</span>
       </span>
-      <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold ${TEXT[view.tone]}`}><span className={`h-2 w-2 rounded-full ${DOT[view.tone]}`} aria-hidden />{view.state}</span>
+      <span title={tip} data-tip-large className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold ${TEXT[view.tone]} ${tip ? "cursor-help" : ""}`}><span className={`h-2 w-2 rounded-full ${DOT[view.tone]}`} aria-hidden />{view.state}</span>
       <ChevronDown size={18} className={`shrink-0 text-muted transition-transform group-hover:text-link ${open ? "rotate-180" : ""}`} aria-hidden />
     </span>
   );
@@ -503,12 +503,11 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
       {/* the whole top of the card opens it: state, what it reads, its settings and its test, in one place */}
       <button type="button" className="group rounded-t-xl text-left hover:bg-link/10 disabled:cursor-default disabled:hover:bg-transparent" disabled={locked} aria-expanded={edit}
         title={openTip(locked, edit)} onClick={() => setEdit(!edit)}>
-        <CardHead inst={inst} category={type.category} view={view} open={edit} />
+        <CardHead inst={inst} category={type.category} view={view} notice={notice} open={edit} />
         {edit ? <span className="block h-2" /> : <span className="grid min-h-12 grid-cols-3 gap-2 px-3 pb-1.5 pt-2">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
       </button>
       <div className="mt-auto flex items-center gap-1 border-t border-dashed border-line/60 py-1 pl-3 pr-2">
-        {notice && !edit ? <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${TEXT[notice.tone]}`} title={notice.raw ?? notice.text}>{notice.text}</span>
-          : <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>}
+        <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>
         {inst.enabled && <RereadButton compact label={tx("Relire {0}", inst.label)} tip={tx("Lire ce connecteur maintenant, sans attendre sa période")} run={readConnector(inst.type, inst.name)} onNote={setNote} />}
         <span className="ml-1 flex items-center" title={tx("Le connecteur est lu par le serveur à sa période (voir Modifier) ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
           <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />

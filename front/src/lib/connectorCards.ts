@@ -41,7 +41,14 @@ export function cardView(inst: ConnectorInstance, card?: ServiceStatus): CardVie
 
 export interface CardNotice { text: string; tone: "bad" | "warn"; advice?: ConnectorAdvice; raw?: string }
 
-/** The one line a card gives to its trouble, in place of its address: the size of the card never depends on the length of a message */
+/** What the state of a card says on hover, in the markup of the tooltips: the state as heading, its trouble, the words of the tool, then its other points */
+export function noticeTip(notice: CardNotice | null, view: CardView): string | undefined {
+  if (!notice) return undefined;
+  const others = view.problems.filter((p) => p !== notice.text).map((p) => `• ${p}`);
+  return [view.state, `[[${notice.tone}:${notice.text}]]`, ...(notice.raw && notice.raw !== notice.text ? [`\`${notice.raw}\``] : []), ...others].join("\n");
+}
+
+/** The one line a card gives to its trouble: on hover of its state, so the size of the card never depends on the length of a message */
 export function cardNotice(inst: ConnectorInstance, view: CardView): CardNotice | null {
   const s = inst.status;
   if (!inst.enabled || !s || s.pending) return null;
