@@ -11,7 +11,7 @@
 #   MSV_NPM=/path/npm-api.sh  read this Nginx Proxy Manager through its script, as the owner of the script (exact sudo rules, one per list)
 #   MSV_NPM=install    download npm-api.sh (fixed version, checked) for the agent alone; MSV_NPM_URL (default http://127.0.0.1:81), and the NPM
 #                      account from MSV_NPM_USER and MSV_NPM_PASS or asked on the terminal; it stays in a file only the agent reads
-#   MSV_DNS=1          read the local DNS records as root, through one script set here (AdGuard Home, Pi-hole, dnsmasq, Unbound, found on the machine)
+#   MSV_DNS=1          read the local DNS records as root, through one script set here (AdGuard Home, Pi-hole, dnsmasq, Unbound, BIND, found on the machine)
 #   MSV_BACKUPS=1      read the backup folders as root, through one script set here; MSV_BACKUP_DIRS=/a,/b adds folders to the list it accepts
 #   MSV_BORGMATIC=1    read the last archive of each Borg repository: a root timer of its own runs borgmatic every 6 h (Borg needs to write its
 #                      cache and locks, which the agent's sandbox forbids) and leaves the list in /var/lib/myservices-agent

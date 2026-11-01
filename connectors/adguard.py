@@ -72,7 +72,7 @@ def agent_dns(ip: object) -> dict:
 
 
 class LocalDns(Connector):
-    """Local records of the DNS tools of a machine (AdGuard Home, Pi-hole, dnsmasq, Unbound), read by its agent: no SSH, no account here."""
+    """Local records of the DNS tools of a machine (AdGuard Home, Pi-hole, dnsmasq, Unbound, BIND), read by its agent: no SSH, no account here."""
     type = "dns-agent"
     label = "DNS local (par l'agent)"
     kinds = ("dns",)

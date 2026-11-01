@@ -372,6 +372,24 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertEqual([(x["domain"], x["answer"]) for x in ns["unbound_records"]('  local-data: "d.lan. 3600 IN A 10.0.0.7"\n  local-data: "e.lan A 10.0.0.8"\n')],
                          [("d.lan", "10.0.0.7"), ("e.lan", "10.0.0.8")])
 
+    def test_scan_dns_lit_les_zones_bind(self):
+        ns = {"__name__": "dns_test"}
+        exec(compile(agents.script("dns-scan.py"), "dns-scan.py", "exec"), ns)
+        files = {"/etc/bind/named.conf": 'include "/etc/bind/local.conf";\noptions { directory "/var/cache/bind"; };\n',
+                 "/etc/bind/local.conf": '// comment\nzone "home.lan" { type master; file "db.home"; };\nzone "0.0.10.in-addr.arpa" { type master; file "db.rev"; };\n'
+                                         'zone "fwd.lan" { type forward; forwarders { 10.0.0.9; }; };\n',
+                 "/var/cache/bind/db.home": '$TTL 3600\n@ IN SOA ns.home.lan. a.home.lan. (\n  2026 ; serial\n  1h )\n@ IN NS ns\n  IN A 10.0.0.1\nnas 3600 IN A 10.0.0.2 ; note\n'
+                                            '  AAAA fd00::2\nabs.other.lan. A 10.0.0.3\n$ORIGIN sub.home.lan.\ntv A 10.0.0.4\nwww CNAME nas\n'}
+        zones, base = ns["bind_zones"](files.get)
+        self.assertEqual(zones, [("home.lan", "db.home")])
+        ns["read"] = files.get
+        from unittest import mock
+        with mock.patch("os.path.exists", side_effect=lambda path: path == "/etc/bind/named.conf"):
+            got = ns["bind"]({})
+        self.assertEqual([(x["domain"], x["answer"]) for x in got["rewrites"]],
+                         [("home.lan", "10.0.0.1"), ("nas.home.lan", "10.0.0.2"), ("nas.home.lan", "fd00::2"), ("abs.other.lan", "10.0.0.3"), ("tv.sub.home.lan", "10.0.0.4")])
+        self.assertEqual(base, "/var/cache/bind")
+
     def test_connecteur_dns_agent_reunit_les_outils_et_adguard_passe_par_l_agent(self):
         from unittest import mock
         from connectors import adguard

@@ -20,7 +20,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Proxmox VE, read by the agent**: with `MSV_SUDO=1` on a Proxmox host, the install sets one root script that runs the same read-only `pvesh` calls as SSH. VMs, containers, nodes and storages then need no SSH, and a host whose agent cannot read them shows in « Rights to complete ».
 - **adguardhome-sync, read by the agent**: an agent with Docker access sends the filtered log of the container, with no new option and no reinstall (automatic update of the agent).
 - **borgmatic, read by the agent**: with `MSV_BORGMATIC=1`, a root timer of its own runs borgmatic every 6 h, outside the agent's sandbox because Borg must write its cache and locks. The connector gains « Through the machine's agent », with no SSH and no sudo. Native or in Docker.
-- **Local DNS, read by the agent**: with `MSV_DNS=1`, a root script finds AdGuard Home, Pi-hole, dnsmasq and Unbound on the machine, native or in Docker, and sends only their records and rules. An AdGuard read over SSH uses it first, with no setting to change; the new « Local DNS (through the agent) » connector covers the others and machines without SSH. All feed the DNS check.
+- **Local DNS, read by the agent**: with `MSV_DNS=1`, a root script finds AdGuard Home, Pi-hole, dnsmasq, Unbound and BIND on the machine, native or in Docker, and sends only their records and rules. An AdGuard read over SSH uses it first, with no setting to change; the new « Local DNS (through the agent) » connector covers the others and machines without SSH. All feed the DNS check.
 - **Agent install**: boxes for the local DNS, the backup folders and Nginx Proxy Manager add their options to the command.
 
 ### Changed

@@ -200,7 +200,7 @@ Pour les machines Linux, l'agent Linux (Python 3.6+, systemd) donne les mêmes i
 
 **Proxmox VE, adguardhome-sync, borgmatic.** Sur un hôte Proxmox, la case sudo (`MSV_SUDO=1`) pose aussi un script root qui lance `pvesh` en lecture seule. adguardhome-sync demande seulement l'accès à Docker. La case borgmatic (`MSV_BORGMATIC=1`) ajoute un minuteur root toutes les 6 h, car Borg ne peut pas tourner dans le bac à sable de l'agent ; choisissez ensuite « Par l'agent de la machine » dans le connecteur borgmatic.
 
-**DNS local.** Cochez la case DNS à la création de l'agent (`MSV_DNS=1`) : un script root trouve AdGuard Home, Pi-hole, dnsmasq et Unbound sur la machine, natifs ou en Docker, et n'envoie que leurs enregistrements et règles. Un AdGuard déjà suivi n'a alors plus besoin du SSH ; pour les autres, ajoutez le connecteur **DNS local (par l'agent)**. Technitium est lu par son API.
+**DNS local.** Cochez la case DNS à la création de l'agent (`MSV_DNS=1`) : un script root trouve AdGuard Home, Pi-hole, dnsmasq, Unbound et BIND sur la machine, natifs ou en Docker, et n'envoie que leurs enregistrements et règles. Un AdGuard déjà suivi n'a alors plus besoin du SSH ; pour les autres, ajoutez le connecteur **DNS local (par l'agent)**. Technitium est lu par son API.
 
 **Hyperviseurs.** Avec la case sudo cochée, l'agent lit KVM, Incus et LXD. VirtualBox, Proxmox et ESXi restent lus par SSH ou par leur API.
 

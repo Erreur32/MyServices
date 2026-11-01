@@ -19,7 +19,7 @@ export function AgentLinuxOptions({ value, onChange }: Readonly<{ value: AgentOp
   return (
     <div className="mb-2">
       <Box on={!!value.sudo} onChange={(sudo) => set({ sudo })}>{tx("Autoriser des lectures avec sudo : le programme derrière chaque port, les services à relancer, les adresses bloquées par fail2ban, les machines virtuelles (Proxmox, KVM, Incus, LXD). Chacune est une règle exacte, en lecture seule.")}</Box>
-      <Box on={!!value.dns} onChange={(dns) => set({ dns })}>{tx("Lire le DNS local : AdGuard Home, Pi-hole, dnsmasq et Unbound sont trouvés sur la machine. Seuls leurs enregistrements et règles sont envoyés, jamais un compte.")}</Box>
+      <Box on={!!value.dns} onChange={(dns) => set({ dns })}>{tx("Lire le DNS local : AdGuard Home, Pi-hole, dnsmasq, Unbound et BIND sont trouvés sur la machine. Seuls leurs enregistrements et règles sont envoyés, jamais un compte.")}</Box>
       <Box on={!!value.backups} onChange={(backups) => set({ backups })}>{tx("Lire les dossiers de sauvegarde : noms, tailles et dates, jamais le contenu. Seuls /home/backup, /var/backups, /backup, /backups et les dossiers ajoutés ici sont acceptés.")}</Box>
       {value.backups && <div className="mb-2 ml-6">
         <input className={input} aria-label={tx("Autres dossiers de sauvegarde")} placeholder={tx("Autres dossiers, séparés par des virgules (facultatif)")} value={dirs} onChange={(e) => set({ backupDirs: e.target.value })} />
