@@ -12,7 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
-- **Agents**: each Linux agent now shows what it was installed with (sudo, local DNS, backups, borgmatic, NPM path) on its row and on its machine's Access page, without creating a new command. It appears once the agent is in version 8.
+- **Agents**: a new Options column shows every box of a Linux agent's install, ticked or not (sudo, local DNS, backups, borgmatic, NPM), also on its machine's Access page, so you can tell whether a new command is needed without creating one. It fills once the agent is in version 8.
 
 ### Fixed
 - **Agents page**: « New command » changed the agent's token, then closed the frame with the boxes and the command at once, so the new token was lost. The frame now stays open under the row.

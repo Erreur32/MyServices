@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentReads, cleanAgentUrl, installCommand, isPublicIp, npmProblem, outsideProblem, type AgentOptions } from "./agentCommand";
+import { agentBoxes, cleanAgentUrl, installCommand, isPublicIp, npmProblem, outsideProblem, type AgentOptions } from "./agentCommand";
 
 describe("commande d'installation de l'agent", () => {
   it("accepte une adresse http(s)://hôte[:port] et retire le « / » final", () => {
@@ -72,11 +72,15 @@ describe("commande d'installation de l'agent", () => {
   });
 });
 
-describe("ce que lit un agent", () => {
-  it("dit seulement ce qui est posé", () => {
-    expect(agentReads()).toEqual([]);
-    expect(agentReads({ sudo: true, npm: "/a/npm-api.sh" })).toEqual(["sudo", "NPM /a/npm-api.sh"]);
-    expect(agentReads({ backups: true, backupDirs: "/srv/b" })).toHaveLength(1);
-    expect(agentReads({ npm: "" })).toHaveLength(1);   // empty: the script was set by the install, still read
+describe("cases d'un agent", () => {
+  const on = (o?: AgentOptions) => agentBoxes(o).filter((b) => b.on).map((b) => b.label);
+  it("montre toutes les cases, cochées ou non", () => {
+    expect(agentBoxes()).toHaveLength(5);
+    expect(on()).toEqual([]);
+    expect(on({ sudo: true, npm: "/a/npm-api.sh" })).toEqual(["sudo", "NPM"]);
+    expect(on({ npm: "" })).toEqual(["NPM"]);   // empty: the script was set by the install, still read
+  });
+  it("garde le chemin de NPM", () => {
+    expect(agentBoxes({ npm: "/a/npm-api.sh" }).at(-1)?.detail).toBe("/a/npm-api.sh");
   });
 });

@@ -8,7 +8,7 @@ import { read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
 import { AgentInstall, type AgentKind, type InstallTarget } from "../components/AgentInstall";
-import { agentReads } from "../lib/agentCommand";
+import { agentBoxes } from "../lib/agentCommand";
 import { NewAgentPage } from "./NewAgent";
 import { act, danger, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Dim, Loading } from "../components/ui";
@@ -73,10 +73,11 @@ function HostConfirm({ a, reload, setNote }: Readonly<{ a: AgentInfo; reload: ()
 
 
 /** L'agent d'une machine, dans sa fenêtre (onglet Accès) : état, version, dernier relevé et gestes (mise à jour, nouveau jeton, révocation), ou son installation */
-/** What the agent was installed to read, seen without a new command */
-function AgentReads({ a }: Readonly<{ a: AgentInfo }>) {
-  const reads = agentReads(a.options);
-  return reads.length > 0 ? <span className="block text-xs text-dim">{tx("Installé avec : {0}", reads.join(" · "))}</span> : null;
+/** The boxes of the agent's install, seen without a new command. An agent too old to send them says nothing about them: not shown as unticked */
+function AgentOptionBoxes({ a }: Readonly<{ a: AgentInfo }>) {
+  if (a.kind !== "linux" || !a.last_seen) return null;
+  if (a.outdated && Object.keys(a.options ?? {}).length === 0) return <Dim>{tx("connues après sa mise à jour")}</Dim>;
+  return <span className="flex flex-wrap gap-1">{agentBoxes(a.options).map((b) => <Badge key={b.label} tone={b.on ? "ok" : "off"} outline title={b.on ? b.detail : tx("non installé")}>{b.label}</Badge>)}</span>;
 }
 
 /** The gestures of an agent, as buttons: automatic update, update now, new command (a new token), revoke (with a confirmation). On the machine's
@@ -142,7 +143,7 @@ export function AgentBlock({ ip, name, kind, agent, create, onChanged }: Readonl
         <Dim>{agent.last_seen ? tx("dernier relevé {0}", dateTime(agent.last_seen * 1000)) : tx("en attente du premier relevé")} · {tx("toutes les {0} min", Math.round(agent.interval / 60))}</Dim>
         <code className="font-mono text-xs text-dim" title={tx("Jeton")}>{tx("msv_")}agent_…{agent.hint}</code>
       </div>
-      <AgentReads a={agent} />
+      <AgentOptionBoxes a={agent} />
       {agent.host_pending && <HostConfirm a={agent} reload={onChanged} setNote={setNote} />}
       <NoteLine note={note} />
       <AgentActions a={agent} kind={kind} onChanged={onChanged} onInstall={setInstall} />
@@ -174,15 +175,16 @@ function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: M
   return (
     <>
     <tr className={`border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40 ${lit ? "ring-2 ring-inset ring-link/60" : ""}`}>
-      <td className="px-3 py-2"><a href={`#machines/${a.ip}`} className="flex items-center gap-2 text-txt no-underline hover:text-link"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></a><AgentReads a={a} /></td>
+      <td className="px-3 py-2"><a href={`#machines/${a.ip}`} className="flex items-center gap-2 text-txt no-underline hover:text-link"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></a></td>
       <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
       <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} /><AgentTodo a={a} ssh={typeof conf?.ssh === "string"} /></span></td>
+      <td className="px-3 py-2"><AgentOptionBoxes a={a} /></td>
       <td className="px-3 py-2"><HealthBar a={a} /></td>
       <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
       <td className="px-3 py-2"><AgentActions a={a} kind={a.kind ?? "windows"} onChanged={onChanged} onInstall={setInstall} /></td>
     </tr>
-    {install && <tr><td colSpan={7} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
+    {install && <tr><td colSpan={8} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
     </>
   );
 }
@@ -228,10 +230,10 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         {s.live.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun agent installé : le SSH lit déjà vos machines, ou aucun PC n'en a besoin.")}</p>}
         {s.live.length > 0 && (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
+            <table className="w-full min-w-[900px] border-collapse text-sm">
               <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
                 <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Type")}</th><th className="px-3 py-2">{tx("État")}</th>
-                <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Santé")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
+                <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Options")}</th><th className="px-3 py-2">{tx("Santé")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
               </tr></thead>
               {/* keyed by machine: a new command gives the agent a new id, and the row must keep the frame showing that command */}
               <tbody>{s.live.map((a) => <AgentRow key={a.ip} a={a} conf={machines[a.ip]} onChanged={reload} lit={open === a.ip} />)}</tbody>
