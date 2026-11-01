@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.34.2 (2026-11-01)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **Agents**: a new Options column shows every box of a Linux agent's install, ticked or not (sudo, local DNS, backups, borgmatic, NPM), also on its machine's Access page, so you can tell whether a new command is needed without creating one. It fills once the agent is in version 8.
 
