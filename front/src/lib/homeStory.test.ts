@@ -1,7 +1,7 @@
 // The home page's sentence and its short live list follow the figures: an alert changes the title, the machines to watch come first.
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
-import { fleet, homeStory, keyCounts } from "./homeStory";
+import { fleet, homeStory, installTools, keyCounts } from "./homeStory";
 import type { Attention } from "./summary";
 
 const m = (name: string, ping: boolean, off = false) => ({ ip: `10.0.0.${name.length}`, name, ping, off, services: 0, npm: 0, down: 0 });
@@ -32,5 +32,13 @@ describe("home page figures", () => {
     expect(rows).toHaveLength(6);
     expect(rows.slice(0, 2).map((r) => r.machine.name)).toEqual(["ccc", "bb"]);
     expect(rows.map((r) => r.machine.name)).not.toContain("dddd");
+  });
+});
+
+describe("installTools", () => {
+  it("every tool once, sorted by name, with its instances and those in error", () => {
+    const c = (type: string, name: string, ok = true, message = "OK") => ({ type, name, ok, message });
+    const s = { data: { hosts: [], machine_list: [], services_status: [{ connector: "ollama", label: "Ollama" }], connectors: [c("zzz", "zzz"), c("ollama", "a"), c("npm", "b"), c("npm", "c", false, "401")] } } as unknown as Snapshot;
+    expect(installTools(s).map((t) => [t.label, t.count, t.failing, t.lines])).toEqual([["NPM", 2, 1, ["b", "c : 401"]], ["Ollama", 1, 0, ["a"]], ["zzz", 1, 0, ["zzz"]]]);
   });
 });

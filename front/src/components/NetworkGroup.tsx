@@ -18,7 +18,7 @@ export function NetworkGroup({ snap, nav, counts }: Readonly<{ snap: Snapshot; n
   const total = counts.devices || lanDevices;
   return (
     <Group mark={<Mark Icon={Router} />} title={tx("Réseau")} sub={tx("{0} équipements", total)} accent="border-l-link" tab="network" nav={nav} cells={[
-      ["ok", counts.online, tx("en ligne")], ["bad", counts.devices - counts.online, tx("hors ligne")],
-      ["bad", found?.summary.bad ?? 0, tx("à corriger")], ["warn", found?.summary.warn ?? 0, tx("à vérifier")]]} />
+      ["ok", counts.online, tx("en ligne"), undefined, "network/list"], ["bad", counts.devices - counts.online, tx("hors ligne"), undefined, "network/list"],
+      ["bad", found?.summary.bad ?? 0, tx("à corriger"), undefined, "network/diagnostic"], ["warn", found?.summary.warn ?? 0, tx("à vérifier"), undefined, "network/diagnostic"]]} />
   );
 }

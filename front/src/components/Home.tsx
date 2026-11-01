@@ -6,7 +6,9 @@ import type { Snapshot } from "../api";
 import { hm, longDay } from "../lib/format";
 import type { Selected } from "../lib/filter";
 import { tx } from "../lib/i18n";
-import { fleet, homeStory, type Tone } from "../lib/homeStory";
+import { appIcon, appIconByText } from "../lib/appIcons";
+import { pointConnectors } from "../lib/connectorPrefill";
+import { fleet, homeStory, installTools, type InstallTool, type Tone } from "../lib/homeStory";
 import { plural, type Attention, type Category, type TabId } from "../lib/summary";
 import { History } from "../tabs/History";
 import { AssistantBanner } from "./AssistantBanner";
@@ -176,21 +178,38 @@ function Hero({ snap, items, now }: Readonly<{ snap: Snapshot; items: Attention[
   );
 }
 
-/** « Ton installation »: the tools MyServices brings together */
+/** One tool of « Ton installation »: its logo, its name, how many connectors read it and whether they answer; a click opens its connector */
+function InstallLine({ tool: t, admin }: Readonly<{ tool: InstallTool; admin: boolean }>) {
+  const logo = appIcon([t.label, t.type]) ?? appIconByText(t.label, t.type);
+  const body = (
+    <>
+      {logo ? <img src={logo} alt="" className="h-4 w-4 shrink-0" /> : <Plug size={14} className="shrink-0 text-muted" aria-hidden />}
+      <span className="min-w-0 flex-1 truncate text-sm text-txt">{t.label}</span>
+      {t.count > 1 && <span className="shrink-0 font-mono text-xs text-dim">×{t.count}</span>}
+      <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${DOT[t.failing ? "bad" : "ok"]}`} />
+    </>
+  );
+  const frame = `flex items-center gap-2 rounded-lg border bg-bg2 px-2 py-1 no-underline ${t.failing ? "border-bad/60" : "border-line"}`, title = t.lines.join("\n");
+  return admin
+    ? <a href="#settings/connectors" onClick={() => pointConnectors([t.type])} title={title} className={`${frame} hover:border-link`}>{body}</a>
+    : <div title={title} className={frame}>{body}</div>;
+}
+
+/** « Ton installation »: every tool MyServices brings together */
 function Install({ snap }: Readonly<{ snap: Snapshot }>) {
-  const tools = [...new Set((snap.data.connectors ?? []).map((c) => c.type))], more = tools.length - 8;
+  const tools = installTools(snap), failing = tools.reduce((n, t) => n + t.failing, 0), total = tools.reduce((n, t) => n + t.count, 0);
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm" aria-label={tx("Ton installation")}>
-      <div className="flex items-center justify-between gap-3 border-b border-line/60 bg-bg px-5 py-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line/60 bg-bg px-5 py-3">
         <h2 className="text-base font-bold">{tx("Ton installation")}</h2>
-        <a href="#settings/connectors" className="inline-flex items-center gap-1 text-xs font-semibold">{tx("Gérer")}<ArrowRight size={13} aria-hidden /></a>
+        <span className="text-xs text-dim">{tx("{0} connecteurs", total)} · <span className={failing ? "font-semibold text-bad" : "text-ok"}>{failing ? tx("{0} en erreur", failing) : tx("tout répond")}</span></span>
+        <a href="#settings/connectors" className="ml-auto inline-flex items-center gap-1 text-xs font-semibold">{tx("Gérer")}<ArrowRight size={13} aria-hidden /></a>
       </div>
       <div className="px-5 py-4">
         <p className="text-sm text-muted">{tx("MyServices relie {0} que tu utilises déjà. Il ne les remplace pas, il les réunit sur une seule page.", plural(tools.length, "outil"))}</p>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {tools.slice(0, 8).map((t) => <span key={t} className="rounded-md border border-line bg-bg2 px-2 py-0.5 text-xs text-muted">{t}</span>)}
-          {more > 0 && <span className="px-1 py-0.5 text-xs text-dim">{tx("+ {0} autre(s)", more)}</span>}
-        </div>
+        <ul className="mt-3 grid gap-1.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          {tools.map((t) => <li key={t.type} className="min-w-0"><InstallLine tool={t} admin={snap.me.role === "admin"} /></li>)}
+        </ul>
       </div>
     </section>
   );

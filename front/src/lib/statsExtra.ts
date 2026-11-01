@@ -10,9 +10,9 @@ export function networkCounts(snap: Snapshot): { devices: number; online: number
 }
 
 /** Connectors that answer or not, and the machines read by a Windows agent */
-export function connectorCounts(snap: Snapshot): { ok: number; failing: number; agents: number } {
-  const list = snap.data.connectors ?? [];
-  return { ok: list.filter((c) => c.ok).length, failing: list.filter((c) => !c.ok).length, agents: snap.data.machine_list.filter((m) => !m.disabled && m.agent).length };
+export function connectorCounts(snap: Snapshot): { ok: number; failing: number; agents: number; failingTypes: string[] } {
+  const list = snap.data.connectors ?? [], down = list.filter((c) => !c.ok);
+  return { ok: list.filter((c) => c.ok).length, failing: down.length, failingTypes: [...new Set(down.map((c) => c.type))], agents: snap.data.machine_list.filter((m) => !m.disabled && m.agent).length };
 }
 
 /** Virtual machines and containers of the hypervisors: running, stopped, nodes down, and the "problems" some tools report (templates left out) */
@@ -27,20 +27,20 @@ export function virtualCounts(snap: Snapshot): { guests: number; running: number
   };
 }
 
-/** Machines with packages to update, machines asking for a restart */
-export function upkeepCounts(snap: Snapshot): { updates: number; reboot: number } {
+/** Machines with packages to update, machines asking for a restart, containers with a newer image (Dockhand and Dozzle can report the same one: once) */
+export function upkeepCounts(snap: Snapshot): { updates: number; reboot: number; containers: number } {
   const hosts = snap.health?.hosts ?? [];
-  return { updates: hosts.filter((h) => (h.apt?.upgradable ?? 0) > 0).length, reboot: hosts.filter((h) => h.reboot_required).length };
+  const seen = (snap.data.containers ?? []).flatMap((c) => c.environments ?? []).flatMap((e) => e.updates.map((u) => `${e.name}/${u.container ?? u.image}`));
+  return { updates: hosts.filter((h) => (h.apt?.upgradable ?? 0) > 0).length, reboot: hosts.filter((h) => h.reboot_required).length, containers: new Set(seen).size };
 }
 
 /** The Cloudflare domains: those that serve, those with something to improve (each counted once), threats and visitors over the period read */
-export function cloudflareCounts(snap: Snapshot): { domains: number; active: number; toImprove: number; threats: number; visitors: number; records: number } {
+export function cloudflareCounts(snap: Snapshot): { domains: number; active: number; toImprove: number; threats: number; visitors: number } {
   const zones = cloudflareZones(snap);
   return {
     domains: zones.length, active: zones.filter((z) => z.status === "active" && !z.paused).length,
     toImprove: new Set(advice(zones).filter((a) => a.tone === "warn").flatMap((a) => a.who)).size,
     threats: zones.reduce((n, z) => n + (z.traffic?.threats ?? 0), 0), visitors: zones.reduce((n, z) => n + (z.traffic?.visitors ?? 0), 0),
-    records: zones.reduce((n, z) => n + (z.dns?.total ?? 0), 0),
   };
 }
 
