@@ -3076,9 +3076,10 @@ class UnifiDeviceCard extends HTMLElement {
       }
 
 
+      /* MyServices: the front panel takes the width of its few ports, the details the rest */
       .integrated-port-section {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(220px, .9fr);
+        grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
         gap: 0;
         border-top: 1px solid var(--udc-border);
       }
@@ -3086,6 +3087,12 @@ class UnifiDeviceCard extends HTMLElement {
       .frontpanel.integrated-ports {
         border-bottom: none;
         border-right: 1px solid var(--udc-border);
+      }
+
+      /* MyServices: bigger ports on an access point, zoomed whole so the fixed-size LEDs and pins keep their proportions */
+      .frontpanel.integrated-ports .port-row,
+      .frontpanel.integrated-ports .special-row {
+        zoom: 1.4;
       }
 
       .integrated-port-detail {
@@ -4200,11 +4207,19 @@ class UnifiDeviceCard extends HTMLElement {
         vertical-align: 1px;
       }
 
+      /* MyServices: one line of columns, wrapping only where the card is too narrow */
       .detail-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
         gap: 6px 10px;
         margin-bottom: 10px;
+      }
+
+      /* MyServices: the port title is the first column; zoom 1, the grid already carries --udc-text-zoom */
+      .detail-grid > .detail-title {
+        zoom: 1;
+        margin-bottom: 0;
+        align-self: center;
       }
 
       .detail-item {
@@ -4370,9 +4385,9 @@ class UnifiDeviceCard extends HTMLElement {
     const noControllerData = !selected.link_entity && !selected.speed_entity && !selected.rx_entity;
 
     return `
-      <div class="detail-title">${this._escapeHtml(portTitle)}${selected.lag_group ? ` <span class="detail-lag-badge">LAG · ${this._escapeHtml(selected.lag_group.name)}</span>` : ""}</div>
       ${noControllerData ? `<div class="muted">No data from the controller for this port (port ${this._escapeHtml(selected.port ?? "?")})</div>` : ""}
       <div class="detail-grid">
+        <div class="detail-title">${this._escapeHtml(portTitle)}${selected.lag_group ? ` <span class="detail-lag-badge">LAG · ${this._escapeHtml(selected.lag_group.name)}</span>` : ""}</div>
         <div class="detail-item">
           <div class="detail-label">${this._escapeHtml(this._t("link_status"))}</div>
           <div class="detail-value ${linkUp ? "online" : "offline"}">

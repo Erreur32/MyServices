@@ -16,6 +16,9 @@ below are MynetworK's, copied as they are:
 - `unifi-device-card.js` (MyServices): config `mark_port: <n>` puts a `marked` class on that port (`_renderPortButton`) and a frame around it (`.port.marked` in `_styles`); used by the machine window to show the port a machine is plugged into. To redo after a refresh from upstream: those two spots only.
 - `unifi-device-card.js` (MyServices): `_measuredCardWidth` and `_measuredFrontPanelContentWidth` read the layout width first: the Network page zooms the card with a transform, which must not fold the rows.
 - `unifi-device-card.js` (MyServices): `.header`, `.detail-grid`, `.detail-title`, `.panel-label` and `.port-num` read `--udc-text-zoom`: the Network page keeps the texts at their size at any zoom of the card, only images and ports follow it.
+- `unifi-device-card.js` (MyServices): `.detail-grid` lays its items out in as many columns as fit, and the port title sits in that grid as its first column: the port details read on one line.
+- `unifi-device-card.js` (MyServices): `.integrated-port-section` sizes the front panel of an access point to its ports, the port details take the rest of the width.
+- `unifi-device-card.js` (MyServices): the port rows of `.frontpanel.integrated-ports` are zoomed by 1.4: bigger ports on access points only.
 - `unifi-device-card.d.ts` (new, MyServices): the module only registers the `unifi-device-card` element, nothing is imported from it.
 
 Excluded from SonarCloud (`sonar.exclusions`).
