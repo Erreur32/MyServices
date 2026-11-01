@@ -36,7 +36,8 @@ DNS_EVERY = 3600                         # seconds between two reads of the loca
 BACKUP_EVERY = 6 * 3600                  # seconds between two scans of the backup folders (kept and sent again meanwhile)
 NPM_MAX = 200000                         # characters of one NPM list (the server limit)
 # The only lines of an advanced config the server needs; the others can hold secrets and stay on the machine
-NPM_KEEP = re.compile(r"(?:^\s*(?:location\s|proxy_pass\s|deny\s|return\s+444|\}))|acl_|CF-Connecting-IP")
+NPM_KEEP = re.compile(r"^\s*(location\s|proxy_pass\s|deny\s|return\s+444|\})")
+NPM_KEEP_ANYWHERE = ("acl_", "CF-Connecting-IP")
 DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(DIR, "agent.log")
 CACHE_PATH = os.path.join(DIR, "cache.json")
@@ -169,7 +170,7 @@ def npm_clean(opt, text):
         x.pop("access_list", None)
         adv = x.get("advanced_config") or ""
         if adv.strip():
-            kept = [ln for ln in adv.splitlines() if NPM_KEEP.search(ln)]
+            kept = [ln for ln in adv.splitlines() if NPM_KEEP.search(ln) or any(k in ln for k in NPM_KEEP_ANYWHERE)]
             x["advanced_config"] = "\n".join(kept) or "# kept on the machine"
     return json.dumps(rows)
 
@@ -178,7 +179,7 @@ def npm_lists(npm):
     """{label: [rc, output]} of the local NPM. Not cached: nothing raw is left on the disk. The path comes from the install, never from the server."""
     out = {}
     for opt in NPM_LISTS:
-        who = "sudo -n -u %s " % shlex.quote(str(npm["user"])) if npm.get("user") else ""   # none: the script was installed for this account
+        who = "sudo -n -u %s " % shlex.quote(str(npm["user"])) if npm.get("user") else ""  # NOSONAR S6350: account set by the installer, quoted; none: the script was installed for this account
         rc, text = run("%s%s --json %s" % (who, shlex.quote(str(npm.get("path"))), opt), 30)  # NOSONAR S6350: path checked by the installer, quoted, never from the server
         if rc == 0:
             try:
