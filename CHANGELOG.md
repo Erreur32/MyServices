@@ -11,6 +11,24 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.33.4 (2026-11-01)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **Home, « Your whole fleet in figures »**: new frames for Security (the points of Security › Overview), Cloudflare, cameras and AI, each shown only where the subject exists.
+- **Home, Updates frame**: machines on the left, services on the right (containers with a newer image, each counted once when Dockhand and Dozzle both report it).
+
+### Changed
+- **Home, « Your installation »**: the full list of tools, by name, with logo, number of instances and state; a click opens the right connector.
+- **Home, counters**: every counter of a card stays on one line, frames of a row have the same height, and every counter with a value opens a filtered list or the right page.
+- **Home, DNS frame**: replaces the AdGuard frame and groups domains and servers. The Updates frame no longer shows certificates, which stay under Security.
+- **UniFi cards**: lighter port numbers and WAN / LAN marks, port details on one line, and on access points a narrower front panel with bigger ports.
+
+### Fixed
+- **Health**: « automatic updates failing » no longer shows for the line unattended-upgrades writes about a mirror list (`mirror+file` sources), which is not a failure.
+- **Security**: an invalid certificate is shown as serious in every language, not only in French.
+
 ## v0.33.3 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
