@@ -140,6 +140,7 @@ fi
 mkdir -p "$DIR"
 chown "$USER_NAME:$USER_NAME" "$DIR"
 chmod 750 "$DIR"
+rm -f "$DIR/cache.json" "$DIR/sudo.json"   # read with the rights of the previous install: this one may give more
 
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT

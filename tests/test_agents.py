@@ -71,6 +71,15 @@ class Agents(unittest.TestCase):
         self.assertNotIn(token, str(self.c.get(BASE + "/agents").json()))  # le clair n'est jamais relu
         self.assertEqual(self.c.post(BASE + "/agents", json={"ip": "pas-une-ip", "name": "Gamer32"}, headers=self.h).status_code, 400)
 
+    def test_nouveau_jeton_garde_la_mise_a_jour_automatique(self):
+        _, info = self.create()
+        common.AGENTS.set_auto_update(info["id"], True)
+        _, renewed = self.create()
+        self.assertNotEqual(renewed["id"], info["id"])
+        self.assertTrue(common.AGENTS.get(renewed["id"])["auto_update"])
+        _, other = self.create("192.168.1.61")
+        self.assertFalse(common.AGENTS.get(other["id"])["auto_update"])
+
     def test_effacer_un_agent_revoque_seulement(self):
         _, info = self.create()
         url = BASE + f"/agents/{info['id']}"
