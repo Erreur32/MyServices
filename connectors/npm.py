@@ -42,7 +42,10 @@ class NPM(Connector):
 
     @staticmethod
     def mode_of(conf: dict) -> str:
-        return "agent" if conf.get("agent") else "script" if conf.get("api") else "ssh" if conf.get("ssh") else "direct"
+        for key, mode in (("agent", "agent"), ("api", "script"), ("ssh", "ssh")):
+            if conf.get(key):
+                return mode
+        return "direct"
 
     @classmethod
     def validate(cls, conf: dict) -> list[str]:

@@ -95,6 +95,7 @@ MACHINES_OFF: set = set()  # machines éteintes volontairement : services « mac
 MACHINE_FLAGS: dict = {}
 ADGUARD: dict = {}  # IP du serveur DNS -> connecteur AdGuard Home
 ADGUARD_SYNC: dict = {}  # IP -> conteneur adguardhome-sync (machines.adguard_sync)
+SYNC_LOGS: dict = {}     # IP -> son journal envoyé par l'agent de la machine (None : lu par SSH)
 NPM_IPS: dict = {}  # nom d'instance NPM -> IP vue du LAN (contrôle DNS des hosts à garde LAN)
 META_RAW: dict = {}  # services-meta.json lu (connecteurs tirés des machines : docker, AdGuard)
 CONNECTOR_STATUS: list = []  # état de chaque connecteur lu pendant le passage (data.json « connectors »)
@@ -660,7 +661,7 @@ def _name_answers(name, search, servers, asked):
     return got
 
 
-def dns_check(rows, agent_fresh=None):
+def dns_check(rows):
     """Contrôle DNS, lecture seule : chaque domaine NPM (et chaque nom de machine suivie) est demandé à chaque serveur DNS,
     les AdGuard branchés, sinon les résolveurs du conteneur ; les réécritures AdGuard sont comparées entre instances et aux
     hosts NPM. Problèmes par ligne dans r["dns"]. None quand aucun serveur DNS n'est joignable."""
@@ -676,8 +677,7 @@ def dns_check(rows, agent_fresh=None):
         state = cbase.load_state(CONNECTORS_STATE)
         confs = {ip: ex.submit(cbase.run_isolated, c, state, 60) for ip, c in ADGUARD.items()}
         asked = {s: ex.submit(dns_ask_all, s, names + machine_names) for s in servers}
-        syncs = {ip: ex.submit(adguard_sync_state, MACHINES[ip][2] if ip in MACHINES else None, c, agents.sync_log((agent_fresh or {}).get(ip), c))
-                 for ip, c in ADGUARD_SYNC.items()}
+        syncs = {ip: ex.submit(adguard_sync_state, MACHINES[ip][2] if ip in MACHINES else None, c, SYNC_LOGS.get(ip)) for ip, c in ADGUARD_SYNC.items()}
     confs = {ip: f.result() for ip, f in confs.items()}
     cbase.save_state(CONNECTORS_STATE, state)
     CONNECTOR_STATUS.extend(st for _, st in confs.values())
@@ -1441,7 +1441,8 @@ def main():
 
     progress(7, "DNS : réponses de chaque serveur, réécritures AdGuard")
     adguard_sync_detect(dock)
-    dns = dns_check(rows, agent_fresh)   # AdGuard when wired, else the resolvers of the container
+    SYNC_LOGS.update((ip, agents.sync_log(agent_fresh.get(ip), c)) for ip, c in ADGUARD_SYNC.items())
+    dns = dns_check(rows)   # AdGuard when wired, else the resolvers of the container
 
     progress(8, "machines : SSH et écriture de data.json")
     sshc = hostinfo.ssh_config()

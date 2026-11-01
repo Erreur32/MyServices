@@ -311,7 +311,7 @@ class LinuxAgentScripts(unittest.TestCase):
         rep = {"10.0.0.9": {"fresh": True, "report": {"data": {"cmds": {"backups": [0, json.dumps(scan)]}}}}}
         with mock.patch.object(backups, "agent_reports", return_value=rep), mock.patch.object(backups, "run_py") as ssh:
             got = backups_admin._scan(("10.0.0.9", {"name": "vps", "ssh": None}), ["/x"])
-            self.assertEqual(backups_admin._read_machine("10.0.0.8", None, {}, "local")[0], None)
+            self.assertIsNone(backups_admin._read_machine("10.0.0.8", None, {}, "local")[0])
             ssh.assert_not_called()
         self.assertEqual((got["ok"], got["folders"][0]["path"]), (True, "/home/backup"))
 

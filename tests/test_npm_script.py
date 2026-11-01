@@ -48,11 +48,12 @@ class ByAgent(unittest.TestCase):
     def test_errors_say_why(self):
         with self.assertRaisesRegex(npmapi.NPMError, "relevé récent"):
             self.fetch({})
+        nothing = self.report({})
         with self.assertRaisesRegex(npmapi.NPMError, "MSV_NPM"):
-            self.fetch(self.report({}))
-        bad = {f"npm {opt}": [1, "sudo: a password is required"] for _, opt in npmapi.LISTS.values()}
+            self.fetch(nothing)
+        bad = self.report({f"npm {opt}": [1, "sudo: a password is required"] for _, opt in npmapi.LISTS.values()})
         with self.assertRaisesRegex(npmapi.NPMError, "password is required"):
-            self.fetch(self.report(bad))
+            self.fetch(bad)
 
     def test_mode_needs_only_the_address(self):
         self.assertEqual(NPM.mode_of({"agent": "203.0.113.7"}), "agent")

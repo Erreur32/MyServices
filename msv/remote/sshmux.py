@@ -11,10 +11,10 @@ def ssh_run(what: str, alias: str, argv: list[str], **kwargs) -> subprocess.Comp
     """subprocess.run of a read, counted in Settings > Requests under « ssh/<alias> » when it goes over SSH; rc 255 is ssh itself failing."""
     from connectors import reqstats   # here: the connectors package imports this module
     if argv[0] != "ssh":
-        return subprocess.run(argv, **kwargs)
+        return subprocess.run(argv, **kwargs)  # NOSONAR S6350: fixed read-only commands of the collection, run on this machine
     t0, code, error = time.monotonic(), None, "no answer"
     try:
-        r = subprocess.run(argv, **kwargs)
+        r = subprocess.run(argv, **kwargs)  # NOSONAR S6350: alias set by the admin in the settings, commands fixed by the callers
         code, error = (None, str(r.stderr)[-200:]) if r.returncode == 255 else (r.returncode, "")
         return r
     finally:

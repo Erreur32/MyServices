@@ -36,7 +36,7 @@ DNS_EVERY = 3600                         # seconds between two reads of the loca
 BACKUP_EVERY = 6 * 3600                  # seconds between two scans of the backup folders (kept and sent again meanwhile)
 NPM_MAX = 200000                         # characters of one NPM list (the server limit)
 # The only lines of an advanced config the server needs; the others can hold secrets and stay on the machine
-NPM_KEEP = re.compile(r"^\s*(location\s|proxy_pass\s|deny\s|return\s+444|\})|acl_|CF-Connecting-IP")
+NPM_KEEP = re.compile(r"(?:^\s*(?:location\s|proxy_pass\s|deny\s|return\s+444|\}))|acl_|CF-Connecting-IP")
 DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(DIR, "agent.log")
 CACHE_PATH = os.path.join(DIR, "cache.json")
@@ -64,7 +64,7 @@ def log(msg):
 def run(cmd, timeout):
     """(return code, output) the way the SSH collection reads it: stdout when it worked, stdout + stderr when it failed."""
     try:
-        r = subprocess.run(["bash", "-c", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+        r = subprocess.run(["bash", "-c", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)  # NOSONAR S6350: fixed commands of this file, and a path checked by the installer in a config only this account reads
     except subprocess.TimeoutExpired:
         return 124, "timeout apres %ds" % timeout
     except OSError as e:
@@ -179,7 +179,7 @@ def npm_lists(npm):
     out = {}
     for opt in NPM_LISTS:
         who = "sudo -n -u %s " % shlex.quote(str(npm["user"])) if npm.get("user") else ""   # none: the script was installed for this account
-        rc, text = run("%s%s --json %s" % (who, shlex.quote(str(npm.get("path"))), opt), 30)
+        rc, text = run("%s%s --json %s" % (who, shlex.quote(str(npm.get("path"))), opt), 30)  # NOSONAR S6350: path checked by the installer, quoted, never from the server
         if rc == 0:
             try:
                 text = npm_clean(opt, text)

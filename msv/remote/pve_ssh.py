@@ -70,7 +70,8 @@ def parse(stdout: str, stderr: str = "") -> tuple[dict | None, str, str | None]:
     first = head.strip().splitlines()[0] if head.strip() else ""
     m = re.match(r"pve-manager/([\w.~-]+)", first)
     # older shape (a version line, then the resources JSON): kept readable
-    res = _json(secs["res"]) if "res" in secs else _json(stdout.partition("\n")[2] if m else stdout)
+    older = stdout.partition("\n")[2] if m else stdout
+    res = _json(secs.get("res", older))
     if res is None:
         return None, ("pvesh : " + (stderr.strip().splitlines() or ["réponse illisible"])[-1])[:200], None
     if not isinstance(res, list):
