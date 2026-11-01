@@ -63,6 +63,7 @@ from msv.machines import known_apps
 from msv.machines import new_services
 from msv.core import last_known as last_known_services
 from msv.collect import favicons
+from msv.collect import pulse
 from msv.collect import webservers
 from msv.machines import matching
 from connectors import mynetwork as mynetwork_conn
@@ -1424,7 +1425,7 @@ def main():
         r["tags"] = m.get("tags", [])
         if "web" in m:  # surcharge manuelle : "ui" / "api" / "none"
             r["web"] = m["web"]
-        if r["web"] == "none" and r.get("ip") in agent_listen:   # silent port: its state comes from the agent report, no connection (pulse.port_of)
+        if pulse.read_by_agent(r, agent_listen):   # silent port: its state comes from the agent report, no connection (pulse.port_of)
             r["by_agent"] = True
         r["direct_ok"] = bool(m.get("direct_ok"))  # UI hors NPM voulue : exclue du compteur
         r["public_ok"] = bool(m.get("public"))  # site public voulu : pas d'ACL attendue

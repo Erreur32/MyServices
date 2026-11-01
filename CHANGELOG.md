@@ -19,6 +19,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Connectors**: switching one on, or saving it, now shows its tested state on its card at once, instead of « being read again » until the next collection. A test older than the last collection no longer replaces its result, so a failure cannot be hidden by an old test.
 - **README**: the project's rule is now stated: local data only, no cloud, no subscription, no telemetry, and the few outgoing calls are listed.
 
+### Fixed
+- **Port pulse**: on a machine with a root agent, ports published by Docker (such as Nginx Proxy Manager on 80 and 443) were reported down although they answered, because the agent's report leaves out `docker-proxy`. A port is now judged from the agent only when the agent shows it listening; otherwise the collection decides.
+
 ## v0.34.0 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

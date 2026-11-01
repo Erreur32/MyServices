@@ -51,6 +51,12 @@ def port_of(r: dict) -> str | None:
     return f'{r["ip"]}:{r["port"]}' if r.get("ip") and r.get("port") and isinstance(b.get("up"), bool) else None
 
 
+def read_by_agent(r: dict, listening: dict[str, set[int]]) -> bool:
+    """True for a silent port the agent's report shows listening. A port it does not show stays with the collection: the report leaves out
+    docker-proxy, and a Docker without it publishes through the firewall alone, so absent from the report does not mean closed."""
+    return r.get("web") == "none" and r.get("port") in listening.get(r.get("ip"), ())
+
+
 def agent_states(hosts: list[dict], listening: dict[str, set[int]]) -> dict[str, bool]:
     """{« ip:port »: listening} for the followed rows flagged `by_agent` whose machine has a fresh agent report with listening ports. A row
     whose agent is silent or sends no ports is left out: it is neither probed nor announced down, the collection's state stays."""
