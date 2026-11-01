@@ -70,9 +70,12 @@ export function appIconByText(...texts: (string | undefined | null)[]): string |
 const KIND_ICON: Record<string, string> = { docker: "docker", apache: "apache", nginx: "nginx" };
 
 /** Logo du service d'une ligne : l'appli reconnue, sinon d'après le nom ou l'image (« jc21/nginx-proxy-manager »), sinon le type (Docker, Apache) ; null si aucun */
+/** The icon the collection read on a service, served by the API */
+export const faviconUrl = (file: string) => `${import.meta.env.BASE_URL}api/v1/favicon/${file}`;
+
 export function serviceIcon(r: { app?: { label: string } | null; service?: { name?: string; image?: string; kind?: string } | null; favicon?: string }): string | null {
   const s = r.service;
   const kind = s?.kind && KIND_ICON[s.kind] ? `${import.meta.env.BASE_URL}icons/${KIND_ICON[s.kind]}.svg` : null;
-  const favicon = r.favicon ? `${import.meta.env.BASE_URL}api/v1/favicon/${r.favicon}` : null;
+  const favicon = r.favicon ? faviconUrl(r.favicon) : null;
   return appIcon(r.app ? [r.app.label] : undefined) ?? appIconByText(s?.name, s?.image) ?? favicon ?? kind;
 }
