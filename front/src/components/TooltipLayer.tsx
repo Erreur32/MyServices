@@ -4,7 +4,7 @@ import { MousePointerClick } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { splitAction } from "../lib/tip";
 
-interface Tip { text: string; x: number; y: number; below: boolean }
+interface Tip { text: string; x: number; y: number; below: boolean; large: boolean }
 
 const DELAY_MS = 150, GAP = 8, MARGIN = 8;
 
@@ -14,7 +14,7 @@ function splitTip(text: string): [string, string] {
   return i < 0 ? ["", text] : [text.slice(0, i), text.slice(i + 1)];
 }
 
-/** Light markup inside a tip: **text** in bold, `text` as code (settings, commands, file names), ![](url) as a small icon (service logos), [[ok:text]] in a state colour (ok, warn, bad, info, off) */
+/** Light markup inside a tip: **text** in bold, `text` as code (settings, commands, file names), ![](url) as a small icon (service logos), [[ok:text]] in a state colour (ok, warn, bad, info, off). `data-tip-large` on the element: a bigger bubble that widens to its longest line, for a tip people read */
 const TONE_TEXT: Record<string, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad", info: "text-link", off: "text-dim" };
 const rich = (text: string) => {
   const seen = new Map<string, number>();   // stable keys from the content (a repeated part gets a counter), not from the position
@@ -82,7 +82,7 @@ export function TooltipLayer() {
       timer.current = setTimeout(() => {
         const r = t.getBoundingClientRect();
         const below = r.top < 80;  // pas de place au-dessus : sous l'élément
-        setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom : r.top, below });
+        setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom : r.top, below, large: (t as HTMLElement).dataset.tipLarge !== undefined });
       }, DELAY_MS);
     };
     const out = (e: Event) => { if (target.current && (!(e instanceof MouseEvent) || !target.current.contains(e.relatedTarget as Node | null))) hide(); };
@@ -112,7 +112,7 @@ export function TooltipLayer() {
   if (!tip) return null;
   const [text, action] = splitAction(tip.text), [head, rest] = splitTip(text);
   return (
-    <div ref={box} role="tooltip" className="pointer-events-none fixed z-[100] w-max max-w-[min(28rem,calc(100vw-1rem))] animate-[tip-in_.12s_ease-out] whitespace-pre-line overflow-hidden rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs leading-snug text-txt shadow-lg shadow-black/30"
+    <div ref={box} role="tooltip" className={`pointer-events-none fixed z-[100] w-max animate-[tip-in_.12s_ease-out] whitespace-pre-line overflow-hidden rounded-lg border border-line bg-card px-2.5 py-1.5 leading-snug text-txt shadow-lg shadow-black/30 ${tip.large ? "min-w-72 max-w-[calc(100vw-1rem)] text-sm" : "max-w-[min(28rem,calc(100vw-1rem))] text-xs"}`}
       style={{ left: tip.x + shift, top: tip.below ? tip.y + GAP : tip.y - GAP, transform: `translate(-50%, ${tip.below ? "0" : "-100%"})` }}>
       {head && <b className={`block text-txt ${rest ? "-mx-2.5 -mt-1.5 mb-1.5 border-b border-line/60 bg-bg px-2.5 py-1.5" : ""}`}>{head}</b>}{/* heading = the darkest tone of the theme, like the card header strips */}
       {rest && <span className={head ? "block text-muted" : ""}>{body(rest)}</span>}

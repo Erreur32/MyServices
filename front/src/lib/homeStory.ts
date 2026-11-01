@@ -4,11 +4,12 @@ import type { Machine } from "../types";
 import { CONNECTOR } from "./eventOrigin";
 import { tx } from "./i18n";
 import { mState } from "./machines";
+import { storyText, storyTitle } from "./homeLines";
 import { hiddenNow, isHidden } from "./servicesHidden";
 import { perService } from "./servicesState";
 import { connectorCounts } from "./statsExtra";
 import { status } from "./status";
-import { plural, type Attention } from "./summary";
+import type { Attention } from "./summary";
 import { splitHostName } from "./format";
 
 export interface KeyCounts {
@@ -53,22 +54,10 @@ export function installTools(snap: Snapshot): InstallTool[] {
 
 export type Tone = "ok" | "warn" | "bad";
 
-/** The title and the sentence of the home page, written from the figures */
-export function homeStory(snap: Snapshot, items: Attention[]): { tone: Tone; title: string; text: string } {
-  const k = keyCounts(snap);
-  const down = k.machines - k.machinesUp;
-  const parts = [
-    down ? tx("{0}/{1} machines en panne", down, k.machines) : tx("Aucune machine en panne"),
-    tx("{0}/{1} services en ligne", k.servicesUp, k.services),
-  ];
-  if (k.backups) parts.push(tx("{0}/{1} sauvegardes à jour", k.backupsOk, k.backups));
-  const text = `${parts.join(", ")}.`;
-  if (!items.length) return { tone: "ok", title: tx("Tout va bien sur ton réseau."), text };
-  return {
-    tone: items.some((i) => i.level === "crit") ? "bad" : "warn",
-    title: tx("{0} à traiter sur ton réseau.", plural(items.length, "point")),
-    text,
-  };
+/** The title and the sentence of the home page: their words change every hour, not at every refresh */
+export function homeStory(snap: Snapshot, items: Attention[], seed = Math.floor(Date.now() / 3_600_000)): { tone: Tone; title: string; text: string } {
+  const worst = items.some((i) => i.level === "crit") ? "bad" : "warn";
+  return { tone: items.length ? worst : "ok", title: storyTitle(items, seed), text: storyText(snap, items, seed) };
 }
 
 export interface FleetRow { machine: Machine; tone: Tone | "off"; note: string; rank: number }
