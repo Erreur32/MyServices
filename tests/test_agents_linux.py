@@ -3,6 +3,7 @@ through the same collectors (health.collect_linux). Nothing sent by an agent is 
 
   python3 -m unittest tests.test_agents_linux
 """
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -237,6 +238,22 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertIn("sudo -n ss -tlnpH", LISTEN_SH)
         self.assertIn(') -tlnpH"', text)
         self.assertNotIn("ALL=(root) NOPASSWD: ALL", text)
+
+    def test_npm_filtre_ce_qui_quitte_la_machine(self):
+        ns = {"__name__": "agent_test", "__file__": "/tmp/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        adv = "location / {\n  proxy_pass http://10.0.0.5:8080;\n  proxy_set_header Authorization \"Bearer s3cret\";\n}\nset $acl_lan 1;\nauth_basic_user_file /x;"
+        out = json.loads(ns["npm_clean"]("--host-list", json.dumps([{"id": 1, "owner": {"email": "a@b"}, "access_list": {"id": 2}, "advanced_config": adv}, {"id": 2, "advanced_config": "add_header X secret;"}])))
+        self.assertEqual(out[0], {"id": 1, "advanced_config": "location / {\n  proxy_pass http://10.0.0.5:8080;\n}\nset $acl_lan 1;"})
+        self.assertEqual(out[1]["advanced_config"], "# kept on the machine")   # still seen as set by the checks
+        self.assertEqual(json.loads(ns["npm_clean"]("--access-list", '[{"id": 2, "name": "lan", "items": [{"username": "u"}]}]')), [{"id": 2, "name": "lan"}])
+
+    def test_install_sh_regles_npm_exactes(self):
+        from msv.remote import npmapi
+        text = agents.script("install.sh")
+        for _, opt in npmapi.LISTS.values():
+            self.assertIn(opt, text.split("for o in ")[1].split(";")[0].split())
+        self.assertIn('ALL=($NPM_USER) NOPASSWD: $NPM --json $o', text)
 
     def test_v5_services_en_marche(self):
         from msv.collect import hostinfo

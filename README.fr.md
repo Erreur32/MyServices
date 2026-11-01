@@ -196,6 +196,8 @@ Pour les machines Linux, l'agent Linux (Python 3.6+, systemd) donne les mêmes i
 
 **Mises à jour.** La carte de l'agent affiche sa version. **Mettre à jour maintenant** ou l'interrupteur **Automatique** par agent (coupé par défaut) fait récupérer le nouveau script à MyServices au prochain relevé ; l'agent contrôle le SHA-256 et la syntaxe avant de se remplacer. Le script n'est pas signé : MyServices est la seule source de confiance.
 
+**Nginx Proxy Manager.** Sur une machine qui a [npm-api.sh](https://github.com/Erreur32/nginx-proxy-manager-Bash-API), ajoutez `MSV_NPM=<chemin de npm-api.sh>` après `sudo env` dans la commande de l'agent et choisissez le mode de connecteur **Par l'agent de la machine** : l'agent lit NPM avec le compte propriétaire du script (règles sudo exactes), MyServices n'a besoin ni du SSH ni d'un compte NPM, et seules les lignes des configurations avancées utiles aux contrôles quittent la machine.
+
 **macOS.** Pas d'agent pour macOS : un Mac est lu par SSH.
 
 </details>

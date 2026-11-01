@@ -52,7 +52,7 @@ def instances(cfg: dict) -> list[dict]:
     if any(not n for n in names) or len(set(names)) != len(names):
         raise NPMError("config.json npm : chaque instance doit avoir un « name » unique")
     for i in out:
-        if not (i.get("api") or (i.get("url") and i.get("user") and i.get("password"))):
+        if not (i.get("api") or i.get("agent") or (i.get("url") and i.get("user") and i.get("password"))):
             raise NPMError(f"instance NPM {i['name']} : « api », ou « url » + « user » + « password » requis")
     return out
 
@@ -76,8 +76,8 @@ def instance_ip(inst: dict, machines: dict) -> str | None:
 
 
 def _instance_ip(inst: dict, machines: dict) -> str | None:
-    if inst.get("ip"):
-        return inst["ip"]
+    if inst.get("ip") or inst.get("agent"):
+        return inst.get("ip") or inst["agent"]
     if inst.get("ssh"):
         return next((ip for ip, m in machines.items() if m[2] == inst["ssh"]), None)
     if inst.get("api"):
@@ -142,9 +142,34 @@ def _script(path: str, opt: str, ssh: str | None = None):
         raise NPMError(f"{cmd} a échoué (code {r.returncode}) : {err}") from e
 
 
+def _from_agent(inst: dict) -> dict[str, list]:
+    """The lists the machine's agent sent in its last report (npm-api.sh run there, MSV_NPM): no account of NPM here, no SSH."""
+    from msv.core.auth import db_path
+    from msv.core.config import CFG
+    from msv.machines.agent_reports import fresh_reports
+    rep = fresh_reports(db_path(CFG)).get(inst["agent"]) or {}
+    if not rep.get("fresh"):
+        raise NPMError(f"NPM {inst['name']} : pas de relevé récent de l'agent de {inst['agent']}")
+    cmds = (((rep.get("report") or {}).get("data") or {}).get("cmds")) or {}
+    out = {}
+    for key, (_, opt) in LISTS.items():
+        rc, text = (cmds.get(f"npm {opt}") or [None, ""])[:2]
+        if rc is None:
+            raise NPMError(f"NPM {inst['name']} : l'agent n'envoie pas NPM (installation avec MSV_NPM à faire)")
+        if rc != 0:
+            raise NPMError(f"NPM {inst['name']} : {text[-200:]}")
+        try:
+            out[key] = json.loads(text)
+        except ValueError as e:
+            raise NPMError(f"NPM {inst['name']} {key} : réponse de l'agent illisible") from e
+    return out
+
+
 def fetch(inst: dict) -> dict[str, list]:
     """{hosts, redirects, dead, streams, acls} bruts de l'API NPM ; NPMError si une lecture échoue."""
-    if inst.get("api"):
+    if inst.get("agent"):
+        out = _from_agent(inst)
+    elif inst.get("api"):
         out = {k: _script(inst["api"], opt, inst.get("ssh")) for k, (_, opt) in LISTS.items()}
     else:
         token = _request(inst, "tokens", body={"identity": inst["user"], "secret": inst["password"]}).get("token")

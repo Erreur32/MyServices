@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -30,6 +31,10 @@ SMART_LIST = __SMART_LIST__              # lists the disks; one SMART command pe
 SMART_FMT = __SMART_FMT__
 CACHED = __CACHED__                      # {command: seconds}: outputs kept and sent again for that long instead of running the command
 SMART_CACHE = __SMART_CACHE__            # seconds: SMART of each disk
+NPM_LISTS = __NPM_LISTS__                # options of npm-api.sh, read when the install gave its path (MSV_NPM)
+NPM_MAX = 200000                         # characters of one NPM list (the server limit)
+# The only lines of an advanced config the server needs; the others can hold secrets and stay on the machine
+NPM_KEEP = re.compile(r"^\s*(location\s|proxy_pass\s|deny\s|return\s+444|\})|acl_|CF-Connecting-IP")
 DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(DIR, "agent.log")
 CACHE_PATH = os.path.join(DIR, "cache.json")
@@ -94,6 +99,37 @@ def run_cached(cmd, timeout, ttl, cache, now):
     if ttl and rc == 0:
         cache[cmd] = [now, rc, out]
     return rc, out
+
+
+def npm_clean(opt, text):
+    """A list of npm-api.sh without what the server does not need: access lists reduced to id and name, no owner, advanced configs filtered."""
+    rows = json.loads(text)
+    if opt == "--access-list":
+        return json.dumps([{"id": a.get("id"), "name": a.get("name")} for a in rows])
+    for x in rows:
+        x.pop("owner", None)
+        x.pop("access_list", None)
+        adv = x.get("advanced_config") or ""
+        if adv.strip():
+            kept = [ln for ln in adv.splitlines() if NPM_KEEP.search(ln)]
+            x["advanced_config"] = "\n".join(kept) or "# kept on the machine"
+    return json.dumps(rows)
+
+
+def npm_lists(npm):
+    """{label: [rc, output]} of the local NPM. Not cached: nothing raw is left on the disk. The path comes from the install, never from the server."""
+    out = {}
+    for opt in NPM_LISTS:
+        rc, text = run("sudo -n -u %s %s --json %s" % (shlex.quote(str(npm.get("user"))), shlex.quote(str(npm.get("path"))), opt), 30)
+        if rc == 0:
+            try:
+                text = npm_clean(opt, text)
+            except (ValueError, AttributeError, TypeError):
+                rc, text = 1, "npm-api.sh: unexpected answer"
+        if len(text) > NPM_MAX:
+            rc, text = 1, "npm-api.sh: list too long"
+        out["npm " + opt] = [rc, text[-500:] if rc else text]
+    return out
 
 
 def collect():
@@ -208,7 +244,10 @@ def main():
     cfg = load_config()
     if cfg is None:
         return 1
-    body = pack({"version": VERSION, "os": os_name(), "host": socket.gethostname(), "interval": int(cfg.get("interval") or 900)}, collect())
+    cmds = collect()
+    if isinstance(cfg.get("npm"), dict):
+        cmds.update(npm_lists(cfg["npm"]))
+    body = pack({"version": VERSION, "os": os_name(), "host": socket.gethostname(), "interval": int(cfg.get("interval") or 900)}, cmds)
     answer = send(cfg, body)
     if answer is None:
         return 1

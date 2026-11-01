@@ -8,6 +8,7 @@
 # Options (environment variables, add them to the sudo env list):
 #   MSV_MINUTES=5      interval between two reports (1 to 1440)
 #   MSV_DOCKER=1       also put the agent user in the docker group (read Docker containers). Warning: the docker group is root-equivalent
+#   MSV_NPM=/path/npm-api.sh  read this Nginx Proxy Manager through its script, as the owner of the script (exact sudo rules, one per list)
 #   MSV_SMART=1        allow `sudo -n smartctl -H /dev/*` for the agent user (SMART health of the disks)
 #   MSV_SUDO=1         allow the three read-only commands that need root, each alone (exact sudo rules): services to restart after an
 #                      update (needrestart, list mode), Fail2ban bans, and the process names behind the listening ports (ss)
@@ -57,6 +58,18 @@ if [[ "$URL" == http://* && "${MSV_ALLOW_HTTP:-}" != 1 && ! "$SERVER" =~ $LOCAL_
 fi
 [[ "$TOKEN" =~ ^msv_agent_[A-Za-z0-9_-]+$ ]] || die "Bad token: it must start with msv_agent_"
 [[ "$MINUTES" =~ ^[0-9]+$ ]] && (( MINUTES >= 1 && MINUTES <= 1440 )) || die "MSV_MINUTES must be between 1 and 1440"
+NPM=${MSV_NPM:-}
+NPM_USER=""
+if [[ -n "$NPM" ]]; then
+  [[ "$NPM" =~ ^/[A-Za-z0-9._/-]+$ && -x "$NPM" ]] || die "MSV_NPM must be the full path of an executable npm-api.sh"
+  [[ -z $(find "$NPM" -perm -o+w) ]] || die "MSV_NPM: the script must not be writable by every account"
+  command -v sudo >/dev/null || die "MSV_NPM needs sudo on this machine"
+  NPM_USER=$(stat -c %U "$NPM")
+  # Its login token is written in DATA_DIR of npm-api.conf, by default data/ next to the script
+  NPM_DATA=$(sed -n 's/^DATA_DIR="\{0,1\}\([^"#]*\)"\{0,1\}.*/\1/p' "$(dirname "$NPM")/npm-api.conf" 2>/dev/null | tail -1 || true)
+  [[ "$NPM_DATA" =~ ^/[A-Za-z0-9._/-]+$ ]] || NPM_DATA="$(dirname "$NPM")/data"
+  install -d -o "$NPM_USER" "$NPM_DATA"
+fi
 command -v python3 >/dev/null || die "python3 is required"
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 6) else 1)' || die "Python 3.6 or newer is required"
 command -v curl >/dev/null || die "curl is required"
@@ -83,12 +96,16 @@ python3 -m py_compile "$TMP" || die "The downloaded agent has syntax errors"
 install -o "$USER_NAME" -g "$USER_NAME" -m 644 "$TMP" "$DIR/agent.py"
 
 # Config: the token is in it, so only the agent account (and root) can read it
-( umask 077; printf '{"url": "%s", "token": "%s", "interval": %d}\n' "$URL" "$TOKEN" $((MINUTES * 60)) > "$DIR/config.json" )
+NPM_JSON=""
+[[ -n "$NPM" ]] && NPM_JSON=$(printf ', "npm": {"path": "%s", "user": "%s"}' "$NPM" "$NPM_USER")
+( umask 077; printf '{"url": "%s", "token": "%s", "interval": %d%s}\n' "$URL" "$TOKEN" $((MINUTES * 60)) "$NPM_JSON" > "$DIR/config.json" )
 chown "$USER_NAME:$USER_NAME" "$DIR/config.json"
 chmod 600 "$DIR/config.json"
 ok "Agent installed in $DIR"
 
 NNP="NoNewPrivileges=true"
+PROTECT_HOME=true
+WRITABLE="$DIR"
 RULES=()
 if [[ "${MSV_SMART:-}" = 1 ]]; then
   RULES+=("/usr/sbin/smartctl -H /dev/*")
@@ -98,12 +115,23 @@ if [[ "${MSV_SUDO:-}" = 1 ]]; then
   RULES+=("/usr/sbin/needrestart -b -r l" "/usr/bin/fail2ban-client banned" "$(command -v ss || echo /usr/bin/ss) -tlnpH")
 fi
 rm -f "$OLD_SUDOERS"
-if (( ${#RULES[@]} )); then
-  for r in "${RULES[@]}"; do echo "$USER_NAME ALL=(root) NOPASSWD: $r"; done > "$SUDOERS.tmp"
+if (( ${#RULES[@]} )) || [[ -n "$NPM" ]]; then
+  {
+    for r in ${RULES[@]+"${RULES[@]}"}; do echo "$USER_NAME ALL=(root) NOPASSWD: $r"; done
+    if [[ -n "$NPM" ]]; then   # runs as the owner of the script, not as root; the exact lists of npmapi.LISTS
+      for o in --host-list --redirect-host-list --dead-host-list --stream-host-list --access-list; do
+        echo "$USER_NAME ALL=($NPM_USER) NOPASSWD: $NPM --json $o"
+      done
+    fi
+  } > "$SUDOERS.tmp"
   visudo -cf "$SUDOERS.tmp" >/dev/null || { rm -f "$SUDOERS.tmp"; die "sudoers rule rejected"; }
   chmod 440 "$SUDOERS.tmp"; mv "$SUDOERS.tmp" "$SUDOERS"
   NNP="# NoNewPrivileges is left off: sudo needs to gain privileges"
-  ok "sudo allowed for ${#RULES[@]} exact read-only command(s): $SUDOERS"
+  ok "sudo allowed for exact read-only commands: $SUDOERS"
+  if [[ -n "$NPM" ]]; then   # sudo stays in the sandbox of the service: the script must see /home and write its login token
+    PROTECT_HOME=read-only
+    WRITABLE="$DIR $NPM_DATA"
+  fi
 else
   rm -f "$SUDOERS"
 fi
@@ -120,9 +148,9 @@ User=$USER_NAME
 ExecStart=/usr/bin/env python3 $DIR/agent.py
 TimeoutStartSec=300
 PrivateTmp=true
-ProtectHome=true
+ProtectHome=$PROTECT_HOME
 ProtectSystem=strict
-ReadWritePaths=$DIR
+ReadWritePaths=$WRITABLE
 $NNP
 EOF
 cat > "/etc/systemd/system/$UNIT.timer" <<EOF

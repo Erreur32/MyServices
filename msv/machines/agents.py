@@ -23,7 +23,7 @@ from msv.machines.agent_reports import DEFAULT_INTERVAL, FRESH_MULT, fresh_repor
 from msv.machines.winname import windows_name
 
 VERSION = "9"                # Windows agent (agent.ps1)
-LINUX_VERSION = "5"          # Linux agent (agent.py)
+LINUX_VERSION = "6"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
 PS_AGENT = "agent.ps1"       # script de l'agent Windows
 SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}
@@ -36,7 +36,7 @@ MAX_UNZIPPED = 2 * 1024 * 1024   # octets : un relevé gzip une fois décompress
 # from the previous one, so the machine does not lose them between two full reads
 SLOW_KEYS = ("hw", "pd", "sv")
 MIN_INTERVAL, MAX_INTERVAL = 60, 86400
-MAX_LINUX_CMDS, MAX_LINUX_OUT, MAX_LINUX_CMD = 60, 60_000, 4000   # a Linux report: commands per report, characters per output and per command
+MAX_LINUX_CMDS, MAX_LINUX_OUT, MAX_LINUX_CMD = 60, 200_000, 4000   # a Linux report: commands per report, characters per output and per command
 MIN_GAP = 60              # s: an agent sends at most one report per minute (the rest gets 429)
 LEGACY_HOST = "[Environment]::MachineName"   # what agents up to version 7 sent instead of the real name (script bug): means "unknown"
 BAD_MAX, BAD_WINDOW = 10, 15 * 60   # bad tokens tolerated per IP, then refused until the window ends
@@ -558,9 +558,11 @@ def script(name: str) -> str:
         text = text.replace("#__COLLECT__", health.WIN_PS.strip()).replace("__VERSION__", VERSION)
     elif name == "agent.py":   # the Linux agent runs the commands the SSH collection runs: one list, here
         from msv.collect import health
+        from msv.remote import npmapi
         text = (text.replace("__VERSION__", LINUX_VERSION).replace("__COMMANDS__", json.dumps(health.LINUX_AGENT_COMMANDS + inventory_commands()))
                 .replace("__SMART_LIST__", json.dumps(health.SMART_LIST_CMD)).replace("__SMART_FMT__", json.dumps(health.smart_cmd("{target}")))
-                .replace("__CACHED__", json.dumps({**health.LINUX_AGENT_CACHE, **inventory_cache()})).replace("__SMART_CACHE__", str(health.SMART_CACHE)))
+                .replace("__CACHED__", json.dumps({**health.LINUX_AGENT_CACHE, **inventory_cache()})).replace("__SMART_CACHE__", str(health.SMART_CACHE))
+                .replace("__NPM_LISTS__", json.dumps([opt for _, opt in npmapi.LISTS.values()])))
     return text
 
 
