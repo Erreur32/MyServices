@@ -64,7 +64,7 @@ function siteFindings(snap: Snapshot): Finding[] {
 
 function certFindings(snap: Snapshot): Finding[] {
   return snap.data.hosts.filter((r) => r.enabled && !r.paused).map((r) => ({ r, why: certIssue(r) })).filter((x) => x.why).map(({ r, why }): Finding => ({
-    sev: why.includes("invalide") ? "bad" : "warn", area: "certs", title: r.domains[0] ?? tx("site sans nom"), detail: why,
+    sev: r.webcheck?.cert_valid === false ? "bad" : "warn", area: "certs", title: r.domains[0] ?? tx("site sans nom"), detail: why,
     fix: tx("Renouveler le certificat (Let's Encrypt, ou celui du proxy) avant qu'il n'expire."),
   }));
 }
