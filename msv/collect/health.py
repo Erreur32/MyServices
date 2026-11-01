@@ -870,14 +870,14 @@ def parse_unattended(lines: list[str], now: int | None) -> dict:
 
 
 # unattended-upgrades reads a mirror+file list as a package before seeing it is no .deb, then goes on: not a failure
-_UU_HARMLESS = re.compile(r"ERROR failed to read deb file \S*/auxfiles/\S+\.list ")
+_UU_HARMLESS = ("ERROR failed to read deb file ", "/auxfiles/", ".list (")
 
 
 def _uu_errors(lines: list[str], now: int | None) -> list[str]:
     """The errors of the unattended-upgrades log (« X <date> <text> » lines) in the last 48 hours."""
     errors = []
     for ln in lines:
-        if ln.startswith("X ") and not _UU_HARMLESS.search(ln):
+        if ln.startswith("X ") and not all(part in ln for part in _UU_HARMLESS):
             when = ln[2:21]
             try:
                 t = int(datetime.strptime(when, "%Y-%m-%d %H:%M:%S").timestamp())
