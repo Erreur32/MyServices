@@ -19,8 +19,8 @@ export function configFor(type: ConnectorType, mode: string, conf: Record<string
 }
 
 /** The agent, among those in use, that already reads this NPM: on the machine named by the address, the SSH alias or the IP of the connector */
-export function npmAgent(agents: AgentInfo[], conf: Record<string, unknown>, aliases: SshAlias[]): AgentInfo | undefined {
+export function npmAgent(agents: AgentInfo[], conf: Record<string, string | number | boolean>, aliases: SshAlias[]): AgentInfo | undefined {
   const alias = aliases.find((a) => a.alias === conf.ssh);
-  const ips = [conf.ip, conf.agent, /^https?:\/\/([^:/]+)/.exec(String(conf.url ?? ""))?.[1], alias?.ip ?? alias?.host];
-  return agents.find((a) => a.options?.npm !== undefined && ips.includes(a.ip));
+  const ips = new Set([conf.ip, conf.agent, /^https?:\/\/([^:/]+)/.exec(String(conf.url ?? ""))?.[1], alias?.ip ?? alias?.host]);
+  return agents.find((a) => a.options?.npm !== undefined && ips.has(a.ip));
 }
