@@ -10,6 +10,7 @@ import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ipNum } from "../lib/format";
 import { Dot, Logo } from "../components/marks";
 import { appIcon, serviceIcon } from "../lib/appIcons";
+import { LetterAvatar } from "../components/LetterAvatar";
 import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, openUrl, status, type Check } from "../lib/status";
 import type { Host } from "../types";
 import { Badge, ChipButton, Empty, FilterBar, SearchBox, type Tone } from "../components/ui";
@@ -112,7 +113,9 @@ function ServiceLogo({ r, auto = false }: Readonly<{ r: Host; auto?: boolean }>)
   const chosen = auto ? undefined : chosenIcon(r.icon);   // auto: the logo the detection picks, shown by the icon picker
   if (chosen) return <span className="grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2" title={chosen.label}><IconGlyph icon={chosen} size={28} /></span>;
   const src = serviceIcon(r);
-  return src ? <span className="grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2" title={r.app?.label || r.service?.name}><img src={src} alt="" className="h-7 w-7" /></span> : <span className="block h-10 w-10 shrink-0" aria-hidden />;
+  const box = "grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2", domain = r.domains?.[0];
+  if (src) return <span className={box} title={r.app?.label || r.service?.name}><img src={src} alt="" className="h-7 w-7 object-contain" /></span>;
+  return domain ? <span className={box}><LetterAvatar domain={domain} size={28} /></span> : <span className="block h-10 w-10 shrink-0" aria-hidden />;
 }
 
 const KIND_LOGO = new Set(["docker", "apache", "nginx"]);  // types de service qui ont un logo dans public/icons

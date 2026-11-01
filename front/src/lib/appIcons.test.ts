@@ -46,6 +46,8 @@ describe("logo d'un service", () => {
     expect(serviceIcon({ service: { name: "npm", image: "jc21/nginx-proxy-manager:latest", kind: "docker" } })).toMatch(/nginx-proxy-manager\.svg$/);
     expect(serviceIcon({ service: { name: "monappli", image: "x/y", kind: "docker" } })).toMatch(/docker\.svg$/);
     expect(serviceIcon({ service: { name: "site", kind: "web" } })).toBeNull();
+    expect(serviceIcon({ favicon: "a.png", service: { name: "monappli", kind: "docker" } })).toMatch(/api\/v1\/favicon\/a\.png$/);
+    expect(serviceIcon({ favicon: "a.png", app: { label: "Home Assistant" } })).toMatch(/home-assistant\.svg$/);
     expect(serviceIcon({})).toBeNull();
   });
 });

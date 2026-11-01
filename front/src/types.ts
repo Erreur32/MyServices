@@ -58,6 +58,7 @@ export interface Host {
   alerts?: "down" | "none";   // alerts level set by hand; absent: every alert
   hand?: string[];         // the fields of services-meta.json set by hand for this service
   page_title?: string;
+  favicon?: string;        // file of the icon read on the service (api/v1/favicon/<file>)
   machine_role?: string;
   manual?: boolean;
   hsts?: boolean;

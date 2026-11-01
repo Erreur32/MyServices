@@ -63,7 +63,7 @@ export function serviceOfEvent(hosts: Host[], key?: string): Host | undefined {
 }
 
 /** What a logo may say of a row: a domain names an application, never the Docker or Apache behind it */
-export const logoOf = (r: Host) => (r.type === "local" ? r : { app: r.app, service: r.service && { ...r.service, kind: undefined } });
+export const logoOf = (r: Host) => (r.type === "local" ? r : { app: r.app, favicon: r.favicon, service: r.service && { ...r.service, kind: undefined } });
 
 const IMAGE_KIND = "maj_image";
 

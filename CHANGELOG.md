@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Services, service icons**: a proxied service without a known logo now shows the favicon of its own site, in the Services list, on its card and in « What changed since yesterday ». The icon is read directly on the service, once a week, with no third-party service involved, so private domain names never leave your network. A service with no icon gets a coloured letter.
+
 ## v0.33.5 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
