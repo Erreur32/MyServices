@@ -225,7 +225,8 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
                 <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Type")}</th><th className="px-3 py-2">{tx("État")}</th>
                 <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Santé")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
               </tr></thead>
-              <tbody>{s.live.map((a) => <AgentRow key={a.id} a={a} conf={machines[a.ip]} onChanged={reload} lit={open === a.ip} />)}</tbody>
+              {/* keyed by machine: a new command gives the agent a new id, and the row must keep the frame showing that command */}
+              <tbody>{s.live.map((a) => <AgentRow key={a.ip} a={a} conf={machines[a.ip]} onChanged={reload} lit={open === a.ip} />)}</tbody>
             </table>
           </div>
         )}
