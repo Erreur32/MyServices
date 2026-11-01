@@ -11,6 +11,16 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.33.5 (2026-11-01)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+- **Home, title and sentence**: the words follow how many alerts there are and how serious, and vary every hour, with a geek line now and then when all is calm. The sentence no longer repeats the figures: with alerts it says where they are, when all is calm it gives a fact of the network (longest uptime, Fail2ban bans, fullest disk, last backup), a quote or a date geeks know. Data stand out in bold.
+- **Home, « What changed since yesterday »**: only what is still a problem. Returns to normal are left out, a failure disappears once its target came back, and « New » only shows what the history has never seen. The full History does not change.
+- **Home, « What changed since yesterday »**: names show the logo of their service and open its card; images to update show their application or Docker. A domain never takes the logo of the Docker behind it.
+- **Connectors**: a card's warning moves from its footer to a larger tooltip on its state, which widens to its longest line. The footer keeps the address and the reading period.
+
 ## v0.33.4 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
