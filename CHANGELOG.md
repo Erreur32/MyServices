@@ -16,6 +16,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Agents, plain http**: for a machine outside the network and a direct http address, a box adds `MSV_ALLOW_HTTP=1` (Linux) or `$env:MSV_ALLOW_HTTP` (Windows) to the command, instead of typing it by hand. Off by default, with the warning kept.
 
 ### Changed
+- **Connectors**: switching one on, or saving it, now shows its tested state on its card at once, instead of « being read again » until the next collection. A test older than the last collection no longer replaces its result, so a failure cannot be hidden by an old test.
 - **README**: the project's rule is now stated: local data only, no cloud, no subscription, no telemetry, and the few outgoing calls are listed.
 
 ## v0.34.0 (2026-11-01)
