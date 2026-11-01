@@ -190,7 +190,7 @@ function Events({ snap, middle }: Readonly<{ snap: Snapshot; middle: ReactNode }
 
       <FilterBar f={f} placeholder={tx("Service, machine, détail…")} primary={["scope"]} primaryBeside
         optionsLabel={tx("Afficher aussi")}
-        options={NOISE.map(([k, l]) => ({ id: k, label: l, on: !hidden.includes(k), count: masked.counts[k], tucked: k === "flap",
+        options={NOISE.filter(([k]) => k !== "appareil").map(([k, l]) => ({ id: k, label: l, on: !hidden.includes(k), count: masked.counts[k], tucked: k === "flap",
           toggle: () => setHide(hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]) }))}
         extra={<>
           {range && <button type="button" onClick={() => setRange(null)} className="rounded-lg border border-link px-2.5 py-1.5 text-sm text-txt">{range.label} ✕</button>}
