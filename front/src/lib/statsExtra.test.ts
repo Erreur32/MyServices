@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
-import { connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCounts } from "./statsExtra";
+import { cloudflareCounts, connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCounts } from "./statsExtra";
 
 const snap = (data: object, health?: object): Snapshot => ({ data: { hosts: [], machine_list: [], ...data }, health } as unknown as Snapshot);
 
 describe("counters of the home page", () => {
+  it("Cloudflare: each domain once, a domain to improve counted once, totals of the period", () => {
+    const zone = (name: string, settings: object, more: object = {}) => ({ name, status: "active", paused: false, settings, dns: { total: 3, proxied: 1, records: [] }, traffic: { requests: 0, cached: 0, bytes: 0, threats: 2, page_views: 0, visitors: 5, days: [] }, ...more });
+    const bad = zone("a.fr", { ssl: "flexible", always_use_https: "off" }), good = zone("b.fr", { ssl: "strict" }), off = zone("c.fr", { ssl: "strict" }, { paused: true, traffic: null, dns: null });
+    expect(cloudflareCounts(snap({}))).toEqual({ domains: 0, active: 0, toImprove: 0, threats: 0, visitors: 0, records: 0 });
+    expect(cloudflareCounts(snap({ services_status: [{ connector: "cloudflare", cloudflare: { days: 7, zones: [bad, good, off] } }, { connector: "cloudflare", cloudflare: { days: 7, zones: [bad] } }] })))
+      .toEqual({ domains: 3, active: 2, toImprove: 1, threats: 4, visitors: 10, records: 6 });
+  });
+
   it("Wazuh only when set and answering, alerts and vulnerabilities with its indexer", () => {
     const agents = { active: 6, total: 7, disconnected: 1, never: 0 };
     const v = (critical: number) => ({ critical, high: 0, medium: 0, low: 0, worst: [] });
@@ -28,9 +36,8 @@ describe("counters of the home page", () => {
     const s = snap({ virtualization: [{ guests: [{ status: "running" }, { status: "stopped" }, { status: "running", template: true }], nodes: [{ online: true }, { online: false }], problems: ["x"] }] });
     expect(virtualCounts(s)).toEqual({ guests: 2, running: 1, stopped: 1, nodesDown: 1, problems: 1 });
   });
-  it("updates, restarts and certificates", () => {
-    const s = snap({ hosts: [{ enabled: true, webcheck: { cert_days: 5 } }, { enabled: true, webcheck: { cert_valid: false } }, { enabled: true, paused: true, webcheck: { cert_days: 1 } }, { enabled: true }] },
-      { hosts: [{ apt: { upgradable: 3 } }, { apt: { upgradable: 0 }, reboot_required: true }, {}] });
-    expect(upkeepCounts(s)).toEqual({ updates: 1, reboot: 1, certSoon: 1, certBad: 1 });
+  it("updates and restarts", () => {
+    const s = snap({}, { hosts: [{ apt: { upgradable: 3 } }, { apt: { upgradable: 0 }, reboot_required: true }, {}] });
+    expect(upkeepCounts(s)).toEqual({ updates: 1, reboot: 1 });
   });
 });

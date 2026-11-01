@@ -1,6 +1,6 @@
 // Home page figures: a line of key figures, then the counters of each subject in a compact grid (two to six columns with the width);
 // a click on a group title opens its page, a click on a counter opens it filtered.
-import { Boxes, HardDrive, HeartPulse, Layers, Monitor, PackageCheck, Plug, ShieldCheck } from "lucide-react";
+import { Bot, Boxes, Camera, Cloud, HardDrive, HeartPulse, Layers, Monitor, Network, PackageCheck, Plug, ShieldCheck } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read } from "../api";
 import { StatTile } from "./StatTile";
@@ -11,7 +11,10 @@ import { mState } from "../lib/machines";
 import type { TabId } from "../lib/summary";
 import { tx } from "../lib/i18n";
 import { hasNetwork } from "../lib/network";
-import { connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCounts } from "../lib/statsExtra";
+import { dnsFigures, dnsWatch } from "../lib/dnsState";
+import { aiAlerts, aiCards, aiFigures, aiGpus, hasAi } from "../lib/ai";
+import { cloudflareCounts, connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCounts } from "../lib/statsExtra";
+import { streamCards, streamFigures } from "../lib/video";
 import { NetworkGroup } from "./NetworkGroup";
 import { Group, Mark, type Cell, type Open } from "./StatGroup";
 import type { Selected } from "../lib/filter";
@@ -62,7 +65,7 @@ export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, Rea
   return byTab;
 }
 
-/** Connectors and agents, virtual machines, updates and certificates: worked out from the snapshot (lib/statsExtra.ts) */
+/** Connectors and agents, virtual machines and updates: worked out from the snapshot (lib/statsExtra.ts) */
 function extraGroups(snap: Snapshot, nav: Open): ReactNode[] {
   const out: ReactNode[] = [], c = connectorCounts(snap), v = virtualCounts(snap), u = upkeepCounts(snap);
   if (c.ok + c.failing + c.agents > 0)
@@ -77,9 +80,33 @@ function extraGroups(snap: Snapshot, nav: Open): ReactNode[] {
       ["ok", w.active, tx("actifs")], ["bad", w.disconnected, tx("déconnectés")],
       ...(w.serious != null ? [["bad", w.serious, tx("alertes graves 24 h")] as Cell] : [["warn", w.never, tx("jamais connectés")] as Cell]),
       ...(w.critical != null ? [["bad", w.critical, tx("vulnérabilités critiques")] as Cell] : [])]} />);
-  if (snap.health || snap.data.hosts.length > 0)
-    out.push(<Group key="up" mark={<Mark Icon={PackageCheck} />} title={tx("Mises à jour et certificats")} sub={tx("{0} machines relevées", snap.health?.hosts.length ?? 0)} accent="border-l-apache" tab="machines" nav={nav} cells={[
-      ["warn", u.updates, tx("à mettre à jour")], ["warn", u.reboot, tx("à redémarrer")], ["warn", u.certSoon, tx("certificats bientôt")], ["bad", u.certBad, tx("certificats invalides")]]} />);
+  if (snap.health)
+    out.push(<Group key="up" mark={<Mark Icon={PackageCheck} />} title={tx("Mises à jour")} sub={tx("{0} machines relevées", snap.health?.hosts.length ?? 0)} accent="border-l-apache" tab="machines" nav={nav} cells={[
+      ["warn", u.updates, tx("à mettre à jour")], ["warn", u.reboot, tx("à redémarrer")]]} />);
+  out.push(...serviceGroups(snap, nav));
+  return out;
+}
+
+/** Cloudflare, DNS, cameras and AI: each frame only where the subject exists */
+function serviceGroups(snap: Snapshot, nav: Open): ReactNode[] {
+  const out: ReactNode[] = [], cf = cloudflareCounts(snap), cam = streamFigures(streamCards(snap));
+  if (cf.domains > 0)
+    out.push(<Group key="cf" mark={<Mark app="Cloudflare" Icon={Cloud} />} title="Cloudflare" sub={tx("{0} domaines", cf.domains)} accent="border-l-apache" tab="cloudflare" nav={nav} cells={[
+      ["ok", cf.active, tx("actifs")], ["warn", cf.toImprove, tx("à améliorer")], ["warn", cf.threats, tx("menaces")], ["ok", cf.visitors, tx("visiteurs")]]} />);
+  const dns = snap.data.dns;
+  if (dns) {
+    const f = dnsFigures(dns, snap.data.hosts);
+    out.push(<Group key="dnsv" mark={<Mark Icon={Network} />} title="DNS" sub={tx("{0} serveurs", f.servers)} accent="border-l-link" tab="dns" href="dns/servers" nav={nav} cells={[
+      ["ok", f.serversUp, tx("répondent")], ["warn", dnsWatch(dns, snap.data.hosts).length, tx("à voir")], ["ok", f.rewrites ?? 0, tx("réécritures")], ["ok", cf.records, tx("publics Cloudflare")]]} />);
+  }
+  if (cam.cameras > 0)
+    out.push(<Group key="cam" mark={<Mark Icon={Camera} />} title={tx("Caméras")} sub={tx("{0} caméras", cam.cameras)} accent="border-l-loc" tab="stream" href="stream/cameras" nav={nav} cells={[
+      ["ok", cam.filming, tx("filment")], ["bad", cam.cameras - cam.filming, tx("silencieuses")], ["ok", cam.recording, tx("enregistrent")], ["ok", cam.detecting, tx("détectent")]]} />);
+  if (hasAi(snap)) {
+    const cards = aiCards(snap), ai = aiFigures(snap, cards);
+    out.push(<Group key="ai" mark={<Mark Icon={Bot} />} title={tx("IA")} sub={tx("{0} services", cards.length)} accent="border-l-link" tab="ai" nav={nav} cells={[
+      ["ok", ai.enginesUp, tx("moteurs")], ["ok", ai.models, tx("modèles")], ["ok", ai.platformsUp, tx("agents")], ["warn", aiAlerts(cards, aiGpus(snap)).length, tx("à voir")]]} />);
+  }
   return out;
 }
 

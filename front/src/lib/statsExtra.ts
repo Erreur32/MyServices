@@ -1,7 +1,7 @@
 // Counters of the home page's right column that are worked out from what the snapshot already holds: the network equipment, the
-// connectors and agents, the virtual machines, and what needs an update or a new certificate.
+// connectors and agents, the virtual machines, and what needs an update.
 import type { Snapshot } from "../api";
-import { certIssue } from "./status";
+import { advice, cloudflareZones } from "./cloudflare";
 
 /** UniFi equipment as MynetworK relays it: "1" is connected */
 export function networkCounts(snap: Snapshot): { devices: number; online: number } {
@@ -27,15 +27,20 @@ export function virtualCounts(snap: Snapshot): { guests: number; running: number
   };
 }
 
-/** Machines with packages to update, machines asking for a restart, certificates to renew soon and invalid ones */
-export function upkeepCounts(snap: Snapshot): { updates: number; reboot: number; certSoon: number; certBad: number } {
+/** Machines with packages to update, machines asking for a restart */
+export function upkeepCounts(snap: Snapshot): { updates: number; reboot: number } {
   const hosts = snap.health?.hosts ?? [];
-  const certs = snap.data.hosts.filter((r) => r.enabled && !r.paused).map(certIssue).filter(Boolean);
+  return { updates: hosts.filter((h) => (h.apt?.upgradable ?? 0) > 0).length, reboot: hosts.filter((h) => h.reboot_required).length };
+}
+
+/** The Cloudflare domains: those that serve, those with something to improve (each counted once), threats and visitors over the period read */
+export function cloudflareCounts(snap: Snapshot): { domains: number; active: number; toImprove: number; threats: number; visitors: number; records: number } {
+  const zones = cloudflareZones(snap);
   return {
-    updates: hosts.filter((h) => (h.apt?.upgradable ?? 0) > 0).length,
-    reboot: hosts.filter((h) => h.reboot_required).length,
-    certSoon: certs.filter((c) => !c.includes("invalide")).length,
-    certBad: certs.filter((c) => c.includes("invalide")).length,
+    domains: zones.length, active: zones.filter((z) => z.status === "active" && !z.paused).length,
+    toImprove: new Set(advice(zones).filter((a) => a.tone === "warn").flatMap((a) => a.who)).size,
+    threats: zones.reduce((n, z) => n + (z.traffic?.threats ?? 0), 0), visitors: zones.reduce((n, z) => n + (z.traffic?.visitors ?? 0), 0),
+    records: zones.reduce((n, z) => n + (z.dns?.total ?? 0), 0),
   };
 }
 
