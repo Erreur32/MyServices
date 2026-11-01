@@ -71,6 +71,19 @@ tells you what needs your attention.
 - **Alerts and notifications** on Discord, Telegram and webhook.
 - A **REST API** and an **MCP server** for your tools and AI assistants.
 
+## What is tested and working
+
+Checked on the author's real network (about 20 machines and 200 services):
+
+- **Machines**: SSH on Linux, the Linux agent, the Windows agent (one PC so far), ping and network scan.
+- **Services**: Nginx Proxy Manager hosts, Docker containers, local services, domains and their icons.
+- **Follow-up**: history, availability, health checks and alert rules.
+- **Backups**: folders followed over SSH, and their copies on a Freebox share.
+- **Access**: accounts, REST API and MCP server.
+- **Connectors**: those [in bold in the table](#connectors).
+
+Not validated on a real installation yet: the other connectors, including Proxmox, Veeam and Synology (waiting for a tester).
+
 ## Quick start (on a test machine)
 
 ```bash
