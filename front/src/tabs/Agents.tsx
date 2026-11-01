@@ -8,6 +8,7 @@ import { read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
 import { AgentInstall, type AgentKind, type InstallTarget } from "../components/AgentInstall";
+import { agentReads } from "../lib/agentCommand";
 import { NewAgentPage } from "./NewAgent";
 import { act, danger, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Dim, Loading } from "../components/ui";
@@ -72,6 +73,12 @@ function HostConfirm({ a, reload, setNote }: Readonly<{ a: AgentInfo; reload: ()
 
 
 /** L'agent d'une machine, dans sa fenêtre (onglet Accès) : état, version, dernier relevé et gestes (mise à jour, nouveau jeton, révocation), ou son installation */
+/** What the agent was installed to read, seen without a new command */
+function AgentReads({ a }: Readonly<{ a: AgentInfo }>) {
+  const reads = agentReads(a.options);
+  return reads.length > 0 ? <span className="block text-xs text-dim">{tx("Installé avec : {0}", reads.join(" · "))}</span> : null;
+}
+
 /** The gestures of an agent, as buttons: automatic update, update now, new command (a new token), revoke (with a confirmation). On the machine's
  *  page (its Access block) and on its row of Machines → Agents; the new command is shown by the caller (onInstall) */
 function AgentActions({ a, kind, onChanged, onInstall }: Readonly<{ a: AgentInfo; kind: AgentKind; onChanged: () => void; onInstall: (t: InstallTarget) => void }>) {
@@ -135,6 +142,7 @@ export function AgentBlock({ ip, name, kind, agent, create, onChanged }: Readonl
         <Dim>{agent.last_seen ? tx("dernier relevé {0}", dateTime(agent.last_seen * 1000)) : tx("en attente du premier relevé")} · {tx("toutes les {0} min", Math.round(agent.interval / 60))}</Dim>
         <code className="font-mono text-xs text-dim" title={tx("Jeton")}>{tx("msv_")}agent_…{agent.hint}</code>
       </div>
+      <AgentReads a={agent} />
       {agent.host_pending && <HostConfirm a={agent} reload={onChanged} setNote={setNote} />}
       <NoteLine note={note} />
       <AgentActions a={agent} kind={kind} onChanged={onChanged} onInstall={setInstall} />
@@ -166,7 +174,7 @@ function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: M
   return (
     <>
     <tr className={`border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40 ${lit ? "ring-2 ring-inset ring-link/60" : ""}`}>
-      <td className="px-3 py-2"><a href={`#machines/${a.ip}`} className="flex items-center gap-2 text-txt no-underline hover:text-link"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></a></td>
+      <td className="px-3 py-2"><a href={`#machines/${a.ip}`} className="flex items-center gap-2 text-txt no-underline hover:text-link"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></a><AgentReads a={a} /></td>
       <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
       <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} /><AgentTodo a={a} ssh={typeof conf?.ssh === "string"} /></span></td>

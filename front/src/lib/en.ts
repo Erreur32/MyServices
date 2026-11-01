@@ -4086,4 +4086,7 @@ export const EN: Record<string, string> = {
   "{0} : port ouvert, page web en erreur ({1})": "{0}: port open, web page in error ({1})",
   "{0} répond en {1} ms": "{0} answers in {1} ms",
   "{0} répond : code {1} en {2} ms": "{0} answers: code {1} in {2} ms",
+  "Installé avec : {0}": "Installed with: {0}",
+  "NPM posé par l'installation": "NPM set by the install",
+  "DNS local": "local DNS",
 };

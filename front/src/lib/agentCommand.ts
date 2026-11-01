@@ -1,5 +1,6 @@
 // Commande d'installation de l'agent (Windows ou Linux) : recalculée à chaque changement de l'adresse de MyServices (le jeton, montré une seule
 // fois, reste en mémoire de la page). Même règle d'adresse que le serveur (agents.clean_url) : http(s)://hôte[:port], sans chemin.
+import { tx } from "./i18n";
 
 /** Adresse nettoyée (sans « / » final) si elle est utilisable par l'agent, sinon null */
 export function cleanAgentUrl(raw: string): string | null {
@@ -37,6 +38,13 @@ export function npmProblem({ npm, npmUrl }: AgentOptions): boolean {
   if (npm === undefined) return false;
   const path = npm.trim(), address = (npmUrl ?? "").trim();
   return path ? !SAFE_PATH.test(path) : address !== "" && !NPM_URL.test(address);
+}
+
+/** What an agent's install reads, in words: empty until the agent sends it (version 8) */
+export function agentReads(o: AgentOptions = {}): string[] {
+  const backups = o.backupDirs ? `${tx("sauvegardes")} ${o.backupDirs}` : tx("sauvegardes");
+  const npm = o.npm ? `NPM ${o.npm}` : tx("NPM posé par l'installation");
+  return [o.sudo && "sudo", o.dns && tx("DNS local"), o.backups && backups, o.borgmatic && "borgmatic", o.npm !== undefined && npm].filter((x): x is string => !!x);
 }
 
 function linuxEnv(o: AgentOptions, http: boolean): string {

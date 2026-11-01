@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanAgentUrl, installCommand, isPublicIp, npmProblem, outsideProblem, type AgentOptions } from "./agentCommand";
+import { agentReads, cleanAgentUrl, installCommand, isPublicIp, npmProblem, outsideProblem, type AgentOptions } from "./agentCommand";
 
 describe("commande d'installation de l'agent", () => {
   it("accepte une adresse http(s)://hôte[:port] et retire le « / » final", () => {
@@ -69,5 +69,14 @@ describe("commande d'installation de l'agent", () => {
     for (const url of ["http://192.168.1.10:8090", "http://myservices:8090", "https://ms.lan"]) expect(outsideProblem(url), url).toBe("private");
     expect(outsideProblem("http://ms.example.org")).toBe("clear");
     for (const url of ["https://ms.example.org", "http://100.100.1.1:8090", "http://ms.tail1234.ts.net:8090", "pas une adresse"]) expect(outsideProblem(url), url).toBeNull();
+  });
+});
+
+describe("ce que lit un agent", () => {
+  it("dit seulement ce qui est posé", () => {
+    expect(agentReads()).toEqual([]);
+    expect(agentReads({ sudo: true, npm: "/a/npm-api.sh" })).toEqual(["sudo", "NPM /a/npm-api.sh"]);
+    expect(agentReads({ backups: true, backupDirs: "/srv/b" })).toHaveLength(1);
+    expect(agentReads({ npm: "" })).toHaveLength(1);   // empty: the script was set by the install, still read
   });
 });
