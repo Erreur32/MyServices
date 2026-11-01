@@ -99,6 +99,30 @@ def parse(stdout: str, node: str) -> dict[str, tuple[dict | None, str]]:
     return {k: v for k, v in out.items() if v[0] is None or v[0]["guests"] or k != "lxd"}   # an LXD client without any instance is often just the old lxc tools
 
 
+# What the Linux agent runs, through the exact sudo rules of its installer (MSV_SUDO). VirtualBox stays over SSH: it only lists the VMs of one account.
+AGENT_STEP = {"virsh": ("VIRSH", "virsh -r -c qemu:///system domstats --state --balloon --vcpu"), "incus": ("INCUS", "incus list --format json"),
+              "lxc": ("LXD", "lxc list --format json")}
+AGENT_CMD = "; ".join(f"command -v {t} >/dev/null && {{ echo '##{tag}'; timeout 15 sudo -n {args} 2>&1; }}" for t, (tag, args) in AGENT_STEP.items()) + "; true"
+
+
+def _agent_read(cmds: dict, node: str) -> dict[str, tuple[dict | None, str]]:
+    got = cmds.get(AGENT_CMD)
+    return parse(str(got[1]), node) if isinstance(got, list) and len(got) == 2 else {}
+
+
+def agent_refused(cmds: dict) -> bool:
+    """True when a hypervisor is on the machine but the agent has not the right to read it."""
+    return any(data is None for data, _ in _agent_read(cmds, "").values())
+
+
+def agent_rows(report: dict | None, name: str, ip: str) -> list[dict]:
+    """Hypervisors a fresh Linux agent report read, in the shape of the virtualization rows; what it could not read is left to SSH."""
+    cmds = ((report or {}).get("data") or {}).get("cmds")
+    return [{"connector": kind, "name": name, "label": LABEL[kind], "ok": True, "stale": False, "message": f"lu par l'agent ({VIA[kind]})",
+             "version": None, "url": None, "via": "agent", "ip": ip, **data}
+            for kind, (data, _) in _agent_read(cmds if isinstance(cmds, dict) else {}, name).items() if data is not None]
+
+
 def read(alias: str, tools: list[str], node: str) -> dict[str, tuple[dict | None, str]]:
     cmd = "; ".join(STEP[t] for t in tools if t in STEP)
     argv = ["bash", "-c", cmd] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, cmd]

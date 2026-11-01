@@ -9,6 +9,9 @@
 #   MSV_MINUTES=5      interval between two reports (1 to 1440)
 #   MSV_DOCKER=1       also put the agent user in the docker group (read Docker containers). Warning: the docker group is root-equivalent
 #   MSV_NPM=/path/npm-api.sh  read this Nginx Proxy Manager through its script, as the owner of the script (exact sudo rules, one per list)
+#   MSV_NPM=install    download npm-api.sh (fixed version, checked) for the agent alone; MSV_NPM_URL (default http://127.0.0.1:81), and the NPM
+#                      account from MSV_NPM_USER and MSV_NPM_PASS or asked on the terminal; it stays in a file only the agent reads
+#   MSV_BACKUPS=1      read the backup folders as root, through one script set here; MSV_BACKUP_DIRS=/a,/b adds folders to the list it accepts
 #   MSV_SMART=1        allow `sudo -n smartctl -H /dev/*` for the agent user (SMART health of the disks)
 #   MSV_SUDO=1         allow the three read-only commands that need root, each alone (exact sudo rules): services to restart after an
 #                      update (needrestart, list mode), Fail2ban bans, and the process names behind the listening ports (ss)
@@ -21,6 +24,9 @@ DIR=/opt/myservices-agent
 USER_NAME=myservices-agent
 UNIT=myservices-agent
 SUDOERS=/etc/sudoers.d/myservices-agent
+SCAN_DIR=/usr/local/lib/myservices-agent
+SCAN="$SCAN_DIR/backup-scan.py"
+ETC_DIR=/etc/myservices-agent
 OLD_SUDOERS=/etc/sudoers.d/myservices-agent-smart   # name used up to agent 3 (SMART only)
 
 die() { echo "x $*" >&2; exit 1; }
@@ -33,6 +39,7 @@ if [[ "${MSV_UNINSTALL:-}" = 1 ]]; then
   systemctl disable --now "$UNIT.timer" >/dev/null 2>&1 || true
   systemctl stop "$UNIT.service" >/dev/null 2>&1 || true
   rm -f "/etc/systemd/system/$UNIT.service" "/etc/systemd/system/$UNIT.timer" "$SUDOERS" "$OLD_SUDOERS"
+  rm -rf "$SCAN_DIR" "$ETC_DIR"
   systemctl daemon-reload
   systemctl reset-failed "$UNIT.service" "$UNIT.timer" >/dev/null 2>&1 || true   # else a removed unit stays listed as « not-found failed » in systemctl --failed
   id "$USER_NAME" >/dev/null 2>&1 && userdel "$USER_NAME" >/dev/null 2>&1 || true
@@ -60,7 +67,23 @@ fi
 [[ "$MINUTES" =~ ^[0-9]+$ ]] && (( MINUTES >= 1 && MINUTES <= 1440 )) || die "MSV_MINUTES must be between 1 and 1440"
 NPM=${MSV_NPM:-}
 NPM_USER=""
-if [[ -n "$NPM" ]]; then
+NPM_INSTALL=0
+BACKUPS=0
+[[ "${MSV_BACKUPS:-}" = 1 || -n "${MSV_BACKUP_DIRS:-}" ]] && BACKUPS=1
+BACKUP_DIRS=${MSV_BACKUP_DIRS:-}
+for d in ${BACKUP_DIRS//,/ }; do
+  [[ "$d" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "MSV_BACKUP_DIRS: full paths separated by commas, no space"
+done
+if (( BACKUPS )); then
+  command -v sudo >/dev/null || die "MSV_BACKUPS needs sudo on this machine"
+fi
+if [[ "$NPM" = install ]]; then
+  NPM_INSTALL=1
+  command -v jq >/dev/null || die "MSV_NPM=install needs jq (apt install jq)"
+  [[ "${MSV_NPM_URL:-http://127.0.0.1:81}" =~ ^http://([A-Za-z0-9.-]+)(:([0-9]{1,5}))?$ ]] || die "MSV_NPM_URL: http://host:port of the NPM admin"  # NOSONAR S5332: npm-api.sh reads the admin port, on this machine
+  NPM_HOST=${BASH_REMATCH[1]}
+  NPM_PORT=${BASH_REMATCH[3]:-81}
+elif [[ -n "$NPM" ]]; then
   [[ "$NPM" =~ ^/[A-Za-z0-9._/-]+$ && -x "$NPM" ]] || die "MSV_NPM must be the full path of an executable npm-api.sh"
   [[ -z $(find "$NPM" -perm -o+w) ]] || die "MSV_NPM: the script must not be writable by every account"
   command -v sudo >/dev/null || die "MSV_NPM needs sudo on this machine"
@@ -95,9 +118,41 @@ curl -fsSL "$URL/agent/agent.py" -o "$TMP" || die "Cannot download the agent fro
 python3 -m py_compile "$TMP" || die "The downloaded agent has syntax errors"
 install -o "$USER_NAME" -g "$USER_NAME" -m 644 "$TMP" "$DIR/agent.py"
 
+if (( NPM_INSTALL )); then
+  mkdir -p "$DIR/npm"
+  curl -fsSL "__NPM_SCRIPT_URL__" -o "$TMP" || die "Cannot download npm-api.sh"
+  echo "__NPM_SCRIPT_SHA256__  $TMP" | sha256sum -c - >/dev/null 2>&1 || die "npm-api.sh does not match its expected fingerprint: nothing installed"
+  install -o "$USER_NAME" -g "$USER_NAME" -m 755 "$TMP" "$DIR/npm/npm-api.sh"
+  if [[ ! -e "$DIR/npm/npm-api.conf" ]]; then
+    NPM_LOGIN=${MSV_NPM_USER:-}
+    NPM_PASS=${MSV_NPM_PASS:-}
+    # Asked on the terminal: stdin is this script, and a password in the command would stay in the shell history
+    [[ -n "$NPM_LOGIN" ]] || { read -rp "NPM account (e-mail): " NPM_LOGIN </dev/tty || die "NPM account needed: MSV_NPM_USER"; }
+    [[ -n "$NPM_PASS" ]] || { read -rsp "NPM password: " NPM_PASS </dev/tty && echo || die "NPM password needed: MSV_NPM_PASS"; }
+    quoted() { printf "'%s'" "${1//\'/\'\\\'\'}"; }   # the script sources this file
+    ( umask 077; printf 'NGINX_IP=%s\nNGINX_PORT=%s\nAPI_USER=%s\nAPI_PASS=%s\n' "$(quoted "$NPM_HOST")" "$(quoted "$NPM_PORT")" "$(quoted "$NPM_LOGIN")" "$(quoted "$NPM_PASS")" > "$DIR/npm/npm-api.conf" )
+  fi
+  chown -R "$USER_NAME:$USER_NAME" "$DIR/npm"
+  chmod 600 "$DIR/npm/npm-api.conf"
+  NPM="$DIR/npm/npm-api.sh"
+  su -s /bin/bash "$USER_NAME" -c "$NPM --json --access-list" >/dev/null 2>&1 && ok "NPM answers" || echo "! NPM did not answer: check $DIR/npm/npm-api.conf"
+fi
+
+if (( BACKUPS )); then
+  mkdir -p "$SCAN_DIR" "$ETC_DIR"
+  curl -fsSL "$URL/agent/backup-scan.py" -o "$TMP" || die "Cannot download the backup scan from $URL"
+  python3 -m py_compile "$TMP" || die "The downloaded backup scan has syntax errors"
+  install -o root -g root -m 644 "$TMP" "$SCAN"
+  # The folders it accepts: changed here only, as root; the server can only pick among them
+  printf '%s\n' /home/backup /var/backups /backup /backups ${BACKUP_DIRS//,/ } > "$ETC_DIR/backup-dirs"
+  chmod 644 "$ETC_DIR/backup-dirs"
+  ok "Backup scan installed, folders in $ETC_DIR/backup-dirs"
+fi
+
 # Config: the token is in it, so only the agent account (and root) can read it
 NPM_JSON=""
 [[ -n "$NPM" ]] && NPM_JSON=$(printf ', "npm": {"path": "%s", "user": "%s"}' "$NPM" "$NPM_USER")
+(( BACKUPS )) && NPM_JSON+=$(printf ', "backups": {"python": "%s", "script": "%s"}' "$(command -v python3)" "$SCAN")
 ( umask 077; printf '{"url": "%s", "token": "%s", "interval": %d%s}\n' "$URL" "$TOKEN" $((MINUTES * 60)) "$NPM_JSON" > "$DIR/config.json" )
 chown "$USER_NAME:$USER_NAME" "$DIR/config.json"
 chmod 600 "$DIR/config.json"
@@ -113,12 +168,21 @@ fi
 if [[ "${MSV_SUDO:-}" = 1 ]]; then
   # The exact commands MyServices runs through sudo -n (health.NEEDRESTART_ARGS, health.FAIL2BAN_ARGS, connectors/process.LISTEN_SH)
   RULES+=("/usr/sbin/needrestart -b -r l" "/usr/bin/fail2ban-client banned" "$(command -v ss || echo /usr/bin/ss) -tlnpH")
+  # Hypervisors, when installed (virt_ssh.AGENT_STEP); the colon is escaped for sudoers
+  p=$(command -v virsh || true); [[ -n "$p" ]] && RULES+=("$p -r -c qemu\:///system domstats --state --balloon --vcpu")
+  for t in incus lxc; do
+    p=$(command -v "$t" || true); [[ -n "$p" ]] && RULES+=("$p list --format json")
+  done
+fi
+if (( BACKUPS )); then
+  RULES+=("$(command -v python3) $SCAN")
+  PROTECT_HOME=read-only   # sudo stays in the sandbox of the service: even root would not see /home otherwise
 fi
 rm -f "$OLD_SUDOERS"
-if (( ${#RULES[@]} )) || [[ -n "$NPM" ]]; then
+if (( ${#RULES[@]} )) || [[ -n "$NPM_USER" ]]; then
   {
     for r in ${RULES[@]+"${RULES[@]}"}; do echo "$USER_NAME ALL=(root) NOPASSWD: $r"; done
-    if [[ -n "$NPM" ]]; then   # runs as the owner of the script, not as root; the exact lists of npmapi.LISTS
+    if [[ -n "$NPM_USER" ]]; then   # runs as the owner of the script, not as root; the exact lists of npmapi.LISTS
       for o in --host-list --redirect-host-list --dead-host-list --stream-host-list --access-list; do
         echo "$USER_NAME ALL=($NPM_USER) NOPASSWD: $NPM --json $o"
       done
@@ -128,7 +192,7 @@ if (( ${#RULES[@]} )) || [[ -n "$NPM" ]]; then
   chmod 440 "$SUDOERS.tmp"; mv "$SUDOERS.tmp" "$SUDOERS"
   NNP="# NoNewPrivileges is left off: sudo needs to gain privileges"
   ok "sudo allowed for exact read-only commands: $SUDOERS"
-  if [[ -n "$NPM" ]]; then   # sudo stays in the sandbox of the service: the script must see /home and write its login token
+  if [[ -n "$NPM_USER" ]]; then   # sudo stays in the sandbox of the service: the script must see /home and write its login token
     PROTECT_HOME=read-only
     WRITABLE="$DIR $NPM_DATA"
   fi

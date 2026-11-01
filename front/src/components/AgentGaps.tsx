@@ -8,6 +8,7 @@ const GAP: Record<string, () => string> = {
   docker: () => tx("Le compte de l'agent ne lit pas Docker : relancez la commande d'installation avec MSV_DOCKER=1 après « sudo env » (ce groupe donne les droits de root)."),
   info: () => tx("Le relevé de l'agent ne contient pas les informations de la machine : mettez l'agent à jour."),
   needrestart: () => tx("Sans sudo, l'agent ne voit pas les services à relancer : Nouvelle commande, cochez la case sudo, puis lancez-la sur la machine."),
+  hypervisors: () => tx("Sans sudo, l'agent ne voit pas les machines virtuelles : Nouvelle commande, cochez la case sudo, puis lancez-la sur la machine."),
   fail2ban: () => tx("Sans sudo, l'agent ne voit pas les adresses bloquées par fail2ban : Nouvelle commande, cochez la case sudo, puis lancez-la sur la machine."),
 };
 

@@ -1499,7 +1499,11 @@ def main():
     virtualization += esxi_ssh.rows(machines_out, sshc, {m["ip"] for m in machines_out if m["ip"] in vc_hosts or m["name"] in vc_hosts})
     virtualization += virt_ssh.rows(machines_out, sshc)   # KVM / libvirt, Incus / LXD, VirtualBox read by SSH
     names = {m["ip"]: m["name"] for m in machines_out}
+    read_already = {(c.get("ip"), c.get("connector")) for c in virtualization}
+    proxmox_hosts = {m["ip"] for m in machines_out if (m.get("info") or {}).get("proxmox")}
     for ip, rep in agent_fresh.items():   # Windows PCs read by their agent: Hyper-V VMs, last Veeam Agent and Windows Server Backup
+        if ip not in proxmox_hosts:       # Linux: KVM, Incus, LXD
+            virtualization += [r for r in virt_ssh.agent_rows(rep, names.get(ip, ip), ip) if (ip, r["connector"]) not in read_already]
         if (hv := agents.hyperv_of(rep, names.get(ip, ip))) is not None:
             virtualization.append({"connector": "hyperv", "name": names.get(ip, ip), "label": "Hyper-V", "ok": True, "stale": False,
                                    "message": "lu par l'agent Windows", "version": None, "url": None, "via": "agent", "ip": ip, **hv})

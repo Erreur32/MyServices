@@ -22,7 +22,7 @@ class NPM(Connector):
         Field("ssh", "Machine de NPM (accès SSH)", help="MyServices s'y connecte avec sa clé"),
         Field("ip", "IP de ce NPM vue du LAN", help="pour le contrôle DNS ; déduite de l'URL ou de la machine si vide"),
         Field("api", "Chemin de npm-api.sh sur cette machine", help="ex. /home/vous/npm-api/npm-api.sh"),
-        Field("agent", "IP de la machine de NPM (celle de son agent)", help="agent installé avec MSV_NPM=<chemin de npm-api.sh>"),
+        Field("agent", "IP de la machine de NPM (celle de son agent)", help="agent installé avec MSV_NPM=<chemin de npm-api.sh> ou MSV_NPM=install"),
     )
     # Trois façons de lire NPM : la page ne montre que les champs utiles à celle choisie, et marque ceux qui sont requis
     modes = (
@@ -36,7 +36,7 @@ class NPM(Connector):
                  "Le conteneur n'a pas ce script : choisissez la machine, ou installez-le d'ici."},
         {"id": "agent", "label": "Par l'agent de la machine", "fields": ["agent", "ip"], "required": ["agent"],
          "help": "L'agent de la machine lance npm-api.sh et envoie les listes dans son relevé : ni SSH, ni compte NPM dans MyServices. "
-                 "Installez l'agent avec MSV_NPM=<chemin de npm-api.sh> après « sudo env »."},
+                 "Installez l'agent avec MSV_NPM=<chemin de npm-api.sh> après « sudo env », ou MSV_NPM=install pour que l'installation pose le script."},
     )
     setup_fields = ("url", "user", "password")
 

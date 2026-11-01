@@ -288,7 +288,8 @@ def inventory_commands() -> list[str]:
     from msv.collect import hostinfo
     from connectors.docker_ssh import DOCKER_SH, NET_SH
     from connectors.process import LISTEN_SH
-    return [hostinfo.REMOTE, hostinfo.UNITS_SH, DOCKER_SH, NET_SH, LISTEN_SH]
+    from msv.remote.virt_ssh import AGENT_CMD
+    return [hostinfo.REMOTE, hostinfo.UNITS_SH, DOCKER_SH, NET_SH, LISTEN_SH, AGENT_CMD]
 
 
 def inventory_cache() -> dict[str, int]:
@@ -341,17 +342,19 @@ def serves_inventory(report: dict | None) -> bool:
 
 
 def rights_gaps(report: dict | None) -> list[str]:
-    """What a Linux agent report cannot read for lack of sudo, and that no SSH read makes up for: "needrestart", "fail2ban". A tool that is not
-    installed, or an agent too old to send the section, is not a gap. Apart from inventory_gaps: it does not weigh on the SSH decision."""
+    """What a Linux agent report cannot read for lack of sudo: "needrestart", "fail2ban", "hypervisors". A tool that is not installed, or an agent
+    too old to send the section, is not a gap. Apart from inventory_gaps: it does not weigh on the SSH decision."""
     from msv.collect import health
+    from msv.remote import virt_ssh
     data = (report or {}).get("data") or {}
     cmds = data.get("cmds")
-    got = cmds.get(health.SYSTEM_CMD) if data.get("kind") == "linux" and isinstance(cmds, dict) else None
-    if not isinstance(got, list) or len(got) != 2:
+    if data.get("kind") != "linux" or not isinstance(cmds, dict):
         return []
-    secs = health._sections(str(got[1]))
+    got = cmds.get(health.SYSTEM_CMD)
+    secs = health._sections(str(got[1])) if isinstance(got, list) and len(got) == 2 else {}
     parsers = (("needrestart", "nr", health.parse_needrestart), ("fail2ban", "f2b", health.parse_fail2ban))
-    return [gap for gap, sec, parse in parsers if parse(secs.get(sec, []), "").get("access") is False]
+    gaps = [gap for gap, sec, parse in parsers if parse(secs.get(sec, []), "").get("access") is False]
+    return gaps + ["hypervisors"] if virt_ssh.agent_refused(cmds) else gaps
 
 
 def listening_ports(report: dict | None) -> set[int] | None:
@@ -552,7 +555,13 @@ def _h(raw: str) -> str:
 def script(name: str) -> str:
     """agent.ps1 (relevé de health.WIN_PS inclus : une seule source pour SSH et agent) ou install.ps1, tels que servis.
     ASCII seulement : Windows PowerShell 5.1 lit un script sans BOM en ANSI."""
+    if name == "backup-scan.py":
+        from msv.backups import backups
+        return backups.SCAN_HEAD + backups.AGENT
     text = (SCRIPTS / name).read_text(encoding="utf-8")
+    if name == "install.sh":
+        from msv.remote import npmapi
+        return text.replace("__NPM_SCRIPT_URL__", npmapi.SCRIPT_URL).replace("__NPM_SCRIPT_SHA256__", npmapi.SCRIPT_SHA256)
     if name == PS_AGENT:
         from msv.collect import health
         text = text.replace("#__COLLECT__", health.WIN_PS.strip()).replace("__VERSION__", VERSION)

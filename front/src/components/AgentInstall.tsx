@@ -114,7 +114,7 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
           {created.info.kind === "linux" && (
             <label className="mb-2 flex items-start gap-2 text-sm text-muted">
               <input type="checkbox" className="mt-1" checked={sudo} onChange={(e) => setSudo(e.target.checked)} />
-              <span>{tx("Autoriser trois lectures avec sudo : le programme derrière chaque port, les services à relancer, les adresses bloquées par fail2ban. Chacune est une règle exacte, en lecture seule.")}</span>
+              <span>{tx("Autoriser des lectures avec sudo : le programme derrière chaque port, les services à relancer, les adresses bloquées par fail2ban, les machines virtuelles (KVM, Incus, LXD). Chacune est une règle exacte, en lecture seule.")}</span>
             </label>
           )}
           {command ? <Copyable key={command} text={command} />

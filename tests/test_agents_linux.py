@@ -4,9 +4,12 @@ through the same collectors (health.collect_linux). Nothing sent by an agent is 
   python3 -m unittest tests.test_agents_linux
 """
 import json
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from msv.machines import agents  # noqa: E402
@@ -247,6 +250,76 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertEqual(out[0], {"id": 1, "advanced_config": "location / {\n  proxy_pass http://10.0.0.5:8080;\n}\nset $acl_lan 1;"})
         self.assertEqual(out[1]["advanced_config"], "# kept on the machine")   # still seen as set by the checks
         self.assertEqual(json.loads(ns["npm_clean"]("--access-list", '[{"id": 2, "name": "lan", "items": [{"username": "u"}]}]')), [{"id": 2, "name": "lan"}])
+
+    def test_install_sh_rendu_sans_marqueur_et_empreinte_du_script_npm(self):
+        from msv.remote import npmapi
+        text = agents.script("install.sh")
+        self.assertNotIn("__NPM_", text)
+        self.assertIn(npmapi.SCRIPT_SHA256, text)
+        self.assertIn(npmapi.SCRIPT_URL, text)
+
+    def test_hyperviseurs_lus_par_l_agent(self):
+        from msv.remote import virt_ssh
+        incus = '[{"name": "web", "status": "Running", "type": "container"}]'
+        rep = {"data": {"kind": "linux", "cmds": {virt_ssh.AGENT_CMD: [0, f"##INCUS\n{incus}\n##VIRSH\nsudo: a password is required\n"]}}}
+        rows = virt_ssh.agent_rows(rep, "nas", "10.0.0.9")
+        self.assertEqual([(r["connector"], r["via"], r["ip"]) for r in rows], [("incus", "agent", "10.0.0.9")])
+        self.assertEqual(agents.rights_gaps(rep), ["hypervisors"])
+        self.assertEqual(virt_ssh.agent_rows({"data": {"kind": "linux", "cmds": {virt_ssh.AGENT_CMD: [0, ""]}}}, "nas", "10.0.0.9"), [])   # no hypervisor here
+        for _, args in virt_ssh.AGENT_STEP.values():   # the install writes these exact rules
+            self.assertIn(args.replace("qemu:", "qemu\\:").split(" ", 1)[1], agents.script("install.sh"))
+
+    def test_scan_root_refuse_ce_qui_sort_de_la_liste(self):
+        from msv.backups import backups
+        with tempfile.TemporaryDirectory() as d:
+            ok, other = Path(d, "ok"), Path(d, "other")
+            for p in (ok, other):
+                p.mkdir()
+                (p / "a.tar").write_text("x")
+            (ok / "out").symlink_to(other)
+            lst = Path(d, "dirs")
+            lst.write_text(f"{ok}\n")
+            src = backups.SCAN_HEAD.replace("/etc/myservices-agent/backup-dirs", str(lst)) + backups.AGENT
+            req = {"locs": {"a": {"path": str(ok)}, "b": {"path": str(other)}, "c": {"path": str(ok / "out")}}, "disks": False, "crons": False,
+                   "discover": ["/*"], "find": {"names": ["a"], "roots": ["/"]}}
+            r = subprocess.run([sys.executable, "-c", src], input=json.dumps(req), capture_output=True, text=True, timeout=20)
+            out = json.loads(r.stdout)
+        self.assertEqual(list(out["locs"]), ["a"])
+        self.assertNotIn("local", out)
+        self.assertNotIn("found", out)
+
+    def test_scan_de_l_agent_prefere_au_ssh(self):
+        from msv.backups import backups
+        scan = json.dumps({"user": "root", "locs": {"s#0": {"exists": True, "count": 1}}})
+        rep = {"10.0.0.9": {"fresh": True, "report": {"data": {"cmds": {"backups": [0, scan]}}}}}
+        req = {"locs": {"s#0": {"path": "/x"}}}
+        self.assertEqual(backups.agent_scan({"ip": "10.0.0.9", "ssh": "nas"}, req, rep)["user"], "root")
+        self.assertIsNone(backups.agent_scan({"ip": "10.0.0.8", "ssh": "nas"}, req, rep))
+        self.assertIsNone(backups.agent_scan({"ip": "10.0.0.9", "ssh": "nas"}, {"locs": {"s#1": {}}}, rep))   # out of its list: SSH reads it
+        refused = backups.agent_scan({"ip": "10.0.0.9"}, {"locs": {"s#1": {}}}, rep)                         # no SSH: said on the page
+        self.assertIn("MSV_BACKUP_DIRS", refused["locs"]["s#1"]["error"])
+        rep["10.0.0.9"]["report"]["data"]["cmds"]["backups"] = [1, "sudo: a password is required"]
+        self.assertIsNone(backups.agent_scan({"ip": "10.0.0.9", "ssh": "nas"}, req, rep))
+
+    def test_agent_rescanne_quand_le_serveur_demande_autre_chose(self):
+        ns = {"__name__": "agent_test", "__file__": "/tmp/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        with tempfile.TemporaryDirectory() as d:
+            ns["BACKUP_STATE"] = str(Path(d, "backups.json"))
+            calls = []
+            done = SimpleNamespace(returncode=0, stdout=b'{"locs": {}}', stderr=b"")
+            ns["subprocess"] = SimpleNamespace(run=lambda *a, **k: (calls.append(k["input"]) or done), PIPE=-1, TimeoutExpired=TimeoutError)
+            conf = {"python": "/usr/bin/python3", "script": "/x"}
+            self.assertIsNone(ns["backup_scan"](conf, 1000))   # nothing asked yet
+            ns["keep_backup_request"]({"locs": {"a": {}}})
+            self.assertEqual(ns["backup_scan"](conf, 1000), [0, '{"locs": {}}'])
+            ns["backup_scan"](conf, 2000)
+            self.assertEqual(len(calls), 1)                    # kept
+            ns["backup_scan"](conf, 1000 + ns["BACKUP_EVERY"])
+            self.assertEqual(len(calls), 2)                    # too old
+            ns["keep_backup_request"]({"locs": {"b": {}}})
+            ns["backup_scan"](conf, 1000 + ns["BACKUP_EVERY"])
+            self.assertEqual(len(calls), 3)                    # other folders
 
     def test_install_sh_regles_npm_exactes(self):
         from msv.remote import npmapi
