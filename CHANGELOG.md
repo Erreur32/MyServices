@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Revoked agents**: the « New agent » button is gone, and deleting one no longer asks for confirmation: its token already stopped working.
+
 ### Fixed
 - **Agents, new command**: the new agent now keeps the automatic update choice of the old one, which was switched off. A reinstall also clears what the agent had kept in cache, so new rights show on the first report instead of up to 6 hours later.
 
