@@ -50,6 +50,7 @@ from msv.core.config import CFG, next_timer_run
 
 NAME = "myservices-watcher"
 DATA = Path(CFG["web_dir"]) / "data.json"
+HEALTH_STATS = Path(CFG["web_dir"]) / "health" / "stats.json"
 PULSE_FILE = DATA.with_name("pulse.json")
 PORTS_FILE = DATA.with_name("ports.json")
 RECHECK_FILE = DATA.with_name("recheck.json")
@@ -65,7 +66,7 @@ COLLECTOR = CFG["collector_name"] or socket.gethostname()
 SEVERITY = {"panne": 3, "unhealthy": 3, "perime": 3, "securite": 2, "ui_hors": 1,
             "nouveau": 1, "disparu": 1, "retabli": 0, "dns": 2,
             "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1, "appareil": 1,
-            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0, "menace": 2, "nextcloud": 1, "maj_image": 1, "jail_hausse": 2}
+            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0, "menace": 2, "nextcloud": 1, "maj_image": 1, "maj_machine": 1, "jail_hausse": 2}
 LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nouveau", "disparu": "➖ Disparu",
          "securite": "🛡️ Sécurité", "ui_hors": "🌐 UI sans domaine", "unhealthy": "💔 Unhealthy",
          "perime": "⏱️ Données périmées", "hors_ligne": "📴 Machine hors ligne",
@@ -73,7 +74,7 @@ LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nou
          "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli", "connecteur_version": "🔌 Version non testée",
          "appareil": "📡 Nouvel appareil", "vm_arret": "⏹️ VM arrêtée", "vm_marche": "▶️ VM en marche",
          "stockage": "💽 Stockage presque plein", "stockage_ok": "💽 Stockage dégagé", "menace": "🚨 Nouvelle menace", "nextcloud": "☁️ Nextcloud à regarder",
-         "maj_image": "🐳 Image à mettre à jour", "jail_hausse": "📈 Jail qui monte"}
+         "maj_image": "🐳 Image à mettre à jour", "maj_machine": "📦 Mises à jour machine", "jail_hausse": "📈 Jail qui monte"}
 STORAGE_FULL = 90   # % used of a Proxmox storage
 SURGE_MIN, SURGE_FACTOR = 20, 3   # a jail « goes up » from this many bans in 24 h AND this many times its usual daily number
 NPM_TYPES = {"proxy", "redirect", "dead", "stream"}  # entrées lues dans NPM (les autres : « local »)
@@ -380,6 +381,37 @@ def image_snaps(data: dict) -> dict | None:
             for c in rows for env, name, image in _image_updates(c)}
 
 
+def _update_text(apt: dict) -> str:
+    n, security = apt["upgradable"], apt.get("security")
+    text = f"{n} mise(s) à jour en attente" + (f", dont {security} de sécurité" if security else "")
+    sample = ", ".join(str(s)[:60] for s in (apt.get("sample") or [])[:5])
+    return f"{text} : {sample}" if sample else text
+
+
+def machine_update_snaps(hosts: list[dict] | None, prev: dict | None) -> dict | None:
+    """Machines with pending system updates, by stable key. A machine not read this time keeps what was known: its return must not count as new.
+    None: no health report yet."""
+    if hosts is None:
+        return None
+    known, out = prev or {}, {}
+    for h in hosts:
+        key, apt = f'maj_machine:{h.get("id")}', h.get("apt") or {}
+        if not h.get("reachable") or apt.get("available") is False:
+            if key in known:
+                out[key] = known[key]
+        elif apt.get("upgradable"):
+            name, _, ip = str(h.get("name") or h.get("id")).partition(" · ")
+            out[key] = {"label": name, "machine": name, "target": ip or None, "text": _update_text(apt)}
+    return out
+
+
+def health_hosts() -> list[dict] | None:
+    try:
+        return json.loads(HEALTH_STATS.read_text(encoding="utf-8")).get("hosts")
+    except (OSError, ValueError):
+        return None
+
+
 def jail_surge_snaps(data: dict) -> dict | None:
     """Fail2ban jails whose last 24 hours are far above their usual (statistics read by LogviewR): at least SURGE_MIN bans and SURGE_FACTOR times the
     average of the six days before. None: no statistics read this time."""
@@ -547,8 +579,9 @@ def main() -> int:
     tev, tcur = diff_threats(state.get("threats"), threat_snaps(data))
     xev, xcur = diff_nextcloud(state.get("nextcloud"), nextcloud_snaps(data))
     iev, icur = diff_points("maj_image", state.get("images"), image_snaps(data))
+    uev, ucur = diff_points("maj_machine", state.get("machine_updates"), machine_update_snaps(health_hosts(), state.get("machine_updates")))
     jev, jcur = diff_points("jail_hausse", state.get("jails_up"), jail_surge_snaps(data))
-    events = sorted(tev + xev + iev + jev + events, key=lambda e: -SEVERITY[e["kind"]])
+    events = sorted(tev + xev + iev + uev + jev + events, key=lambda e: -SEVERITY[e["kind"]])
     nev, ncur = diff_network(state.get("network"), network_snaps(data) if data.get("network") else None)
     events = sorted(nev + events, key=lambda e: -SEVERITY[e["kind"]])
     age = (datetime.now(timezone.utc) - datetime.fromisoformat(data["generated"])).total_seconds() / 60
@@ -571,7 +604,7 @@ def main() -> int:
         pending, ccur, cpending = state.get("pending", {}), state.get("connectors", ccur), state.get("cpending", {})
         dcur, vcur, vpending = state.get("dns", dcur), state.get("virt", vcur), state.get("vpending", {})
         tcur, xcur, ncur = state.get("threats", tcur), state.get("nextcloud", xcur), state.get("network", ncur)
-        icur, jcur = state.get("images", icur), state.get("jails_up", jcur)
+        icur, jcur, ucur = state.get("images", icur), state.get("jails_up", jcur), state.get("machine_updates", ucur)
 
     if dry:
         print(f"=== DRY RUN (baseline={baseline}) · {len(events)} événement(s) ===")
@@ -601,7 +634,7 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
-                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur, "images": icur, "jails_up": jcur,
+                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur, "images": icur, "machine_updates": ucur, "jails_up": jcur,
                                       "stale_reported": state.get("stale_reported", False) if same_gen else age > STALE_MIN,
                                       "gen": data.get("generated"), "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")

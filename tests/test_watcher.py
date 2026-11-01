@@ -189,6 +189,20 @@ class ImageUpdates(unittest.TestCase):
                                 "environments": [{"id": 7, "name": "Dev", "host": "10.0.0.5:7007",
                                                   "updates": [{"container": c, "image": i, "newer": None} for c, i in updates]}]}]}
 
+    def test_mises_a_jour_machine(self):
+        host = lambda **k: {"id": "nas", "name": "nas · 10.0.0.2", "reachable": True, "apt": {"upgradable": 2, "sample": ["gh → 2"], "security": 1}, **k}
+        none = {"apt": {"upgradable": 0, "sample": []}}
+        ev, known = watcher.diff_points("maj_machine", None, watcher.machine_update_snaps([host(**none)], None))
+        self.assertEqual((ev, known), ([], {}))   # the first reading is the reference
+        cur = watcher.machine_update_snaps([host()], known)
+        ev, known = watcher.diff_points("maj_machine", known, cur)
+        self.assertEqual([(e["kind"], e["machine"], e["target"]) for e in ev], [("maj_machine", "nas", "10.0.0.2")])
+        self.assertIn("2 mise(s) à jour en attente, dont 1 de sécurité : gh → 2", ev[0]["detail"])
+        for away in ({"reachable": False}, {"apt": {"upgradable": 0, "available": False}}):   # not read: back later is not new
+            self.assertEqual(watcher.machine_update_snaps([host(**away)], known), known)
+        self.assertEqual(watcher.machine_update_snaps([host(**none)], known), {})   # installed: it can come back as new
+        self.assertIsNone(watcher.machine_update_snaps(None, known))
+
     def test_une_fois_par_conteneur(self):
         ev, known = watcher.diff_points("maj_image", None, watcher.image_snaps(self.data(("web", "nginx:1.25"))))
         self.assertEqual(ev, [])   # the first reading is the reference

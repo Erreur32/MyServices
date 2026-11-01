@@ -11,6 +11,15 @@ export const NOISE: [NoiseId, string][] = [
 ];
 export const NOISE_DEFAULT: NoiseId[] = ["menace", "flap", "appareil"];
 const FLAP_S = 3600;
+
+const UPDATE_SCOPE: Record<string, "docker" | "machines"> = { maj_image: "docker", maj_machine: "machines" };
+const SERVICE_KEY = /^(local|proxy|redirect):/;
+
+/** What the « Only » filter of the history groups an event under: updates of Docker images or machines, or a service (a DNS event has its own family) */
+export function scopeOf(e: Pick<StoredEvent, "kind" | "key">): string {
+  if (UPDATE_SCOPE[e.kind]) return UPDATE_SCOPE[e.kind];
+  return e.kind !== "dns" && SERVICE_KEY.test(e.key) ? "services" : "";
+}
 const KEY = "ms.history.hidden";
 
 export function savedHidden(): NoiseId[] {

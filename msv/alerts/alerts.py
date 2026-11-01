@@ -41,7 +41,7 @@ KINDS = {
     "securite": ("Sécurité (ACL, SSL)", "securite"), "ui_hors": ("Interface sans domaine", "securite"),
     "menace": ("Nouvelle menace (LogviewR)", "securite"),
     "nextcloud": ("Nextcloud : point à regarder", "connecteurs"),
-    "maj_image": ("Image de conteneur à mettre à jour", "connecteurs"), "jail_hausse": ("Jail Fail2ban qui monte", "securite"),
+    "maj_image": ("Image de conteneur à mettre à jour", "connecteurs"), "maj_machine": ("Mises à jour de machine en attente", "machines"), "jail_hausse": ("Jail Fail2ban qui monte", "securite"),
     "dns": ("DNS", "securite"), "connecteur": ("Connecteur en panne", "connecteurs"),
     "connecteur_version": ("Version de service non testée", "connecteurs"),
     "perime": ("Collecte en retard", "connecteurs"),

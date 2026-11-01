@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StoredEvent } from "../types";
-import { collapse, unmasked } from "./historyNoise";
+import { collapse, scopeOf, unmasked } from "./historyNoise";
 
 const T = 1_791_600_000;   // same day for every event below
 const ev = (kind: string, key: string, ts: number, more: Partial<StoredEvent> = {}): StoredEvent => ({ ts: T + ts, source: "watch", kind, key, label: key, ...more });
@@ -29,5 +29,14 @@ describe("historique : bruit", () => {
     expect(groups.map((g) => [g.title, g.detail, g.events.length])).toEqual([
       ["mynetwork lan : 1 coupure(s)", "rétabli", 2], ["fail2ban : 2 nouvelles menaces", "jails sshd", 2], ["connecteur:beszel/b : 1 coupure(s)", "rétabli", 2]]);
     expect(items).toHaveLength(5);   // 3 groups + the device + the outage
+  });
+});
+
+describe("scopeOf", () => {
+  it("sorts Docker updates and services apart", () => {
+    expect(scopeOf(ev("maj_image", "maj_image:nginx", 0))).toBe("docker");
+    expect(scopeOf(ev("maj_machine", "maj_machine:nas", 0))).toBe("machines");
+    for (const [kind, key] of [["panne", "proxy:1"], ["nouveau", "local:10.0.0.2:80"], ["disparu", "redirect:3"], ["retabli", "proxy:1"]]) expect(scopeOf(ev(kind, key, 0))).toBe("services");
+    for (const [kind, key] of [["dns", "proxy:1"], ["menace", "menace:x"], ["hors_ligne", "machine:10.0.0.2"], ["connecteur", "connecteur:x"]]) expect(scopeOf(ev(kind, key, 0))).toBe("");
   });
 });

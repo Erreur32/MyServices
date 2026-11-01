@@ -127,7 +127,7 @@ export function Card({ children, className = "", tone }: Readonly<{ children: Re
 
 /** Barre d'un onglet : recherche, compteur, pastilles de filtre. */
 /** Réglage d'affichage rangé avec les filtres (ex. « Désactivées ») : une pastille qui s'allume et s'éteint, comptée dans le bouton « Filtres » */
-export interface FilterOption { id: string; label: string; on: boolean; toggle: () => void; mark?: ReactNode; count?: number }
+export interface FilterOption { id: string; label: string; on: boolean; toggle: () => void; mark?: ReactNode; count?: number; tucked?: boolean }   // tucked: behind the « Filtres » button even with an optionsLabel
 
 /** Pastille d'un filtre : active, disponible (avec son nombre) ou vide */
 function chipTone(on: boolean, count?: number): string {
@@ -144,19 +144,22 @@ export function ChipButton({ on, count, mark, label, title, onClick }: Readonly<
   );
 }
 
-export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions = [], optionsLabel, primary: primaryProp = [], oneLine = false, bare = false, searchBox = true }: Readonly<{
+export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions = [], optionsLabel, primary: primaryProp = [], primaryBeside = false, oneLine = false, bare = false, searchBox = true }: Readonly<{
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
   placeholder: string; extra?: ReactNode; side?: ReactNode; options?: FilterOption[];   // side : à droite, sous le bouton « Filtres »
   /** Clés des filtres toujours visibles sous la recherche ; les autres restent derrière le bouton « Filtres » */
   primary?: string[];
+  primaryBeside?: boolean;   // those filters stand on the search line, after the options, and wrap with it
   /** Filtres visibles sur la même ligne que la recherche ; au-delà de 10 pastilles ou si la ligne déborde, ils passent derrière le bouton « Filtres » */
   oneLine?: boolean; bare?: boolean   // bare: no frame of its own (the page's list right under it has one);
   searchBox?: boolean;   // false: the field lives in the title of the panel (FoldPanel center)
   /** Given: the options are toggles shown on the search line under this caption (« Masquer »), not behind the « Filtres » button */
   optionsLabel?: string;
 }>) {
-  const options = optionsLabel ? [] : allOptions;
+  const options = allOptions.filter((o) => !optionsLabel || o.tucked);
+  const lineOptions = optionsLabel ? allOptions.filter((o) => !o.tucked) : [];
+  const shownOptions = options.filter((o) => !o.tucked);   // a tucked option stays out of sight even when on
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
   const [open, setOpen] = useState(false);
@@ -183,7 +186,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   const inline = shownGroups.filter((g) => primary.includes(g.facet.key));
   const groups = shownGroups.filter((g) => !primary.includes(g.facet.key));
   const active = f.chips.filter((g) => !primary.includes(g.facet.key)).flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
-  const nActive = active.length + options.filter((o) => o.on).length;
+  const nActive = active.length + shownOptions.filter((o) => o.on).length;
   // Les filtres déjà actifs un jour sur cette page restent affichés en pastilles, même retirés : un clic les désactive, un autre clic les réactive
   const keyOf = (facet: Facet<T>, chip: Chip) => `${facet.key}\u0000${chip.value}`;
   const [seen, setSeen] = useState<string[]>([]);
@@ -206,12 +209,13 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
       <div ref={rowRef} className={`flex items-center gap-3 ${oneLine && !collapsed ? "flex-nowrap" : "flex-wrap"}`}>
         {searchBox && <SearchBox value={f.query} onChange={f.setQuery} placeholder={placeholder} count={[f.shown.length, f.total]} />}
         {oneLine && inlineFilters}
-        {optionsLabel && allOptions.length > 0 && (
+        {lineOptions.length > 0 && (
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-semibold uppercase tracking-wide text-dim">{optionsLabel}</span>
-            {allOptions.map((o) => <ChipButton key={o.id} on={o.on} count={o.count ?? 0} mark={o.mark} label={o.label} onClick={o.toggle} />)}
+            {lineOptions.map((o) => <ChipButton key={o.id} on={o.on} count={o.count ?? 0} mark={o.mark} label={o.label} onClick={o.toggle} />)}
           </span>
         )}
+        {primaryBeside && inlineFilters}
         {oneLine && <div ref={measureRef} aria-hidden className="pointer-events-none invisible absolute h-0 overflow-hidden">{renderInline(wanted, true)}</div>}
         {f.active > 0 && (
           <button type="button" onClick={f.reset} className="inline-flex shrink-0 items-center whitespace-nowrap gap-1 text-sm text-link hover:underline">
@@ -234,10 +238,10 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
           </div>
         )}
       </div>
-      {!oneLine && inlineFilters}
-      {!open && (toggles.length > 0 || options.some((o) => o.on)) && (
+      {!oneLine && !primaryBeside && inlineFilters}
+      {!open && (toggles.length > 0 || shownOptions.some((o) => o.on)) && (
         <div className="flex flex-wrap items-center gap-1.5">
-          {options.filter((o) => o.on).map((o) => (
+          {shownOptions.filter((o) => o.on).map((o) => (
             <button key={o.id} type="button" onClick={o.toggle} aria-pressed title={tx("Désactiver ce filtre")}
               className="inline-flex items-center gap-1 rounded-full border border-link bg-link/15 px-2.5 py-1 text-xs font-medium text-txt hover:bg-link/25">
               <span className="text-dim">{tx("Affichage")} :</span>{o.mark}{o.label}<X size={11} aria-hidden />
