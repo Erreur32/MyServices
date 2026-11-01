@@ -359,7 +359,7 @@ class LinuxAgentScripts(unittest.TestCase):
 
     def test_scan_dns_lit_les_outils_sans_les_comptes(self):
         ns = {"__name__": "dns_test"}
-        exec(compile(agents.script("dns-scan.py"), "dns-scan.py", "exec"), ns)
+        exec(compile(agents.script("dns-scan.py"), "<dns-scan>", "exec"), ns)
         yaml = "users:\n  - name: admin\n    password: $2a$secret\nfiltering:\n  rewrites:\n    - domain: A.lan\n      answer: 10.0.0.1\n  user_rules:\n    - '||x.com^'\n"
         ns["read"] = lambda p: yaml if p == ns["ADGUARD_FILES"][0] else None
         got = ns["adguard"]({})
@@ -376,7 +376,7 @@ class LinuxAgentScripts(unittest.TestCase):
 
     def test_scan_dns_lit_les_zones_bind(self):
         ns = {"__name__": "dns_test"}
-        exec(compile(agents.script("dns-scan.py"), "dns-scan.py", "exec"), ns)
+        exec(compile(agents.script("dns-scan.py"), "<dns-scan>", "exec"), ns)
         files = {"/etc/bind/named.conf": 'include "/etc/bind/local.conf";\noptions { directory "/var/cache/bind"; };\n',
                  "/etc/bind/local.conf": '// comment\nzone "home.lan" { type master; file "db.home"; };\nzone "0.0.10.in-addr.arpa" { type master; file "db.rev"; };\n'
                                          'zone "fwd.lan" { type forward; forwarders { 10.0.0.9; }; };\n',
