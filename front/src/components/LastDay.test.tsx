@@ -6,12 +6,12 @@ import { LastDay } from "./LastDay";
 const NOW = Date.parse("2026-10-10T12:00:00+02:00");
 const at = (h: number) => new Date(NOW - h * 3600e3).toISOString();
 const snap = (events: { ts: string; kind: string; label: string }[]) =>
-  ({ events, labels: { panne: "🔴 Panne", retabli: "🟢 Rétabli" }, severity: { panne: 3, retabli: 0 } } as unknown as Snapshot);
+  ({ data: { hosts: [] }, events, labels: { panne: "🔴 Panne", retabli: "🟢 Rétabli" }, severity: { panne: 3, retabli: 0 } } as unknown as Snapshot);
 
 describe("What changed since yesterday", () => {
   it("says so when nothing happened", () => {
     const html = renderToStaticMarkup(<LastDay snap={snap([])} go={() => undefined} now={NOW} />);
-    expect(html).toContain("Rien n");
+    expect(html).toContain("Aucun souci");
     expect(html).toContain(">0<");
   });
   it("one aligned row per kind: mark and label, names, time on the right, the names beyond four counted", () => {

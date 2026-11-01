@@ -170,8 +170,8 @@ function Hero({ snap, items, now }: Readonly<{ snap: Snapshot; items: Attention[
     <section className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div>
         <p className="text-sm text-dim">{day.charAt(0).toUpperCase() + day.slice(1)}, {hm(now)} · {followedLine(snap)}</p>
-        <h1 className={`mt-1 text-3xl font-extrabold leading-tight sm:text-4xl ${TITLE_TONE[story.tone]}`}>{story.title}</h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-muted">{story.text}</p>
+        <h1 className={`mt-1 text-3xl font-extrabold leading-tight sm:text-4xl [&_b]:font-extrabold ${TITLE_TONE[story.tone]}`}><Rich text={story.title} /></h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted"><Rich text={story.text} /></p>
       </div>
       <Fleet snap={snap} />
     </section>

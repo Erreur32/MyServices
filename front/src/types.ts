@@ -567,6 +567,7 @@ export interface Event {
   ts?: string;
   at?: string;
   kind: string;
+  key?: string;   // what the event is about: a failure and its return share it
   label?: string;
   machine?: string;
   target?: string;

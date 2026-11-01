@@ -68,7 +68,7 @@ function connTone(c: ServiceStatus, r?: Host): [Tone, string] {
   return (c.problems ?? []).length ? ["warn", tx("à regarder")] : ["ok", tx("en ligne")];
 }
 
-const cardHash = (r: Host) => `#services/all/${encodeURIComponent(serviceKey(r))}`;
+export const cardHash = (r: Host) => `#services/all/${encodeURIComponent(serviceKey(r))}`;
 
 /** What the cards built so far cover: « ip:port » of a connector, « connector type @ ip » to skip the other ports of the same app */
 interface Covered { addr: Set<string>; readOn: Set<string> }
