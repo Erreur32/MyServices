@@ -33,10 +33,11 @@ describe("historique : bruit", () => {
 });
 
 describe("scopeOf", () => {
-  it("sorts Docker updates and services apart", () => {
-    expect(scopeOf(ev("maj_image", "maj_image:nginx", 0))).toBe("docker");
-    expect(scopeOf(ev("maj_machine", "maj_machine:nas", 0))).toBe("machines");
-    for (const [kind, key] of [["panne", "proxy:1"], ["nouveau", "local:10.0.0.2:80"], ["disparu", "redirect:3"], ["retabli", "proxy:1"]]) expect(scopeOf(ev(kind, key, 0))).toBe("services");
-    for (const [kind, key] of [["dns", "proxy:1"], ["menace", "menace:x"], ["hors_ligne", "machine:10.0.0.2"], ["connecteur", "connecteur:x"]]) expect(scopeOf(ev(kind, key, 0))).toBe("");
+  it("sorts updates, services and what came or went", () => {
+    expect(scopeOf(ev("maj_image", "maj_image:nginx", 0))).toEqual(["docker"]);
+    expect(scopeOf(ev("maj_machine", "maj_machine:nas", 0))).toEqual(["machines"]);
+    for (const [kind, key] of [["panne", "proxy:1"], ["retabli", "proxy:1"]]) expect(scopeOf(ev(kind, key, 0))).toEqual(["services"]);
+    for (const [kind, key] of [["nouveau", "local:10.0.0.2:80"], ["disparu", "redirect:3"]]) expect(scopeOf(ev(kind, key, 0))).toEqual(["services", "changes"]);
+    for (const [kind, key] of [["dns", "proxy:1"], ["menace", "menace:x"], ["hors_ligne", "machine:10.0.0.2"], ["connecteur", "connecteur:x"]]) expect(scopeOf(ev(kind, key, 0))).toEqual([]);
   });
 });

@@ -13,7 +13,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 - **Services, service icons**: a proxied service without a known logo now shows the favicon of its own site, in the Services list, on its card and in « What changed since yesterday ». The icon is read directly on the service, once a week, with no third-party service involved, so private domain names never leave your network. A service with no icon gets a coloured letter.
-- **History, Events**: new direct filters to show only Docker updates, machine updates or services.
+- **History, Events**: new direct filters to show only Docker updates, machine updates, services, or services that are new or gone.
 - **History, machine updates**: a machine that gets pending system updates is now recorded as an event. It can be chosen in the alert rules and is not sent by default.
 
 ### Changed
