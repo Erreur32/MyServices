@@ -214,9 +214,10 @@ async def agent_report(request: Request):
 
 
 def backup_request(ip: str) -> dict | None:
-    from msv.backups import backups
+    from msv.backups import backups, backups_admin
     try:
-        return backups.agent_request(ip)
+        req = backups.agent_request(ip)
+        return {**req, "names": backups_admin.agent_find_names()} if req else None
     except (OSError, ValueError, KeyError):   # no backups-meta.json, or unreadable: the report is still taken
         return None
 

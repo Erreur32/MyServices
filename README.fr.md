@@ -196,7 +196,7 @@ Pour les machines Linux, l'agent Linux (Python 3.6+, systemd) donne les mêmes i
 
 **Mises à jour.** La carte de l'agent affiche sa version. **Mettre à jour maintenant** ou l'interrupteur **Automatique** par agent (coupé par défaut) fait récupérer le nouveau script à MyServices au prochain relevé ; l'agent contrôle le SHA-256 et la syntaxe avant de se remplacer. Le script n'est pas signé : MyServices est la seule source de confiance.
 
-**Sauvegardes.** Cochez la case sauvegardes à la création de l'agent (`MSV_BACKUPS=1` dans la commande) : un script root posé par l'installation lit les dossiers suivis (noms, tailles, dates, jamais le contenu) et refuse tout dossier absent de la liste gardée sur la machine, `/etc/myservices-agent/backup-dirs`. `/home/backup`, `/var/backups`, `/backup` et `/backups` y sont ; `MSV_BACKUP_DIRS=/a,/b` en ajoute d'autres. La recherche de nouveaux dossiers et de copies passe encore par le SSH.
+**Sauvegardes.** Cochez la case sauvegardes à la création de l'agent (`MSV_BACKUPS=1` dans la commande) : un script root posé par l'installation lit les dossiers suivis (noms, tailles, dates, jamais le contenu) et refuse tout dossier absent de la liste gardée sur la machine, `/etc/myservices-agent/backup-dirs`. `/home/backup`, `/var/backups`, `/backup` et `/backups` y sont ; `MSV_BACKUP_DIRS=/a,/b` en ajoute d'autres. Nouveaux dossiers, sauvegardes Proxmox et copies sont trouvés de la même façon, et le SSH reste le relais.
 
 **Hyperviseurs.** Avec la case sudo cochée, l'agent lit KVM, Incus et LXD. VirtualBox, Proxmox et ESXi restent lus par SSH ou par leur API.
 

@@ -40,6 +40,9 @@ def _ssh_uses(machines: dict) -> dict[str, list[str]]:
         hosts = json.loads(Path(core.CFG["backups_meta"]).read_text(encoding="utf-8")).get("hosts") or []
     except (OSError, ValueError, AttributeError):
         hosts = []
+    from msv.backups import backups
+    reports = backups.agent_reports()   # its agent reads them: no need of SSH for backups on that machine
+    hosts = [h for h in hosts if not (isinstance(h, dict) and backups.report_scan(reports.get(h.get("ip"))))] if isinstance(hosts, list) else []
     try:
         declared = connectors.declared(core.CFG)
     except connectors.ConnectorError:

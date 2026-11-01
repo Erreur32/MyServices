@@ -111,18 +111,19 @@ def backup_scan(conf, now):
     req = state.get("req")
     if not isinstance(req, dict):
         return None
-    if state.get("scanned") == req and now - state.get("at", 0) < BACKUP_EVERY and state.get("result"):
+    # Followed folders only: the archive names to look for change with every backup
+    if state.get("scanned") == req.get("locs") and now - state.get("at", 0) < BACKUP_EVERY and state.get("result"):
         return state["result"]
     try:
         r = subprocess.run(["sudo", "-n", str(conf.get("python")), str(conf.get("script"))], input=json.dumps(req).encode("utf-8"),
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=270)
         text = r.stdout.decode("utf-8", "replace")
         result = [r.returncode, text] if r.returncode == 0 else [r.returncode, r.stderr.decode("utf-8", "replace")[-500:]]
     except (OSError, subprocess.TimeoutExpired) as e:
         result = [1, str(e)[:500]]
     if len(result[1]) > NPM_MAX:
         result = [1, "backup scan: answer too long"]
-    state.update(scanned=req, at=now, result=result)
+    state.update(scanned=req.get("locs"), at=now, result=result)
     save_cache(state, BACKUP_STATE)
     return result
 

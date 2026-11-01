@@ -463,8 +463,9 @@ def resolve_ssh(hosts: list[dict], by_ip: dict[str, str], known: set[str], docke
 
 # ───────────── Lecture par l'agent ─────────────
 
-# Head of the root script set by the agent's installer (/agent/backup-scan.py), in front of AGENT: only folders of the list kept on the machine,
-# and only the plain reads. The rest of what the server may send (discover, find, vzdump, mount) is dropped here, on the machine.
+# Head of the root script set by the agent's installer (/agent/backup-scan.py), in front of AGENT. The server chooses no place: followed folders must
+# be in the list kept on the machine, new folders are looked for with the patterns below and that list, copies by name under that list and the
+# network shares. Anything else it sends is dropped here, on the machine.
 SCAN_HEAD = r'''
 import json, os, sys
 raw = json.load(sys.stdin)
@@ -474,7 +475,11 @@ def listed(p):
     real = os.path.realpath(str(p))
     return any(real == d or real.startswith(d.rstrip("/") + "/") for d in dirs)
 locs = {k: v for k, v in (raw.get("locs") or {}).items() if isinstance(v, dict) and listed(v.get("path", ""))}
-sys.argv = ["scan", json.dumps({"locs": locs, "disks": bool(raw.get("disks")), "crons": bool(raw.get("crons"))})]
+names = [str(n) for n in (raw.get("names") or [])][:500]
+sys.argv = ["scan", json.dumps({"locs": locs, "disks": bool(raw.get("disks")), "crons": bool(raw.get("crons")), "vzdump": True,
+                                "discover": ["/home/backup*", "/home/*/backup*", "/root/*ackup*", "/mnt/*/backup*", "/mnt/*/*-backup/*", "/srv/*backup*",
+                                             "/data/*backup*"] + dirs,
+                                "find": {"names": names, "roots": dirs, "depth": 5, "budget": 60} if names else None})]
 '''
 
 
@@ -489,17 +494,24 @@ def agent_request(ip: str) -> dict | None:
     return {k: req[k] for k in ("locs", "disks", "crons")}
 
 
-def agent_scan(h: dict, req: dict, reports: dict) -> dict | None:
-    """The scan a fresh agent report carries, in the shape of AGENT. None to read over SSH: no such report, or folders out of the agent's list on a
-    machine that has SSH; without SSH they are shown as refused."""
-    rep = reports.get(h.get("ip") or "") or {}
-    data = ((rep.get("report") or {}).get("data") or {}) if rep.get("fresh") else {}
+def report_scan(rep: dict | None) -> dict | None:
+    """The scan of the backup folders in a fresh agent report, in the shape of AGENT; None without one."""
+    data = ((rep.get("report") or {}).get("data") or {}) if rep and rep.get("fresh") else {}
     got = (data.get("cmds") or {}).get("backups")
-    if h.get("mount") or not isinstance(got, list) or len(got) != 2 or got[0] != 0:
+    if not isinstance(got, list) or len(got) != 2 or got[0] != 0:
         return None
     try:
         out = json.loads(got[1])
     except (TypeError, ValueError):
+        return None
+    return out if isinstance(out, dict) else None
+
+
+def agent_scan(h: dict, req: dict, reports: dict) -> dict | None:
+    """The scan a fresh agent report carries, in the shape of AGENT. None to read over SSH: no such report, or folders out of the agent's list on a
+    machine that has SSH; without SSH they are shown as refused."""
+    out = None if h.get("mount") else report_scan(reports.get(h.get("ip") or ""))
+    if out is None:
         return None
     missing = [k for k in req["locs"] if k not in out.get("locs", {})]
     if missing and h.get("ssh") not in (None, "local"):
@@ -540,6 +552,8 @@ def collect(meta: dict) -> tuple[dict, dict]:
 
     def one(hid):
         scan = agent_scan(hosts[hid], reqs[hid], reports)
+        if scan is None and hosts[hid].get("agent"):   # no SSH on this machine: never read here instead
+            return hid, (None, "agent : pas de relevé récent des sauvegardes")
         return hid, (scan, "") if scan is not None else run_py(hosts[hid].get("ssh"), AGENT, json.dumps(reqs[hid]))
 
     def st(node):

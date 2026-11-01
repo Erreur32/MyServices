@@ -285,8 +285,33 @@ class LinuxAgentScripts(unittest.TestCase):
             r = subprocess.run([sys.executable, "-c", src], input=json.dumps(req), capture_output=True, text=True, timeout=20)
             out = json.loads(r.stdout)
         self.assertEqual(list(out["locs"]), ["a"])
-        self.assertNotIn("local", out)
-        self.assertNotIn("found", out)
+        self.assertEqual([d["path"] for d in out["local"]], [str(ok.resolve())])   # the patterns of the server are not used
+        self.assertNotIn("found", out)                                             # no name to look for here
+
+    def test_scan_root_cherche_les_copies_sous_la_liste_seulement(self):
+        from msv.backups import backups
+        with tempfile.TemporaryDirectory() as d:
+            ok, other = Path(d, "ok"), Path(d, "other")
+            for p in (ok, other):
+                p.mkdir()
+                (p / "a.tar").write_text("x")
+            lst = Path(d, "dirs")
+            lst.write_text(f"{ok}\n")
+            src = backups.SCAN_HEAD.replace("/etc/myservices-agent/backup-dirs", str(lst)) + backups.AGENT
+            req = {"names": ["a.tar"], "find": {"names": ["a.tar"], "roots": [str(other)]}}
+            r = subprocess.run([sys.executable, "-c", src], input=json.dumps(req), capture_output=True, text=True, timeout=20)
+        self.assertEqual([h["dir"] for h in json.loads(r.stdout)["found"]["a.tar"]], [str(ok.resolve())])
+
+    def test_machine_sans_ssh_lue_par_l_agent_seulement(self):
+        from unittest import mock
+        from msv.backups import backups, backups_admin
+        scan = {"user": "root", "locs": {}, "local": [{"path": "/home/backup", "size": 1, "newest": 2}]}
+        rep = {"10.0.0.9": {"fresh": True, "report": {"data": {"cmds": {"backups": [0, json.dumps(scan)]}}}}}
+        with mock.patch.object(backups, "agent_reports", return_value=rep), mock.patch.object(backups, "run_py") as ssh:
+            got = backups_admin._scan(("10.0.0.9", {"name": "vps", "ssh": None}), ["/x"])
+            self.assertEqual(backups_admin._read_machine("10.0.0.8", None, {}, "local")[0], None)
+            ssh.assert_not_called()
+        self.assertEqual((got["ok"], got["folders"][0]["path"]), (True, "/home/backup"))
 
     def test_scan_de_l_agent_prefere_au_ssh(self):
         from msv.backups import backups

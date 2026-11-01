@@ -15,7 +15,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Agents**: the page now says when a Linux agent lacks the sudo right to read the services to restart or the Fail2ban bans, with a « Rights to complete » tile; the sudo box is already ticked in the new command of that agent.
 - **Settings, Requests**: SSH reads are now counted, per machine and per kind of read (health, Docker, ports, backups, Proxmox and so on), with their duration and errors.
 - **Nginx Proxy Manager, read by the agent**: a new connector mode reads NPM through the agent of its machine, with `npm-api.sh` run there (`MSV_NPM=<path>` at install, exact sudo rules), or set up by the installer with `MSV_NPM=install`. No SSH and no NPM account in MyServices; of the advanced configs, only the lines the checks need leave the machine.
-- **Backups, read by the agent**: with `MSV_BACKUPS=1`, a root script set by the installer reads the followed folders. It refuses any folder outside the list kept on the machine (`MSV_BACKUP_DIRS` adds folders); SSH remains the fallback, and still finds new folders and copies.
+- **Backups, read by the agent**: with `MSV_BACKUPS=1`, a root script set by the installer reads the followed folders. It refuses any folder outside the list kept on the machine (`MSV_BACKUP_DIRS` adds folders); new folders and copies are found there too, and a machine read this way no longer needs SSH for its backups. SSH remains the fallback.
 - **Hypervisors, read by the agent**: KVM, Incus and LXD, with the sudo box of the install.
 - **Agent install**: boxes for the backup folders and Nginx Proxy Manager add their options to the command.
 
