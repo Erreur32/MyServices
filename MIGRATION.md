@@ -5,6 +5,12 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.0 → 0.35.1
+
+**Nothing to do for the update itself.** No setting, volume or database change. Linux agents update themselves to version 10 when automatic update is on: a version 10 agent reads the backup folders again before each backups run, and reads the access logs of a Nginx Proxy Manager running in Docker on its machine (totals per site and per hour, and only the 10 busiest addresses of the last hour leave the machine). A machine read over SSH gives the same reading at the next health pass. The account that reads must be able to run `docker ps` and `docker inspect`; without it, the Web traffic page stays empty for that machine and nothing else changes.
+
+**Check your alert rules.** Three new kinds of event exist: « Jail Fail2ban qui monte » now also comes from the Fail2ban of each machine, and « Pic de trafic web » and « Aspiration diffuse d'un site » are new. The « Sécurité et DNS » preset includes them, but a rule you already saved keeps its own list: tick the two new kinds in Settings, Alerts if you want them sent.
+
 ## 0.34.3 → 0.35.0
 
 **Nothing to do.** No setting, volume, agent or database change. Once a day the collection asks your DNS servers for the NS of each domain and keeps the answer in `dns-zones.json`, in the existing cache folder. The DNS alerts are now on DNS, Servers: an old address that led to them opens that page.

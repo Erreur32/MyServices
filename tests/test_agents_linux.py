@@ -37,6 +37,7 @@ OUTPUTS = {
     health.SMART_LIST_CMD: (0, "sda\nnvme0n1\n"),
     health.GPU_CMD: (0, "NVIDIA T400, 9, 40, 200, 4096, 12.0\n---\n"),
     health.LOGS_CMD: (0, "3145728000 /var/log/big.log\n---\nArchived and active journals take up 1.5G in the file system.\n"),
+    health.WEBLOG_CMD: (0, '{"at":1792678313,"sites":{"a.example.test":{"h":[[1792674000,12,0]],"ips":3,"dip":0,"dreq":0,"bots":1,"m10":[2,0]}},"ips":3,"top":[]}\n'),
     health.SYSTEM_CMD: (0, "@@now 1792678313\n@@pm2\nD 1158684 PM2 v5.4.3: God Daemon (/root/.pm2)\nE pm2-root.service enabled\n"
                            "U pm2-root.service active\n@@md\n@@zfs\n@@mnt\n@@ntp\nC none\nNTP=yes\nNTPSynchronized=yes\n@@tim\n@@uu\n@@snap\n@@who\n@@dkr\n"),
     health.smart_cmd("sda"): (0, "SMART overall-health self-assessment test result: PASSED\n"),

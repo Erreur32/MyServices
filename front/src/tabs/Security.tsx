@@ -1,7 +1,7 @@
 // Security in « state » mode: a title line naming the tools read, six figures, then « To watch » (one row per problem, worst first, the
 // detail unfolding in the row) and, under it, one sub-tab per area (Fail2ban, public sites, SSH access, access to MyServices, network
 // ports, certificates). Read only.
-import { Ban, Check, ChevronDown, ChevronUp, EyeOff, FileBadge, Globe, KeyRound, Radar, ShieldCheck, UserCog, Wrench, X, type LucideIcon } from "lucide-react";
+import { Activity, Ban, Check, ChevronDown, ChevronUp, EyeOff, FileBadge, Globe, KeyRound, Radar, ShieldCheck, UserCog, Wrench, X, type LucideIcon } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { send, type Snapshot } from "../api";
 import { Certificates, CERT_SOON } from "../components/Certificates";
@@ -30,18 +30,21 @@ import type { Host } from "../types";
 import { NoteLine } from "../components/form";
 import { MachineFail2ban } from "../components/MachineFail2ban";
 import { machineFail2ban, readF2b } from "../lib/machineFail2ban";
+import { WebTraffic } from "../components/WebTraffic";
+import { webMachines } from "../lib/webTraffic";
 
-type Sub = "overview" | "fail2ban" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
+type Sub = "overview" | "fail2ban" | "traffic" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area: Area }[] = [
   { id: "fail2ban", label: tx("Fail2ban"), icon: Ban, area: "fail2ban" },
+  { id: "traffic", label: tx("Trafic web"), icon: Activity, area: "traffic" },
   { id: "sites", label: tx("Sites exposés"), icon: Globe, area: "sites" },
   { id: "access", label: tx("Accès SSH"), icon: KeyRound, area: "ssh" },
   { id: "members", label: tx("Accès à MyServices"), icon: UserCog, area: "access" },
   { id: "network", label: tx("Ports du réseau"), icon: Radar, area: "ports" },
   { id: "certs", label: tx("Certificats"), icon: FileBadge, area: "certs" },
 ];
-const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), access: tx("Accès"), ports: tx("Port") };
-const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
+const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), traffic: tx("Trafic web"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), access: tx("Accès"), ports: tx("Port") };
+const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", traffic: "traffic", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
 
 /** Sub-tab named by the address (#security/certs), if any: the side menu's Fail2ban entry opens #security/fail2ban */
 const routeSub = (route: string): Sub | null => { const v = route.split("/")[1]; return v === "overview" || v === "wazuh" || (v !== "members" && SUBS.some((s) => s.id === v)) ? (v as Sub) : null; };
@@ -324,6 +327,15 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
     (snap.data.network ?? []).length ? "MynetworK" : ""];
   const bySsh = tx("{0} machine(s) lue(s) par SSH", snap.data.machine_list.filter((m) => !m.disabled && m.info?.sshd).length);
   if (sub === "wazuh") return <WazuhPage snap={snap} admin={admin} />;   // its own entry of the side menu, shown when a Wazuh is read
+  if (sub === "traffic") {   // its own entry of the side menu, under Security: the web traffic of the NPM logs
+    const web = webMachines(snap.health);
+    return (
+      <div className="flex flex-col gap-4 py-4">
+        <PageHead icon={Activity} title={tx("Trafic web")} tags={<HeadTags counts={[tx("{0} machine(s) lue(s)", web.length)]} at={snap.data.generated} />} />
+        {web.length ? <WebTraffic machines={web} /> : <Empty>{tx("Aucun journal de Nginx Proxy Manager lu : il faut un agent Linux en version 10, ou l'accès SSH, sur la machine qui le fait tourner, avec Docker lisible par son compte.")}</Empty>}
+      </div>
+    );
+  }
   if (sub === "fail2ban") {   // its own entry of the side menu, under Security: the machines' own Fail2ban, then the ones LogviewR reads
     const machines = machineFail2ban(snap.health), read = readF2b(machines).length;
     return (

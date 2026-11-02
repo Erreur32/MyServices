@@ -6,9 +6,10 @@ import { risky } from "./ssh";
 import { splitHostName } from "./format";
 import { certIssue } from "./status";
 import { machineFail2ban } from "./machineFail2ban";
+import { webMachines } from "./webTraffic";
 
 export type Severity = "bad" | "warn";
-export type Area = "fail2ban" | "sites" | "certs" | "ssh" | "access" | "ports";
+export type Area = "fail2ban" | "traffic" | "sites" | "certs" | "ssh" | "access" | "ports";
 export interface Finding { sev: Severity; area: Area; title: string; detail: string; fix: string; sub?: string; href?: string }   // sub: a second line under the title (an address) ; href: the page that holds the thing (a machine)
 
 /** Ports that should not be open on a home network without a reason (clear-text or remote-control protocols, databases, Docker API) */
@@ -92,6 +93,25 @@ function machineJailFindings(snap: Snapshot): Finding[] {
   }));
 }
 
+/** A machine whose web traffic is far above its usual hour, a site scraped by many addresses under Fail2ban, a site answering 5xx. The figures
+ *  go in `sub`, out of the key of an ignored finding: they move at every pass */
+function trafficFindings(snap: Snapshot): Finding[] {
+  return webMachines(snap.health).flatMap((m): Finding[] => {
+    const href = "#security/traffic";
+    const out: Finding[] = m.web.rising ? [{ sev: "warn", area: "traffic", title: tx("Pic de trafic web sur {0}", m.name), href, detail: tx("plus de 3 fois l'heure habituelle"),
+      sub: tx("{0} requêtes en une heure, contre {1} d'habitude", Math.max(m.web.last ?? 0, m.web.now ?? 0), m.web.usual ?? 0),
+      fix: tx("Regarder les sites et les adresses les plus actives ; bloquer au pare-feu ou dans NPM ce qui n'est pas voulu.") }] : [];
+    for (const r of m.sites) {
+      if (r.verdict === "diffuse") out.push({ sev: "warn", area: "traffic", title: r.site, href, detail: tx("aspiration diffuse, sous les seuils de Fail2ban"),
+        sub: tx("{0} · {1} % des requêtes du jour, {2} IP", m.name, r.share, r.dip),
+        fix: tx("Limiter le débit du site dans NPM, demander une connexion, ou bloquer les réseaux d'où viennent ces adresses.") });
+      if (r.verdict === "errors") out.push({ sev: "warn", area: "traffic", title: r.site, href, sub: m.name, detail: tx("plus de 5 % d'erreurs 5xx sur 10 min"),
+        fix: tx("Le service derrière NPM répond mal : regarder ses journaux et sa machine.") });
+    }
+    return out;
+  });
+}
+
 /** One device's finding: its sensitive ports */
 export const portFinding = (d: { hostname?: string | null; vendor?: string | null; ip: string }, hit: number[]): Finding => ({
   sev: "warn", area: "ports", title: d.hostname || d.vendor || d.ip, detail: hit.map((p) => `${p} ${SENSITIVE[p]}`).join(" · "),
@@ -108,11 +128,11 @@ export const areaKey = (area: Area): string => `${area}:*`;
 const isIgnored = (list: string[] | undefined, f: Finding): boolean => !!list?.length && (list.includes(findingKey(f)) || list.includes(areaKey(f.area)));
 
 /** The areas, worst kind first: the order of the lists */
-export const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "access", "ports"];
+export const AREAS: Area[] = ["fail2ban", "traffic", "certs", "sites", "ssh", "access", "ports"];
 
 /** Everything that needs a look, red first, then by area */
 export function securityFindings(snap: Snapshot, access: Finding[] = []): Finding[] {
-  return [...threatFindings(snap), ...machineJailFindings(snap), ...certFindings(snap), ...siteFindings(snap), ...sshFindings(snap), ...access, ...portFindings(snap)]
+  return [...threatFindings(snap), ...machineJailFindings(snap), ...trafficFindings(snap), ...certFindings(snap), ...siteFindings(snap), ...sshFindings(snap), ...access, ...portFindings(snap)]
     .filter((f) => !isIgnored(snap.data.security_ignore, f))
     .sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad") || AREAS.indexOf(a.area) - AREAS.indexOf(b.area));
 }

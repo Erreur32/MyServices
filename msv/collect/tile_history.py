@@ -105,6 +105,49 @@ def fail2ban_trend(db_path: str | Path, machine_id: str, banned: int, now: float
     return {"peak": max([*day, banned]), "usual": usual, "rising": rising}
 
 
+WEB = "web."   # + machine id, then « |site » for one site: requests of one complete hour of its NPM logs (value) and their 5xx (total)
+PEAK_MIN, PEAK_FACTOR = 1000, 3        # web peak: at least this many requests in an hour AND this many times the usual hour
+DIFFUSE_SHARE, DIFFUSE_IPS = 0.4, 30   # diffuse scraping: this share of a site's requests from at least this many addresses under the Fail2ban limits
+ERR_SHARE, ERR_MIN = 0.05, 50          # 5xx: this share of at least this many requests in the last 10 minutes
+USUAL_MIN = 6                          # hours of history before a usual level is given
+
+
+def web_trend(db_path: str | Path, machine_id: str, web: dict, now: float | None = None) -> None:
+    """Keeps each complete hour of the machine and of each site, then sets on `web` and its sites: the usual hour (mean of the stored hours of the
+    7 days before the last complete one), the last complete hour and the current one so far, and the flags rising, diffuse and errors."""
+    now = now or time.time()
+    base, done = WEB + str(machine_id), int(web.get("at") or now) // 3600 * 3600   # hours before `done` are complete
+    rows, total = [], {}
+    for site, s in web.get("sites", {}).items():
+        for ts, n, e in s.get("h") or []:
+            total.setdefault(ts, [0, 0])
+            total[ts][0] += n
+            total[ts][1] += e
+            if ts < done:
+                rows.append((f"{base}|{site}", ts, n, e))
+    rows += [(base, ts, n, e) for ts, (n, e) in total.items() if ts < done]
+    with _db(db_path) as db:
+        db.execute("DELETE FROM tile_samples WHERE ts < ?", (int(now - KEEP_S),))
+        db.executemany("INSERT OR REPLACE INTO tile_samples (key, ts, value, total) VALUES (?, ?, ?, ?)", rows)
+        usual = {k: (avg, n) for k, avg, n in db.execute(
+            "SELECT key, AVG(value), COUNT(*) FROM tile_samples WHERE substr(key, 1, ?) = ? AND ts >= ? AND ts < ? GROUP BY key",
+            (len(base), base, int(now - KEEP_S), done - 3600))}
+
+    def level(key):
+        avg, n = usual.get(key, (None, 0))
+        return round(avg) if n >= USUAL_MIN else None
+
+    for site, s in web.get("sites", {}).items():
+        reqs = sum(n for _, n, _ in s.get("h") or [])
+        s["usual"], s["total"] = level(f"{base}|{site}"), reqs
+        s["diffuse"] = s.get("dip", 0) >= DIFFUSE_IPS and s.get("dreq", 0) >= DIFFUSE_SHARE * reqs
+        m10 = s.get("m10") or [0, 0]
+        s["errors"] = m10[0] >= ERR_MIN and m10[1] >= ERR_SHARE * m10[0]
+    web["usual"], web["last"], web["now"] = level(base), total.get(done - 3600, [0])[0], total.get(done, [0])[0]
+    worst = max(web["last"], web["now"])
+    web["rising"] = web["usual"] is not None and worst >= PEAK_MIN and worst >= PEAK_FACTOR * web["usual"]
+
+
 def _gear_up(g: dict) -> bool:
     if g.get("online") is not None:
         return bool(g["online"])

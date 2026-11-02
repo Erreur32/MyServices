@@ -51,7 +51,7 @@ BORGMATIC_FILE = "/var/lib/myservices-agent/borgmatic.json"   # left by the root
 MAX_OUT = 50000                          # characters kept per command (the server accepts 60000)
 MAX_BODY = 240 * 1024                    # bytes: compressed report size kept under the server limit (256 KiB)
 CUT_TO = 12000                           # characters an output is cut to, longest first, when the report is still too big
-SLOW = ("docker stats", "apt list", "snap refresh")   # commands allowed more time (health.SLOW_CMDS)
+SLOW = ("docker stats", "apt list", "snap refresh", "nginx-proxy-manager")   # commands allowed more time (health.SLOW_CMDS)
 
 
 def log(msg):

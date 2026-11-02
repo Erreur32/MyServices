@@ -431,6 +431,18 @@ export interface Unlinked { source: string; label: string; instance: string; ip?
 
 export type Level = "ok" | "warn" | "crit" | "down";
 
+/** One site of the web traffic read in the NPM logs (health.py collect_web, tile_history.web_trend): h = [hour start, requests, 5xx] over 24 h,
+ *  dip / dreq = addresses under the Fail2ban limits and their requests, m10 = [requests, 5xx] of the last 10 minutes */
+export interface WebSite {
+  h: [number, number, number][]; ips: number; dip: number; dreq: number; bots: number; m10: [number, number];
+  usual?: number | null; total?: number; diffuse?: boolean; errors?: boolean;
+}
+/** The web traffic of a machine's Nginx Proxy Manager over 24 h; last / now: requests of the last complete hour and of the current one so far */
+export interface WebTraffic {
+  at: number; sites: Record<string, WebSite>; ips: number; top: [string, string, number][]; dirs?: string[];
+  usual?: number | null; last?: number; now?: number; rising?: boolean;
+}
+
 export interface HealthHost {
   id: string;
   name: string; // « Nom · IP »
@@ -447,8 +459,9 @@ export interface HealthHost {
   load?: { load_1: number; ncpu: number; available: boolean; cpu_pct?: number | null };   // cpu_pct: Windows, instant CPU instead of a load average
   check_s?: Record<string, number>;   // seconds each of those controls has been in warn or crit (health.py track_checks)
   checks?: Record<string, string>;   // the controls not « ok » (disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res, pm2, raid, zfs, mounts, ntp, timers, auto_upd -> warn | crit), from health.py host_checks
+  web?: WebTraffic;   // web traffic of its Nginx Proxy Manager logs (agent or SSH)
   system?: HostSystem;   // services and storage of a Linux machine (SSH or Linux agent); a part not on the machine has available false
-  res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
+  res?: { available: boolean; cpu_pct?: number; iowait_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
   gpu?: { available: boolean; gpus: { name: string; util: number | null; temp: number | null; mem_used: number | null; mem_total: number | null; power: number | null }[] };   // nvidia-smi / rocm-smi (SSH or Linux agent)
   temp?: { available: boolean; celsius?: number; source?: string; virt?: string; sensors?: { name: string; celsius: number }[];
     level?: "ok" | "warn" | "crit" | "na"; warn_c?: number; crit_c?: number; hot_since?: number; hot_s?: number };  // processor temperature (machine sensor or Beszel); level by health.py: the machine's thresholds, and only once it stays hot
