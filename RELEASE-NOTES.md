@@ -1,26 +1,24 @@
-# Release notes: MyServices 0.35.4
+# Release notes: MyServices 0.35.5
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating.
 
-**0.35.4** (2 November 2026) notices a container updated in place, and tells which boxes to tick for a Linux agent.
+**0.35.5** (2 November 2026) tells the update of each agent in words, and announces a new version only once its image can be pulled.
 
 ## For everyone
 
 **What's new?**
-- **Which boxes to tick**: the command of a Linux agent now carries a note above its boxes. When in doubt, tick only sudo. Local DNS and backups only where they exist. borgmatic and Nginx Proxy Manager only on the machine that runs them, otherwise the install stops. Docker and disk health are added by hand (`MSV_DOCKER=1`, `MSV_SMART=1`).
-- **Automatic update has a limit**: it replaces only the agent's script. A box added or removed (sudo, DNS, backups…) needs a new command, run again on the machine.
-- **Agent health in words**: the Health column of the Agents page says « Good », or names the problem (reports late, script out of date, host to confirm) instead of a bar.
-- **Machine switched off**: an agent whose machine is off no longer shows red. It says « Machine switched off » (set often off) or « Offline » in grey, without update warning, and it no longer lowers the health average. The IP of each agent now has its own aligned column.
-- **Root or sudo**: the command says where to paste it, as root or from an account with sudo. It goes through sudo either way, so the sudo package is needed even as root.
+- **Agent update in its own column**: on the Agents page, an « Update » column holds the choice **Auto** or **Manual** and where the update stands: up to date, « vN at the next report », requested, « when switched back on » for a machine that is off, or in manual a « ⬆ vN » button. The lone ⬆ icon, greyed once clicked, is gone.
+- **Update not applied**: when an agent is still in its old version two reports after the update was offered, the column says « not applied » in orange, with a hint to look at `agent.log` on the machine.
+- **Top button and tile**: « Update the late agents » and the « To update » tile count only the agents in manual whose machine answers. The ones in Auto update by themselves, and a machine that is off cannot.
 
 **Fixed**
-- **A container updated in place is read again**: after `docker compose pull` then `up -d`, the container keeps its name but starts anew. MyServices now notices it at the next collection, instead of showing the old image and version for up to 2 hours.
+- **« New version available » too early**: the version check waited only for the GitHub release, a few minutes before the Docker image existed, so `docker compose pull` could still find nothing. It now waits for the image on ghcr.io, and asks again after 10 minutes while it is missing.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing else to do. See [MIGRATION.md](MIGRATION.md).
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.35.4` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **Image**: `ghcr.io/erreur32/myservices:0.35.5` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
 - **Agent**: no change, Linux agent version 11.
-- **Server**: the Docker inventory of a machine is read again when one of its containers started after it; the history of the agents health leaves out the machines that do not answer the ping.
+- **Server**: the agents table gains `update_offered` (added at start). The version check makes two anonymous requests to ghcr.io, only when a newer version is found.
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).

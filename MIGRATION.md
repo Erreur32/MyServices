@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.4 → 0.35.5
+
+**Nothing to do.** No setting or volume change. The database gains one column on the agents table (`update_offered`), added by itself at start. On the Agents page, the update of each agent now sits in its own column (Auto or Manual, and its state); the automatic update choice of each agent is kept as it was.
+
 ## 0.35.3 → 0.35.4
 
 **Nothing to do.** No setting, volume, agent or database change. A container recreated under the same name is now noticed at the next collection, and the command of a Linux agent says which boxes to tick.

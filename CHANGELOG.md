@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.5 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **Agents, update in words**: an « Update » column holds the choice Auto or Manual and the state: up to date, « vN at the next report », requested, not applied (two reports after the update was offered and still the old version), « when switched back on » for a machine off, or in manual the button « ⬆ vN ». The lone ⬆ icon, greyed once requested, and the automatic update icon are gone from the gestures; the machine page shows the same block. The top button « Update the late agents » counts and asks only the agents in manual whose machine answers. The « To update » tile and its history count the same agents.
 
