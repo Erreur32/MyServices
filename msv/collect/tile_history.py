@@ -114,10 +114,12 @@ def _followed(h: dict) -> bool:
     return not (h.get("paused") or h.get("machine_off") or h.get("stopped")) and bool(h.get("enabled"))
 
 
-def _proxied_warns(h: dict, p: dict, b: dict) -> bool:
+def _proxied_warns(h: dict, p: dict, b: dict) -> bool | None:
     """The warning of a service behind the proxy (the last rules of front lib/status.ts): none while its backend is down or answers an error."""
     if b.get("internal") or b.get("up") is False or (p.get("code") or 0) >= 500:
         return False
+    if p.get("dns_ok"):
+        return None   # the DNS answers, the probe lost its lookup: grey on the page, not tested this pass
     if p.get("err") == "RemoteDisconnected":
         return not h.get("closes_root")
     return bool(p.get("err"))

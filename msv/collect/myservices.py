@@ -384,7 +384,11 @@ def probe_https(domain):
             cert_ok = False
             code = _get(_opener_insecure, domain)
     except OSError as e:
-        return {"code": None, "err": type(getattr(e, "reason", e)).__name__}
+        reason = getattr(e, "reason", e)
+        out = {"code": None, "err": type(reason).__name__}
+        if isinstance(reason, socket.gaierror):
+            out["errno"] = reason.errno   # -2: the name is unknown, -3: no answer in time
+        return out
     return {"code": code, "ms": round((time.monotonic() - t) * 1000), "cert_ok": cert_ok}
 
 
@@ -660,6 +664,15 @@ def _name_answers(name, search, servers, asked):
         for s in servers:
             got.extend(asked.get((s, full)) or [])
     return got
+
+
+def mark_dns_ok(rows):
+    """A name the DNS servers of the page answer is no missing DNS when the probe could not resolve it: its lookup was lost this pass."""
+    for r in rows:
+        p = r.get("public") or {}
+        answers = ((r.get("dns") or {}).get("answers") or {}).get((r.get("domains") or [""])[0].lower()) or {}
+        if p.get("err") == "gaierror" and any(answers.values()):
+            p["dns_ok"] = True
 
 
 def dns_check(rows):
@@ -1446,6 +1459,7 @@ def main():
     adguard_sync_detect(dock)
     SYNC_LOGS.update((ip, agents.sync_log(agent_fresh.get(ip), c)) for ip, c in ADGUARD_SYNC.items())
     dns = dns_check(rows)   # AdGuard when wired, else the resolvers of the container
+    mark_dns_ok(rows)
 
     progress(8, "machines : SSH et écriture de data.json")
     sshc = hostinfo.ssh_config()

@@ -5,6 +5,8 @@ import type { AgentOptions } from "./lib/agentCommand";
 export interface Probe {
   code?: number;
   err?: string;
+  errno?: number;    // a failed name lookup: -2 the name is unknown, -3 no answer in time
+  dns_ok?: boolean;  // the lookup failed although the DNS servers of the page answer for this name
   ms?: number;
   cert_ok?: boolean;
 }

@@ -118,6 +118,10 @@ class ServicesWarn(unittest.TestCase):
         self.assertEqual(th.services_points({"hosts": self.HOSTS}), {th.SERVICES_UP: (7, 8), th.SERVICES_WARN: (4, 8), th.SERVICES_HEALTH: (38, 100)})
         self.assertEqual(th.services_points({"hosts": []}), {})
 
+    def test_a_lost_lookup_of_a_name_the_dns_answers_is_not_followed(self):
+        lost = {"type": "proxy", "enabled": True, "public": {"err": "gaierror", "dns_ok": True}, "backend": {"up": True}}
+        self.assertEqual(th.services_points({"hosts": self.HOSTS + [lost]}), th.services_points({"hosts": self.HOSTS}))
+
     def test_one_service_per_machine_whatever_its_ports(self):
         svc = lambda machine, port, up, name="anydesk": {"type": "local", "enabled": True, "machine": machine, "port": port, "backend": {"up": up}, "service": {"kind": "process", "name": name}}
         hosts = [svc("a", 7070, True), svc("a", 27461, False), svc("b", 7070, True), svc("a", 3000, True, "node"), svc("a", 3001, True, "node")]

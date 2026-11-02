@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+- **No false « DNS absent »**: when the HTTPS probe cannot resolve a name that the DNS servers of the page answer in the same collection, the service shows a grey « lookup failed » for that pass instead of an orange missing DNS, and is no point to fix. The probe also keeps the cause of a failed lookup (name unknown, or no answer in time), shown in the detail.
+
 ## v0.35.0 (2026-11-02)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
