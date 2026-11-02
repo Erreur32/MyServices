@@ -15,6 +15,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Home, last alerts sent** (administrator): the 5 last sends with the logo of their channel (Discord, Telegram, webhook), date, time and reason (first line of the message), a failed send in red with its cause, and a link to the whole list.
 
 ### Changed
+- **Home, a logical order**: right under « À traiter maintenant » come « Pour aller plus loin » and the discoveries to follow, so a new installation sees first what is left to plug in; both show only when they have something to propose. « Pour aller plus loin » no longer carries the MCP hint (it is in Settings, API and MCP). « Ton installation » closes the page, full width.
 - **Alert rules, one way to add a rule**: the Presets button is gone. « New rule » opens the form with a « Start from » row: an empty rule, or one of the ready models (not added yet), which ticks its events, its return to normal and its delay; read them, then Add. The rule is added on the channels ticked in the form.
 
 ## v0.35.1 (2026-11-02)

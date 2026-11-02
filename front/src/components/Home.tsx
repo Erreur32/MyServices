@@ -268,6 +268,8 @@ export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Reado
       <Hero snap={snap} items={items} now={now} />
       <KeyFigures snap={snap} go={go} />
       <ToDeal items={items} admin={admin} go={go} goFilter={goFilter} />
+      {admin && <Missing snap={snap} />}   {/* setting up: only what is still to plug in or to follow, nothing once all is done */}
+      {admin && <DiscoveryReminder machines={snap.data.machine_list} />}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <LastDay snap={snap} go={go} now={now} />
@@ -277,11 +279,7 @@ export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Reado
         </div>
       </div>
       <Counters snap={snap} go={go} goFilter={goFilter} />
-      <div className="grid items-start gap-5 lg:grid-cols-2">
-        <Install snap={snap} />
-        {admin && <Missing snap={snap} />}
-      </div>
-      {admin && <DiscoveryReminder machines={snap.data.machine_list} />}
+      <Install snap={snap} />
     </div>
   );
 }

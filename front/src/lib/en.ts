@@ -3754,7 +3754,6 @@ export const EN: Record<string, string> = {
   "outil": "tool",
   "outils": "tools",
   "Pour aller plus loin": "Going further",
-  "Ton assistant IA peut lire ton parc avec le serveur MCP de MyServices et répondre à « quelle sauvegarde est la plus ancienne ? ».": "Your AI assistant can read your fleet through the MyServices MCP server and answer “which backup is the oldest?”.",
   "Chiffres clés": "Key figures",
   "{0} éteinte(s) exprès": "{0} off on purpose",
   "sites et applis du parc": "sites and apps of the fleet",
