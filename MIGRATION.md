@@ -5,6 +5,12 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.5 → 0.35.6
+
+**Nothing to do for the update itself.** No setting, volume, agent or database change. The command of a Linux agent gains a « Read Docker » box (`MSV_DOCKER=1`): it puts the agent's account in the docker group, which is root-equivalent, and lets its service see `/home` read-only, where Docker volumes often live.
+
+**Optional, for the Web traffic page.** On a machine where Nginx Proxy Manager runs in Docker and the agent has its own account, open the machine page, Settings, Access, make a « New command » with « Read Docker » ticked, and run it on the machine. The agent then reads the containers and the access logs of NPM by itself.
+
 ## 0.35.4 → 0.35.5
 
 **Nothing to do.** No setting or volume change. The database gains one column on the agents table (`update_offered`), added by itself at start. On the Agents page, the update of each agent now sits in its own column (Auto or Manual, and its state); the automatic update choice of each agent is kept as it was.
