@@ -7,7 +7,7 @@ import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Count, Dim } from "../components/ui";
+import { Badge, Card, ChipButton, Count, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import type { AlertChannel, AlertRule, AlertsState, ChannelType } from "../types";
 import { tx } from "../lib/i18n";
@@ -193,21 +193,17 @@ export function ChannelForm({ channel, onDone, onCancel }: Readonly<{ channel?: 
 // ── Règles ──
 
 function Rules({ st, reload }: Readonly<{ st: AlertsState; reload: () => void }>) {
-  const [adding, setAdding] = useState(false), [presets, setPresets] = useState(false);
+  const [adding, setAdding] = useState(false);
   return (
     <Card>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-bold"><ListChecks size={16} aria-hidden />{tx("Règles")} <Count n={st.rules.length} /></h2>
-        <div className="flex gap-1.5">
-          <button type="button" className={quiet} onClick={() => setPresets(!presets)} aria-expanded={presets}>{tx("Préréglages")}</button>
-          {!adding && <button type="button" className={quiet} onClick={() => setAdding(true)} disabled={!st.channels.length}><Plus size={14} />{tx("Nouvelle règle")}</button>}
-        </div>
+        {!adding && <button type="button" className={quiet} onClick={() => setAdding(true)} disabled={!st.channels.length} title={st.channels.length ? undefined : tx("ajouter d'abord un canal")}><Plus size={14} />{tx("Nouvelle règle")}</button>}
       </div>
       <InfoNote className="mb-3">
         {tx("Une règle choisit les événements à prévenir et les canaux qui les reçoivent. Le délai évite de renvoyer la même alerte (même élément) trop souvent.")}
       </InfoNote>
-      {presets && <PresetPicker st={st} onDone={() => { setPresets(false); reload(); }} />}
-      {st.rules.length === 0 && !adding && <p className="text-sm text-muted">{tx("Aucune règle : partir des préréglages, ou en créer une.")}</p>}
+      {st.rules.length === 0 && !adding && <p className="text-sm text-muted">{tx("Aucune règle : « Nouvelle règle » propose des modèles prêts à relire.")}</p>}
       <ul className="flex flex-col gap-2">
         {st.rules.map((r) => <RuleRow key={r.id} r={r} st={st} reload={reload} />)}
       </ul>
@@ -273,8 +269,19 @@ function RuleForm({ st, rule, onDone, onCancel }: Readonly<{ st: AlertsState; ru
     if (ok) onDone();
   };
   const check = "h-4 w-4 accent-[rgb(var(--link))]";
+  const have = new Set(st.rules.map((x) => x.name)), models = rule ? [] : st.presets.filter((p) => !have.has(p.name));
   return (
     <form onSubmit={submit} className="mt-3 flex flex-col gap-4 rounded-xl border border-line bg-bg2/50 p-3">
+      {models.length > 0 && (   // a new rule starts empty or from a model, which only ticks the boxes below: read them, then Ajouter
+        <fieldset>
+          <legend className="mb-1.5 text-sm text-muted">{tx("Partir de")}</legend>
+          <div className="flex flex-wrap gap-1.5">
+            <ChipButton on={!r.kinds.length && !r.name} label={tx("Règle vide")} onClick={() => setR({ ...r, name: "", kinds: [] })} />
+            {models.map((p) => <ChipButton key={p.name} on={r.name === p.name} label={p.name} title={p.kinds.map((k) => kindLabel(st, k)).join(", ")}
+              onClick={() => setR({ ...r, name: p.name, kinds: p.kinds, resolved: p.resolved, cooldown_min: p.cooldown_min })} />)}
+          </div>
+        </fieldset>
+      )}
       <Field label={tx("Nom (facultatif)")}>
         <input className={input} maxLength={80} placeholder={tx("ex. Pannes NAS")} value={r.name} onChange={(e) => setR({ ...r, name: e.target.value })} />
       </Field>
@@ -328,30 +335,6 @@ function RuleForm({ st, rule, onDone, onCancel }: Readonly<{ st: AlertsState; ru
       </div>
       <NoteLine note={note} />
     </form>
-  );
-}
-
-function PresetPicker({ st, onDone }: Readonly<{ st: AlertsState; onDone: () => void }>) {
-  const have = new Set(st.rules.map((r) => r.name));
-  const [picked, setPicked] = useState<string[]>([]);
-  const [note, setNote] = useState<Note>(null);
-  return (
-    <div className="mb-3 rounded-xl border border-line bg-bg2/50 p-3">
-      <InfoNote className="mb-2">{tx("Règles courantes, ajoutées")} <b className="text-txt">{tx("désactivées")}</b> {tx("sur tous les canaux : les relire, puis les activer une par une.")}</InfoNote>
-      {st.presets.map((p) => (
-        <label key={p.name} className={`flex items-center gap-2 py-0.5 text-sm ${have.has(p.name) ? "text-dim" : ""}`}>
-          <input type="checkbox" className="h-4 w-4" disabled={have.has(p.name)} checked={picked.includes(p.name)}
-            onChange={() => setPicked(picked.includes(p.name) ? picked.filter((x) => x !== p.name) : [...picked, p.name])} />
-          {p.name} <Dim>· {p.kinds.map((k) => kindLabel(st, k)).join(", ")}{have.has(p.name) && tx(" · déjà ajoutée")}</Dim>
-        </label>
-      ))}
-      <button type="button" className={`${primary} mt-2`} disabled={!picked.length || !st.channels.length}
-        onClick={() => void act(() => send("POST", "alerts/presets", { names: picked }), `${picked.length} préréglage(s) ajouté(s), désactivés`, setNote).then((ok) => ok && onDone())}>
-        {tx("Ajouter")} {picked.length || ""}
-      </button>
-      {!st.channels.length && <span className="ml-2 text-xs text-dim">{tx("ajouter d'abord un canal")}</span>}
-      <NoteLine note={note} />
-    </div>
   );
 }
 
