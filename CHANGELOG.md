@@ -11,6 +11,21 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.4 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+- **Agent command, what to tick**: a note above the boxes of a Linux agent says to tick only sudo when in doubt, local DNS and backups only where they exist, borgmatic and Nginx Proxy Manager only on the machine that runs them (otherwise the install stops), and how to add Docker or disk health by hand.
+- **Agents, health in words**: the Health column shows the state as a word (Good, Reports late, Script out of date, Host to confirm, Waiting) instead of a bar out of 100; every cause stays in the pointer, sorting is unchanged.
+- **Agents, machine switched off**: a silent agent whose machine does not answer the ping shows « Machine switched off » (machine set often off) or « Offline » in grey, without the update arrow nor the to-do mark; the health average and its history leave it out. An agent answering in time keeps its health even when the ping is blocked.
+- **Agents, IP column**: the IP has its own column, aligned and sortable.
+- **Agent command, automatic update**: the note says that automatic update replaces only the agent's script, never the boxes or their rights: changing them needs a new command run on the machine.
+- **Agent command, which account**: the line above a Linux command says it runs as root or from an account with sudo, and that the sudo package is needed even as root.
+
+### Fixed
+- **A container updated in place is read again**: a container recreated under the same name (`docker compose pull` then `up -d`) started after the last Docker inventory, so its machine is read again at the next collection instead of keeping the old image and version for up to 2 hours. The version of the prod shown in the header of a development image follows by itself.
+
 ## v0.35.3 (2026-11-02)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

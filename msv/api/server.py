@@ -508,7 +508,7 @@ def keep_availability() -> None:
         "cadres Réseau": lambda: tile_history.sample_network(db, WEB / DATA_FILE),
         "cadres Sauvegardes": lambda: tile_history.sample_backups(db, WEB / BACKUPS_FILE),
         "cadres Services": lambda: tile_history.sample_services(db, WEB / DATA_FILE),
-        "cadres Agents": lambda: tile_history.sample_agents(db, agents.Agents(db).listing()),
+        "cadres Agents": lambda: tile_history.sample_agents(db, agents.Agents(db).listing(), down=tile_history.down_machines(WEB / DATA_FILE)),
         "cadres IA": lambda: tile_history.sample_ai(db, WEB / DATA_FILE, WEB / "health" / STATS_FILE),
         "cadres Virtualisation": lambda: tile_history.sample_virt(db, WEB / DATA_FILE, WEB / BACKUPS_FILE),
     }

@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -47,16 +48,29 @@ class States(unittest.TestCase):
         self.assertTrue(changed)
         self.assertEqual(docker_state.refresh_states(None, {"web": "Up"}), (None, False))
 
+    def test_uptime_from_the_status(self):
+        self.assertEqual([docker_state.uptime_s(s) for s in ("Up 5 minutes (healthy)", "Up About an hour", "Up About a minute", "Up Less than a second", "Up 2 days")],
+                         [300, 3600, 60, 0, 172800])
+        self.assertIsNone(docker_state.uptime_s("Exited (0) 3 hours ago"))
+        self.assertIsNone(docker_state.uptime_s("Created"))
+
+    def test_a_container_started_after_the_inventory_asks_for_a_new_one(self):
+        states, now = {"web": "Up 5 minutes", "pl_mail-php-1": "Up 3 days"}, 100_000.0
+        self.assertTrue(docker_state.refresh_states(CACHED, states, since=now - 3600, now=now)[1])   # recreated 5 min ago, inventory 1 h ago: its image may be new
+        self.assertFalse(docker_state.refresh_states(CACHED, {"web": "Up 2 hours", "pl_mail-php-1": "Up 3 days"}, since=now - 3600, now=now)[1])
+        self.assertFalse(docker_state.refresh_states(CACHED, states, now=now)[1])   # no inventory time: the roster only
+
 
 class CacheUpdate(unittest.TestCase):
     def test_status_written_and_machine_marked_stale_on_change(self):
         with tempfile.TemporaryDirectory() as t:
             path = os.path.join(t, "docker.json")
-            inventory_cache._write(path, {"ts": 1.0, "data": {"10.0.0.2": CACHED, "_internal": {}, "_hostinfo": {}}})
+            ts = time.time() - 60   # an inventory of a minute ago: the containers up for days started before it
+            inventory_cache._write(path, {"ts": ts, "data": {"10.0.0.2": CACHED, "_internal": {}, "_hostinfo": {}}})
             self.assertTrue(inventory_cache.update_states(path, "10.0.0.2", {"web": "Up 2 days (healthy)", "pl_mail-php-1": "Created"}))
             cache = json.loads(Path(path).read_text())
             self.assertEqual(cache["data"]["10.0.0.2"][1]["status"], "Created")
-            self.assertEqual((cache["ts"], cache.get("stale", [])), (1.0, []))
+            self.assertEqual((cache["ts"], cache.get("stale", [])), (ts, []))
             self.assertTrue(inventory_cache.update_states(path, "10.0.0.2", docker_state.parse_states(PS)))
             self.assertEqual(json.loads(Path(path).read_text())["stale"], ["10.0.0.2"])
             self.assertFalse(inventory_cache.update_states(path, "10.0.0.9", {"x": "Up"}))   # machine not in the cache

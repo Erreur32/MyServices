@@ -302,23 +302,35 @@ def agent_health(a: dict) -> int | None:
     return (50 if a.get("state") == "actif" else 0) + (0 if a.get("outdated") else 30) + (0 if a.get("host_pending") else 20)
 
 
-def agents_points(agents: list[dict]) -> dict[str, tuple[int, int]]:
+def agents_points(agents: list[dict], down: frozenset[str] = frozenset()) -> dict[str, tuple[int, int]]:
     """{key: (value, total)} of the Agents tiles, counted like the page: the agents not revoked; « running » is the ones answering in time, « late »
-    the ones with an older script that no update was asked for yet (as the value of its key the ones that are not, so a strip counts the late ones)."""
+    the ones with an older script that no update was asked for yet (as the value of its key the ones that are not, so a strip counts the late ones).
+    The health leaves out a silent agent whose machine does not answer the ping (`down`, front lib/accessLists.ts agentDown): it is switched off."""
     live = [a for a in agents if a.get("state") != "révoqué"]
     if not live:
         return {}
     n = len(live)
     late = sum(1 for a in live if a.get("outdated") and not a.get("update_requested"))
-    scores = [agent_health(a) or 0 for a in live]
-    return {AGENTS_RUNNING: (sum(1 for a in live if a.get("state") == "actif"), n), AGENTS_LATE: (n - late, n),
-            AGENTS_HEALTH: (round(sum(scores) / n), 100)}
+    scores = [agent_health(a) or 0 for a in live if not (a.get("state") == "silencieux" and a.get("ip") in down)]
+    out = {AGENTS_RUNNING: (sum(1 for a in live if a.get("state") == "actif"), n), AGENTS_LATE: (n - late, n)}
+    if scores:
+        out[AGENTS_HEALTH] = (round(sum(scores) / len(scores)), 100)
+    return out
 
 
-def sample_agents(db_path: str | Path, agents: list[dict], now: float | None = None) -> int:
+def down_machines(data_file: str | Path) -> frozenset[str]:
+    """The IPs of the machines that did not answer the last ping (data.json, machine_list)."""
+    try:
+        machines = json.loads(Path(data_file).read_text(encoding="utf-8")).get("machine_list") or []
+    except (OSError, ValueError):
+        return frozenset()
+    return frozenset(m["ip"] for m in machines if isinstance(m, dict) and m.get("ping") is False and isinstance(m.get("ip"), str))
+
+
+def sample_agents(db_path: str | Path, agents: list[dict], now: float | None = None, down: frozenset[str] = frozenset()) -> int:
     """The state of the agents as of now, one point per key at each collection."""
     now = now or time.time()
-    return sum(store(db_path, key, (int(now), *vt), now) for key, vt in agents_points(agents).items())
+    return sum(store(db_path, key, (int(now), *vt), now) for key, vt in agents_points(agents, down).items())
 
 
 def _mean(values: list[float]) -> int | None:

@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.3 → 0.35.4
+
+**Nothing to do.** No setting, volume, agent or database change. A container recreated under the same name is now noticed at the next collection, and the command of a Linux agent says which boxes to tick.
+
 ## 0.35.2 → 0.35.3
 
 **Nothing to do.** No setting, volume, agent or database change. The home page now tells notifications that are not set, switched off, or without an active rule.

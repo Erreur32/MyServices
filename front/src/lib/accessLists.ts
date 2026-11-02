@@ -65,6 +65,14 @@ export function sshRows(machines: Record<string, MachineConf>, aliases: SshAlias
 export const agentNews = (a: AgentInfo): string | undefined =>
   a.kind === "linux" && a.outdated && Number(a.version) < 5 ? tx("La version 5 ajoute la liste des services en marche : mise à jour depuis cette page, rien à lancer sur la machine.") : undefined;
 
+/** A silent agent whose machine does not answer the ping: the machine is switched off, the agent is not at fault. « off » when the machine is set
+ *  « often off », « offline » otherwise; null when the agent answers (even with the ping blocked) or the machine is unknown. Same rule as the
+ *  server's tile_history.agents_points. */
+export function agentDown(a: AgentInfo, m?: Pick<Machine, "ping" | "off">): "off" | "offline" | null {
+  if (a.state !== "silencieux" || m?.ping !== false) return null;
+  return m.off ? "off" : "offline";
+}
+
 /** Health of an agent out of 100, in three parts (the same rule as the server's tile_history.agent_health): 50 answering in time, 30 script up to
  *  date, 20 machine recognized. `why` names what is missing; null for a revoked agent. */
 export function agentHealth(a: AgentInfo): { score: number; why: string[] } | null {

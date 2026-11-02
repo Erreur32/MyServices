@@ -146,6 +146,24 @@ class AgentsPoints(unittest.TestCase):
         self.assertEqual(th.agents_points(self.AGENTS), {th.AGENTS_RUNNING: (3, 5), th.AGENTS_LATE: (4, 5), th.AGENTS_HEALTH: (round((100 + 70 + 70 + 50 + 0) / 5), 100)})
         self.assertEqual(th.agents_points([{"state": "révoqué"}]), {})
 
+    def test_switched_off_machine_left_out_of_health(self):
+        # a silent agent whose machine does not answer the ping is switched off: out of the health, still counted as not running
+        agents = [{"state": "actif", "ip": "10.0.0.1"}, {"state": "silencieux", "ip": "10.0.0.2"}, {"state": "silencieux", "ip": "10.0.0.3"}]
+        got = th.agents_points(agents, frozenset({"10.0.0.2"}))
+        self.assertEqual(got[th.AGENTS_HEALTH], (round((100 + 50) / 2), 100))
+        self.assertEqual(got[th.AGENTS_RUNNING], (1, 3))
+        # an agent answering in time keeps its health even if the ping fails (ping blocked on that machine)
+        self.assertEqual(th.agents_points([{"state": "actif", "ip": "10.0.0.1"}], frozenset({"10.0.0.1"}))[th.AGENTS_HEALTH], (100, 100))
+        # every agent switched off: no health point rather than a false 0
+        self.assertNotIn(th.AGENTS_HEALTH, th.agents_points([{"state": "silencieux", "ip": "10.0.0.2"}], frozenset({"10.0.0.2"})))
+
+    def test_down_machines_from_data_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "data.json"
+            f.write_text(json.dumps({"machine_list": [{"ip": "10.0.0.1", "ping": True}, {"ip": "10.0.0.2", "ping": False}, {"ip": "10.0.0.3"}]}), encoding="utf-8")
+            self.assertEqual(th.down_machines(f), frozenset({"10.0.0.2"}))
+            self.assertEqual(th.down_machines(Path(tmp) / "missing.json"), frozenset())
+
     def test_sampled_once_per_gap(self):
         with tempfile.TemporaryDirectory() as tmp:
             db = Path(tmp) / "t.db"

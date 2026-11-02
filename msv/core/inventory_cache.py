@@ -70,7 +70,8 @@ def refresh(path: str, ttl: float, read, force: bool | set = False) -> dict:
 
 def update_states(path: str, ip: str, states: dict[str, str]) -> bool:
     """The status of each container of `ip` refreshed in the cache from a `docker ps -a` read elsewhere (the health pass), the
-    inventory itself untouched; a container that appeared or disappeared marks the machine « stale ». False: nothing cached."""
+    inventory itself untouched; a container that appeared, disappeared or started since the inventory marks the machine « stale ».
+    False: nothing cached."""
     try:
         with open(path) as f:
             cache = json.load(f)
@@ -79,7 +80,7 @@ def update_states(path: str, ip: str, states: dict[str, str]) -> bool:
     data = cache.get("data") if isinstance(cache.get("data"), dict) else None
     if not data or not isinstance(data.get(ip), list):
         return False
-    data[ip], changed = docker_state.refresh_states(data[ip], states)
+    data[ip], changed = docker_state.refresh_states(data[ip], states, since=cache.get("ts"))
     if changed:
         cache["stale"] = sorted({*cache.get("stale", []), ip})
     _write(path, cache)

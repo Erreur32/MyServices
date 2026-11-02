@@ -115,7 +115,7 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
         </div>
         {!folded && <div className="mt-2">
           <p className="mb-2 text-sm text-warn">{tx("À copier maintenant : le jeton qu'elle contient ne sera plus jamais affiché.")}</p>
-          <InfoNote className="mb-2">{created.info.kind === "linux" ? tx("Sur la machine, ouvrez un terminal (compte avec sudo) et collez :") : tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</InfoNote>
+          <InfoNote className="mb-2">{created.info.kind === "linux" ? tx("Sur la machine, ouvrez un terminal en root ou avec un compte qui a sudo, et collez la commande. Elle passe par sudo dans les deux cas : en root aussi, le paquet sudo doit être installé (apt install sudo).") : tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</InfoNote>
           {created.info.kind === "linux" && <AgentLinuxOptions value={options} onChange={setOptions} />}
           {command ? <Copyable key={command} text={command} />
             : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la ci-dessous, la commande se met à jour.")}</p>}

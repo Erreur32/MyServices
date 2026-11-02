@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentHealth, agentNews, agentSummary, sshNeed, sshRows, sshTarget } from "./accessLists";
+import { agentDown, agentHealth, agentNews, agentSummary, sshNeed, sshRows, sshTarget } from "./accessLists";
 import type { AgentInfo, Connector, Machine, MachineConf, SshAlias } from "../types";
 
 const agent = (id: number, name: string, state: AgentInfo["state"], more: Partial<AgentInfo> = {}): AgentInfo => ({
@@ -31,6 +31,19 @@ describe("agentNews", () => {
     expect(agentNews(base)).toContain("version 5");
     expect(agentNews({ ...base, version: "5", outdated: false })).toBeUndefined();
     expect(agentNews({ ...base, version: "8", kind: "windows" })).toBeUndefined();
+  });
+});
+
+describe("agentDown", () => {
+  it("un agent silencieux dont la machine ne répond pas : éteinte si réglée souvent éteinte, sinon hors ligne", () => {
+    expect(agentDown(agent(1, "a", "silencieux"), { ping: false, off: true })).toBe("off");
+    expect(agentDown(agent(2, "b", "silencieux"), { ping: false, off: false })).toBe("offline");
+  });
+  it("rien si l'agent répond (ping bloqué), si la machine répond ou si elle est inconnue", () => {
+    expect(agentDown(agent(1, "a", "actif"), { ping: false, off: false })).toBeNull();
+    expect(agentDown(agent(2, "b", "silencieux"), { ping: true, off: true })).toBeNull();
+    expect(agentDown(agent(3, "c", "silencieux"))).toBeNull();
+    expect(agentDown(agent(4, "d", "en attente"), { ping: false, off: false })).toBeNull();
   });
 });
 
