@@ -204,8 +204,11 @@ class Tapo(Connector):
             if any(w in e.lower() for e in errors for w in AUTH_WORDS):
                 raise ConnectorError("Tapo refuse ce compte : e-mail ou mot de passe à vérifier")
             raise ConnectorError(f"aucun appareil lisible ({errors[0]})" if errors else "aucun appareil Tapo trouvé : l'adresse de recherche est-elle la bonne ?")
-        out = self._summary(devices + unread, errors)
         accounts = self._accounts()
+        for d in unread:   # the discovery may not name a camera (seen on C310): one given a camera account is a camera
+            if d["kind"] == "other" and d["ip"] in accounts:
+                d["kind"] = "camera"
+        out = self._summary(devices + unread, errors)
         cams = [d for d in out["devices"] if d["kind"] == "camera" and d.get("ip") in accounts]
         if cams:
             out["stream"] = {"role": "nvr", "engine": "Tapo", "cameras": [{**camera(d["name"], up=d["online"]), "ip": d["ip"]} for d in cams], "snapshot": True}
