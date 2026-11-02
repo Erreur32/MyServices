@@ -214,6 +214,7 @@ ok "Agent installed in $DIR"
 
 NNP="NoNewPrivileges=true"
 PROTECT_HOME=true
+[[ "${MSV_DOCKER:-}" = 1 ]] && PROTECT_HOME=read-only   # Docker volumes (the logs of Nginx Proxy Manager) often live under /home
 WRITABLE="$DIR"
 RULES=()
 if [[ "${MSV_SMART:-}" = 1 ]]; then
