@@ -218,8 +218,10 @@ export function WebTraffic({ machines, hosts }: Readonly<{ machines: WebMachine[
         <StatTile n={int(scrapers)} label={tx("IP d'aspiration diffuse")} tone={scrapers ? "warn" : undefined} />
       </div>
       {machines.map((m) => <MachinePanel key={m.id} m={m} hostOf={hostOf} />)}
-      <TopIps machines={machines} hostOf={hostOf} />
-      <Limits />
+      <div className="grid items-start gap-4 xl:grid-cols-2">   {/* side by side on a wide screen */}
+        <TopIps machines={machines} hostOf={hostOf} />
+        <Limits />
+      </div>
       <p className="flex items-center gap-1.5 text-xs text-dim"><Globe size={12} aria-hidden />{tx("Lu dans les journaux de Nginx Proxy Manager de chaque machine, par son agent ou par SSH, toutes les 10 à 15 min.")}</p>
     </div>
   );
