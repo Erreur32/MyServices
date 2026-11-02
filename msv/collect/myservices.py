@@ -718,7 +718,8 @@ def dns_check(rows):
     for r in npm_rows:
         if not r["enabled"]:
             continue
-        private = r.get("lan_only") and not r.get("public_ok")
+        # behind Cloudflare with the visitor's address taken back (CF-Connecting-IP), its access list filters real addresses: public by design
+        private = r.get("lan_only") and not r.get("public_ok") and not r.get("cloudflare")
         per, issues = {}, []
         for d in (x.lower() for x in r["domains"]):
             a = {s: ans[(s, d)] for s in servers}

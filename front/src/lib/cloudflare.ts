@@ -105,7 +105,7 @@ function proxiedTrouble(z: CloudflareZone, h: Host): [CheckTone, string][] {
   if (!h.enabled) out.push(["bad", tx("hôte coupé alors que Cloudflare lui envoie le trafic")]);
   if ((ssl === "flexible" || ssl === "off") && h.ssl_forced) out.push(["bad", tx("boucle de redirection : Cloudflare arrive en http et l'hôte force HTTPS")]);
   if ((ssl === "full" || ssl === "strict") && h.npm && h.ssl === false) out.push(["bad", tx("SSL {0} sur Cloudflare, mais aucun certificat sur l'hôte", String(ssl))]);
-  if (h.lan_only) out.push(["warn", tx("hôte réservé au réseau local : derrière Cloudflare, il voit les adresses de Cloudflare")]);
+  if (h.lan_only && !h.cloudflare) out.push(["warn", tx("hôte réservé au réseau local : derrière Cloudflare, il voit les adresses de Cloudflare")]);   // with CF-Connecting-IP its list sees the real ones
   if (h.npm && h.cloudflare === false) out.push(["warn", tx("vraie adresse des visiteurs non reprise (CF-Connecting-IP) : journaux et fail2ban voient Cloudflare")]);
   return out;
 }

@@ -37,8 +37,10 @@ describe("DNS comparison", () => {
     expect(find(dnsCompare(g(), [host(["blog.maison.fr"], "home", [], down)], machines, zones, []), "blog.maison.fr").tone).toBe("bad");
   });
   it("a host kept for the LAN but proxied by Cloudflare asks for a look", () => {
-    const rows = dnsCompare(g(), [host(["blog.maison.fr"], "home", [], { lan_only: true })], machines, zones, []);
+    const rows = dnsCompare(g(), [host(["blog.maison.fr"], "home", [], { lan_only: true, cloudflare: false })], machines, zones, []);
     expect(isAlert(find(rows, "blog.maison.fr"))).toBe(true);
+    const real = dnsCompare(g(), [host(["blog.maison.fr"], "home", [], { lan_only: true })], machines, zones, []);
+    expect(isAlert(find(real, "blog.maison.fr"))).toBe(false);   // CF-Connecting-IP taken back: its access list sees the visitors
   });
   it("a Cloudflare record without an active host gets its own row", () => {
     const rows = dnsCompare(g(), [], machines, zones, []);
