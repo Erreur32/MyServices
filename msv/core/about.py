@@ -88,14 +88,14 @@ def image_ready(tag: str, opener=urllib.request.urlopen) -> bool:
     found » says no; ghcr.io unreachable says yes, so a release is never hidden."""
     try:
         got = _get(f"https://ghcr.io/token?scope=repository:{IMAGE}:pull", opener)
-        token = got["token"] if isinstance(got, dict) else ""
+        token = str(got.get("token") or "") if isinstance(got, dict) else ""
         req = urllib.request.Request(f"https://ghcr.io/v2/{IMAGE}/manifests/{tag.lstrip('v')}", method="HEAD",
                                      headers={"Authorization": f"Bearer {token}", "Accept": MANIFESTS, "User-Agent": "myservices-update-check"})
         with opener(req, timeout=8):
             return True
     except urllib.error.HTTPError as e:
         return e.code != 404
-    except (OSError, ValueError, KeyError):
+    except (OSError, ValueError):
         return True
 
 

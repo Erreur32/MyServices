@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from msv.core import about  # noqa: E402
@@ -137,9 +138,10 @@ class Latest(unittest.TestCase):
             def __call__(self, req, timeout=0):
                 self.calls += 1
                 url = req.full_url
-                if "ghcr.io/token" in url:
+                parts = urlsplit(url)
+                if parts.hostname == "ghcr.io" and parts.path == "/token":
                     return io.BytesIO(b'{"token": "anonymous"}')
-                if "/manifests/" in url:
+                if parts.hostname == "ghcr.io" and "/manifests/" in parts.path:
                     self.asked = (url.rsplit("/", 1)[1], req.get_method())
                     if not self.ready:
                         raise urllib.error.HTTPError(url, 404, "not found", {}, None)
@@ -161,7 +163,7 @@ class Latest(unittest.TestCase):
     def test_ghcr_unreachable_never_hides_a_release(self):
         class Down(Fake):
             def __call__(self, req, timeout=0):
-                if "ghcr.io" in req.full_url:
+                if urlsplit(req.full_url).hostname == "ghcr.io":
                     raise OSError("ghcr.io hors ligne")
                 return super().__call__(req, timeout)
         r = about.latest(self.d, opener=Down(), now=1000.0, current="v0.9.3")
