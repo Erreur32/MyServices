@@ -68,6 +68,91 @@ def sample(db_path: str | Path, stats_file: Path, now: float | None = None) -> i
     return store(db_path, HEALTH, pt, now) if pt else 0
 
 
+FAIL2BAN = "fail2ban."   # + machine id: IP banned now by the Fail2ban of that machine (agent or SSH), out of its jails
+RISE_MIN, RISE_FACTOR = 10, 3   # a machine's Fail2ban « goes up »: at least this many IP banned now AND this many times its usual level
+
+
+def fail2ban_read(h: dict) -> dict | None:
+    """The Fail2ban of a machine of stats.json when it was read this pass (allowed and answering), else None."""
+    f = (h.get("system") or {}).get("fail2ban") if isinstance(h, dict) else None
+    return f if isinstance(f, dict) and f.get("available") and f.get("access") and not f.get("down") else None
+
+
+def fail2ban_points(stats: dict) -> dict[str, tuple[int, int]]:
+    """{key: (IP banned now, jails)} of each machine whose Fail2ban was read."""
+    return {FAIL2BAN + str(h["id"]): (int(f.get("total") or 0), len(f.get("jails") or []))
+            for h in stats.get("hosts") or [] if (f := fail2ban_read(h)) and h.get("id") is not None}
+
+
+def sample_fail2ban(db_path: str | Path, stats_file: Path, now: float | None = None) -> int:
+    """One point per machine whose Fail2ban was read in stats_file; how many were added."""
+    try:
+        stats = json.loads(stats_file.read_text(encoding="utf-8"))
+        ts = int(datetime.fromisoformat(str(stats.get("timestamp"))).timestamp())
+    except (OSError, ValueError):
+        return 0
+    return sum(store(db_path, key, (ts, *vt), now) for key, vt in fail2ban_points(stats).items())
+
+
+def fail2ban_trend(db_path: str | Path, machine_id: str, banned: int, now: float | None = None) -> dict:
+    """The peak of the last 24 h (now included), the usual level (mean of the six days before, None until there are some) and whether it goes up."""
+    now = now or time.time()
+    pts = series(db_path, FAIL2BAN + str(machine_id), 168, now)
+    day = [v for ts, v, _ in pts if ts >= now - 86400]
+    before = [v for ts, v, _ in pts if ts < now - 86400]
+    usual = round(sum(before) / len(before), 1) if before else None
+    rising = usual is not None and banned >= RISE_MIN and banned >= RISE_FACTOR * max(1.0, usual)
+    return {"peak": max([*day, banned]), "usual": usual, "rising": rising}
+
+
+WEB = "web."   # + machine id, then « |site » for one site: requests of one complete hour of its NPM logs (value) and their 5xx (total)
+PEAK_MIN, PEAK_FACTOR = 1000, 3        # web peak: at least this many requests in an hour AND this many times the usual hour
+DIFFUSE_SHARE, DIFFUSE_IPS = 0.4, 30   # diffuse scraping: this share of a site's requests from at least this many addresses under the Fail2ban limits
+ERR_SHARE, ERR_MIN = 0.05, 50          # 5xx: this share of at least this many requests in the last 10 minutes
+USUAL_MIN = 6                          # hours of history before a usual level is given
+
+
+def _site_flags(s: dict, usual: int | None) -> None:
+    """A site's usual hour, its total of the day, and whether it is scraped (diffuse) or answers 5xx (errors)."""
+    reqs = sum(n for _, n, _ in s.get("h") or [])
+    s["usual"], s["total"] = usual, reqs
+    s["diffuse"] = s.get("dip", 0) >= DIFFUSE_IPS and s.get("dreq", 0) >= DIFFUSE_SHARE * reqs
+    m10 = s.get("m10") or [0, 0]
+    s["errors"] = m10[0] >= ERR_MIN and m10[1] >= ERR_SHARE * m10[0]
+
+
+def web_trend(db_path: str | Path, machine_id: str, web: dict, now: float | None = None) -> None:
+    """Keeps each complete hour of the machine and of each site, then sets on `web` and its sites: the usual hour (mean of the stored hours of the
+    7 days before the last complete one), the last complete hour and the current one so far, and the flags rising, diffuse and errors."""
+    now = now or time.time()
+    base, done = WEB + str(machine_id), int(web.get("at") or now) // 3600 * 3600   # hours before `done` are complete
+    rows, total = [], {}
+    for site, s in web.get("sites", {}).items():
+        for ts, n, e in s.get("h") or []:
+            total.setdefault(ts, [0, 0])
+            total[ts][0] += n
+            total[ts][1] += e
+            if ts < done:
+                rows.append((f"{base}|{site}", ts, n, e))
+    rows += [(base, ts, n, e) for ts, (n, e) in total.items() if ts < done]
+    with _db(db_path) as db:
+        db.execute("DELETE FROM tile_samples WHERE ts < ?", (int(now - KEEP_S),))
+        db.executemany("INSERT OR REPLACE INTO tile_samples (key, ts, value, total) VALUES (?, ?, ?, ?)", rows)
+        usual = {k: (avg, n) for k, avg, n in db.execute(
+            "SELECT key, AVG(value), COUNT(*) FROM tile_samples WHERE substr(key, 1, ?) = ? AND ts >= ? AND ts < ? GROUP BY key",
+            (len(base), base, int(now - KEEP_S), done - 3600))}
+
+    def level(key):
+        avg, n = usual.get(key, (None, 0))
+        return round(avg) if n >= USUAL_MIN else None
+
+    for site, s in web.get("sites", {}).items():
+        _site_flags(s, level(f"{base}|{site}"))
+    web["usual"], web["last"], web["now"] = level(base), total.get(done - 3600, [0])[0], total.get(done, [0])[0]
+    worst = max(web["last"], web["now"])
+    web["rising"] = web["usual"] is not None and worst >= PEAK_MIN and worst >= PEAK_FACTOR * web["usual"]
+
+
 def _gear_up(g: dict) -> bool:
     if g.get("online") is not None:
         return bool(g["online"])
@@ -114,10 +199,12 @@ def _followed(h: dict) -> bool:
     return not (h.get("paused") or h.get("machine_off") or h.get("stopped")) and bool(h.get("enabled"))
 
 
-def _proxied_warns(h: dict, p: dict, b: dict) -> bool:
+def _proxied_warns(h: dict, p: dict, b: dict) -> bool | None:
     """The warning of a service behind the proxy (the last rules of front lib/status.ts): none while its backend is down or answers an error."""
     if b.get("internal") or b.get("up") is False or (p.get("code") or 0) >= 500:
         return False
+    if p.get("dns_ok"):
+        return None   # the DNS answers, the probe lost its lookup: grey on the page, not tested this pass
     if p.get("err") == "RemoteDisconnected":
         return not h.get("closes_root")
     return bool(p.get("err"))

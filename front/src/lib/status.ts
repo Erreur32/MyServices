@@ -31,6 +31,9 @@ function httpLabel(c: number): string {
   return c < 300 ? "OK" : c < 400 ? tx("OK · redirige") : c === 401 || c === 403 ? tx("OK · protégé") : c === 404 ? "OK · 404" : tx("OK · {0}", c);
 }
 
+/** Why a name did not resolve, from the errno of the probe (-3: no answer in time, -2: unknown name) */
+const DNS_CAUSE: Record<number, string> = { [-3]: tx(" (pas de réponse du DNS à temps)"), [-2]: tx(" (nom inconnu du DNS)") };
+
 /** [classe, libellé court, explication] */
 export function status(r: Host): [StatusClass, string, string] {
   const p = r.public || {}, b = r.backend || {};
@@ -57,7 +60,11 @@ export function status(r: Host): [StatusClass, string, string] {
     : ["bad", p.code ? `HTTP ${p.code}` : "erreur", tx("backend interne docker (joignable seulement par NPM)")];
   if (b.up === false) return ["bad", tx("backend down"), tx("{0}:{1} injoignable ({2})", r.ip, r.port, b.err || "?")];
   if ((p.code ?? 0) >= 500) return ["bad", `erreur ${p.code}`, p.code === 502 ? tx("HTTP 502 : NPM ne joint pas le backend") : tx("HTTP {0} : erreur serveur", p.code)];
-  if (p.err === "gaierror") return ["warn", tx("DNS absent"), tx("le domaine ne résout pas (aucun enregistrement DNS)")];
+  if (p.err === "gaierror") {
+    const cause = DNS_CAUSE[p.errno ?? 0] ?? "";
+    return p.dns_ok ? ["off", tx("résolution ratée"), tx("les serveurs DNS répondent pour ce nom, la sonde ne l'a pas résolu à ce passage · non testé") + cause]
+      : ["warn", tx("DNS absent"), tx("le domaine ne résout pas (aucun enregistrement DNS)") + cause];
+  }
   if (p.err === "RemoteDisconnected") return r.closes_root ? ["ok", tx("OK · fermé"), tx("NPM ferme / sans répondre (return 444 voulu)")]
     : ["warn", tx("connexion coupée"), tx("certificat valide, mais NPM ferme la connexion sans réponse HTTP")];
   if (p.err) return ["warn", tx("certificat"), tx("HTTPS refusé par NPM pour ce nom ({0}) : certificat absent ou invalide", p.err)];
@@ -92,7 +99,7 @@ export function checks(r: Host): Check[] {
   if (r.paused) return ["pause"];
   if (r.machine_off || r.stopped) return [];
   if (status(r)[0] === "bad") c.push("down");
-  if (p.err === "gaierror") c.push("dns");
+  if (p.err === "gaierror") { if (!p.dns_ok) c.push("dns"); }
   else if (p.err === "RemoteDisconnected") { if (!r.closes_root) c.push("closed"); }
   else if (p.err) c.push("tls");
   const di = new Set((r.dns?.issues || []).map((x) => x[0]));

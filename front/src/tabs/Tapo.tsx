@@ -4,6 +4,9 @@ import { useState } from "react";
 import { ROOT, type Snapshot } from "../api";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { StatTile } from "../components/StatTile";
+import { SortTh } from "../components/ui";
+import { useSort } from "../lib/filter";
+import { ipNum } from "../lib/format";
 import { appIcon } from "../lib/appIcons";
 import { linePath, scaleOf } from "../lib/domotique";
 import { LOCALE, tx } from "../lib/i18n";
@@ -137,9 +140,18 @@ function Banner({ snap, devices, engine }: Readonly<{ snap: Snapshot; devices: n
 
 const TH = "bg-bg2 px-3 py-2 text-left text-[11px] font-semibold text-muted";
 
+const tapoKey = (d: TapoDevice, k: string): string | number => {
+  if (k === "ip") return d.ip ? ipNum(d.ip) : -1;
+  if (k === "rssi") return d.rssi ?? -999;
+  if (k === "online") return d.online ? 1 : 0;
+  return String(d[k as "name" | "model" | "fw"] ?? "").toLowerCase();
+};
+
 export function Tapo({ snap }: Readonly<{ snap: Snapshot }>) {
   const s = tapoSummary(snap)!, g = tapoGroups(snap), online = g.all.filter((d) => d.online).length;
   const engine = g.cameras.map((d) => recorderAt(snap, d.ip)?.engine).find(Boolean);
+  const { sorted: devices, ...sort } = useSort(g.all, tapoKey, "");
+  const th = (k: string, label: string) => <SortTh k={k} sort={sort} className={TH}>{label}</SortTh>;
   return (
     <div className="flex flex-col gap-5 py-4">
       <PageHead icon={Plug} logo={appIcon(["tapo"])} title="Tapo" tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink types={["tapo"]} /> : undefined} />
@@ -185,9 +197,9 @@ export function Tapo({ snap }: Readonly<{ snap: Snapshot }>) {
           <div className={HEAD}><h2 className="text-sm font-bold">{tx("Tous les appareils")}</h2><span className="text-xs text-muted">{tx("{0} trouvés", g.all.length)}</span></div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-[12.5px]">
-              <thead><tr><th className={TH}>{tx("Nom")}</th><th className={TH}>{tx("Modèle")}</th><th className={TH}>{tx("Adresse")}</th><th className={TH}>{tx("Wi-Fi")}</th><th className={TH}>{tx("Firmware")}</th><th className={TH}>{tx("État")}</th></tr></thead>
+              <thead><tr>{th("name", tx("Nom"))}{th("model", tx("Modèle"))}{th("ip", tx("Adresse"))}{th("rssi", tx("Wi-Fi"))}{th("fw", tx("Firmware"))}{th("online", tx("État"))}</tr></thead>
               <tbody>
-                {g.all.map((d) => (
+                {devices.map((d) => (
                   <tr key={d.id} className="border-t border-line even:bg-bg2/60">
                     <td className="whitespace-nowrap px-3 py-2">{d.name}</td><td className="whitespace-nowrap px-3 py-2">{d.model}</td>
                     <td className="whitespace-nowrap px-3 py-2 font-mono">{d.ip || "-"}</td><td className="whitespace-nowrap px-3 py-2">{d.rssi != null ? `${d.rssi} dBm` : "-"}</td>

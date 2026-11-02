@@ -6,7 +6,8 @@ import { FoldPanel } from "../components/FoldPanel";
 import { StatTile } from "../components/StatTile";
 import { TableCard } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
-import { deviceRows, house, openCount, type HouseTone } from "../lib/domotique";
+import { deviceRows, house, openCount, type DeviceRow, type HouseTone } from "../lib/domotique";
+import { useSort } from "../lib/filter";
 import { tapoSummary } from "../lib/tapo";
 import { tx } from "../lib/i18n";
 
@@ -29,8 +30,11 @@ function BrandCard({ href, name, color, figures, note }: Readonly<{ href: string
   );
 }
 
+const deviceKey = (r: DeviceRow, k: string): string | number => (k === "battery" ? r.battery ?? -1 : String(r[k as "name" | "brand" | "kind" | "room" | "state"]).toLowerCase());
+
 export function DomotiqueOverview({ snap }: Readonly<{ snap: Snapshot }>) {
-  const h = house(snap), tapo = tapoSummary(snap), rows = deviceRows(snap);
+  const h = house(snap), tapo = tapoSummary(snap);
+  const { sorted: rows, ...sort } = useSort(deviceRows(snap), deviceKey, "");
   return (
     <div className="flex flex-col gap-5 py-4">
       <PageHead icon={Home} title={tx("Domotique")} tags={null} actions={snap.me.role === "admin" ? <ConnectorsLink category="Domotique" /> : undefined} />
@@ -63,8 +67,8 @@ export function DomotiqueOverview({ snap }: Readonly<{ snap: Snapshot }>) {
           ]} note={tapo.offline.length ? tx("Hors ligne : {0}", tapo.offline.join(", ")) : undefined} />
         )}
       </div>
-      <TableCard zebra foldable folded title={tx("Tous les appareils")} tone="info" count={rows.length}
-        cols={[{ label: tx("Appareil") }, { label: tx("Marque") }, { label: tx("Type") }, { label: tx("Pièce") }, { label: tx("État") }, { label: tx("Pile"), className: "text-right" }]}
+      <TableCard zebra foldable folded title={tx("Tous les appareils")} tone="info" count={rows.length} sort={sort}
+        cols={[{ label: tx("Appareil"), k: "name" }, { label: tx("Marque"), k: "brand" }, { label: tx("Type"), k: "kind" }, { label: tx("Pièce"), k: "room" }, { label: tx("État"), k: "state" }, { label: tx("Pile"), k: "battery", className: "text-right" }]}
         rows={rows.map((r) => [
           <b key="n" className="font-semibold">{r.name}</b>,
           <span key="b" className="inline-flex items-center gap-1.5">{appIcon([r.brand]) && <img src={appIcon([r.brand]) ?? ""} alt="" className="size-4" />}{r.brand}</span>,

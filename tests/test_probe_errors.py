@@ -1,5 +1,6 @@
 """A service that does not answer gives a plain result, whatever the failure: urllib wraps most of them in URLError, an OSError."""
 import http.client
+import socket
 import sys
 import unittest
 import urllib.error
@@ -27,6 +28,19 @@ class ProbeErrors(unittest.TestCase):
     def test_https_gives_a_plain_network_error(self):
         with mock.patch.object(myservices, "_get", side_effect=TimeoutError()):
             self.assertEqual(myservices.probe_https("a.example.test"), {"code": None, "err": "TimeoutError"})
+
+    def test_https_keeps_the_code_of_a_failed_lookup(self):
+        lost = urllib.error.URLError(socket.gaierror(-3, "Temporary failure in name resolution"))
+        with mock.patch.object(myservices, "_get", side_effect=lost):
+            self.assertEqual(myservices.probe_https("a.example.test"), {"code": None, "err": "gaierror", "errno": -3})
+
+    def test_a_lost_lookup_of_a_name_the_dns_answers_is_marked(self):
+        rows = [{"domains": ["A.example.test"], "public": {"err": "gaierror"}, "dns": {"answers": {"a.example.test": {"10.0.0.2": ["10.0.0.9"], "10.0.0.3": None}}}},
+                {"domains": ["b.example.test"], "public": {"err": "gaierror"}, "dns": {"answers": {"b.example.test": {"10.0.0.2": []}}}},
+                {"domains": ["c.example.test"], "public": {"err": "gaierror"}},
+                {"domains": ["d.example.test"], "public": {"code": 200}, "dns": {"answers": {"d.example.test": {"10.0.0.2": ["10.0.0.9"]}}}}]
+        myservices.mark_dns_ok(rows)
+        self.assertEqual([r["public"].get("dns_ok") for r in rows], [True, None, None, None])
 
     def test_follow_gives_the_cause_of_each_failure(self):
         for failure, name in ((REFUSED, "ConnectionRefusedError"), (http.client.BadStatusLine("x"), "BadStatusLine"), (ValueError(), "ValueError")):

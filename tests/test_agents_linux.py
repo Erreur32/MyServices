@@ -37,6 +37,7 @@ OUTPUTS = {
     health.SMART_LIST_CMD: (0, "sda\nnvme0n1\n"),
     health.GPU_CMD: (0, "NVIDIA T400, 9, 40, 200, 4096, 12.0\n---\n"),
     health.LOGS_CMD: (0, "3145728000 /var/log/big.log\n---\nArchived and active journals take up 1.5G in the file system.\n"),
+    health.WEBLOG_CMD: (0, '{"at":1792678313,"sites":{"a.example.test":{"h":[[1792674000,12,0]],"ips":3,"dip":0,"dreq":0,"bots":1,"m10":[2,0]}},"ips":3,"top":[]}\n'),
     health.SYSTEM_CMD: (0, "@@now 1792678313\n@@pm2\nD 1158684 PM2 v5.4.3: God Daemon (/root/.pm2)\nE pm2-root.service enabled\n"
                            "U pm2-root.service active\n@@md\n@@zfs\n@@mnt\n@@ntp\nC none\nNTP=yes\nNTPSynchronized=yes\n@@tim\n@@uu\n@@snap\n@@who\n@@dkr\n"),
     health.smart_cmd("sda"): (0, "SMART overall-health self-assessment test result: PASSED\n"),
@@ -328,15 +329,20 @@ class LinuxAgentScripts(unittest.TestCase):
         rep["10.0.0.9"]["report"]["data"]["cmds"]["backups"] = [1, "sudo: a password is required"]
         self.assertIsNone(backups.agent_scan({"ip": "10.0.0.9", "ssh": "nas"}, req, rep))
 
-    def test_agent_rescanne_quand_le_serveur_demande_autre_chose(self):
+    @staticmethod
+    def _agent_scanning(d):
+        """The rendered agent with its backup state in `d` and a fake root scan: (namespace, scans made, scan config)."""
         ns = {"__name__": "agent_test", "__file__": "/tmp/agent.py"}
         exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        ns["BACKUP_STATE"] = str(Path(d, "backups.json"))
+        calls = []
+        done = SimpleNamespace(returncode=0, stdout=b'{"locs": {}}', stderr=b"")
+        ns["subprocess"] = SimpleNamespace(run=lambda *a, **k: (calls.append(k["input"]) or done), PIPE=-1, TimeoutExpired=TimeoutError)
+        return ns, calls, {"python": "/usr/bin/python3", "script": "/x"}
+
+    def test_agent_rescanne_quand_le_serveur_demande_autre_chose(self):
         with tempfile.TemporaryDirectory() as d:
-            ns["BACKUP_STATE"] = str(Path(d, "backups.json"))
-            calls = []
-            done = SimpleNamespace(returncode=0, stdout=b'{"locs": {}}', stderr=b"")
-            ns["subprocess"] = SimpleNamespace(run=lambda *a, **k: (calls.append(k["input"]) or done), PIPE=-1, TimeoutExpired=TimeoutError)
-            conf = {"python": "/usr/bin/python3", "script": "/x"}
+            ns, calls, conf = self._agent_scanning(d)
             self.assertIsNone(ns["backup_scan"](conf, 1000))   # nothing asked yet
             ns["keep_backup_request"]({"locs": {"a": {}}})
             self.assertEqual(ns["backup_scan"](conf, 1000), [0, '{"locs": {}}'])
@@ -347,6 +353,20 @@ class LinuxAgentScripts(unittest.TestCase):
             ns["keep_backup_request"]({"locs": {"b": {}}})
             ns["backup_scan"](conf, 1000 + ns["BACKUP_EVERY"])
             self.assertEqual(len(calls), 3)                    # other folders
+
+    def test_agent_relit_avant_chaque_releve_des_sauvegardes_du_serveur(self):
+        with tempfile.TemporaryDirectory() as d:
+            ns, calls, conf = self._agent_scanning(d)
+            ns["keep_backup_request"]({"locs": {"a": {}}, "due": 5000})
+            ns["backup_scan"](conf, 1000)
+            ns["backup_scan"](conf, 4999)
+            self.assertEqual(len(calls), 1)                    # before the time asked: kept
+            ns["backup_scan"](conf, 5000)
+            ns["backup_scan"](conf, 5900)
+            self.assertEqual(len(calls), 2)                    # once after it, not at every report
+            ns["keep_backup_request"]({"locs": {"a": {}}, "due": "soon"})
+            ns["backup_scan"](conf, 6000)
+            self.assertEqual(len(calls), 2)                    # a strange value is ignored
 
     def test_installeur_pose_pve_et_borgmatic_sans_entree_du_serveur(self):
         import subprocess

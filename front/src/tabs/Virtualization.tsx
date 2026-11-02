@@ -3,13 +3,14 @@
 // reliés à leur fiche Machine (couche de rapprochement), à leur sauvegarde vzdump suivie et à leurs conteneurs Docker (SSH, Dockhand).
 // Plus bas : Proxmox Backup Server, s'il est relié. Dockhand (Docker seulement) reste dans Santé. Lecture seule.
 import { Box, Container, Cpu, EyeOff, Fan, HardDrive, Monitor, Server, Thermometer } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { useSort } from "../lib/filter";
 import type { Snapshot } from "../api";
 import { appIcon } from "../lib/appIcons";
 import { bytes, dur } from "../lib/format";
 import { tx } from "../lib/i18n";
 import type { BackupSet, Machine, VirtualizationConnector } from "../types";
-import { Badge, Card, Count, Dim, Empty, GradientFill } from "../components/ui";
+import { Badge, Card, Count, Dim, Empty, GradientFill, SortTh } from "../components/ui";
 import { PbsCard } from "../components/InfraCards";
 import { HistoryTile, useVirtHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
@@ -71,6 +72,30 @@ function backupOf(g: Guest, sets: BackupSet[], hostIds: Set<string>) {
   const key = `${g.type}/${g.vmid}`;
   const mine = sets.filter((s) => !s.archived && hostIds.has(s.origin) && s.locations[0]?.vzdump === key);
   return mine.sort((a, b) => (a.locations[0].age ?? 1e9) - (b.locations[0].age ?? 1e9))[0];
+}
+
+const guestKey = (g: Guest, k: string): string | number => {
+  if (k === "status") return g.status === "running" ? 0 : 1;
+  if (k === "name") return String(g.name || g.vmid).toLowerCase();
+  const v = { cpu: g.cpu_pct, mem: g.mem_pct, disk: g.maxdisk, uptime: g.status === "running" ? g.uptime : 0 }[k];
+  return v ?? -1;
+};
+
+/** The guests of one node: state, name, load, disk and uptime sort; the order of the connector until a column is picked */
+function GuestsTable({ list, renderRow }: Readonly<{ list: Guest[]; renderRow: (g: Guest) => ReactNode }>) {
+  const { sorted, ...sort } = useSort(list, guestKey, "");
+  const th = (k: string, label: string) => <SortTh k={k} sort={sort} className="px-3 py-2">{label}</SortTh>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+          {th("status", tx("État"))}{th("name", tx("Invité"))}<th className="px-3 py-2">{tx("Machine")}</th>{th("cpu", tx("CPU"))}
+          {th("mem", tx("Mémoire"))}{th("disk", tx("Disque"))}{th("uptime", tx("En marche"))}<th className="px-3 py-2">{tx("Sauvegarde")}</th><th className="px-3 py-2">Docker</th>
+        </tr></thead>
+        <tbody className="divide-y divide-line/60">{sorted.map(renderRow)}</tbody>
+      </table>
+    </div>
+  );
 }
 
 function GuestRow({ g, m, set, backups, docker, dockhand, onMachine }: Readonly<{ g: Guest; m?: Machine; set?: BackupSet; backups: boolean; docker?: number; dockhand?: { containers?: number; updates: number }; onMachine: (ip: string) => void }>) {
@@ -173,23 +198,13 @@ function Host({ c, snap, onMachine, hideStopped }: Readonly<{ c: VirtualizationC
               )}
               {list.length > 0 && (
                 <Category icon={Monitor} title={tx("Machines virtuelles")} count={list.length}>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-sm">
-                    <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                      <th className="px-3 py-2">{tx("État")}</th><th className="px-3 py-2">{tx("Invité")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("CPU")}</th>
-                      <th className="px-3 py-2">{tx("Mémoire")}</th><th className="px-3 py-2">{tx("Disque")}</th><th className="px-3 py-2">{tx("En marche")}</th><th className="px-3 py-2">{tx("Sauvegarde")}</th><th className="px-3 py-2">Docker</th>
-                    </tr></thead>
-                    <tbody className="divide-y divide-line/60">
-                      {list.map((g) => {
-                        const m = machineOf(g);
-                        const dh = m?.links?.sources.find((x) => x.source === "dockhand" || x.source === "dozzle");
-                        const env = dh && envs.find((e) => e.name === dh.environment);
-                        return <GuestRow key={`${g.node}/${g.vmid}`} g={g} m={m} set={vmware ? undefined : backupOf(g, sets, hostIds)} backups={!vmware} onMachine={onMachine}
-                          docker={m?.info?.docker || undefined} dockhand={dh ? { containers: dh.containers, updates: env?.updates.length ?? 0 } : undefined} />;
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <GuestsTable list={list} renderRow={(g) => {
+                  const m = machineOf(g);
+                  const dh = m?.links?.sources.find((x) => x.source === "dockhand" || x.source === "dozzle");
+                  const env = dh && envs.find((e) => e.name === dh.environment);
+                  return <GuestRow key={`${g.node}/${g.vmid}`} g={g} m={m} set={vmware ? undefined : backupOf(g, sets, hostIds)} backups={!vmware} onMachine={onMachine}
+                    docker={m?.info?.docker || undefined} dockhand={dh ? { containers: dh.containers, updates: env?.updates.length ?? 0 } : undefined} />;
+                }} />
                 </Category>
               )}
             </div>

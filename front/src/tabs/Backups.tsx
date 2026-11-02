@@ -5,10 +5,10 @@ import { usePageView } from "../lib/route";
 import { ChevronDown, ChevronUp, HardDrive, Layers, Monitor, Plus, Terminal, SlidersHorizontal } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { type Snapshot } from "../api";
-import { useFilter, type Facet, type Selected } from "../lib/filter";
+import { useFilter, type Facet, type Selected, useSort } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost, BackupSet, Backups as BackupsData, Machine } from "../types";
-import { Badge, Cards, ChipButton, Dim, Empty, Fill, FilterBar, Level, Pct, Table, TableCard, Td, Th } from "../components/ui";
+import { Badge, Cards, ChipButton, Dim, Empty, Fill, FilterBar, Level, Pct, SortTh, Table, TableCard, Td, Th } from "../components/ui";
 import { FoldPanel } from "../components/FoldPanel";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
@@ -83,21 +83,35 @@ function byMachine(sets: BackupSet[]): { name: string; sets: BackupSet[] }[] {
   return [...groups].sort(([a], [x]) => a.localeCompare(x)).map(([name, list]) => ({ name, sets: list }));
 }
 
+const setKey = (s: BackupSet, k: string): string | number => {
+  if (k === "label") return short(s.label).toLowerCase();
+  if (k === "machine") return String(s.origin_label ?? s.origin ?? "").toLowerCase();
+  if (k === "schedule") return s.schedule ?? "";
+  if (k === "last") return newestOf(s)?.mtime ?? 0;
+  if (k === "size") return s.size ?? -1;
+  if (k === "level") return rank(s.level);
+  return 0;
+};
+
 /** A table of sets (to watch, or all): set, machine, expected, latest archive, state, a Detail button that unfolds the row.
- *  Grouped: one header row per machine (icon, name, sets, worst state) set apart by a thicker line, the machine column then left out */
+ *  Grouped: each machine its own framed block (a tbody, so the columns stay aligned from one machine to the next) with a gap between two, its
+ *  header row (icon, name, sets, worst state) marked on the left in the colour of that state, the machine column then left out */
 function SetsTable({ sets, b, snap, sizes = false, grouped = false }: Readonly<{ sets: BackupSet[]; b: BackupsData; snap: Snapshot; sizes?: boolean; grouped?: boolean }>) {
   const [open, setOpen] = useState<string | null>(null);
+  const { sorted, ...sort } = useSort(sets, setKey, "");   // the page's order until a column is picked; grouped, each machine keeps the order
   const cols = 6 + (sizes ? 1 : 0) - (grouped ? 1 : 0);
-  const groups = grouped ? byMachine(sets) : [{ name: "", sets }];
+  const groups = grouped ? byMachine(sorted) : [{ name: "", sets: sorted }];
+  const th = (k: string, label: string) => <SortTh k={k} sort={sort} className="px-3 py-2">{label}</SortTh>;
   return (
-    <div className="overflow-x-auto">
+    <div className={`overflow-x-auto ${grouped ? "px-3 pb-3" : ""}`}>
       <table className="w-full min-w-[560px] border-collapse text-sm">
         <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-          <th className="px-3 py-2">{tx("Jeu")}</th>{!grouped && <th className="px-3 py-2">{tx("Machine")}</th>}<th className="px-3 py-2">{tx("Attendu")}</th><th className="px-3 py-2">{tx("Dernière archive")}</th>{sizes && <th className="px-3 py-2">{tx("Taille")}</th>}<th className="px-3 py-2">{tx("État")}</th><th className="w-40 px-3 py-2" />
+          {th("label", tx("Jeu"))}{!grouped && th("machine", tx("Machine"))}{th("schedule", tx("Attendu"))}{th("last", tx("Dernière archive"))}{sizes && th("size", tx("Taille"))}{th("level", tx("État"))}<th className="w-40 px-3 py-2" />
         </tr></thead>
-        <tbody>
-          {groups.map((g) => (
-            <Fragment key={g.name}>
+        {groups.map((g, i) => (
+          <Fragment key={g.name}>
+            {grouped && i > 0 && <tbody aria-hidden><tr><td colSpan={cols} className="h-4 p-0" /></tr></tbody>}
+            <tbody className={grouped ? "border-2 border-line" : ""}>
               {grouped && <MachineHeader name={g.name} sets={g.sets} m={machineOfSet(g.sets[0], b, snap)} cols={cols} />}
           {g.sets.map((s) => {
             const n = newestOf(s), on = open === s.id, src = sourceOf(s), m = machineOfSet(s, b, snap);
@@ -119,23 +133,25 @@ function SetsTable({ sets, b, snap, sizes = false, grouped = false }: Readonly<{
               </Fragment>
             );
           })}
-            </Fragment>
-          ))}
-        </tbody>
+            </tbody>
+          </Fragment>
+        ))}
       </table>
     </div>
   );
 }
 
+const EDGE: Record<string, string> = { ok: "border-l-ok", warn: "border-l-warn", bad: "border-l-bad", off: "border-l-dim" };   // the left mark of a machine block: its worst state
+
 /** The header row of one machine in the grouped table: its icon and name, how many sets, the worst state among them */
 function MachineHeader({ name, sets, m, cols }: Readonly<{ name: string; sets: BackupSet[]; m?: Machine; cols: number }>) {
   const worst = sets.reduce((w, x) => (rank(x.level) > rank(w.level) ? x : w), sets[0]);
   return (
-    <tr className="border-t-2 border-line bg-bg">
-      <td colSpan={cols} className="px-3 py-2">
+    <tr className="bg-bg">
+      <td colSpan={cols} className={`border-l-4 px-3 py-2.5 ${EDGE[LEVEL[worst.level]?.[0] ?? "off"]}`}>
         <span className="flex flex-wrap items-center gap-2.5">
           {m ? <MachineIcon m={m} /> : <Monitor size={16} className="text-dim" aria-hidden />}
-          <b>{name}</b>{m && m.ip !== name && <Dim>{m.ip}</Dim>}
+          <b className="text-base">{name}</b>{m && m.ip !== name && <Dim>{m.ip}</Dim>}
           <Badge tone="off">{tx("{0} jeu(x)", sets.length)}</Badge>
           {worst.level !== "ok" && <Level level={worst.level} />}
         </span>

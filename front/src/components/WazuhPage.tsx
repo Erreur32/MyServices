@@ -10,7 +10,8 @@ import { averageScore, wazuhRows, type WazuhRow } from "../lib/wazuhPage";
 import type { ServiceStatus } from "../types";
 import { HeadTags } from "./HeadTags";
 import { COLOR, StatTile } from "./StatTile";
-import { Empty } from "./ui";
+import { Empty, SortTh } from "./ui";
+import { useSort } from "../lib/filter";
 
 type Alerts = NonNullable<ServiceStatus["alerts"]>;
 
@@ -60,16 +61,24 @@ function VulnBar({ v, max }: Readonly<{ v: NonNullable<WazuhRow["m"]["vulns"]>; 
   );
 }
 
-function MachinesTable({ rows }: Readonly<{ rows: WazuhRow[] }>) {
-  const max = Math.max(0, ...rows.map((r) => r.vulns));
+const wazuhKey = (r: WazuhRow, k: string): string | number => {
+  if (k === "name") return (r.machine?.name ?? r.m.agent ?? r.ip).toLowerCase();
+  if (k === "status") return r.m.status ?? "";
+  if (k === "score") return r.score ?? -1;
+  return r.m.vulns ? r.m.vulns.critical * 1e6 + r.m.vulns.high * 1e3 + r.vulns : -1;   // the critical first, then the high, then the total
+};
+
+function MachinesTable({ rows: list }: Readonly<{ rows: WazuhRow[] }>) {
+  const max = Math.max(0, ...list.map((r) => r.vulns));
+  const { sorted: rows, ...sort } = useSort(list, wazuhKey, "");
   return (
     <section className="overflow-x-auto rounded-xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Machines vues par Wazuh")}>
       <h2 className="font-bold">{tx("Machines vues par Wazuh")} <span className="text-sm font-normal text-dim">{rows.length}</span></h2>
       <table className="mt-2 w-full text-sm">
         <thead><tr className="text-left text-xs text-muted">
-          <th className="py-1 pr-3 font-semibold">{tx("Machine")}</th><th className="py-1 pr-3 font-semibold">{tx("Agent")}</th>
-          <th className="py-1 pr-3 font-semibold" title={tx("Score le plus bas des contrôles de configuration (SCA)")}>{tx("Conformité")}</th>
-          <th className="py-1 font-semibold" title={tx("critiques / hautes / total")}>{tx("Vulnérabilités (critiques / hautes / total)")}</th>
+          <SortTh k="name" sort={sort} className="py-1 pr-3 font-semibold">{tx("Machine")}</SortTh><SortTh k="status" sort={sort} className="py-1 pr-3 font-semibold">{tx("Agent")}</SortTh>
+          <SortTh k="score" sort={sort} className="py-1 pr-3 font-semibold" title={tx("Score le plus bas des contrôles de configuration (SCA)")}>{tx("Conformité")}</SortTh>
+          <SortTh k="vulns" sort={sort} className="py-1 font-semibold" title={tx("critiques / hautes / total")}>{tx("Vulnérabilités (critiques / hautes / total)")}</SortTh>
         </tr></thead>
         <tbody>
           {rows.map((r) => {

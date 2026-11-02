@@ -530,6 +530,7 @@ def keep_metrics() -> None:
     try:
         metrics.sample(db_path(CFG), WEB / "health" / STATS_FILE)
         tile_history.sample(db_path(CFG), WEB / "health" / STATS_FILE)
+        tile_history.sample_fail2ban(db_path(CFG), WEB / "health" / STATS_FILE)
     except Exception as e:  # base unavailable: only the curves miss a point
         log(f"⚠ mesures des machines : {e}")
 

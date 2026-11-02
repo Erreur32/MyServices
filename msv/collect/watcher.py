@@ -66,7 +66,7 @@ COLLECTOR = CFG["collector_name"] or socket.gethostname()
 SEVERITY = {"panne": 3, "unhealthy": 3, "perime": 3, "securite": 2, "ui_hors": 1,
             "nouveau": 1, "disparu": 1, "retabli": 0, "dns": 2,
             "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1, "appareil": 1,
-            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0, "menace": 2, "nextcloud": 1, "maj_image": 1, "maj_machine": 1, "jail_hausse": 2}
+            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0, "menace": 2, "nextcloud": 1, "maj_image": 1, "maj_machine": 1, "jail_hausse": 2, "web_pic": 2, "aspiration": 1}
 LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nouveau", "disparu": "➖ Disparu",
          "securite": "🛡️ Sécurité", "ui_hors": "🌐 UI sans domaine", "unhealthy": "💔 Unhealthy",
          "perime": "⏱️ Données périmées", "hors_ligne": "📴 Machine hors ligne",
@@ -74,7 +74,8 @@ LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nou
          "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli", "connecteur_version": "🔌 Version non testée",
          "appareil": "📡 Nouvel appareil", "vm_arret": "⏹️ VM arrêtée", "vm_marche": "▶️ VM en marche",
          "stockage": "💽 Stockage presque plein", "stockage_ok": "💽 Stockage dégagé", "menace": "🚨 Nouvelle menace", "nextcloud": "☁️ Nextcloud à regarder",
-         "maj_image": "🐳 Image à mettre à jour", "maj_machine": "📦 Mises à jour machine", "jail_hausse": "📈 Jail qui monte"}
+         "maj_image": "🐳 Image à mettre à jour", "maj_machine": "📦 Mises à jour machine", "jail_hausse": "📈 Jail qui monte",
+         "web_pic": "🌊 Pic de trafic web", "aspiration": "🕸️ Aspiration diffuse"}
 STORAGE_FULL = 90   # % used of a Proxmox storage
 SURGE_MIN, SURGE_FACTOR = 20, 3   # a jail « goes up » from this many bans in 24 h AND this many times its usual daily number
 NPM_TYPES = {"proxy", "redirect", "dead", "stream"}  # entrées lues dans NPM (les autres : « local »)
@@ -430,6 +431,41 @@ def jail_surge_snaps(data: dict) -> dict | None:
     return out
 
 
+def machine_jail_snaps(hosts: list[dict] | None) -> dict | None:
+    """Machines whose Fail2ban (read by their agent or over SSH) goes up: the health pass sets `rising` (tile_history.fail2ban_trend). None: no
+    stats.json."""
+    if hosts is None:
+        return None
+    out = {}
+    for h in hosts:
+        f = (h.get("system") or {}).get("fail2ban") or {}
+        if f.get("rising"):
+            name = str(h.get("name") or h.get("id")).split(" · ")[0][:40]
+            out[f'jail_hausse:machine:{h.get("id")}'] = {
+                "label": name, "machine": name, "target": "Fail2ban",
+                "text": f"{f.get('total', 0)} IP bannies maintenant, contre {f.get('usual') or 0:.0f} d'habitude (Fail2ban de la machine)"}
+    return out
+
+
+def web_snaps(hosts: list[dict] | None) -> tuple[dict | None, dict | None]:
+    """(web peaks, diffuse scraping) of the machines whose NPM logs were read (health pass, tile_history.web_trend). None: no stats.json."""
+    if hosts is None:
+        return None, None
+    peaks, scraped = {}, {}
+    for h in hosts:
+        w = h.get("web") if isinstance(h.get("web"), dict) else {}
+        name = str(h.get("name") or h.get("id")).split(" · ")[0][:40]
+        if w.get("rising"):
+            peaks[f'web_pic:{h.get("id")}'] = {"label": name, "machine": name, "target": "Trafic web",
+                                              "text": f"{max(w.get('last', 0), w.get('now', 0))} requêtes en une heure, contre {w.get('usual') or 0} d'habitude (journaux NPM)"}
+        for site, st in (w.get("sites") or {}).items():
+            if st.get("diffuse"):
+                share = round(100 * st.get("dreq", 0) / max(1, st.get("total", 0)))
+                scraped[f'aspiration:{h.get("id")}:{site}'] = {"label": str(site)[:80], "machine": name, "target": str(site)[:80],
+                                                               "text": f"{share} % des requêtes du jour viennent de {st.get('dip', 0)} IP qui restent sous Fail2ban (50 à 400 requêtes chacune)"}
+    return peaks, scraped
+
+
 def diff_threats(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
     """« New threat » once per cluster ; the first reading of LogviewR is the reference. A threat no longer active is forgotten after
     a week (kept meanwhile so that it does not come back as new)."""
@@ -581,7 +617,12 @@ def main() -> int:
     iev, icur = diff_points("maj_image", state.get("images"), image_snaps(data))
     uev, ucur = diff_points("maj_machine", state.get("machine_updates"), machine_update_snaps(health_hosts(), state.get("machine_updates")))
     jev, jcur = diff_points("jail_hausse", state.get("jails_up"), jail_surge_snaps(data))
-    events = sorted(tev + xev + iev + uev + jev + events, key=lambda e: -SEVERITY[e["kind"]])
+    hosts = health_hosts()
+    mjev, mjcur = diff_points("jail_hausse", state.get("machine_jails_up"), machine_jail_snaps(hosts))   # apart: one source unread keeps the other
+    peaks, scraped = web_snaps(hosts)
+    wpev, wpcur = diff_points("web_pic", state.get("web_peaks"), peaks)
+    asev, ascur = diff_points("aspiration", state.get("web_scraped"), scraped)
+    events = sorted(tev + xev + iev + uev + jev + mjev + wpev + asev + events, key=lambda e: -SEVERITY[e["kind"]])
     nev, ncur = diff_network(state.get("network"), network_snaps(data) if data.get("network") else None)
     events = sorted(nev + events, key=lambda e: -SEVERITY[e["kind"]])
     age = (datetime.now(timezone.utc) - datetime.fromisoformat(data["generated"])).total_seconds() / 60
@@ -605,6 +646,7 @@ def main() -> int:
         dcur, vcur, vpending = state.get("dns", dcur), state.get("virt", vcur), state.get("vpending", {})
         tcur, xcur, ncur = state.get("threats", tcur), state.get("nextcloud", xcur), state.get("network", ncur)
         icur, jcur, ucur = state.get("images", icur), state.get("jails_up", jcur), state.get("machine_updates", ucur)
+        mjcur, wpcur, ascur = state.get("machine_jails_up", mjcur), state.get("web_peaks", wpcur), state.get("web_scraped", ascur)
 
     if dry:
         print(f"=== DRY RUN (baseline={baseline}) · {len(events)} événement(s) ===")
@@ -634,7 +676,7 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
-                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur, "images": icur, "machine_updates": ucur, "jails_up": jcur,
+                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur, "images": icur, "machine_updates": ucur, "jails_up": jcur, "machine_jails_up": mjcur, "web_peaks": wpcur, "web_scraped": ascur,
                                       "stale_reported": state.get("stale_reported", False) if same_gen else age > STALE_MIN,
                                       "gen": data.get("generated"), "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")

@@ -8,7 +8,8 @@ import { read, type Snapshot } from "../api";
 import type { Advice, AgentInfo, MachinesSettings, SystemState } from "../types";
 import { AgentGaps } from "../components/AgentGaps";
 import { AppKeyBand, keyOf } from "../components/AppKey";
-import { Badge, Dim, type Tone } from "../components/ui";
+import { Badge, Dim, SortTh, type Tone } from "../components/ui";
+import { useSort } from "../lib/filter";
 import { StatTile } from "../components/StatTile";
 import { InfoNote } from "../components/InfoNote";
 import { FoldPanel } from "../components/FoldPanel";
@@ -90,6 +91,14 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
   const needOf = (r: SshRow) => sshNeed(r.state === "off", usesOf(r.ip), withAgent.has(r.ip), working.has(r.ip), advice[r.ip]?.agent_possible, gapsOf(r.ip).length > 0);
   const needs = rows.map(needOf);
   const keep = needs.filter((n) => n === "uses" || n === "no_agent" || n === "silent" || n === "partial").length;
+  const sshKey = (r: SshRow, k: string): string | number => {
+    if (k === "name") return r.name.toLowerCase();
+    if (k === "access") return r.access ?? "";
+    if (k === "need") return needOf(r);
+    return r.state;
+  };
+  const { sorted, ...sort } = useSort(rows, sshKey, "");   // the order of the page until a column is picked
+  const th = (k: string, label: string) => <SortTh k={k} sort={sort} className="px-3 py-2">{label}</SortTh>;
   return (
     <div className="flex flex-col gap-4">
       <PageHead icon={Terminal} title={tx("Connexions SSH")} tags={<span className="flex flex-wrap items-center gap-1.5 text-sm"><Badge tone="info" outline>{tx("{0} connexion(s)", rows.length)}</Badge></span>}
@@ -110,10 +119,10 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[760px] border-collapse text-sm">
               <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Connexion")}</th><th className="px-3 py-2">{tx("Clé")}</th><th className="px-3 py-2">{tx("État")}</th><th className="px-3 py-2">{tx("Besoin du SSH")}</th><th className="px-3 py-2" />
+                {th("name", tx("Machine"))}{th("access", tx("Connexion"))}<th className="px-3 py-2">{tx("Clé")}</th>{th("state", tx("État"))}{th("need", tx("Besoin du SSH"))}<th className="px-3 py-2" />
               </tr></thead>
               <tbody>
-                {rows.map((r) => {
+                {sorted.map((r) => {
                   const [tone, label] = STATE[r.state];
                   const seen = list.find((x) => x.ip === r.ip);
                   const [keyTone, keyLabel] = KEY[keyOf(key, seen?.ssh?.identity, seen?.ssh?.key_fp)];

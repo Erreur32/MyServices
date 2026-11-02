@@ -28,7 +28,7 @@ import shlex
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from msv.core.config import CFG, HERE
@@ -63,6 +63,22 @@ def copy_grace_s(loc: dict) -> int:
     days = loc.get("every_days")
     extra = days * 86400 if isinstance(days, int) and 1 < days <= EVERY_DAYS_MAX else 0
     return GRACE_H * 3600 + extra
+
+
+COPY_TIME_RE = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b")
+
+
+def copy_due(loc: dict, mtime: float) -> float:
+    """When a copy must hold an archive made at `mtime`: its grace after it (copy_grace_s), and for a copy whose « via » gives its time, not before
+    GRACE_H after its first run that follows the archive."""
+    due = mtime + copy_grace_s(loc)
+    times = COPY_TIME_RE.findall(loc.get("via") or "")
+    if times:   # shortcut: the time of the copy is the last HH:MM of the free text « via », add a field if a text holds another time
+        run = datetime.fromtimestamp(mtime).replace(hour=int(times[-1][0]), minute=int(times[-1][1]), second=0, microsecond=0)
+        if run.timestamp() <= mtime:
+            run += timedelta(days=1)
+        due = max(due, run.timestamp() + GRACE_H * 3600)
+    return due
 
 
 # ───────────── Agent exécuté sur chaque machine (python3 -) ─────────────
@@ -789,7 +805,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     src_files = files
                 elif src_files:
                     # Copie jugée sur son retard par rapport à la source (l'âge de la source est jugé une fois, sur la source) :
-                    # archive manquante ou plus ancienne, hors archives de moins de GRACE_H (copie pas encore passée)
+                    # archive manquante ou plus ancienne, hors archives que la copie n'a pas encore pu prendre (copy_due)
                     L["level"], L["detail"] = "ok", "à jour avec la source"
                     # archives à nom fixe : comparées par nom ; archives datées : par chemin (dossiers datés à fichier commun)
                     key = (lambda f: Path(f["name"]).name) if each else (lambda f: f["name"])
@@ -802,7 +818,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     seen, late = set(), []
                     for f in ref:
                         n = key(f)
-                        if n in seen or now - f["mtime"] < grace:
+                        if n in seen or now < copy_due(loc, f["mtime"]):
                             continue
                         seen.add(n)
                         c = cmap.get(n)

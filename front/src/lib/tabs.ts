@@ -6,6 +6,8 @@ import { tx } from "./i18n";
 import { hasNetwork } from "./network";
 import { aiCards, aiGpus, aiModels, hasAi } from "./ai";
 import { hasCloudflare } from "./cloudflare";
+import { machineFail2ban, readF2b } from "./machineFail2ban";
+import { webMachines } from "./webTraffic";
 import { hasDomotique } from "./domotique";
 import { hasTapo } from "./tapo";
 import { hasStream, streamCameras, streamCards, streamFlows } from "./video";
@@ -99,7 +101,8 @@ export const NAV: NavGroup[] = [
       sub("security-access", "security/access", "security", KeyRound, tx("Accès SSH")),
       sub("security-ports", "security/network", "security", Radar, tx("Ports du réseau")),
       sub("security-certs", "security/certs", "security", FileBadge, tx("Certificats")),
-      sub("fail2ban", "security/fail2ban", "security", Ban, tx("Fail2ban"), (s) => (s.data.security ?? []).length > 0),   // a Fail2ban read (LogviewR)
+      sub("fail2ban", "security/fail2ban", "security", Ban, tx("Fail2ban"), (s) => (s.data.security ?? []).length > 0 || readF2b(machineFail2ban(s.health)).length > 0),   // a Fail2ban read (LogviewR, or a machine's own)
+      sub("security-traffic", "security/traffic", "security", Activity, tx("Trafic web"), (s) => webMachines(s.health).length > 0),   // NPM logs read by an agent or SSH
       sub("security-wazuh", "security/wazuh", "security", ShieldCheck, "Wazuh", (s) => (s.data.services_status ?? []).some((c) => c.connector === "wazuh")),   // a Wazuh connector
     ] },
     { id: "backups", hash: "backups", tab: "backups", icon: HardDrive, label: tx("Sauvegardes"), subs: [

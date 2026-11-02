@@ -33,6 +33,7 @@ import html as html_lib
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import time
@@ -42,11 +43,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from msv.alerts import notify
-from msv.core.config import CFG, next_timer_run
+from msv.core.config import CFG, db_path, next_timer_run
 from msv.core import inventory_cache
 from msv.machines.winname import windows_name
 from msv.core.docker_state import allowed_names, intended_stop
-from msv.collect import readers
+from msv.collect import readers, tile_history
 from msv.remote.sshmux import SSH_MUX, ssh_run
 
 DOCKER_LABEL = "🐳 Docker"
@@ -95,6 +96,8 @@ KERNEL_IGNORE_RE = re.compile(
     r"|snd_hda_intel [0-9a-f:.]+: no codecs found"
     r"|CIFS: VFS: .*Close unmatched open for MID"   # the client closing a file left open by an interrupted request: cleanup, not a fault
     r"|CIFS: VFS: (Autodisabling the use of server inode numbers|The server doesn't seem to support them|Hardlinks will not be recognized)"   # a mount notice of a Samba share, not a fault
+    r"|kernel:\s+(Not tainted|Tainted: [A-Z ]+) \d+\.\d+\S* #\d"   # the kernel version repeated under each report (hung task, oops): the report line itself stays
+    r"|\"echo 0 > /proc/sys/kernel/hung_task_timeout_secs\" disables this message"   # how to silence a hung task report, printed under each one
 )
 # ───────────── Machines surveillées ─────────────
 
@@ -382,6 +385,24 @@ LOGS_CMD = ("find /var/log -xdev -type f -not -path '/var/log/journal/*' -size +
             "journalctl --disk-usage 2>/dev/null") % (LOGS_MIN_MB, LOGS_TOP)
 
 
+# The script without its comment and docstring lines (the server limit per command): never a single quote in it (test)
+WEBLOG_CMD = "python3 -c '%s'" % "\n".join(ln for ln in Path(__file__).with_name("weblog_remote.py").read_text(encoding="utf-8").splitlines()
+                                            if ln.strip() and not ln.strip().startswith(("#", '"""')))
+
+
+def collect_web(run) -> dict | None:
+    """Web traffic of the local Nginx Proxy Manager over 24 h (weblog_remote.py); None without one, or when it cannot be read (no python3, Docker
+    closed to this account)."""
+    rc, out = run(WEBLOG_CMD, timeout=40)
+    if rc != 0:
+        return None
+    try:
+        w = json.loads(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return None
+    return w if isinstance(w, dict) and isinstance(w.get("sites"), dict) else None
+
+
 def collect_big_logs(run) -> dict:
     """The biggest files of /var/log (over LOGS_MIN_MB) and the size of the systemd journal, both in MB."""
     rc, out = run(LOGS_CMD, timeout=15)
@@ -421,7 +442,8 @@ def parse_resources(out: str) -> dict:
     total = sum(stats[1]) - sum(stats[0])
     idle = (stats[1][3] + stats[1][4]) - (stats[0][3] + stats[0][4])
     used = mem["MemTotal"] - mem["MemAvailable"]
-    return {"available": True, "cpu_pct": round(100 * (total - idle) / total, 1) if total > 0 else 0.0,
+    iowait = stats[1][4] - stats[0][4]   # time the CPUs waited for the disks: a load due to copies, not to work
+    return {"available": True, "cpu_pct": round(100 * (total - idle) / total, 1) if total > 0 else 0.0, "iowait_pct": round(100 * iowait / total, 1) if total > 0 else 0.0,
             "mem_total_mb": mem["MemTotal"], "mem_used_mb": used, "mem_pct": round(100 * used / mem["MemTotal"], 1),
             "swap_total_mb": mem.get("SwapTotal", 0), "swap_used_mb": max(mem.get("SwapTotal", 0) - mem.get("SwapFree", 0), 0)}
 
@@ -1616,10 +1638,10 @@ def collect_host(host: dict) -> dict:
 
 # Commands the Linux agent runs on its own machine (the SSH collectors' commands, fixed); smart_cmd(<disk>) is added per disk it finds.
 LINUX_AGENT_COMMANDS = [DISKS_CMD, SYSTEMD_CMD, DOCKER_PS_CMD, DOCKER_STATS_CMD, APT_CMD, KERNEL_CMD, REBOOT_CMD, LOAD_CMD,
-                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD, GPU_CMD, SYSTEM_CMD]
-SLOW_CMDS = ("docker stats", "apt list", "snap refresh")   # allowed 40 s instead of 20 (the same rule in agent.py)
+                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD, GPU_CMD, SYSTEM_CMD, WEBLOG_CMD]
+SLOW_CMDS = ("docker stats", "apt list", "snap refresh", "nginx-proxy-manager")   # allowed 40 s instead of 20 (the same rule in agent.py)
 # Linux agent (version 3): outputs it keeps and sends again instead of running the command at each report, with their lifetime (s)
-LINUX_AGENT_CACHE = {APT_CMD: 3600, LOGS_CMD: 3600}
+LINUX_AGENT_CACHE = {APT_CMD: 3600, LOGS_CMD: 3600, WEBLOG_CMD: 600}
 SMART_CACHE = 6 * 3600   # SMART of each disk: every 6 h
 
 
@@ -1690,6 +1712,7 @@ def collect_linux(host: dict, run) -> dict:
     gpu = collect_gpu(run)
     res = collect_resources(run)
     logs = collect_big_logs(run)
+    web = collect_web(run)
     # SMART non pertinent sur une VM (disque virtualisé, pas de hardware physique dédié)
     smart = {"accessible": False, "disks": [], "vm": True} if host.get("vm") else collect_smart(run)
     system = collect_system(run)
@@ -1700,6 +1723,8 @@ def collect_linux(host: dict, run) -> dict:
          "disks": disks, "systemd": systemd, "docker": docker, "apt": apt, "kernel": kernel,
          "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "gpu": gpu, "res": res, "logs": logs,
          "system": system}
+    if web:
+        h["web"] = web
     h["level"] = host_level(h)
     return h
 
@@ -2189,6 +2214,22 @@ def merge_only(previous: list[dict], previous_asleep: list[dict], hosts: list[di
             asleep + [a for a in previous_asleep if a["id"] not in fresh and a.get("ip") != only])
 
 
+def add_trends(hosts: list[dict], now: float) -> None:
+    """Each Fail2ban read gets its peak of 24 h, its usual level and whether it goes up, and each web traffic read its usual hour and its flags
+    (tile_history): the same for the page and the alerts."""
+    try:
+        db = db_path(CFG)
+        for h in hosts:
+            if h.get("id") is None:
+                continue
+            if (f := tile_history.fail2ban_read(h)) is not None:
+                f.update(tile_history.fail2ban_trend(db, h["id"], int(f.get("total") or 0), now))
+            if isinstance(h.get("web"), dict):
+                tile_history.web_trend(db, h["id"], h["web"], now)
+    except (OSError, sqlite3.Error) as e:   # no base: the page shows the figures without a trend
+        print(f"  ⚠ tendances Fail2ban et web : {e}")
+
+
 def main() -> int:
     dry = "--dry-run" in sys.argv
     ts = datetime.now(timezone.utc).isoformat()
@@ -2261,6 +2302,7 @@ def main() -> int:
         return 0
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    add_trends(hosts, now)
     record_events(hosts, prev_levels, ts)
     STATS_JSON.write_text(json.dumps(stats, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     INDEX.write_text(render_html(stats), encoding="utf-8")

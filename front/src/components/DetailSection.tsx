@@ -23,8 +23,8 @@ export const LABEL_BAND = "border-r border-line/60 bg-bg";
 export function DetailRow({ k, title, watch, wide = false, children }: Readonly<{ k: string; title?: string; watch?: string; wide?: boolean; children?: ReactNode }>) {
   if (children === undefined || children === null || children === false || children === "") return null;
   return (
-    <div data-watch={watch} className={`grid ${wide ? "grid-cols-1 gap-y-1 py-0.5" : "-mx-3 -my-0.5 grid-cols-[8rem_minmax(0,1fr)] first:-mt-3 last:-mb-3"}`}>
-      <dt className={wide ? "text-muted" : `${LABEL_BAND} px-3 py-1 text-muted`} title={title}>{k}</dt>
+    <div data-watch={watch} className={`grid ${wide ? "grid-cols-1 gap-y-1 py-0.5" : "-mx-3 -my-0.5 grid-cols-[10.5rem_minmax(0,1fr)] first:-mt-3 last:-mb-3"}`}>
+      <dt className={wide ? "text-muted" : `${LABEL_BAND} truncate px-3 py-1 text-muted`} title={title ?? k}>{k}</dt>   {/* a label never on two lines: cut, its full text on hover */}
       <dd className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 [overflow-wrap:anywhere] ${wide ? "" : "px-3 py-1"}`}>{children}</dd>
     </div>
   );

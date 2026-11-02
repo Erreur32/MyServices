@@ -37,11 +37,14 @@ describe("home page figures", () => {
 });
 
 describe("the words of the home page", () => {
-  const crit = { ...alert, level: "crit", category: "sauvegardes" } as Attention;
+  const crit = { ...alert, level: "crit", category: "services" } as Attention, backup = { ...crit, category: "sauvegardes" } as Attention;
   const many = (n: number) => Array.from({ length: n }, () => alert);
   it("the title follows how many alerts and how serious", () => {
     expect(storyTitle([crit], 0)).toBe("**Un point grave** demande ton attention.");
-    expect(storyTitle([crit, alert, alert], 0)).toBe("**Un point grave**, et **2** à regarder ensuite.");
+    expect(storyTitle([crit, alert, alert], 0)).toBe("**Un point grave**, et **2** autre(s) point(s) à regarder ensuite.");
+    expect(storyTitle([backup, alert], 0)).toBe("**Une sauvegarde** à reprendre, et **1** autre(s) point(s) à voir.");   // a backup: worth a look, never « grave »
+    expect(storyTitle([backup], 1)).toBe("Rien ne brûle, mais **une sauvegarde** attend un coup d'œil.");
+    expect(storyTitle([backup, crit], 0)).toBe("**2 points graves** sur ton réseau.");
     expect(storyTitle([crit, crit], 1)).toBe("Ça sent le roussi : **2 points graves**.");
     expect(storyTitle(many(3), 0)).toBe("**3 points** à regarder, rien d'urgent.");
     expect(storyTitle(many(6), 0)).toBe("**6 points** à regarder, ça s'accumule.");
@@ -53,7 +56,7 @@ describe("the words of the home page", () => {
     expect(new Set(Array.from({ length: 24 }, (_, h) => storyTitle([], h))).size).toBeGreaterThan(4);
   });
   it("alerts: the serious place first, each place once", () => {
-    expect(alertPlaces([alert, crit, alert])).toBe("À commencer par **les sauvegardes**, puis **la santé des machines**.");
+    expect(alertPlaces([alert, backup, alert])).toBe("À commencer par **les sauvegardes**, puis **la santé des machines**.");
   });
   it("calm: a fact of the network, a quote one time in three, and never the figures", () => {
     const s = { data: { hosts: [], connectors: [], security: [{ bans_24h: 29 }], machine_list: [{ name: "a", info: { uptime_s: 86400 * 8 } }, { name: "b" }] },
@@ -87,7 +90,7 @@ describe("the dated lines of the home page", () => {
     const empty = { data: { machine_list: [] } } as unknown as Snapshot;
     const tuesday = Math.floor(new Date(2026, 10, 10, 12).getTime() / HOUR / 2) * 2;
     expect(storyText(empty, [], tuesday)).toContain("Patch Tuesday");
-    const lines = (h0: number) => Array.from({ length: 16 }, (_, i) => storyText(empty, [], h0 + i));
+    const lines = (h0: number) => Array.from({ length: 48 }, (_, i) => storyText(empty, [], h0 + i));   // longer than the list of quotes: every one shows
     expect(lines(Math.floor(NOW / HOUR)).join()).toContain("an 2038");
     expect(lines(Math.floor(Date.UTC(2039, 0, 3) / HOUR)).join()).not.toContain("an 2038");
   });

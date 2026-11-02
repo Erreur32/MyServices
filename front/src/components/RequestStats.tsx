@@ -10,7 +10,8 @@ import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 import { InfoNote } from "./InfoNote";
-import { Badge, Dim, Empty } from "./ui";
+import { useSort } from "../lib/filter";
+import { Badge, Dim, Empty, SortTh } from "./ui";
 
 export type RequestRow = {
   owner: string; route: string; per_min: number; per_hour: number; total: number; hits: number; last_ms: number | null; avg_ms: number | null;
@@ -60,9 +61,15 @@ export function PulseCosts({ pulses }: Readonly<{ pulses: PulseCost[] }>) {
 }
 
 /** The rows of one connector (`owner`), or of all of them. */
+const rowKey = (r: RequestRow, k: string): string | number => {
+  const v = r[k as keyof RequestRow];
+  return typeof v === "number" || typeof v === "string" ? v : -1;   // a null time or code sorts below every value
+};
+
 export function RequestTable({ doc, owner }: Readonly<{ doc: RequestDoc; owner?: string }>) {
-  const rows = doc.rows.filter((r) => !owner || r.owner === owner);
   const watch = doc.watch.filter((w) => !owner || w.owner === owner);
+  const { sorted: rows, ...sort } = useSort(doc.rows.filter((r) => !owner || r.owner === owner), rowKey, "");   // the server's order until a column is picked
+  const th = (k: keyof RequestRow, label: string, right = true) => <SortTh k={k} sort={sort} className={`px-2 py-1 ${right ? "text-right" : ""}`}>{label}</SortTh>;
   if (rows.length === 0) return <Empty>{tx("Aucun appel compté depuis le démarrage.")}</Empty>;
   return (
     <div className="space-y-3">
@@ -71,10 +78,10 @@ export function RequestTable({ doc, owner }: Readonly<{ doc: RequestDoc; owner?:
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
             <tr className="text-left text-xs uppercase text-dim">
-              {!owner && <th className="px-2 py-1">{tx("Connecteur")}</th>}
-              <th className="px-2 py-1">{tx("Route")}</th><th className="px-2 py-1 text-right">{tx("/ min")}</th><th className="px-2 py-1 text-right">{tx("/ h")}</th>
-              <th className="px-2 py-1 text-right">{tx("Total")}</th><th className="px-2 py-1 text-right">{tx("Cache")}</th><th className="px-2 py-1 text-right">{tx("Dernière")}</th>
-              <th className="px-2 py-1 text-right">{tx("Moyenne")}</th><th className="px-2 py-1">{tx("Code")}</th><th className="px-2 py-1 text-right">429</th><th className="px-2 py-1">{tx("Dernière erreur")}</th>
+              {!owner && th("owner", tx("Connecteur"), false)}
+              {th("route", tx("Route"), false)}{th("per_min", tx("/ min"))}{th("per_hour", tx("/ h"))}
+              {th("total", tx("Total"))}{th("hits", tx("Cache"))}{th("last_ms", tx("Dernière"))}
+              {th("avg_ms", tx("Moyenne"))}{th("last_code", tx("Code"), false)}{th("n429", "429")}{th("last_error", tx("Dernière erreur"), false)}
             </tr>
           </thead>
           <tbody className="[&>tr:nth-child(even)]:bg-bg/50 [&>tr]:border-b [&>tr]:border-line/60">

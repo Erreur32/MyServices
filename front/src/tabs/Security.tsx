@@ -1,7 +1,7 @@
 // Security in « state » mode: a title line naming the tools read, six figures, then « To watch » (one row per problem, worst first, the
 // detail unfolding in the row) and, under it, one sub-tab per area (Fail2ban, public sites, SSH access, access to MyServices, network
 // ports, certificates). Read only.
-import { Ban, Check, ChevronDown, ChevronUp, EyeOff, FileBadge, Globe, KeyRound, Radar, ShieldCheck, UserCog, Wrench, X, type LucideIcon } from "lucide-react";
+import { Activity, Ban, Check, ChevronDown, ChevronUp, EyeOff, FileBadge, Globe, KeyRound, Radar, ShieldCheck, UserCog, Wrench, X, type LucideIcon } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { send, type Snapshot } from "../api";
 import { Certificates, CERT_SOON } from "../components/Certificates";
@@ -28,18 +28,23 @@ import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { WazuhPage } from "../components/WazuhPage";
 import type { Host } from "../types";
 import { NoteLine } from "../components/form";
+import { MachineFail2ban } from "../components/MachineFail2ban";
+import { machineFail2ban, readF2b } from "../lib/machineFail2ban";
+import { SiteIcon, WebTraffic } from "../components/WebTraffic";
+import { webMachines } from "../lib/webTraffic";
 
-type Sub = "overview" | "fail2ban" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
+type Sub = "overview" | "fail2ban" | "traffic" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area: Area }[] = [
   { id: "fail2ban", label: tx("Fail2ban"), icon: Ban, area: "fail2ban" },
+  { id: "traffic", label: tx("Trafic web"), icon: Activity, area: "traffic" },
   { id: "sites", label: tx("Sites exposés"), icon: Globe, area: "sites" },
   { id: "access", label: tx("Accès SSH"), icon: KeyRound, area: "ssh" },
   { id: "members", label: tx("Accès à MyServices"), icon: UserCog, area: "access" },
   { id: "network", label: tx("Ports du réseau"), icon: Radar, area: "ports" },
   { id: "certs", label: tx("Certificats"), icon: FileBadge, area: "certs" },
 ];
-const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), access: tx("Accès"), ports: tx("Port") };
-const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
+const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), traffic: tx("Trafic web"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), access: tx("Accès"), ports: tx("Port") };
+const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", traffic: "traffic", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
 
 /** Sub-tab named by the address (#security/certs), if any: the side menu's Fail2ban entry opens #security/fail2ban */
 const routeSub = (route: string): Sub | null => { const v = route.split("/")[1]; return v === "overview" || v === "wazuh" || (v !== "members" && SUBS.some((s) => s.id === v)) ? (v as Sub) : null; };
@@ -205,10 +210,12 @@ function SitesList({ snap, ctl }: Readonly<{ snap: Snapshot; ctl?: IgnoreCtl }>)
         {rows.map(({ r, issues, checks }) => {
           const f = siteFinding(r, issues), off = isOff(ctl, f), read = checks.filter((c) => c.ok !== null), ok = read.filter((c) => c.ok).length, pct = read.length ? Math.round((ok / read.length) * 100) : 0;
           return (
-            <li key={`${r.npm}-${r.id}`} className={`flex flex-col gap-2 px-3 py-3 md:grid md:grid-cols-[minmax(0,16rem)_8rem_minmax(0,1fr)_auto] md:items-center md:gap-4 ${off ? "opacity-50" : "even:bg-bg/50"}`}>
-              <span className="min-w-0">
-                <a href={`https://${r.domains[0]}`} target="_blank" rel="noopener" className="block truncate font-semibold text-link hover:underline">{r.domains[0]}</a>
-                <span className="flex items-center gap-1.5 truncate text-xs text-dim">{r.machine ?? ""}{r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}{off && <Badge tone="off">{tx("ignoré")}</Badge>}</span>
+            <li key={`${r.npm}-${r.id}`} className={`flex flex-col gap-2 px-3 py-3 md:grid md:grid-cols-[minmax(0,18rem)_minmax(0,9rem)_6.5rem_8rem_minmax(0,1fr)_auto] md:items-center md:gap-4 ${off ? "opacity-50" : "even:bg-bg/50"}`}>
+              <span className="flex min-w-0 items-center gap-2"><SiteIcon site={r.domains[0]} host={r} />
+                <a href={`https://${r.domains[0]}`} target="_blank" rel="noopener" className="min-w-0 truncate font-semibold text-link hover:underline" title={r.domains[0]}>{r.domains[0]}</a></span>
+              <span className="truncate text-xs text-dim" title={r.machine ?? undefined}>{r.machine ?? ""}</span>
+              <span className="flex flex-wrap gap-1">   {/* marks in their own column, aligned from one row to the next */}
+                {r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}{off && <Badge tone="off">{tx("ignoré")}</Badge>}
               </span>
               <span className="flex items-center gap-2" title={tx("{0} contrôle(s) sur {1} passent", ok, read.length)}>
                 <span className="h-2 flex-1 overflow-hidden rounded-full bg-line/60"><span className={`block h-full rounded-full ${barTone(pct)}`} style={{ width: `${pct}%` }} /></span>
@@ -322,12 +329,27 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
     (snap.data.network ?? []).length ? "MynetworK" : ""];
   const bySsh = tx("{0} machine(s) lue(s) par SSH", snap.data.machine_list.filter((m) => !m.disabled && m.info?.sshd).length);
   if (sub === "wazuh") return <WazuhPage snap={snap} admin={admin} />;   // its own entry of the side menu, shown when a Wazuh is read
-  if (sub === "fail2ban") return (   // its own entry of the side menu, under Security: Fail2ban only
-    <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={Ban} title={tx("Fail2ban")} tags={<HeadTags sources={[tools[0]]} at={snap.data.generated} />} actions={admin && <ConnectorsLink types={["logviewr"]} />} />
-      {sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>}
-    </div>
-  );
+  if (sub === "traffic") {   // its own entry of the side menu, under Security: the web traffic of the NPM logs
+    const web = webMachines(snap.health);
+    return (
+      <div className="flex flex-col gap-4 py-4">
+        <PageHead icon={Activity} title={tx("Trafic web")} tags={<HeadTags counts={[tx("{0} machine(s) lue(s)", web.length)]} at={snap.data.generated} />} />
+        {web.length ? <WebTraffic machines={web} hosts={snap.data.hosts} /> : <Empty>{tx("Aucun journal de Nginx Proxy Manager lu : il faut un agent Linux en version 11, ou l'accès SSH, sur la machine qui le fait tourner, avec Docker lisible par son compte.")}</Empty>}
+      </div>
+    );
+  }
+  if (sub === "fail2ban") {   // its own entry of the side menu, under Security: the machines' own Fail2ban, then the ones LogviewR reads
+    const machines = machineFail2ban(snap.health), read = readF2b(machines).length;
+    return (
+      <div className="flex flex-col gap-4 py-4">
+        <PageHead icon={Ban} title={tx("Fail2ban")} tags={<HeadTags counts={read ? [tx("{0} machine(s) lue(s)", read)] : []} sources={[tools[0]]} at={snap.data.generated} />} actions={admin && <ConnectorsLink types={["logviewr"]} />} />
+        {sources.length > 0 && <Fail2banStats sources={sources} />}
+        {machines.length > 0 && <MachineFail2ban rows={machines} />}
+        {sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}
+        {!sources.length && !machines.length && <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={ShieldCheck} title={tx("Sécurité")} tags={<HeadTags counts={[bySsh]} sources={tools} at={snap.data.generated} />} actions={admin && <ConnectorsLink types={["wazuh", "crowdsec", "logviewr"]} />} />
