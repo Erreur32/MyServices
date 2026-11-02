@@ -2,8 +2,8 @@
 // Machines → Agents (tous les agents avec leurs gestes, agents révoqués). Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller.
 // Gérés seulement depuis une session admin.
 import { AgentTodo } from "../components/AgentGaps";
-import { ArrowUpCircle, Check, KeyRound, MonitorUp, Plus, RotateCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowUpCircle, Check, KeyRound, MonitorUp, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
@@ -55,9 +55,59 @@ function HealthBadge({ a, down }: Readonly<{ a: AgentInfo; down: Down }>) {
 
 const AgentVersion = ({ a, down }: Readonly<{ a: AgentInfo; down?: Down }>) => {
   if (!a.version) return <>-</>;
-  if (down) return <Dim>v{a.version}</Dim>;   // nothing to do on a switched-off machine: the update waits for it
-  return a.outdated ? <span className="inline-flex items-center gap-1" title={agentNews(a)}>v{a.version} → v{a.latest_version}<ArrowUpCircle size={13} className="text-warn" aria-hidden /></span> : <>v{a.version}<Check size={13} className="text-ok" aria-hidden /></>;
+  return down ? <Dim>v{a.version}</Dim> : <>v{a.version}</>;   // what to do about it is in the Update column
 };
+
+/** Rank of the update state for sorting: what needs a look first */
+const updateRank = (a: AgentInfo) => {
+  if (!a.outdated) return 4;
+  if (a.update_stuck) return 0;
+  if (a.auto_update) return 3;
+  return a.update_requested ? 2 : 1;
+};
+
+/** Where the update of an agent stands, in words; in manual with an old script, the button that asks for it */
+function UpdateState({ a, down, busy, onRequest }: Readonly<{ a: AgentInfo; down?: Down; busy: boolean; onRequest: () => void }>): ReactNode {
+  if (!a.version) return null;
+  if (!a.outdated) return <Badge tone="ok">✓ {tx("à jour")}</Badge>;
+  if (down) return <Dim>{a.auto_update || a.update_requested ? tx("au rallumage") : tx("v{0} disponible", a.latest_version ?? "?")}</Dim>;
+  if (a.update_stuck) return <Badge tone="warn" title={tx("Deux relevés sont passés sans changer de version : regardez agent.log sur la machine (droits du dossier de l'agent, adresse du serveur).")}>⚠ {tx("non appliquée")}</Badge>;
+  if (a.update_requested) return <Badge tone="info" title={tx("L'agent prend le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(a.interval / 60))}>⏳ {tx("demandée")}</Badge>;
+  if (a.auto_update) return <Dim>{tx("v{0} au prochain relevé", a.latest_version ?? "?")}</Dim>;
+  return (
+    <button type="button" disabled={busy} onClick={onRequest} title={agentNews(a) ?? tx("Mettre à jour maintenant : l'agent récupère le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(a.interval / 60))}
+      className="inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-lg border border-link/60 bg-link/10 px-2 text-xs font-semibold text-link hover:bg-link/20 disabled:opacity-40">
+      <ArrowUpCircle size={13} aria-hidden />v{a.latest_version}
+    </button>
+  );
+}
+
+/** The update of an agent: Auto or Manual, then its state in words (up to date, next report, requested, not applied) or, in manual, the button */
+function AgentUpdate({ a, down, onChanged }: Readonly<{ a: AgentInfo; down?: Down; onChanged: () => void }>) {
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const run = async (fn: () => Promise<unknown>, done: string) => { setBusy(true); const ok = await act(fn, done, toHeader(setNote)); setBusy(false); if (ok) onChanged(); };
+  const pick = (auto: boolean) => {
+    if (auto !== !!a.auto_update) void run(() => send("PATCH", `agents/${a.id}`, { auto_update: auto }), auto ? tx("mise à jour automatique activée") : tx("mise à jour automatique coupée"));
+  };
+  const request = () => void run(() => send("POST", `agents/${a.id}/update`), tx("demandée : l'agent se mettra à jour à son prochain relevé"));
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="flex flex-wrap items-center gap-1.5">
+        <span role="radiogroup" aria-label={tx("Mise à jour de l'agent")} className="inline-flex overflow-hidden rounded-lg border border-line">
+          {[true, false].map((auto) => (
+            <button key={String(auto)} type="button" role="radio" aria-checked={!!a.auto_update === auto} disabled={busy} onClick={() => pick(auto)}
+              title={auto ? tx("L'agent prend le nouveau script dès qu'il est plus ancien") : tx("L'agent ne se met à jour que sur demande")}
+              className={`whitespace-nowrap px-2 py-1 text-xs font-semibold disabled:opacity-40 ${!!a.auto_update === auto ? "bg-link/15 text-link" : "bg-bg2 text-muted hover:text-txt"}`}>
+              {auto ? tx("Auto") : tx("Manuel")}
+            </button>
+          ))}
+        </span>
+        <UpdateState a={a} down={down} busy={busy} onRequest={request} />
+      </span>
+      <NoteLine note={note} />
+    </span>
+  );
+}
 
 
 /** Le jeton arrive d'un poste qui porte un autre nom que le premier vu (machine renommée, ou jeton copié ailleurs) : ses relevés sont refusés tant que l'admin n'a pas confirmé. */
@@ -83,24 +133,15 @@ function AgentOptionBoxes({ a }: Readonly<{ a: AgentInfo }>) {
   return <span className="flex flex-wrap gap-1">{agentBoxes(a.options).map((b) => <Badge key={b.label} tone={b.on ? "ok" : "off"} outline title={b.on ? b.detail : tx("non installé")}>{b.label}</Badge>)}</span>;
 }
 
-/** The gestures of an agent, as buttons: automatic update, update now, new command (a new token), revoke (with a confirmation). On the machine's
+/** The gestures of an agent, as buttons: new command (a new token), revoke (with a confirmation); its update is AgentUpdate. On the machine's
  *  page (its Access block) and on its row of Machines → Agents; the new command is shown by the caller (onInstall) */
 function AgentActions({ a, kind, onChanged, onInstall }: Readonly<{ a: AgentInfo; kind: AgentKind; onChanged: () => void; onInstall: (t: InstallTarget) => void }>) {
-  const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<unknown>, done: string) => { setBusy(true); const ok = await act(fn, done, toHeader(setNote)); setBusy(false); if (ok) onChanged(); };
+  const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null);
   return (
     <div className="flex flex-col items-end gap-1">
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           {confirm === "" && <>
-            <button type="button" disabled={busy} aria-pressed={!!a.auto_update} aria-label={tx("Automatique")}
-              title={a.auto_update ? tx("Mise à jour automatique activée : l'agent prend le nouveau script dès qu'il est plus ancien. Cliquer pour couper.") : tx("Activer la mise à jour automatique de cet agent")}
-              onClick={() => void run(() => send("PATCH", `agents/${a.id}`, { auto_update: !a.auto_update }), a.auto_update ? tx("mise à jour automatique coupée") : tx("mise à jour automatique activée"))}
-              className={`${iconBtn} ${a.auto_update ? "border-ok/60 bg-ok/15 text-ok" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}><RotateCw size={14} aria-hidden /></button>
-            {(a.outdated || a.update_requested) && <button type="button" disabled={busy || !!a.update_requested} aria-label={tx("Mettre à jour maintenant")}
-              title={a.update_requested ? tx("Demandée : l'agent se mettra à jour à son prochain relevé") : tx("Mettre à jour maintenant : l'agent récupère le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(a.interval / 60))}
-              onClick={() => void run(() => send("POST", `agents/${a.id}/update`), tx("demandée : l'agent se mettra à jour à son prochain relevé"))}
-              className={`${iconBtn} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`}><ArrowUpCircle size={14} aria-hidden /></button>}
-            <button type="button" disabled={busy} aria-label={tx("Nouvelle commande")} title={tx("Crée un nouveau jeton et révoque l'ancien : à refaire sur le PC avec la nouvelle commande")}
+            <button type="button" aria-label={tx("Nouvelle commande")} title={tx("Crée un nouveau jeton et révoque l'ancien : à refaire sur le PC avec la nouvelle commande")}
               onClick={() => setConfirm("renew")} className={`${iconBtn} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`}><KeyRound size={14} aria-hidden /></button>
             <button type="button" aria-label={tx("Révoquer")} title={tx("Révoquer")} onClick={() => setConfirm("revoke")}
               className={`${iconBtn} border-bad/50 text-bad hover:bg-bad/10`}><Trash2 size={14} aria-hidden /></button>
@@ -143,6 +184,7 @@ export function AgentBlock({ ip, name, kind, agent, create, onChanged }: Readonl
         <span className="inline-flex items-center gap-1 text-xs" title={agent.outdated ? tx("Agent v{0} : la v{1} est disponible", agent.version ?? "?", agent.latest_version ?? "?") : undefined}>
           <AgentVersion a={agent} />
         </span>
+        <AgentUpdate a={agent} onChanged={onChanged} />
         <Dim>{agent.last_seen ? tx("dernier relevé {0}", dateTime(agent.last_seen * 1000)) : tx("en attente du premier relevé")} · {tx("toutes les {0} min", Math.round(agent.interval / 60))}</Dim>
         <code className="font-mono text-xs text-dim" title={tx("Jeton")}>{tx("msv_")}agent_…{agent.hint}</code>
       </div>
@@ -183,12 +225,13 @@ function AgentRow({ a, conf, down, onChanged, lit }: Readonly<{ a: AgentInfo; co
       <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
       <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} down={down} />{!down && <AgentTodo a={a} ssh={typeof conf?.ssh === "string"} />}</span></td>
+      <td className="px-3 py-2"><AgentUpdate a={a} down={down} onChanged={onChanged} /></td>
       <td className="px-3 py-2"><AgentOptionBoxes a={a} /></td>
       <td className="px-3 py-2"><HealthBadge a={a} down={down} /></td>
       <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
       <td className="px-3 py-2"><AgentActions a={a} kind={a.kind ?? "windows"} onChanged={onChanged} onInstall={setInstall} /></td>
     </tr>
-    {install && <tr><td colSpan={9} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
+    {install && <tr><td colSpan={10} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
     </>
   );
 }
@@ -204,6 +247,7 @@ function AgentsTable({ live, machines, downOf, reload, open }: Readonly<{ live: 
     if (k === "kind") return a.kind ?? "windows";
     if (k === "state") return a.state;
     if (k === "version") return Number(a.version) || 0;
+    if (k === "update") return updateRank(a);
     if (k === "health") return downOf(a) ? 1 : agentHealth(a)?.score ?? -1;   // switched off: after the agents in use, before the ones never heard
     if (k === "seen") return a.last_seen ?? 0;
     return 0;
@@ -215,7 +259,7 @@ function AgentsTable({ live, machines, downOf, reload, open }: Readonly<{ live: 
       <table className="w-full min-w-[900px] border-collapse text-sm">
         <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
           {th("name", tx("Machine"))}{th("ip", "IP")}{th("kind", tx("Type"))}{th("state", tx("État"))}
-          {th("version", tx("Version"))}<th className="px-3 py-2">{tx("Options")}</th>{th("health", tx("Santé"))}{th("seen", tx("Dernier relevé"))}<th className="px-3 py-2" />
+          {th("version", tx("Version"))}{th("update", tx("Mise à jour"))}<th className="px-3 py-2">{tx("Options")}</th>{th("health", tx("Santé"))}{th("seen", tx("Dernier relevé"))}<th className="px-3 py-2" />
         </tr></thead>
         {/* keyed by machine: a new command gives the agent a new id, and the row must keep the frame showing that command */}
         <tbody>{sorted.map((a) => <AgentRow key={a.ip} a={a} conf={machines[a.ip]} down={downOf(a)} onChanged={reload} lit={open === a.ip} />)}</tbody>

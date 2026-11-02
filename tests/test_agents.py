@@ -462,6 +462,22 @@ class Agents(unittest.TestCase):
         self.assertNotIn("update", self.send(token, {**REPORT, "version": agents.VERSION}).json())
         self.assertTrue(next(a for a in self.c.get(BASE + "/agents", headers=self.h).json()["agents"] if a["id"] == info["id"])["auto_update"])
 
+    def test_update_offered_but_not_taken_is_told(self):
+        token, info = self.create()
+        listed = lambda: next(a for a in self.c.get(BASE + "/agents", headers=self.h).json()["agents"] if a["id"] == info["id"])
+        old = {**REPORT, "version": "1"}
+        self.c.post(BASE + f"/agents/{info['id']}/update", headers=self.h)
+        self.send(token, old)
+        self.assertFalse(listed()["update_stuck"])                                  # just offered: it is applied after this report
+        with common.AGENTS._db() as db:                                             # the first offer two intervals ago, the agent still old
+            db.execute("UPDATE agents SET update_offered = update_offered - 2 * interval WHERE id = ?", (info["id"],))
+        self.send(token, old)
+        self.assertTrue(listed()["update_stuck"])
+        self.send(token, {**REPORT, "version": agents.VERSION})
+        self.assertFalse(listed()["update_stuck"])                                  # taken at last: nothing to tell, and the offer is cleared
+        with common.AGENTS._db() as db:
+            self.assertIsNone(db.execute("SELECT update_offered FROM agents WHERE id = ?", (info["id"],)).fetchone()[0])
+
     def test_mise_a_jour_reservee_a_une_session_admin_et_aux_agents_actifs(self):
         token, info = self.create()
         self.assertEqual(self.anon.post(BASE + f"/agents/{info['id']}/update").status_code, 401)

@@ -29,6 +29,7 @@ PS_AGENT = "agent.ps1"       # script de l'agent Windows
 SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}
 SCRIPTS = Path(__file__).resolve().parents[2] / "agent"
 PREFIX = "msv_agent_"
+STUCK_AFTER = 1.5   # intervals between the first offer of an update and a report still in the old version: the second report after the offer
 SAFE_PATH = re.compile(r"/[A-Za-z0-9._/-]+")   # what install.sh accepts
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
 MAX_BODY = 256 * 1024     # octets : un relevé fait quelques ko (compressé en gzip par l'agent Linux depuis sa version 3)
@@ -64,7 +65,7 @@ class Agents:
         with self._db() as db:
             db.executescript(SCHEMA)
             have = {r["name"] for r in db.execute("PRAGMA table_info(agents)")}
-            for col, ddl in (("auto_update", "INTEGER NOT NULL DEFAULT 0"), ("update_requested", "REAL"),
+            for col, ddl in (("auto_update", "INTEGER NOT NULL DEFAULT 0"), ("update_requested", "REAL"), ("update_offered", "REAL"),
                              ("hostname", "TEXT"), ("host_pending", "TEXT"), ("kind", "TEXT NOT NULL DEFAULT 'windows'"), ("level", "TEXT")):   # databases created before these columns
                 if col not in have:
                     db.execute(f"ALTER TABLE agents ADD COLUMN {col} {ddl}")
@@ -133,12 +134,12 @@ class Agents:
             if r is None:
                 return None
             kind = r["kind"] or "windows"
-            if not older(version, version_of(kind)):
-                if r["update_requested"]:
-                    db.execute("UPDATE agents SET update_requested = NULL WHERE id = ?", (aid,))
+            current = not older(version, version_of(kind))
+            if current or not (r["auto_update"] or r["update_requested"]):
+                # up to date: the request is done; nothing offered: nothing can be stuck. update_offered = the first report the update was offered to
+                db.execute("UPDATE agents SET update_offered = NULL, update_requested = CASE WHEN ? THEN NULL ELSE update_requested END WHERE id = ?", (current, aid))
                 return None
-        if not (r["auto_update"] or r["update_requested"]):
-            return None
+            db.execute("UPDATE agents SET update_offered = COALESCE(update_offered, ?) WHERE id = ?", (time.time(), aid))
         return {"version": version_of(kind), "path": "/myservices/agent/" + SCRIPT_OF[kind], "sha256": script_sha256(SCRIPT_OF[kind])}
 
     def revoke(self, aid: int) -> None:
@@ -494,7 +495,7 @@ def windows_backup_card(b: dict, machine: str) -> dict:
 
 
 PUBLIC_COLS = ("id, ip, name, hint, created, created_by, revoked, last_seen, last_ip, interval, version, os_name, auto_update, "
-               "update_requested, hostname, host_pending, kind")   # what _public reads: the report stays in the database
+               "update_requested, update_offered, hostname, host_pending, kind")   # what _public reads: the report stays in the database
 
 
 def _partial(report: dict) -> bool:
@@ -577,7 +578,9 @@ def _public(r: sqlite3.Row) -> dict:
     else:
         state = "silencieux"
     kind = r["kind"] or "windows"
+    offered = r["update_offered"]   # two reports after the first offer and still the old version: the update does not take on that machine
     return {"auto_update": bool(r["auto_update"]), "update_requested": bool(r["update_requested"]), "latest_version": version_of(kind),
+            "update_stuck": bool(offered and r["last_seen"] and r["last_seen"] - offered >= STUCK_AFTER * interval and bool(r["version"]) and older(r["version"], version_of(kind))),
             "kind": kind, "outdated": bool(r["version"]) and older(r["version"], version_of(kind)),
             "id": r["id"], "ip": r["ip"], "name": r["name"], "hint": r["hint"], "created": r["created"],
             "created_by": r["created_by"], "revoked": r["revoked"], "last_seen": r["last_seen"], "last_ip": r["last_ip"],
