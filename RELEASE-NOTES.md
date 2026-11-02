@@ -10,6 +10,7 @@
 - **Which boxes to tick**: the command of a Linux agent now carries a note above its boxes. When in doubt, tick only sudo. Local DNS and backups only where they exist. borgmatic and Nginx Proxy Manager only on the machine that runs them, otherwise the install stops. Docker and disk health are added by hand (`MSV_DOCKER=1`, `MSV_SMART=1`).
 - **Automatic update has a limit**: it replaces only the agent's script. A box added or removed (sudo, DNS, backups…) needs a new command, run again on the machine.
 - **Agent health in words**: the Health column of the Agents page says « Good », or names the problem (reports late, script out of date, host to confirm) instead of a bar.
+- **Machine switched off**: an agent whose machine is off no longer shows red. It says « Machine switched off » (set often off) or « Offline » in grey, without update warning, and it no longer lowers the health average. The IP of each agent now has its own aligned column.
 - **Root or sudo**: the command says where to paste it, as root or from an account with sudo. It goes through sudo either way, so the sudo package is needed even as root.
 
 **Fixed**
@@ -21,5 +22,5 @@
 
 - **Image**: `ghcr.io/erreur32/myservices:0.35.4` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
 - **Agent**: no change, Linux agent version 11.
-- **Server**: the Docker inventory of a machine is read again when one of its containers started after it.
+- **Server**: the Docker inventory of a machine is read again when one of its containers started after it; the history of the agents health leaves out the machines that do not answer the ping.
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).

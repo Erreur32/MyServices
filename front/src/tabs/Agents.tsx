@@ -17,11 +17,11 @@ import { StatTile } from "../components/StatTile";
 import { HistoryTile, useAgentsHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import type { TilePoint } from "../lib/tileHistory";
-import { agentHealth, agentNews, agentSummary } from "../lib/accessLists";
+import { agentDown, agentHealth, agentNews, agentSummary } from "../lib/accessLists";
 import { toHeader } from "../lib/headerNote";
 import { scoreTone } from "../lib/figureTones";
-import { dateTime } from "../lib/format";
-import type { AgentInfo, AgentsState, MachineConf } from "../types";
+import { dateTime, ipNum } from "../lib/format";
+import type { AgentInfo, AgentsState, Machine, MachineConf } from "../types";
 import { tx } from "../lib/i18n";
 import { InfoNote } from "../components/InfoNote";
 import { FoldPanel } from "../components/FoldPanel";
@@ -39,9 +39,12 @@ const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounde
 
 /** The health of an agent in words: the worst of its three problems (late reports, old script, host to confirm), all of them in the pointer */
 const healthTone = (n: number) => scoreTone(n, 80, 50);
-function HealthBadge({ a }: Readonly<{ a: AgentInfo }>) {
+type Down = ReturnType<typeof agentDown>;
+function HealthBadge({ a, down }: Readonly<{ a: AgentInfo; down: Down }>) {
   const h = agentHealth(a);
   if (!h) return <Dim>-</Dim>;
+  if (down === "off") return <Badge tone="off" title={tx("Réglée « souvent éteinte » : rien à faire. L'agent reprend ses relevés au rallumage, et se met à jour si la mise à jour automatique est active.")}>⏻ {tx("Machine éteinte")}</Badge>;
+  if (down === "offline") return <Badge tone="off" title={tx("La machine ne répond plus : l'agent n'y est pour rien. Si elle est souvent coupée, réglez-la « souvent éteinte » dans Réglages › Machines.")}>◌ {tx("Hors ligne")}</Badge>;
   const why = h.why.length ? h.why.join(" · ") : tx("relevés à l'heure, script à jour, machine reconnue");
   if (a.state === "en attente") return <Badge tone="off" title={why}>… {tx("En attente")}</Badge>;
   if (a.state !== "actif") return <Badge tone="bad" title={why}>✕ {tx("Relevés en retard")}</Badge>;
@@ -50,8 +53,9 @@ function HealthBadge({ a }: Readonly<{ a: AgentInfo }>) {
   return <Badge tone="ok" title={why}>✓ {tx("Bon")}</Badge>;
 }
 
-const AgentVersion = ({ a }: Readonly<{ a: AgentInfo }>) => {
+const AgentVersion = ({ a, down }: Readonly<{ a: AgentInfo; down?: Down }>) => {
   if (!a.version) return <>-</>;
+  if (down) return <Dim>v{a.version}</Dim>;   // nothing to do on a switched-off machine: the update waits for it
   return a.outdated ? <span className="inline-flex items-center gap-1" title={agentNews(a)}>v{a.version} → v{a.latest_version}<ArrowUpCircle size={13} className="text-warn" aria-hidden /></span> : <>v{a.version}<Check size={13} className="text-ok" aria-hidden /></>;
 };
 
@@ -168,22 +172,23 @@ export function AccessGuide() {
 /** Vue d'ensemble, en bas de Réglages → Machines : comment choisir entre agent, SSH et connecteur, et les agents révoqués */
 /** One agent in the list of Machines → Agents: its machine, type, state, version, last report and its gestures in the row; a new command
  *  (new token) is shown under the row */
-function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: MachineConf; onChanged: () => void; lit: boolean }>) {
+function AgentRow({ a, conf, down, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: MachineConf; down: Down; onChanged: () => void; lit: boolean }>) {
   const [tone, label] = STATE[a.state], name = conf?.name ?? a.name;
   const [install, setInstall] = useState<InstallTarget | null>(null);
   return (
     <>
     <tr className={`border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40 ${lit ? "ring-2 ring-inset ring-link/60" : ""}`}>
-      <td className="px-3 py-2"><a href={`#machines/${a.ip}`} className="flex items-center gap-2 text-txt no-underline hover:text-link"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></a></td>
+      <td className="px-3 py-2"><a href={`#machines/${a.ip}`} className="flex items-center gap-2 text-txt no-underline hover:text-link"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b></a></td>
+      <td className="px-3 py-2 font-mono text-xs tabular-nums text-dim">{a.ip}</td>
       <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
-      <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} /><AgentTodo a={a} ssh={typeof conf?.ssh === "string"} /></span></td>
+      <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} down={down} />{!down && <AgentTodo a={a} ssh={typeof conf?.ssh === "string"} />}</span></td>
       <td className="px-3 py-2"><AgentOptionBoxes a={a} /></td>
-      <td className="px-3 py-2"><HealthBadge a={a} /></td>
+      <td className="px-3 py-2"><HealthBadge a={a} down={down} /></td>
       <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
       <td className="px-3 py-2"><AgentActions a={a} kind={a.kind ?? "windows"} onChanged={onChanged} onInstall={setInstall} /></td>
     </tr>
-    {install && <tr><td colSpan={8} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
+    {install && <tr><td colSpan={9} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
     </>
   );
 }
@@ -192,32 +197,33 @@ function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: M
  *  the late ones, then the revoked ones. An agent is installed from the page of its machine, Access tab. */
 
 /** The live agents, every column but Options sorts; the order of the server until one is picked */
-function AgentsTable({ live, machines, reload, open }: Readonly<{ live: AgentInfo[]; machines: Record<string, MachineConf>; reload: () => void; open?: string }>) {
+function AgentsTable({ live, machines, downOf, reload, open }: Readonly<{ live: AgentInfo[]; machines: Record<string, MachineConf>; downOf: (a: AgentInfo) => Down; reload: () => void; open?: string }>) {
   const keyOf = useCallback((a: AgentInfo, k: string): string | number => {
     if (k === "name") return (machines[a.ip]?.name ?? a.name ?? "").toLowerCase();
+    if (k === "ip") return ipNum(a.ip);
     if (k === "kind") return a.kind ?? "windows";
     if (k === "state") return a.state;
     if (k === "version") return Number(a.version) || 0;
-    if (k === "health") return agentHealth(a)?.score ?? -1;
+    if (k === "health") return downOf(a) ? 1 : agentHealth(a)?.score ?? -1;   // switched off: after the agents in use, before the ones never heard
     if (k === "seen") return a.last_seen ?? 0;
     return 0;
-  }, [machines]);
+  }, [machines, downOf]);
   const { sorted, ...sort } = useSort(live, keyOf, "");
   const th = (k: string, label: string) => <SortTh k={k} sort={sort} className="px-3 py-2">{label}</SortTh>;
   return (
     <div className="mt-3 overflow-x-auto">
       <table className="w-full min-w-[900px] border-collapse text-sm">
         <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-          {th("name", tx("Machine"))}{th("kind", tx("Type"))}{th("state", tx("État"))}
+          {th("name", tx("Machine"))}{th("ip", "IP")}{th("kind", tx("Type"))}{th("state", tx("État"))}
           {th("version", tx("Version"))}<th className="px-3 py-2">{tx("Options")}</th>{th("health", tx("Santé"))}{th("seen", tx("Dernier relevé"))}<th className="px-3 py-2" />
         </tr></thead>
         {/* keyed by machine: a new command gives the agent a new id, and the row must keep the frame showing that command */}
-        <tbody>{sorted.map((a) => <AgentRow key={a.ip} a={a} conf={machines[a.ip]} onChanged={reload} lit={open === a.ip} />)}</tbody>
+        <tbody>{sorted.map((a) => <AgentRow key={a.ip} a={a} conf={machines[a.ip]} down={downOf(a)} onChanged={reload} lit={open === a.ip} />)}</tbody>
       </table>
     </div>
   );
 }
-export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<string, MachineConf>; open?: string }>) {
+export function AgentsOverview({ machines, list, open }: Readonly<{ machines: Record<string, MachineConf>; list: Machine[]; open?: string }>) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const reload = useCallback(() => { read<AgentsState>("agents").then(setSt).catch(() => undefined); }, []);
@@ -226,7 +232,8 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
   const hist = useAgentsHistory(hours, `${s.active}.${s.outdated.length}`), now = Math.floor(Date.now() / 1000), ratio = (p: TilePoint) => `${p[1]}/${p[2]}`, late = (p: TilePoint) => p[2] - p[1];
   if (open === "new") return <NewAgentPage machines={machines} />;
   if (!st) return <Loading />;
-  const scores = s.live.map((a) => agentHealth(a)?.score ?? 0), avg = scores.length ? Math.round(scores.reduce((t, n) => t + n, 0) / scores.length) : null;
+  const byIp = new Map(list.map((m) => [m.ip, m])), downOf = (a: AgentInfo) => agentDown(a, byIp.get(a.ip)), off = s.live.filter(downOf).length;
+  const scores = s.live.filter((a) => !downOf(a)).map((a) => agentHealth(a)?.score ?? 0), avg = scores.length ? Math.round(scores.reduce((t, n) => t + n, 0) / scores.length) : null;
   const updateLate = async () => {
     setBusy(true);
     await act(() => Promise.all(s.outdated.map((a) => send("POST", `agents/${a.id}/update`))), tx("demandée pour {0} agent(s) : chacun se met à jour à son prochain relevé", s.outdated.length), toHeader(setNote));
@@ -243,7 +250,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         </>} />
       <div className="flex flex-wrap gap-2.5 pb-1">
         <HistoryTile n={s.active} label={tx("Actifs")} tone="ok" kind="curve" points={hist?.running ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
-        <HistoryTile n={avg ?? "-"} label={tx("Santé des agents")} tone={avg == null ? undefined : healthTone(avg)} fact={tx("moyenne sur 100")} scale={100} kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]} / 100`} goodHigh />
+        <HistoryTile n={avg ?? "-"} label={tx("Santé des agents")} tone={avg == null ? undefined : healthTone(avg)} fact={off ? tx("moyenne sur 100 · {0} machine(s) éteinte(s) non comptée(s)", off) : tx("moyenne sur 100")} scale={100} kind="curve" points={hist?.health ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={(p) => `${p[1]} / 100`} goodHigh />
         <StatTile n={s.silent} label={tx("Silencieux")} tone={s.silent ? "warn" : undefined} />
         <StatTile n={s.pending} label={tx("En attente")} />
         <StatTile n={s.rights} label={tx("Droits à compléter")} tone={s.rights ? "warn" : undefined} />
@@ -254,7 +261,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         <NoteLine note={note} />
         {s.live.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun agent installé : le SSH lit déjà vos machines, ou aucun PC n'en a besoin.")}</p>}
         {s.live.length > 0 && (
-          <AgentsTable live={s.live} machines={machines} reload={reload} open={open} />
+          <AgentsTable live={s.live} machines={machines} downOf={downOf} reload={reload} open={open} />
         )}
       </FoldPanel>
       {s.revoked.length > 0 && <FoldPanel id="agents-revoked" icon={KeyRound} title={tx("Agents révoqués")} count={s.revoked.length} startFolded>
