@@ -2,12 +2,12 @@
 // The alerts of the page are its rows, so everything that asks for an action sits in one table. Cloudflare's own check of each name is reused.
 import type { CloudflareZone, Dns, Host } from "../types";
 import { CHECK_ORDER, cloudflareChecks, recordOf, zoneOf, type Check, type CheckTone } from "./cloudflare";
-import { ISSUE, npmWhere, type DnsRow } from "./dnsState";
+import { ISSUE, npmPlace, npmWhere, type DnsRow } from "./dnsState";
 import { tx } from "./i18n";
 import { hostName } from "./status";
 
 export type CloudState = "proxied" | "dns" | "wildcard" | "none" | "outside";
-export interface CompareRow { key: string; name: string; note: string; npm: string; manager: string; cloud: CloudState | null; answer: string; tone: CheckTone; verdict: string }
+export interface CompareRow { key: string; name: string; note: string; npm: string; npmIp: string; manager: string; cloud: CloudState | null; answer: string; tone: CheckTone; verdict: string }
 
 type Machines = { ip: string; name: string }[];
 
@@ -39,7 +39,7 @@ function answerText(answers?: Record<string, string[] | null>): string {
 
 function nameRow(g: Dns, r: Host, name: string, machines: Machines, zones: CloudflareZone[], cloudCheck?: Check): CompareRow {
   const kinds = (r.dns?.issues ?? []).filter((i) => i[1] === name).map((i) => String(i[0]));
-  const where = npmWhere(g, machines, r.npm), manager = managerOf(name, g, zones), cloud = cloudOf(name, zones);
+  const where = npmWhere(g, machines, r.npm), place = npmPlace(g, machines, r.npm), manager = managerOf(name, g, zones), cloud = cloudOf(name, zones);
   const check = cloud === "wildcard" ? undefined : cloudCheck;   // a name of a wildcard is not a record of its own: what the check finds there is about the site, not the DNS
   const said = kinds.map((k) => ISSUE[k] ?? k);
   if (kinds.includes("absent")) said.push(tx("Retirer le nom du NPM {0}, ou créer l'enregistrement chez {1}", where, manager));
@@ -47,16 +47,17 @@ function nameRow(g: Dns, r: Host, name: string, machines: Machines, zones: Cloud
   if (kinds.length) tone = kinds.includes("absent") ? "bad" : "warn";
   if (!said.length && cloud === "outside" && hostOf(name, g)) said.push(tx("Se change chez {0}", manager));
   const first = hostName(r);
-  return { key: `${r.type}${r.id}/${name}`, name, note: first === name ? "" : tx("autre nom du host {0}", first), npm: where, manager, cloud, answer: answerText(r.dns?.answers?.[name]), tone, verdict: [...said, ...(check?.notes ?? [])].join(" · ") };
+  return { key: `${r.type}${r.id}/${name}`, name, note: first === name ? "" : tx("autre nom du host {0}", first), npm: place.name, npmIp: place.ip, manager, cloud, answer: answerText(r.dns?.answers?.[name]), tone, verdict: [...said, ...(check?.notes ?? [])].join(" · ") };
 }
 
 /** A Cloudflare name no active NPM host holds */
 function cloudRow(g: Dns, c: Check, machines: Machines, zones: CloudflareZone[]): CompareRow {
-  return { key: `cf/${c.name}`, name: c.name, note: c.via ? "" : tx("enregistrement sans host NPM actif"), npm: c.via ? npmWhere(g, machines, c.via) : "-", manager: "Cloudflare", cloud: cloudOf(c.name, zones), answer: "-", tone: c.tone, verdict: c.notes.join(" · ") };
+  const place = npmPlace(g, machines, c.via ?? undefined);
+  return { key: `cf/${c.name}`, name: c.name, note: c.via ? "" : tx("enregistrement sans host NPM actif"), npm: place.name, npmIp: place.ip, manager: "Cloudflare", cloud: cloudOf(c.name, zones), answer: "-", tone: c.tone, verdict: c.notes.join(" · ") };
 }
 
 /** The alerts that are about no name of a host: an instance, the sync, a machine name, the rewrites */
-const watchRow = (w: DnsRow): CompareRow => ({ key: w.key, name: w.title, note: w.area, npm: "-", manager: "-", cloud: null, answer: "-", tone: w.sev, verdict: w.detail });
+const watchRow = (w: DnsRow): CompareRow => ({ key: w.key, name: w.title, note: w.area, npm: "-", npmIp: "", manager: "-", cloud: null, answer: "-", tone: w.sev, verdict: w.detail });
 
 export function dnsCompare(g: Dns, hosts: Host[], machines: Machines, zones: CloudflareZone[], watch: DnsRow[]): CompareRow[] {
   const checks = new Map(cloudflareChecks(zones, hosts).map((c) => [c.name, c]));
@@ -70,6 +71,18 @@ export function dnsCompare(g: Dns, hosts: Host[], machines: Machines, zones: Clo
   }
   for (const c of checks.values()) if (!seen.has(c.name)) out.push(cloudRow(g, c, machines, zones));
   return out.sort((a, b) => CHECK_ORDER.indexOf(a.tone) - CHECK_ORDER.indexOf(b.tone) || a.name.localeCompare(b.name));
+}
+
+/** What each column of the table sorts on */
+export function compareKey(r: CompareRow, key: string): string | number {
+  switch (key) {
+    case "npm": return r.npm;
+    case "manager": return r.manager;
+    case "cloud": return r.cloud ?? "";
+    case "answer": return r.answer;
+    case "tone": return CHECK_ORDER.indexOf(r.tone);
+    default: return r.name;
+  }
 }
 
 /** The figures of the Cloudflare card */

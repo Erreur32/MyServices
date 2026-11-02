@@ -21,12 +21,16 @@ export function dnsFigures(g: Dns, hosts: Host[], at = Date.now()): DnsFigures {
     sync: dnsSync(g, at), rewrites: counts.length ? Math.max(...counts) : null, diff };
 }
 
-/** Where a NPM runs: the followed machine at its address, then the address; a home network and a remote server can each have their own */
+/** Where a NPM runs: the followed machine at its address and the address; a home network and a remote server can each have their own */
+export function npmPlace(g: Dns, machines: { ip: string; name: string }[], npm?: string): { name: string; ip: string } {
+  const ip = (npm && g.npm_ips?.[npm]) || "";
+  return { name: machines.find((m) => m.ip === ip)?.name ?? (ip ? "" : npm ?? "-"), ip };
+}
+
+/** The same place in words */
 export function npmWhere(g: Dns, machines: { ip: string; name: string }[], npm?: string): string {
-  const ip = npm ? g.npm_ips?.[npm] : undefined;
-  if (!ip) return npm ?? "-";
-  const name = machines.find((m) => m.ip === ip)?.name;
-  return name ? `${name} (${ip})` : ip;
+  const { name, ip } = npmPlace(g, machines, npm);
+  return name && ip ? `${name} (${ip})` : name || ip;
 }
 
 /** The NPM read, each with its machine */

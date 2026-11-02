@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Dns, Host } from "../types";
-import { dnsFigures, dnsWatch, npmList, npmWhere, serverList } from "./dnsState";
+import { dnsFigures, dnsWatch, npmList, npmPlace, npmWhere, serverList } from "./dnsState";
 
 const g = (o: Partial<Dns>): Dns => ({ servers: {}, rewrites_diff: [], user_rules_diff: [], orphans: [], ...o });
 const host = (id: number, issues: [string, string][]): Host => ({ type: "proxy", id, enabled: true, domains: [`h${id}.lan`], dns: { issues } } as unknown as Host);
@@ -32,6 +32,7 @@ describe("DNS in state mode", () => {
     expect(npmWhere(d, machines, "home")).toBe("Myoueb (10.0.0.1)");
     expect(npmWhere(d, machines, "remote")).toBe("203.0.113.5");
     expect(npmWhere(d, machines, "gone")).toBe("gone");
+    expect(npmPlace(d, machines, "home")).toEqual({ name: "Myoueb", ip: "10.0.0.1" });
     expect(npmList(d, machines)).toBe("Myoueb (10.0.0.1), 203.0.113.5");
     expect(serverList(d)).toBe("A (10.0.0.2)");
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CloudflareZone, Dns, Host } from "../types";
-import { cloudCounts, dnsCompare, isAlert } from "./dnsCompare";
+import { cloudCounts, compareKey, dnsCompare, isAlert } from "./dnsCompare";
 import type { DnsRow } from "./dnsState";
 
 const g = (o: Partial<Dns> = {}): Dns => ({ servers: {}, rewrites_diff: [], user_rules_diff: [], orphans: [], npm_ips: { home: "10.0.0.1", remote: "203.0.113.5" }, zones: { "serveur.fr": "OVH" }, ...o });
@@ -15,7 +15,7 @@ const find = (rows: ReturnType<typeof dnsCompare>, name: string) => rows.find((r
 describe("DNS comparison", () => {
   it("a name missing everywhere is a red alert naming its machine, what to do and where", () => {
     const rows = dnsCompare(g(), [host(["git.serveur.fr", "git.site.info"], "remote", [["absent", "git.site.info"]])], machines, zones, []);
-    expect(find(rows, "git.site.info")).toMatchObject({ tone: "bad", npm: "ovh (203.0.113.5)", manager: "Cloudflare", cloud: "none", answer: "aucune réponse", note: "autre nom du host git.serveur.fr" });
+    expect(find(rows, "git.site.info")).toMatchObject({ tone: "bad", npm: "ovh", npmIp: "203.0.113.5", manager: "Cloudflare", cloud: "none", answer: "aucune réponse", note: "autre nom du host git.serveur.fr" });
     expect(find(rows, "git.site.info").verdict).toContain("Retirer le nom du NPM ovh (203.0.113.5), ou créer l'enregistrement chez Cloudflare");
     expect(rows[0].name).toBe("git.site.info");
   });
@@ -41,7 +41,13 @@ describe("DNS comparison", () => {
   });
   it("a Cloudflare record without an active host gets its own row", () => {
     const rows = dnsCompare(g(), [], machines, zones, []);
-    expect(find(rows, "blog.maison.fr")).toMatchObject({ npm: "-", tone: "info", note: "enregistrement sans host NPM actif" });
+    expect(find(rows, "blog.maison.fr")).toMatchObject({ npm: "-", npmIp: "", tone: "info", note: "enregistrement sans host NPM actif" });
+  });
+  it("sorts the alerts first on the verdict column, and every other column on its text", () => {
+    const rows = dnsCompare(g(), [host(["blog.maison.fr"], "home"), host(["git.site.info"], "remote", [["absent", "git.site.info"]])], machines, zones, []);
+    expect(compareKey(find(rows, "git.site.info"), "tone")).toBeLessThan(compareKey(find(rows, "blog.maison.fr"), "tone") as number);
+    expect(compareKey(find(rows, "git.site.info"), "npm")).toBe("ovh");
+    expect(compareKey(find(rows, "blog.maison.fr"), "cloud")).toBe("proxied");
   });
   it("without Cloudflare no state is claimed, and the alerts about no name stay in the table", () => {
     const watch: DnsRow[] = [{ key: "sync", sev: "bad", area: "Synchro", title: "synchro en retard", detail: "", anchor: "servers" }, { key: "host/x", sev: "warn", area: "Domaine", title: "dup", detail: "", anchor: "domains" }];
