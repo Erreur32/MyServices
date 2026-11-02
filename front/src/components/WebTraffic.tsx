@@ -150,7 +150,7 @@ function MachinePanel({ m, hostOf }: Readonly<{ m: WebMachine; hostOf: (site: st
 type TopRow = ReturnType<typeof topIps>[number];
 const topKey = (r: TopRow, k: string): string | number => (k === "n" ? r.n : r[k as "ip" | "site" | "machine"]);
 
-function TopIps({ machines }: Readonly<{ machines: WebMachine[] }>) {
+function TopIps({ machines, hostOf }: Readonly<{ machines: WebMachine[]; hostOf: (site: string) => Host | undefined }>) {
   const rows = topIps(machines), several = machines.length > 1, max = Math.max(1, ...rows.map((r) => r.n));
   const { sorted, ...sort } = useSort(rows, topKey, "n", false);
   if (!rows.length) return null;
@@ -167,7 +167,7 @@ function TopIps({ machines }: Readonly<{ machines: WebMachine[] }>) {
             {sorted.map((r) => (
               <tr key={`${r.ip}/${r.site}/${r.machine}`} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
                 <td className="truncate px-3 py-2 font-mono">{r.ip}</td>
-                <td className="truncate px-3 py-2">{r.site}</td>
+                <td className="max-w-0 px-3 py-2"><span className="flex min-w-0 items-center gap-2"><SiteIcon site={r.site} host={hostOf(r.site)} /><span className="truncate" title={r.site}>{r.site}</span></span></td>
                 {several && <td className="truncate px-3 py-2 text-muted">{r.machine}</td>}
                 <td className={NUM}><span className="inline-flex items-center justify-end gap-2">
                   <span className="h-1.5 w-20 overflow-hidden rounded-full bg-line/60" aria-hidden><span className="block h-full rounded-full bg-link/60" style={{ width: `${(100 * r.n) / max}%` }} /></span>
@@ -218,7 +218,7 @@ export function WebTraffic({ machines, hosts }: Readonly<{ machines: WebMachine[
         <StatTile n={int(scrapers)} label={tx("IP d'aspiration diffuse")} tone={scrapers ? "warn" : undefined} />
       </div>
       {machines.map((m) => <MachinePanel key={m.id} m={m} hostOf={hostOf} />)}
-      <TopIps machines={machines} />
+      <TopIps machines={machines} hostOf={hostOf} />
       <Limits />
       <p className="flex items-center gap-1.5 text-xs text-dim"><Globe size={12} aria-hidden />{tx("Lu dans les journaux de Nginx Proxy Manager de chaque machine, par son agent ou par SSH, toutes les 10 à 15 min.")}</p>
     </div>
