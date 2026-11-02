@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.4 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **Agent command, what to tick**: a note above the boxes of a Linux agent says to tick only sudo when in doubt, local DNS and backups only where they exist, borgmatic and Nginx Proxy Manager only on the machine that runs them (otherwise the install stops), and how to add Docker or disk health by hand.
 
