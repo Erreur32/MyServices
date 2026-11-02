@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Agent command, what to tick**: a note above the boxes of a Linux agent says to tick only sudo when in doubt, local DNS and backups only where they exist, borgmatic and Nginx Proxy Manager only on the machine that runs them (otherwise the install stops), and how to add Docker or disk health by hand.
+
 ### Fixed
 - **A container updated in place is read again**: a container recreated under the same name (`docker compose pull` then `up -d`) started after the last Docker inventory, so its machine is read again at the next collection instead of keeping the old image and version for up to 2 hours. The version of the prod shown in the header of a development image follows by itself.
 

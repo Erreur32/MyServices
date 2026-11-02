@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { backupDirs, npmProblem, type AgentOptions } from "../lib/agentCommand";
 import { input } from "../lib/forms";
+import { InfoNote } from "./InfoNote";
 import { tx } from "../lib/i18n";
 
 function Box({ on, onChange, children }: Readonly<{ on: boolean; onChange: (on: boolean) => void; children: ReactNode }>) {
@@ -18,6 +19,12 @@ export function AgentLinuxOptions({ value, onChange }: Readonly<{ value: AgentOp
   const dirs = value.backupDirs ?? "", wrongDirs = dirs.trim() !== "" && backupDirs(dirs).length !== dirs.split(/[\s,]+/).filter(Boolean).length;
   return (
     <div className="mb-2">
+      <InfoNote className="mb-2">
+        <p>{tx("Dans le doute, cochez seulement sudo : relancer plus tard la commande avec d'autres cases remplace l'installation, sans rien casser.")}</p>
+        <p>{tx("DNS local et sauvegardes : seulement là où ils existent. Ailleurs rien n'est trouvé, mais un droit root inutile est donné.")}</p>
+        <p>{tx("borgmatic et Nginx Proxy Manager : seulement sur la machine qui les fait tourner, sinon l'installation s'arrête.")}</p>
+        <p>{tx("Docker et la santé des disques ne sont pas des cases : ajoutez MSV_DOCKER=1 ou MSV_SMART=1 après « sudo env » (le groupe docker donne les droits de root).")}</p>
+      </InfoNote>
       <Box on={!!value.sudo} onChange={(sudo) => set({ sudo })}>{tx("Autoriser des lectures avec sudo : le programme derrière chaque port, les services à relancer, les adresses bloquées par fail2ban, les machines virtuelles (Proxmox, KVM, Incus, LXD). Chacune est une règle exacte, en lecture seule.")}</Box>
       <Box on={!!value.dns} onChange={(dns) => set({ dns })}>{tx("Lire le DNS local : AdGuard Home, Pi-hole, dnsmasq, Unbound et BIND sont trouvés sur la machine. Seuls leurs enregistrements et règles sont envoyés, jamais un compte.")}</Box>
       <Box on={!!value.backups} onChange={(backups) => set({ backups })}>{tx("Lire les dossiers de sauvegarde : noms, tailles et dates, jamais le contenu. Seuls /home/backup, /var/backups, /backup, /backups et les dossiers ajoutés ici sont acceptés.")}</Box>
