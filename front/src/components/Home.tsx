@@ -271,9 +271,9 @@ export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Reado
       {admin && <Missing snap={snap} />}   {/* setting up: only what is still to plug in or to follow, nothing once all is done */}
       {admin && <DiscoveryReminder machines={snap.data.machine_list} />}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">   {/* stretched: the three blocks end on one line */}
         <LastDay snap={snap} go={go} now={now} />
-        <div className="flex min-w-0 flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-5 [&>*:last-child]:flex-1">
           <ScheduleCard />
           {admin && <SentAlerts />}
         </div>
