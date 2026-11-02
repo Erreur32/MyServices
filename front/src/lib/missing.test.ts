@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
 import type { Data, Machine } from "../types";
-import { missing } from "./missing";
+import { missing, type AlertsSetup } from "./missing";
 
 function machine(m: Partial<Machine>): Machine {
   return { ip: "10.0.0.5", name: "m", ping: true, off: false, services: 0, npm: 0, down: 0, ...m };
@@ -19,7 +19,7 @@ describe("il manque", () => {
   it("rien quand tout est branché et que les machines sont lues", () => {
     const s = snap([machine({ ssh: { alias: "m", port: 22, identity: "/k" }, info: {} })], { dns: { servers: {}, orphans: [], generated: "" } as unknown as Data["dns"], network: [{ connector: "unifi" } as never] },
       { generated: "", summary: { ok: 1, warn: 0, crit: 0, sets: 1, hosts: 1, volume: 0, no_offsite: 0 }, issues: [] });
-    const got = missing(s, 2);
+    const got = missing(s, { channels: 2, on: 2, active: true });
     expect(got.filter((m) => m.key !== "network")).toEqual([]);
   });
   it("machine en ligne sans agent ni SSH : une ligne, pas pour la box ni l'éteinte ni la machine locale", () => {
@@ -35,10 +35,15 @@ describe("il manque", () => {
     const got = missing(snap([machine({ name: "a" }), machine({ name: "b", ip: "10.0.0.6" })]), null);
     expect(got.find((m) => m.key === "health")?.text).toMatch(/^2 machines sans agent/);
   });
-  it("pages cachées : sauvegardes, réseau, DNS ; notifications seulement quand le compte des canaux est connu", () => {
-    const keys = (c: number | null) => missing(snap([]), c).map((m) => m.key);
+  it("pages cachées : sauvegardes, réseau, DNS ; notifications seulement quand leur réglage est connu", () => {
+    const keys = (a: AlertsSetup | null) => missing(snap([]), a).map((m) => m.key);
     expect(keys(null)).toEqual(["backups", "network", "dns"]);
-    expect(keys(0)).toEqual(["backups", "network", "dns", "channels"]);
-    expect(keys(1)).toEqual(["backups", "network", "dns"]);
+    expect(keys({ channels: 1, on: 1, active: true })).toEqual(["backups", "network", "dns"]);
+  });
+  it("notifications : pas réglées, désactivées ou sans règle, chacune avec son bouton", () => {
+    const line = (a: AlertsSetup) => missing(snap([]), a).find((m) => m.key === "channels" || m.key === "rules");
+    expect(line({ channels: 0, on: 0, active: false })?.text).toMatch(/^Notifications pas réglées/);
+    expect(line({ channels: 2, on: 0, active: false })).toMatchObject({ text: expect.stringMatching(/^Notifications désactivées : 2 canaux réglé/), action: "Réactiver un canal" });
+    expect(line({ channels: 1, on: 1, active: false })).toMatchObject({ key: "rules", href: "settings/alerts/rules" });
   });
 });

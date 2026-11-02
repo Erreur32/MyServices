@@ -4,7 +4,7 @@ import { ArrowRight, PlugZap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read, type Snapshot } from "../api";
 import { tx } from "../lib/i18n";
-import { missing } from "../lib/missing";
+import { missing, type AlertsSetup } from "../lib/missing";
 import type { AlertsState } from "../types";
 import { InfoNote } from "./InfoNote";
 import { Rich } from "./Rich";
@@ -12,11 +12,11 @@ import { Rich } from "./Rich";
 const GO = "group/go inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted no-underline transition-colors hover:border-link hover:bg-link/10 hover:text-link";
 
 export function Missing({ snap }: Readonly<{ snap: Snapshot }>) {
-  const [channels, setChannels] = useState<number | null>(null);
+  const [alerts, setAlerts] = useState<AlertsSetup | null>(null);
   useEffect(() => {
-    read<AlertsState>("alerts").then((a) => setChannels(a.channels.filter((c) => c.enabled).length)).catch(() => setChannels(null));
+    read<AlertsState>("alerts").then((a) => setAlerts({ channels: a.channels.length, on: a.channels.filter((c) => c.enabled).length, active: a.active })).catch(() => setAlerts(null));
   }, []);
-  const items = missing(snap, channels);
+  const items = missing(snap, alerts);
   if (!items.length) return null;
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm" aria-label={tx("Pour aller plus loin")}>
