@@ -922,6 +922,7 @@ export const EN: Record<string, string> = {
   "La mise à jour automatique ne change que le script de l'agent, jamais ces cases ni leurs droits : pour en ajouter ou en retirer, faites une nouvelle commande et relancez-la sur la machine.": "Automatic update changes only the agent's script, never these boxes nor their rights: to add or remove one, make a new command and run it again on the machine.",
   "Relevés en retard": "Reports late",
   "au rallumage": "when switched back on",
+  "Les agents en manuel dont la machine répond : ceux en Auto se mettent à jour seuls": "The agents in manual whose machine answers: the ones in Auto update by themselves",
   "v{0} disponible": "v{0} available",
   "Deux relevés sont passés sans changer de version : regardez agent.log sur la machine (droits du dossier de l'agent, adresse du serveur).": "Two reports went by without a new version: look at agent.log on the machine (rights on the agent's folder, server address).",
   "non appliquée": "not applied",

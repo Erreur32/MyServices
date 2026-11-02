@@ -278,9 +278,10 @@ export function AgentsOverview({ machines, list, open }: Readonly<{ machines: Re
   if (!st) return <Loading />;
   const byIp = new Map(list.map((m) => [m.ip, m])), downOf = (a: AgentInfo) => agentDown(a, byIp.get(a.ip)), off = s.live.filter(downOf).length;
   const scores = s.live.filter((a) => !downOf(a)).map((a) => agentHealth(a)?.score ?? 0), avg = scores.length ? Math.round(scores.reduce((t, n) => t + n, 0) / scores.length) : null;
+  const toAsk = s.outdated.filter((a) => !a.auto_update && !downOf(a));   // the automatic ones update alone, a switched-off one cannot
   const updateLate = async () => {
     setBusy(true);
-    await act(() => Promise.all(s.outdated.map((a) => send("POST", `agents/${a.id}/update`))), tx("demandée pour {0} agent(s) : chacun se met à jour à son prochain relevé", s.outdated.length), toHeader(setNote));
+    await act(() => Promise.all(toAsk.map((a) => send("POST", `agents/${a.id}/update`))), tx("demandée pour {0} agent(s) : chacun se met à jour à son prochain relevé", toAsk.length), toHeader(setNote));
     setBusy(false);
     reload();
   };
@@ -290,7 +291,7 @@ export function AgentsOverview({ machines, list, open }: Readonly<{ machines: Re
         actions={<>
           <a href="#settings/machines/agents/new" className={`${primary} py-1 no-underline`}><Plus size={14} aria-hidden />{tx("Agent")}</a>
           <PeriodSwitch value={hours} onChange={setHours} />
-          {s.outdated.length > 0 && <button type="button" className={`${primary} nudge`} disabled={busy} onClick={() => void updateLate()}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", s.outdated.length)}</button>}
+          {toAsk.length > 0 && <button type="button" className={`${primary} nudge`} disabled={busy} onClick={() => void updateLate()} title={tx("Les agents en manuel dont la machine répond : ceux en Auto se mettent à jour seuls")}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", toAsk.length)}</button>}
         </>} />
       <div className="flex flex-wrap gap-2.5 pb-1">
         <HistoryTile n={s.active} label={tx("Actifs")} tone="ok" kind="curve" points={hist?.running ?? null} hours={hours} now={now} figure={(p) => p[1]} fmt={ratio} goodHigh />
