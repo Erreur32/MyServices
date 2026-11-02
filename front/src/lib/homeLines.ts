@@ -8,18 +8,40 @@ import type { Attention, Category } from "./summary";
 const pick = <T>(list: T[], seed: number): T => list[Math.abs(seed) % list.length];
 
 const calmTitles = () => [tx("Tout va bien sur ton réseau."), tx("Rien à signaler, tu peux aller prendre un café."), tx("Réseau au calme, tout répond."), tx("Journée tranquille, aucune alerte en vue.")];
-const geekTitles = () => ["All systems nominal.", "200 OK.", tx("Ping OK, pas de kernel panic en vue."), tx("0 warning, 0 error : ça compile du premier coup."), tx("Aucun incident, le chmod 777 n'a pas encore frappé.")];
+const geekTitles = () => ["All systems nominal.", "200 OK.", tx("Ping OK, pas de kernel panic en vue."), tx("0 warning, 0 error : ça compile du premier coup."), tx("Aucun incident, le chmod 777 n'a pas encore frappé."), "exit 0.", tx("Tout est vert, même les LED du switch."), tx("Uptime au beau fixe, personne n'a trébuché sur le câble.")];
 const QUOTES = ["It's always DNS.", "There's no place like 127.0.0.1.", "Have you tried turning it off and on again?", "Talk is cheap. Show me the code. (Linus Torvalds)",
-  "There are only two hard things in computer science: cache invalidation and naming things. (Phil Karlton)"];
-const localQuotes = () => [tx("Il n'y a pas de cloud, juste l'ordinateur de quelqu'un d'autre."), tx("Une sauvegarde jamais restaurée n'est qu'un espoir.")];
+  "There are only two hard things in computer science: cache invalidation and naming things. (Phil Karlton)",
+  "Premature optimization is the root of all evil. (Donald Knuth)", "Beware of bugs in the above code; I have only proved it correct, not tried it. (Donald Knuth)",
+  "Debugging is twice as hard as writing the code in the first place. (Brian Kernighan)", "Simplicity is prerequisite for reliability. (Edsger W. Dijkstra)",
+  "Programs must be written for people to read, and only incidentally for machines to execute. (Harold Abelson)",
+  "Any sufficiently advanced technology is indistinguishable from magic. (Arthur C. Clarke)", "Never trust a computer you can't throw out a window. (Steve Wozniak)",
+  "It works on my machine.", "Unix is user-friendly. It's just selective about who its friends are.",
+  "There are 10 types of people: those who understand binary and those who don't.", "sudo make me a sandwich. (xkcd)",
+  "Weeks of coding can save you hours of planning.", "It always takes longer than you expect, even when you take into account Hofstadter's Law. (Douglas Hofstadter)",
+  "The first 90 % of the code takes 90 % of the time. The remaining 10 % takes the other 90 %. (Tom Cargill)"];
+const localQuotes = () => [tx("Il n'y a pas de cloud, juste l'ordinateur de quelqu'un d'autre."), tx("Une sauvegarde jamais restaurée n'est qu'un espoir."), tx("Le RAID n'est pas une sauvegarde."),
+  tx("Si ça marche, n'y touche pas."), tx("Rien n'est plus définitif qu'une solution provisoire."), tx("Le problème se situe entre la chaise et le clavier."),
+  tx("Un mot de passe, c'est comme une brosse à dents : on ne le prête pas et on le change souvent."), tx("On ne met jamais en production un vendredi."),
+  tx("Il y a deux sortes d'admins : ceux qui ont perdu des données, et ceux qui vont en perdre."), tx("Un bon admin est un admin paresseux : il a tout automatisé."),
+  tx("Sans supervision, pas de panne : seulement des surprises."), tx("Enregistre souvent, pleure rarement."), tx("À chaque problème son script, à chaque script son problème.")];
 
 /** One title in four is a geek one */
 function calmTitle(seed: number): string {
   return seed % 4 === 0 ? pick(geekTitles(), seed / 4) : pick(calmTitles(), seed - Math.floor(seed / 4));   // minus the hours given to the geek ones: every title gets its turn
 }
 
-function seriousTitle(crit: number, rest: number, seed: number): string {
-  if (crit === 1) return rest ? tx("**Un point grave**, et **{0}** à regarder ensuite.", rest) : pick([tx("**Un point grave** demande ton attention."), tx("**Une alerte sérieuse** à traiter en priorité.")], seed);
+/** Only backups in trouble: worth a look, not the top priority of the network */
+function backupTitle(crit: number, rest: number, seed: number): string {
+  if (crit > 1) return pick([tx("**{0} sauvegardes** à reprendre, rien ne brûle.", crit), tx("Côté sauvegardes, **{0} jeux** demandent un coup d'œil.", crit)], seed);
+  if (rest) return pick([tx("**Une sauvegarde** à reprendre, et **{0}** autre(s) point(s) à voir.", rest), tx("Côté sauvegardes, **une copie** à vérifier, puis **{0}** autre(s) point(s).", rest)], seed);
+  return pick([tx("**Une sauvegarde** à reprendre quand tu peux."), tx("Rien ne brûle, mais **une sauvegarde** attend un coup d'œil.")], seed);
+}
+
+function seriousTitle(critical: Attention[], rest: number, seed: number): string {
+  const crit = critical.length;
+  if (critical.every((i) => i.category === "sauvegardes")) return backupTitle(crit, rest, seed);
+  if (crit === 1 && rest) return pick([tx("**Un point grave**, et **{0}** autre(s) point(s) à regarder ensuite.", rest), tx("**Une alerte sérieuse** d'abord, puis **{0}** autre(s) point(s).", rest)], seed);
+  if (crit === 1) return pick([tx("**Un point grave** demande ton attention."), tx("**Une alerte sérieuse** à traiter en priorité.")], seed);
   return pick([tx("**{0} points graves** sur ton réseau.", crit), tx("Ça sent le roussi : **{0} points graves**.", crit)], seed);
 }
 
@@ -31,8 +53,8 @@ function minorTitle(n: number, seed: number): string {
 
 /** The title, from how many alerts there are and how serious */
 export function storyTitle(items: Attention[], seed: number): string {
-  const crit = items.filter((i) => i.level === "crit").length;
-  if (crit) return seriousTitle(crit, items.length - crit, seed);
+  const critical = items.filter((i) => i.level === "crit");
+  if (critical.length) return seriousTitle(critical, items.length - critical.length, seed);
   return items.length ? minorTitle(items.length, seed) : calmTitle(seed);
 }
 
