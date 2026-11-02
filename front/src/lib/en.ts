@@ -4186,5 +4186,5 @@ export const EN: Record<string, string> = {
   "plus de 5 % d'erreurs 5xx sur 10 min": "more than 5 % of 5xx errors over 10 min",
   "Le service derrière NPM répond mal : regarder ses journaux et sa machine.": "The service behind NPM answers badly: look at its logs and its machine.",
   "Trafic web": "Web traffic",
-  "Aucun journal de Nginx Proxy Manager lu : il faut un agent Linux en version 10, ou l'accès SSH, sur la machine qui le fait tourner, avec Docker lisible par son compte.": "No Nginx Proxy Manager log read: it needs a Linux agent version 10, or SSH access, on the machine that runs it, with Docker readable by its account.",
+  "Aucun journal de Nginx Proxy Manager lu : il faut un agent Linux en version 11, ou l'accès SSH, sur la machine qui le fait tourner, avec Docker lisible par son compte.": "No Nginx Proxy Manager log read: it needs a Linux agent version 11, or SSH access, on the machine that runs it, with Docker readable by its account.",
 };

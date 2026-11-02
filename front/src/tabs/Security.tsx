@@ -332,7 +332,7 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
     return (
       <div className="flex flex-col gap-4 py-4">
         <PageHead icon={Activity} title={tx("Trafic web")} tags={<HeadTags counts={[tx("{0} machine(s) lue(s)", web.length)]} at={snap.data.generated} />} />
-        {web.length ? <WebTraffic machines={web} /> : <Empty>{tx("Aucun journal de Nginx Proxy Manager lu : il faut un agent Linux en version 10, ou l'accès SSH, sur la machine qui le fait tourner, avec Docker lisible par son compte.")}</Empty>}
+        {web.length ? <WebTraffic machines={web} /> : <Empty>{tx("Aucun journal de Nginx Proxy Manager lu : il faut un agent Linux en version 11, ou l'accès SSH, sur la machine qui le fait tourner, avec Docker lisible par son compte.")}</Empty>}
       </div>
     );
   }
