@@ -34,6 +34,7 @@ const KIND: Record<Category, { label: string; Icon: LucideIcon; tint: string; he
 const ACT = "inline-flex shrink-0 items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors";
 const QUIET = `${ACT} border border-line bg-bg2 text-txt no-underline hover:border-link hover:text-link`;
 const FILL = `${ACT} bg-accent text-white no-underline hover:brightness-110`;
+const SLOT = "w-full justify-center text-center";   // a button of « À traiter maintenant »: the width of its slot
 const DOT: Record<Tone | "off", string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", off: "border-2 border-dim" };
 const TITLE_TONE: Record<Tone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
 
@@ -68,9 +69,9 @@ function Line({ it, admin, go, goFilter }: Readonly<{ it: Attention; admin: bool
         </p>
         <p className="mt-0.5 text-[13px] text-muted">{KIND[it.category].help}</p>
       </div>
-      <div className="flex flex-wrap gap-1.5 sm:justify-end">
-        <button type="button" onClick={() => openAttention(it, go, goFilter)} className={!fix && crit ? FILL : QUIET}>{it.action}</button>
-        {fix && <a href={`#${fix.href}`} className={FILL}>{fix.label}</a>}
+      <div className="grid grid-cols-2 gap-1.5 sm:w-[20.4rem]">   {/* two slots of one width: every « Voir » on the right, « Régler » left of it, aligned row to row */}
+        {fix && <a href={`#${fix.href}`} className={`${FILL} ${SLOT}`}>{fix.label}</a>}
+        <button type="button" onClick={() => openAttention(it, go, goFilter)} className={`${!fix && crit ? FILL : QUIET} ${SLOT} col-start-2`}>{it.action}</button>
       </div>
     </li>
   );
