@@ -2,7 +2,10 @@
 // its usual hour, the load beside it (a high load from the disks is not an attack), its sites with the diffuse scraping and the 5xx, then the
 // busiest addresses of the last hour and the limits of the alerts.
 import { Activity, Eye, Globe, Network, SlidersHorizontal } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { faviconUrl, serviceIcon } from "../lib/appIcons";
+import type { Host } from "../types";
+import { LetterAvatar } from "./LetterAvatar";
 import { useSort } from "../lib/filter";
 import { tx } from "../lib/i18n";
 import { LOAD_DISK, loadReading, toLook, topIps, VERDICT_ORDER, type SiteRow, type SiteVerdict, type WebMachine } from "../lib/webTraffic";
@@ -70,11 +73,17 @@ function Meter({ pct, hot }: Readonly<{ pct: number; hot: boolean }>) {
   );
 }
 
-function SiteLine({ r }: Readonly<{ r: SiteRow }>) {
+/** The icon of a site: its favicon, else the logo of its service, else its first letter */
+export function SiteIcon({ site, host }: Readonly<{ site: string; host?: Host }>) {
+  const src = host?.favicon ? faviconUrl(host.favicon) : host && serviceIcon(host);
+  return src ? <img src={src} alt="" className="size-4 shrink-0 object-contain" loading="lazy" /> : <LetterAvatar domain={site} size={16} />;
+}
+
+function SiteLine({ r, host }: Readonly<{ r: SiteRow; host?: Host }>) {
   const [label, tone] = VERDICT[r.verdict];
   return (
     <tr className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
-      <td className="max-w-0 px-3 py-2"><span className="block truncate font-semibold" title={r.site}>{r.site}</span></td>
+      <td className="max-w-0 px-3 py-2"><span className="flex min-w-0 items-center gap-2"><SiteIcon site={r.site} host={host} /><span className="truncate font-semibold" title={r.site}>{r.site}</span></span></td>
       <td className={`${NUM} whitespace-nowrap`}><b>{int(r.last)}</b><Delta r={r} /></td>
       <td className={`${NUM} text-muted`}>{r.usual == null ? "-" : int(r.usual)}</td>
       <td className={`${NUM} text-muted`}>{int(r.total)}</td>
@@ -89,7 +98,7 @@ function SiteLine({ r }: Readonly<{ r: SiteRow }>) {
 }
 
 /** The sites the NPM serves, whatever machine runs each of them: the ones to look at first, every column sorts */
-function Sites({ m }: Readonly<{ m: WebMachine }>) {
+function Sites({ m, hostOf }: Readonly<{ m: WebMachine; hostOf: (site: string) => Host | undefined }>) {
   const look = m.sites.filter(toLook);
   const [more, setMore] = useState(look.length === 0);
   const { sorted, ...sort } = useSort(more || !look.length ? m.sites : look, siteKey, "look");
@@ -109,14 +118,14 @@ function Sites({ m }: Readonly<{ m: WebMachine }>) {
             {th("usual", tx("Habituel"), true, tx("Moyenne horaire des jours d'avant"))}{th("total", tx("24 h"))}{th("ips", tx("IP 24 h"))}
             {th("share", tx("Part diffuse"), true, tx("Part des requêtes venues d'IP qui restent sous les seuils de Fail2ban (50 à 400 par jour chacune)"))}{th("errors", tx("5xx 24 h"))}{th("look", tx("Verdict"), false)}
           </tr></thead>
-          <tbody>{sorted.map((r) => <SiteLine key={r.site} r={r} />)}</tbody>
+          <tbody>{sorted.map((r) => <SiteLine key={r.site} r={r} host={hostOf(r.site)} />)}</tbody>
         </table>
       </div>
     </div>
   );
 }
 
-function MachinePanel({ m }: Readonly<{ m: WebMachine }>) {
+function MachinePanel({ m, hostOf }: Readonly<{ m: WebMachine; hostOf: (site: string) => Host | undefined }>) {
   const reading = READING[loadReading(m)], look = m.sites.filter(toLook).length;
   return (
     <FoldPanel id={`security.traffic.${m.id}`} icon={Activity} title={tx("Nginx Proxy Manager de {0}", m.name)} count={look || undefined} tone={m.web.rising || look ? "warn" : undefined}
@@ -132,7 +141,7 @@ function MachinePanel({ m }: Readonly<{ m: WebMachine }>) {
             </DetailSection>
           </div>
         </div>
-        <Sites m={m} />
+        <Sites m={m} hostOf={hostOf} />
       </div>
     </FoldPanel>
   );
@@ -172,20 +181,31 @@ function TopIps({ machines }: Readonly<{ machines: WebMachine[] }>) {
   );
 }
 
+const LIMITS: [string, string, boolean][] = [   // label, limit, sent as an alert (web_pic, aspiration) or shown on the page only
+  [tx("Pic de trafic"), tx("3 fois l'heure habituelle et au moins 1 000 requêtes en une heure"), true],
+  [tx("Aspiration diffuse"), tx("plus de 40 % des requêtes d'un site, venues d'au moins 30 IP à 50 à 400 requêtes chacune"), true],
+  [tx("Erreurs 5xx"), tx("plus de 5 % d'au moins 50 requêtes sur 10 min"), false],
+  [tx("Robots connus"), tx("comptés à part, hors de l'aspiration diffuse"), false],
+  [tx("Charge haute"), tx("affichée à côté du trafic, jamais seule"), false],
+];
+
 function Limits() {
   return (
     <DetailSection icon={SlidersHorizontal} title={tx("Seuils des alertes")} tone="link" right={<a href="#settings/alerts">{tx("Réglages › Alertes")}</a>}>
-      <DetailRow k={tx("Pic de trafic")}>{tx("3 fois l'heure habituelle et au moins 1 000 requêtes en une heure")}</DetailRow>
-      <DetailRow k={tx("Aspiration diffuse")}>{tx("plus de 40 % des requêtes d'un site, venues d'au moins 30 IP à 50 à 400 requêtes chacune")}</DetailRow>
-      <DetailRow k={tx("Erreurs 5xx")}>{tx("plus de 5 % d'au moins 50 requêtes sur 10 min (sur la page, sans envoi)")}</DetailRow>
-      <DetailRow k={tx("Robots connus")}>{tx("comptés à part, hors de l'aspiration diffuse")}</DetailRow>
-      <DetailRow k={tx("Charge haute")}>{tx("affichée à côté du trafic, jamais une alerte seule")}</DetailRow>
+      {LIMITS.map(([k, v, sent]) => (
+        <DetailRow key={k} k={k}>
+          <span className="min-w-0 flex-1">{v}</span>
+          {sent ? <Badge tone="warn">{tx("Alerte envoyée")}</Badge> : <Badge tone="off">{tx("Page seulement")}</Badge>}
+        </DetailRow>
+      ))}
     </DetailSection>
   );
 }
 
 /** The page: the figures of every machine together, one panel per machine, the busiest addresses and the limits */
-export function WebTraffic({ machines }: Readonly<{ machines: WebMachine[] }>) {
+export function WebTraffic({ machines, hosts }: Readonly<{ machines: WebMachine[]; hosts: Host[] }>) {
+  const byDomain = useMemo(() => new Map(hosts.flatMap((h) => h.domains.map((d): [string, Host] => [d.toLowerCase(), h]))), [hosts]);
+  const hostOf = (site: string) => byDomain.get(site.toLowerCase());
   const last = machines.reduce((n, m) => n + (m.web.last ?? 0), 0), ips = machines.reduce((n, m) => n + m.web.ips, 0);
   const usual = machines.every((m) => m.web.usual != null) ? machines.reduce((n, m) => n + (m.web.usual ?? 0), 0) : null;
   const scrapers = machines.reduce((n, m) => n + m.sites.filter((r) => r.verdict === "diffuse").reduce((a, r) => a + r.dip, 0), 0);
@@ -197,7 +217,7 @@ export function WebTraffic({ machines }: Readonly<{ machines: WebMachine[] }>) {
         <StatTile n={int(ips)} label={tx("IP distinctes, 24 h")} />
         <StatTile n={int(scrapers)} label={tx("IP d'aspiration diffuse")} tone={scrapers ? "warn" : undefined} />
       </div>
-      {machines.map((m) => <MachinePanel key={m.id} m={m} />)}
+      {machines.map((m) => <MachinePanel key={m.id} m={m} hostOf={hostOf} />)}
       <TopIps machines={machines} />
       <Limits />
       <p className="flex items-center gap-1.5 text-xs text-dim"><Globe size={12} aria-hidden />{tx("Lu dans les journaux de Nginx Proxy Manager de chaque machine, par son agent ou par SSH, toutes les 10 à 15 min.")}</p>

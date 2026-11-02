@@ -30,7 +30,7 @@ import type { Host } from "../types";
 import { NoteLine } from "../components/form";
 import { MachineFail2ban } from "../components/MachineFail2ban";
 import { machineFail2ban, readF2b } from "../lib/machineFail2ban";
-import { WebTraffic } from "../components/WebTraffic";
+import { SiteIcon, WebTraffic } from "../components/WebTraffic";
 import { webMachines } from "../lib/webTraffic";
 
 type Sub = "overview" | "fail2ban" | "traffic" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
@@ -210,10 +210,12 @@ function SitesList({ snap, ctl }: Readonly<{ snap: Snapshot; ctl?: IgnoreCtl }>)
         {rows.map(({ r, issues, checks }) => {
           const f = siteFinding(r, issues), off = isOff(ctl, f), read = checks.filter((c) => c.ok !== null), ok = read.filter((c) => c.ok).length, pct = read.length ? Math.round((ok / read.length) * 100) : 0;
           return (
-            <li key={`${r.npm}-${r.id}`} className={`flex flex-col gap-2 px-3 py-3 md:grid md:grid-cols-[minmax(0,16rem)_8rem_minmax(0,1fr)_auto] md:items-center md:gap-4 ${off ? "opacity-50" : "even:bg-bg/50"}`}>
-              <span className="min-w-0">
-                <a href={`https://${r.domains[0]}`} target="_blank" rel="noopener" className="block truncate font-semibold text-link hover:underline">{r.domains[0]}</a>
-                <span className="flex items-center gap-1.5 truncate text-xs text-dim">{r.machine ?? ""}{r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}{off && <Badge tone="off">{tx("ignoré")}</Badge>}</span>
+            <li key={`${r.npm}-${r.id}`} className={`flex flex-col gap-2 px-3 py-3 md:grid md:grid-cols-[minmax(0,18rem)_minmax(0,9rem)_6.5rem_8rem_minmax(0,1fr)_auto] md:items-center md:gap-4 ${off ? "opacity-50" : "even:bg-bg/50"}`}>
+              <span className="flex min-w-0 items-center gap-2"><SiteIcon site={r.domains[0]} host={r} />
+                <a href={`https://${r.domains[0]}`} target="_blank" rel="noopener" className="min-w-0 truncate font-semibold text-link hover:underline" title={r.domains[0]}>{r.domains[0]}</a></span>
+              <span className="truncate text-xs text-dim" title={r.machine ?? undefined}>{r.machine ?? ""}</span>
+              <span className="flex flex-wrap gap-1">   {/* marks in their own column, aligned from one row to the next */}
+                {r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}{off && <Badge tone="off">{tx("ignoré")}</Badge>}
               </span>
               <span className="flex items-center gap-2" title={tx("{0} contrôle(s) sur {1} passent", ok, read.length)}>
                 <span className="h-2 flex-1 overflow-hidden rounded-full bg-line/60"><span className={`block h-full rounded-full ${barTone(pct)}`} style={{ width: `${pct}%` }} /></span>
@@ -332,7 +334,7 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
     return (
       <div className="flex flex-col gap-4 py-4">
         <PageHead icon={Activity} title={tx("Trafic web")} tags={<HeadTags counts={[tx("{0} machine(s) lue(s)", web.length)]} at={snap.data.generated} />} />
-        {web.length ? <WebTraffic machines={web} /> : <Empty>{tx("Aucun journal de Nginx Proxy Manager lu : il faut un agent Linux en version 11, ou l'accès SSH, sur la machine qui le fait tourner, avec Docker lisible par son compte.")}</Empty>}
+        {web.length ? <WebTraffic machines={web} hosts={snap.data.hosts} /> : <Empty>{tx("Aucun journal de Nginx Proxy Manager lu : il faut un agent Linux en version 11, ou l'accès SSH, sur la machine qui le fait tourner, avec Docker lisible par son compte.")}</Empty>}
       </div>
     );
   }

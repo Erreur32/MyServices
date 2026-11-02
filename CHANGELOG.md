@@ -19,6 +19,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 - **Sortable tables**: a sortable column shows a faint double arrow, and a column of figures starts from the highest. Now sortable too: Agents, SSH connections, Settings Requests, Virtualization guests, Wazuh machines, backup sets (inside each machine), Tapo and Domotique devices, and the new Security tables.
+- **Security, sites and web traffic**: each site shows its favicon; on Exposed sites the domain, its machine and its marks (wanted public, ignored) are three aligned columns. The alert limits card says for each limit whether an alert is sent or it is shown on the page only.
+- **Cards of labels and values**: a label never wraps onto a second line (wider label column, cut with its full text on hover as a last resort).
 
 ### Fixed
 - **Backups read by an agent are fresh**: a Linux agent reads its backup folders again before each backups run of the server, instead of only every 6 hours, so the Backups page no longer lags hours behind a machine read by its agent. Linux agent version 9.

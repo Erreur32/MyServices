@@ -42,7 +42,7 @@ describe("NetworkBox", () => {
     expect(html).toContain("Autres relevés");
     expect(html).toContain("-15.7 dBm reçus");
     expect(html).toContain("91 % (NVME)");
-    expect(html.match(/Stockage/g)).toHaveLength(1);
+    expect(html.match(/>Stockage</g)).toHaveLength(1);   // the text shown once (the label also carries it as its hover title)
     expect(html).not.toContain("Température max");   // already said by the box's own field
   });
 
