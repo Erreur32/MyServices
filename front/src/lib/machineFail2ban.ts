@@ -20,7 +20,8 @@ export function machineFail2ban(health: Health | null): MachineF2b[] {
     const total = f.total ?? 0;
     let state: F2bState = "absent";
     if (f.available && (!f.access || f.down)) state = "unread";
-    else if (f.available) state = f.rising ? "rising" : total > 0 ? "usual" : "calm";
+    else if (f.available && f.rising) state = "rising";
+    else if (f.available) state = total > 0 ? "usual" : "calm";
     return [{ id: h.id, name, ip, via: h.source ?? "", state, jails: f.jails ?? [], total, peak: f.peak ?? null, usual: f.usual ?? null, rule: f.rule }];
   }).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state) || b.total - a.total || a.name.localeCompare(b.name));
 }

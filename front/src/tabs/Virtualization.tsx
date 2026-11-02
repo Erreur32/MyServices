@@ -82,7 +82,7 @@ const guestKey = (g: Guest, k: string): string | number => {
 };
 
 /** The guests of one node: state, name, load, disk and uptime sort; the order of the connector until a column is picked */
-function GuestsTable({ list, row }: Readonly<{ list: Guest[]; row: (g: Guest) => ReactNode }>) {
+function GuestsTable({ list, renderRow }: Readonly<{ list: Guest[]; renderRow: (g: Guest) => ReactNode }>) {
   const { sorted, ...sort } = useSort(list, guestKey, "");
   const th = (k: string, label: string) => <SortTh k={k} sort={sort} className="px-3 py-2">{label}</SortTh>;
   return (
@@ -92,7 +92,7 @@ function GuestsTable({ list, row }: Readonly<{ list: Guest[]; row: (g: Guest) =>
           {th("status", tx("État"))}{th("name", tx("Invité"))}<th className="px-3 py-2">{tx("Machine")}</th>{th("cpu", tx("CPU"))}
           {th("mem", tx("Mémoire"))}{th("disk", tx("Disque"))}{th("uptime", tx("En marche"))}<th className="px-3 py-2">{tx("Sauvegarde")}</th><th className="px-3 py-2">Docker</th>
         </tr></thead>
-        <tbody className="divide-y divide-line/60">{sorted.map(row)}</tbody>
+        <tbody className="divide-y divide-line/60">{sorted.map(renderRow)}</tbody>
       </table>
     </div>
   );
@@ -198,7 +198,7 @@ function Host({ c, snap, onMachine, hideStopped }: Readonly<{ c: VirtualizationC
               )}
               {list.length > 0 && (
                 <Category icon={Monitor} title={tx("Machines virtuelles")} count={list.length}>
-                <GuestsTable list={list} row={(g) => {
+                <GuestsTable list={list} renderRow={(g) => {
                   const m = machineOf(g);
                   const dh = m?.links?.sources.find((x) => x.source === "dockhand" || x.source === "dozzle");
                   const env = dh && envs.find((e) => e.name === dh.environment);

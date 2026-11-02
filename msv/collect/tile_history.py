@@ -112,6 +112,15 @@ ERR_SHARE, ERR_MIN = 0.05, 50          # 5xx: this share of at least this many r
 USUAL_MIN = 6                          # hours of history before a usual level is given
 
 
+def _site_flags(s: dict, usual: int | None) -> None:
+    """A site's usual hour, its total of the day, and whether it is scraped (diffuse) or answers 5xx (errors)."""
+    reqs = sum(n for _, n, _ in s.get("h") or [])
+    s["usual"], s["total"] = usual, reqs
+    s["diffuse"] = s.get("dip", 0) >= DIFFUSE_IPS and s.get("dreq", 0) >= DIFFUSE_SHARE * reqs
+    m10 = s.get("m10") or [0, 0]
+    s["errors"] = m10[0] >= ERR_MIN and m10[1] >= ERR_SHARE * m10[0]
+
+
 def web_trend(db_path: str | Path, machine_id: str, web: dict, now: float | None = None) -> None:
     """Keeps each complete hour of the machine and of each site, then sets on `web` and its sites: the usual hour (mean of the stored hours of the
     7 days before the last complete one), the last complete hour and the current one so far, and the flags rising, diffuse and errors."""
@@ -138,11 +147,7 @@ def web_trend(db_path: str | Path, machine_id: str, web: dict, now: float | None
         return round(avg) if n >= USUAL_MIN else None
 
     for site, s in web.get("sites", {}).items():
-        reqs = sum(n for _, n, _ in s.get("h") or [])
-        s["usual"], s["total"] = level(f"{base}|{site}"), reqs
-        s["diffuse"] = s.get("dip", 0) >= DIFFUSE_IPS and s.get("dreq", 0) >= DIFFUSE_SHARE * reqs
-        m10 = s.get("m10") or [0, 0]
-        s["errors"] = m10[0] >= ERR_MIN and m10[1] >= ERR_SHARE * m10[0]
+        _site_flags(s, level(f"{base}|{site}"))
     web["usual"], web["last"], web["now"] = level(base), total.get(done - 3600, [0])[0], total.get(done, [0])[0]
     worst = max(web["last"], web["now"])
     web["rising"] = web["usual"] is not None and worst >= PEAK_MIN and worst >= PEAK_FACTOR * web["usual"]

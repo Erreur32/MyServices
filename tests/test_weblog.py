@@ -118,8 +118,9 @@ class Alerts(unittest.TestCase):
         self.assertIn("62 % des requêtes du jour viennent de 184 IP", scraped["aspiration:m1:rss.example.test"]["text"])
         self.assertEqual(watcher.web_snaps(None), (None, None))
         kinds = __import__("msv.alerts.alerts", fromlist=["KINDS"]).KINDS
-        self.assertTrue({"web_pic", "aspiration"} <= set(kinds))
-        self.assertTrue({"web_pic", "aspiration"} <= set(watcher.SEVERITY) and {"web_pic", "aspiration"} <= set(watcher.LABEL))
+        self.assertLessEqual({"web_pic", "aspiration"}, set(kinds))
+        self.assertLessEqual({"web_pic", "aspiration"}, set(watcher.SEVERITY))
+        self.assertLessEqual({"web_pic", "aspiration"}, set(watcher.LABEL))
 
 
 if __name__ == "__main__":

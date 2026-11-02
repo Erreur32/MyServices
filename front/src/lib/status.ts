@@ -31,6 +31,9 @@ function httpLabel(c: number): string {
   return c < 300 ? "OK" : c < 400 ? tx("OK · redirige") : c === 401 || c === 403 ? tx("OK · protégé") : c === 404 ? "OK · 404" : tx("OK · {0}", c);
 }
 
+/** Why a name did not resolve, from the errno of the probe (-3: no answer in time, -2: unknown name) */
+const DNS_CAUSE: Record<number, string> = { [-3]: tx(" (pas de réponse du DNS à temps)"), [-2]: tx(" (nom inconnu du DNS)") };
+
 /** [classe, libellé court, explication] */
 export function status(r: Host): [StatusClass, string, string] {
   const p = r.public || {}, b = r.backend || {};
@@ -58,7 +61,7 @@ export function status(r: Host): [StatusClass, string, string] {
   if (b.up === false) return ["bad", tx("backend down"), tx("{0}:{1} injoignable ({2})", r.ip, r.port, b.err || "?")];
   if ((p.code ?? 0) >= 500) return ["bad", `erreur ${p.code}`, p.code === 502 ? tx("HTTP 502 : NPM ne joint pas le backend") : tx("HTTP {0} : erreur serveur", p.code)];
   if (p.err === "gaierror") {
-    const cause = p.errno === -3 ? tx(" (pas de réponse du DNS à temps)") : p.errno === -2 ? tx(" (nom inconnu du DNS)") : "";
+    const cause = DNS_CAUSE[p.errno ?? 0] ?? "";
     return p.dns_ok ? ["off", tx("résolution ratée"), tx("les serveurs DNS répondent pour ce nom, la sonde ne l'a pas résolu à ce passage · non testé") + cause]
       : ["warn", tx("DNS absent"), tx("le domaine ne résout pas (aucun enregistrement DNS)") + cause];
   }
