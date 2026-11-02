@@ -1812,6 +1812,8 @@ export const EN: Record<string, string> = {
   "Rien à signaler.": "All clear.",
   "rien de plus": "nothing more",
   "Rien envoyé pour l'instant.": "Nothing sent yet.",
+  "Dernières alertes envoyées": "Last alerts sent",
+  "+{0} autre(s)": "+{0} more",
   "Rôle": "Role",
   "Rôle de {0}": "Role of {0}",
   "Salon → Modifier → Intégrations → Webhooks → Copier l'URL": "Channel → Edit → Integrations → Webhooks → Copy URL",

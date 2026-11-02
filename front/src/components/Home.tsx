@@ -11,6 +11,7 @@ import { pointConnectors } from "../lib/connectorPrefill";
 import { fleet, homeStory, installTools, type InstallTool, type Tone } from "../lib/homeStory";
 import { plural, type Attention, type Category, type TabId } from "../lib/summary";
 import { History } from "../tabs/History";
+import { SentAlerts } from "./SentAlerts";
 import { AssistantBanner } from "./AssistantBanner";
 import { DiscoveryReminder } from "./DiscoveryCard";
 import { LastDay } from "./LastDay";
@@ -270,7 +271,10 @@ export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Reado
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <LastDay snap={snap} go={go} now={now} />
-        <ScheduleCard />
+        <div className="flex min-w-0 flex-col gap-5">
+          <ScheduleCard />
+          {admin && <SentAlerts />}
+        </div>
       </div>
       <Counters snap={snap} go={go} goFilter={goFilter} />
       <div className="grid items-start gap-5 lg:grid-cols-2">

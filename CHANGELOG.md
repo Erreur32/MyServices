@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Home, last alerts sent** (administrator): the 5 last sends with the logo of their channel (Discord, Telegram, webhook), date, time and reason (first line of the message), a failed send in red with its cause, and a link to the whole list.
+
 ### Changed
 - **Alert rules, one way to add a rule**: the Presets button is gone. « New rule » opens the form with a « Start from » row: an empty rule, or one of the ready models (not added yet), which ticks its events, its return to normal and its delay; read them, then Add. The rule is added on the channels ticked in the form.
 
