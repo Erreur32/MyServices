@@ -11,6 +11,20 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.7 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+- **Tapo, camera accounts one row per camera**: the « Camera accounts » field was one text (« IP login password ; … »). It is now a list: one row per camera with its IP (picked among the devices found, or typed), its login and its password, a 🗑 to remove it and « Add a camera ». Saved accounts stay hidden until shown with the admin password, and are saved in the same form, so nothing changes for a config already set.
+
+### Fixed
+- **Agents, « New command » for a machine outside the network**: the command started from the address of the admin's page (a LAN name the machine cannot reach) instead of the one the agent already sends through. The server now keeps the address each report came through (`reached_url`, added at start), and a new command starts from it, with « accept http » kept ticked when that address is plain http over the internet.
+- **Tapo, cameras the discovery cannot name**: some C310 answer the discovery without saying their model and refuse the reading (port 80 closed, only 443 open). They were listed as « other », so the camera account given for them was never used and no picture came. A device given a camera account is now a camera, and its picture is asked with that account.
+- **DNS, a machine whose name « resolves elsewhere » to 127.0.1.1**: a DNS server (AdGuard Home, Pi-hole) running on the machine answers its own name from the Debian `/etc/hosts` line `127.0.1.1`. The DNS page took that loopback address for a wrong LAN record and warned « its name resolves to 127.0.1.1 ». A loopback answer now counts as no LAN name, like a public one.
+- **Cloudflare and DNS, an access list behind Cloudflare with the real address taken back**: a NPM host with an access list and `CF-Connecting-IP` in its advanced settings filters the visitors' own addresses, so going out through Cloudflare is meant. The DNS check no longer says « resolves outside the LAN » for it, and the Cloudflare checks no longer say it « sees Cloudflare's addresses ».
+- **Agents, a new token forgot everything**: making a new command revoked the agent and started an empty one, so a second new command before the first report came back with every box unticked. The new agent now keeps the last report (only for its boxes, never taken as fresh) and the address of the one it replaces.
+
 ## v0.35.6 (2026-11-02)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

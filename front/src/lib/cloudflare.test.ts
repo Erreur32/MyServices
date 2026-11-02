@@ -51,7 +51,8 @@ describe("cloudflareChecks", () => {
   });
   it("warns about the real address and a LAN-only host behind the proxy", () => {
     expect(one(zone("a.example"), [host(["www.a.example"], { cloudflare: false })]).tone).toBe("warn");
-    expect(one(zone("a.example"), [host(["www.a.example"], { lan_only: true })]).tone).toBe("warn");
+    expect(one(zone("a.example"), [host(["www.a.example"], { lan_only: true, cloudflare: false })]).tone).toBe("warn");
+    expect(one(zone("a.example"), [host(["www.a.example"], { lan_only: true })]).tone).toBe("ok");   // real address taken back: its access list sees the visitors
   });
   it("checks an Apache or nginx vhost without asking it for NPM settings", () => {
     const v = { type: "local", domains: [], vhost_domains: ["www.a.example"], vhost_server: "apache", enabled: true, machine: "web" } as unknown as Host;

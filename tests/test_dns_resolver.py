@@ -56,6 +56,16 @@ class WithoutAdGuard(unittest.TestCase):
         self.assertEqual(d["sync"], {})
         self.assertEqual(d["rewrites_diff"], [])
 
+    def test_lan_host_behind_cloudflare_with_the_real_address_may_resolve_publicly(self):
+        rows = [row("app.example.org", lan_only=True), row("cf.example.org", lan_only=True, cloudflare=True)]
+        self.run_check({"app.example.org": ["104.16.0.1"], "cf.example.org": ["104.16.0.1"]}, rows)
+        self.assertEqual(rows[0]["dns"]["issues"], [["hors_lan", "app.example.org"]])
+        self.assertEqual(rows[1]["dns"]["issues"], [])   # its access list sees the visitors' own addresses: going out through Cloudflare is meant
+
+    def test_loopback_answer_is_no_lan_name(self):
+        d = self.run_check({"srv": ["127.0.1.1"], "pc": ["10.0.0.42"]}, [])   # the DNS server on srv answers its own name from /etc/hosts
+        self.assertEqual([(m["name"], m["state"], m["answer"]) for m in d["machines"]], [("pc", "ailleurs", ["10.0.0.42"]), ("srv", "absent", [])])
+
     def test_public_answer_is_no_lan_name(self):
         rows = [row("app.example.org")]
         d = self.run_check({"app.example.org": ["10.0.0.5"], "pc": ["203.0.113.9"], "srv": ["203.0.113.9"]}, rows)   # a bare name caught by a public domain

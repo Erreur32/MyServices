@@ -221,6 +221,15 @@ class Collect(unittest.TestCase):
         self.assertEqual([(r["name"], r["kind"], r["ip"]) for r in d["devices"]], [("Prise", "plug", "192.0.2.9"), ("Cam", "camera", "192.0.2.11")])
         self.assertIn("illisible", d["problems"][0])
 
+    def test_an_unnamed_device_with_a_camera_account_is_a_camera_with_its_picture(self):
+        raw = [Res(ip="192.0.2.11", message=Res(result=Res())), Res(ip="192.0.2.12", message=Res(result=Res()))]   # answers, but says nothing of itself
+        conf = {"name": "t", "username": "me@example.com", "password": PW, "targets": "192.0.2.255", "camera_accounts": f"192.0.2.11 cam {PW}"}
+        c = tapo.Tapo(conf, Keeps())
+        with mock.patch.object(tapo, "_lib", return_value=fake_lib([found("P110M", Plug(), nickname="Prise", device_id="p1"), RuntimeError("Connection refused")], raw)):
+            d = c.collect()
+        self.assertEqual([(r["ip"], r["kind"]) for r in d["devices"][1:]], [("192.0.2.11", "camera"), ("192.0.2.12", "other")])
+        self.assertEqual([x["ip"] for x in d["stream"]["cameras"]], ["192.0.2.11"])
+
     def test_a_missing_library_is_said(self):
         c = tapo.Tapo({"name": "t"}, None)
         with mock.patch.object(tapo, "_lib", side_effect=ImportError), self.assertRaises(ConnectorError):

@@ -66,7 +66,7 @@ class Agents:
             db.executescript(SCHEMA)
             have = {r["name"] for r in db.execute("PRAGMA table_info(agents)")}
             for col, ddl in (("auto_update", "INTEGER NOT NULL DEFAULT 0"), ("update_requested", "REAL"), ("update_offered", "REAL"),
-                             ("hostname", "TEXT"), ("host_pending", "TEXT"), ("kind", "TEXT NOT NULL DEFAULT 'windows'"), ("level", "TEXT")):   # databases created before these columns
+                             ("hostname", "TEXT"), ("host_pending", "TEXT"), ("kind", "TEXT NOT NULL DEFAULT 'windows'"), ("level", "TEXT"), ("reached_url", "TEXT")):   # databases created before these columns
                 if col not in have:
                     db.execute(f"ALTER TABLE agents ADD COLUMN {col} {ddl}")
 
@@ -94,10 +94,12 @@ class Agents:
         raw = PREFIX + secrets.token_urlsafe(32)
         now = time.time()
         with self._db() as db:
-            old = db.execute("SELECT auto_update FROM agents WHERE ip = ? AND revoked IS NULL", (ip,)).fetchone()   # a new token keeps the choice
+            # a new token keeps the choice, the last report (the boxes of its next command) and the address it sent through
+            old = db.execute("SELECT auto_update, report, level, reached_url FROM agents WHERE ip = ? AND revoked IS NULL", (ip,)).fetchone()
             db.execute("UPDATE agents SET revoked = ? WHERE ip = ? AND revoked IS NULL", (now, ip))
-            aid = db.execute("INSERT INTO agents (ip, name, hash, hint, created, created_by, kind, auto_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                             (ip, name, _h(raw), raw[-4:], now, by, kind, old["auto_update"] if old else 0)).lastrowid
+            kept = (old["auto_update"], old["report"], old["level"], old["reached_url"]) if old else (0, None, None, None)
+            aid = db.execute("INSERT INTO agents (ip, name, hash, hint, created, created_by, kind, auto_update, report, level, reached_url) "
+                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (ip, name, _h(raw), raw[-4:], now, by, kind, *kept)).lastrowid
         return raw, self.get(aid)
 
     def get(self, aid: int) -> dict:
@@ -212,7 +214,7 @@ class Agents:
             raise AgentError("TOKEN_REVOKED")
         return _public(r)
 
-    def store_report(self, aid: int, report: dict, ip: str) -> tuple[str | None, str | None]:
+    def store_report(self, aid: int, report: dict, ip: str, url: str | None = None) -> tuple[str | None, str | None]:
         """Garde le relevé (déjà validé) et note le passage de l'agent. Rend (niveau du relevé précédent, niveau de celui-ci) :
         None pour le précédent s'il n'y en avait pas ; le serveur relit la santé quand ils diffèrent."""
         interval = report.get("interval")
@@ -229,10 +231,14 @@ class Agents:
                 before = old["level"]
             else:
                 before = report_level(prev) if prev else None
-            db.execute("UPDATE agents SET last_seen = ?, last_ip = ?, interval = ?, version = ?, os_name = ?, report = ?, level = ? "
-                       "WHERE id = ? AND revoked IS NULL",
+            try:   # the address this report came through: a new command starts from it, not from the admin's page
+                reached = clean_url(url) if url else None
+            except AgentError:
+                reached = None
+            db.execute("UPDATE agents SET last_seen = ?, last_ip = ?, interval = ?, version = ?, os_name = ?, report = ?, level = ?, "
+                       "reached_url = COALESCE(?, reached_url) WHERE id = ? AND revoked IS NULL",
                        (time.time(), ip, interval, str(report.get("version") or "")[:32], os_name[:120],
-                        json.dumps(report, ensure_ascii=False), level, aid))
+                        json.dumps(report, ensure_ascii=False), level, reached, aid))
         return before, level
 
     def fresh_reports(self) -> dict[str, dict]:
@@ -497,7 +503,7 @@ def windows_backup_card(b: dict, machine: str) -> dict:
 
 
 PUBLIC_COLS = ("id, ip, name, hint, created, created_by, revoked, last_seen, last_ip, interval, version, os_name, auto_update, "
-               "update_requested, update_offered, hostname, host_pending, kind")   # what _public reads: the report stays in the database
+               "update_requested, update_offered, hostname, host_pending, kind, reached_url")   # what _public reads: the report stays in the database
 
 
 def _partial(report: dict) -> bool:
@@ -587,7 +593,7 @@ def _public(r: sqlite3.Row) -> dict:
             "id": r["id"], "ip": r["ip"], "name": r["name"], "hint": r["hint"], "created": r["created"],
             "created_by": r["created_by"], "revoked": r["revoked"], "last_seen": r["last_seen"], "last_ip": r["last_ip"],
             "interval": interval, "version": r["version"], "os": r["os_name"], "state": state,
-            "hostname": None if r["hostname"] == LEGACY_HOST else r["hostname"], "host_pending": r["host_pending"]}
+            "hostname": None if r["hostname"] == LEGACY_HOST else r["hostname"], "host_pending": r["host_pending"], "url": r["reached_url"]}
 
 
 def _h(raw: str) -> str:

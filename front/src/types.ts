@@ -678,7 +678,7 @@ export interface AlertsState {
 export interface ConnectorField {
   name: string;
   label: string;
-  kind: "text" | "url" | "password" | "number" | "bool" | "choice";
+  kind: "text" | "url" | "password" | "number" | "bool" | "choice" | "accounts";   // accounts: one row per camera (CameraAccounts)
   required: boolean;
   secret: boolean;
   default: unknown;
@@ -832,6 +832,7 @@ export interface AgentInfo {
   gaps?: string[];             // what its fresh report lacks to replace SSH (agents.inventory_gaps)
   rights?: string[];           // what it cannot read for lack of sudo, SSH or not (agents.rights_gaps)
   options?: AgentOptions;      // what its install reads (agents.options_of): ticks the boxes of its next command
+  url?: string | null;         // MyServices address its last report came through: a new command starts from it
   id: number;
   ip: string;
   name: string;

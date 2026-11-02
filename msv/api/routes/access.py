@@ -210,7 +210,7 @@ async def agent_report(request: Request):
     if request.headers.get("content-encoding", "").lower() == "gzip" and (raw := unzip_report(raw, agents.MAX_UNZIPPED)) is None:
         return deny(413, "relevé compressé illisible ou trop gros une fois décompressé")
     # Parsing, the database and the health level are slow, blocking work: done in a worker thread, the server keeps answering meanwhile
-    return await run_in_threadpool(_agent_report, a, raw, ip_of(request))
+    return await run_in_threadpool(_agent_report, a, raw, ip_of(request), base_url(request))
 
 
 BACKUP_LEAD = 1800   # s before a backups run: the agent reads its folders again at its first report after it (two reports at 15 min)
@@ -230,7 +230,7 @@ def backup_request(ip: str) -> dict | None:
         return None
 
 
-def _agent_report(a: dict, raw: bytes, ip: str):
+def _agent_report(a: dict, raw: bytes, ip: str, url: str | None = None):
     from msv.machines import agents
     try:
         report = agents.validate_report(json.loads(raw))
@@ -244,7 +244,7 @@ def _agent_report(a: dict, raw: bytes, ip: str):
         store().audit("agent : nom de poste différent, relevé refusé", "agent", ip, f"« {a['name']} » ({a['ip']}) : {str(report.get('host'))[:64]}")
         return JSONResponse({"error": "nom de poste différent de celui connu : à confirmer dans MyServices (fiche de la machine, onglet Accès)", "code": "HOST_CHANGED"},
                             status_code=409, headers=SECURITY_HEADERS)
-    before, now = agents_store().store_report(a["id"], report, ip)
+    before, now = agents_store().store_report(a["id"], report, ip, url)
     refresh_after_report(a, report, before, now)
     out = {"ok": True, "interval": agents.DEFAULT_INTERVAL}
     if a.get("kind") == "linux" and (scan := backup_request(a["ip"])):

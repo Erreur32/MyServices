@@ -89,8 +89,8 @@ class Tapo(Connector):
         Field("password", "Mot de passe Tapo", "password", required=True, secret=True),
         Field("targets", "Adresse de recherche", default="255.255.255.255",
               help="Adresse de diffusion de ton réseau (par exemple 192.168.1.255) ou IP d'un appareil. Plusieurs : séparées par des virgules. Les appareils répondent sur le réseau local."),
-        Field("camera_accounts", "Comptes caméra", "password", secret=True,
-              help="Pour l'image des caméras sans enregistreur : « IP identifiant motdepasse », séparés par « ; ». C'est le compte caméra créé dans l'appli Tapo (Réglages avancés), pas le compte Tapo."),
+        Field("camera_accounts", "Comptes caméra", "accounts", secret=True,
+              help="Pour l'image des caméras sans enregistreur : une ligne par caméra. C'est le compte caméra créé dans l'appli Tapo (Réglages avancés), pas le compte Tapo."),
     )
     setup_fields = ("username", "password", "targets")
     guide = ("Ouvre l'application Tapo et note l'e-mail et le mot de passe du compte qui possède tes appareils.",
@@ -204,8 +204,11 @@ class Tapo(Connector):
             if any(w in e.lower() for e in errors for w in AUTH_WORDS):
                 raise ConnectorError("Tapo refuse ce compte : e-mail ou mot de passe à vérifier")
             raise ConnectorError(f"aucun appareil lisible ({errors[0]})" if errors else "aucun appareil Tapo trouvé : l'adresse de recherche est-elle la bonne ?")
-        out = self._summary(devices + unread, errors)
         accounts = self._accounts()
+        for d in unread:   # the discovery may not name a camera (seen on C310): one given a camera account is a camera
+            if d["kind"] == "other" and d["ip"] in accounts:
+                d["kind"] = "camera"
+        out = self._summary(devices + unread, errors)
         cams = [d for d in out["devices"] if d["kind"] == "camera" and d.get("ip") in accounts]
         if cams:
             out["stream"] = {"role": "nvr", "engine": "Tapo", "cameras": [{**camera(d["name"], up=d["online"]), "ip": d["ip"]} for d in cams], "snapshot": True}
