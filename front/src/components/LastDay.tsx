@@ -47,7 +47,7 @@ function Row({ row, now, hosts }: Readonly<{ row: Last24hRow; now: number; hosts
 export function LastDay({ snap, go, now }: Readonly<{ snap: Snapshot; go: (t: TabId) => void; now: number }>) {
   const day = last24h(snap.events, snap.labels, snap.severity, now);
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm">
+    <section className="h-full overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm">
       <div className="flex items-center gap-3 border-b border-line/60 bg-bg px-5 py-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-link/10 text-link"><ClipboardClock size={18} strokeWidth={1.75} aria-hidden /></span>
         <h2 className="flex min-w-0 flex-1 items-center gap-2 truncate text-base font-bold">{tx("Ce qui a changé depuis hier")}<Badge tone={day.total ? "info" : "ok"}>{day.total}</Badge></h2>

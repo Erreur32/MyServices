@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.2 → 0.35.3
+
+**Nothing to do.** No setting, volume, agent or database change. The home page now tells notifications that are not set, switched off, or without an active rule.
+
 ## 0.35.1 → 0.35.2
 
 **Nothing to do.** No setting, volume, agent or database change. The Presets button of the alert rules is gone: « New rule » now starts from an empty rule or from one of the same ready models. Rules already saved, presets included, are kept as they are.
