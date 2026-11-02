@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.1 → 0.35.2
+
+**Nothing to do.** No setting, volume, agent or database change. The Presets button of the alert rules is gone: « New rule » now starts from an empty rule or from one of the same ready models. Rules already saved, presets included, are kept as they are.
+
 ## 0.35.0 → 0.35.1
 
 **Nothing to do for the update itself.** No setting, volume or database change. Linux agents update themselves to version 11 when automatic update is on: a version 11 agent reads the backup folders again before each backups run, and reads the access logs of a Nginx Proxy Manager running in Docker on its machine (totals per site and per hour, and only the 10 busiest addresses of the last hour leave the machine). A machine read over SSH gives the same reading at the next health pass. The account that reads must be able to run `docker ps` and `docker inspect`; without it, the Web traffic page stays empty for that machine and nothing else changes.
