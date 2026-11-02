@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.8 → 0.35.9
+
+**Nothing to do.** No setting, volume, agent or database change. A camera picture that cannot be read now says why on its tile. Behind a reverse proxy, the refusal now comes back as `503` instead of `502`, so a proxy such as Cloudflare lets the reason through.
+
 ## 0.35.7 → 0.35.8
 
 **Nothing to do.** No setting, volume, agent or database change. The SSH connections page now names the app's key instead of « ESXi key », and the agents page asks for « Read Docker » only on a machine where Nginx Proxy Manager runs.
