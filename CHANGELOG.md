@@ -17,6 +17,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 - **Agent command, what to tick**: a note above the boxes of a Linux agent says to tick only sudo when in doubt, local DNS and backups only where they exist, borgmatic and Nginx Proxy Manager only on the machine that runs them (otherwise the install stops), and how to add Docker or disk health by hand.
+- **Agents, health in words**: the Health column shows the state as a word (Good, Reports late, Script out of date, Host to confirm, Waiting) instead of a bar out of 100; every cause stays in the pointer, sorting is unchanged.
+- **Agent command, automatic update**: the note says that automatic update replaces only the agent's script, never the boxes or their rights: changing them needs a new command run on the machine.
 - **Agent command, which account**: the line above a Linux command says it runs as root or from an account with sudo, and that the sudo package is needed even as root.
 
 ### Fixed

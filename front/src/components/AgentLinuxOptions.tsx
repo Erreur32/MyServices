@@ -23,6 +23,7 @@ export function AgentLinuxOptions({ value, onChange }: Readonly<{ value: AgentOp
         <p>{tx("Dans le doute, cochez seulement sudo : relancer plus tard la commande avec d'autres cases remplace l'installation, sans rien casser.")}</p>
         <p>{tx("DNS local et sauvegardes : seulement là où ils existent. Ailleurs rien n'est trouvé, mais un droit root inutile est donné.")}</p>
         <p>{tx("borgmatic et Nginx Proxy Manager : seulement sur la machine qui les fait tourner, sinon l'installation s'arrête.")}</p>
+        <p>{tx("La mise à jour automatique ne change que le script de l'agent, jamais ces cases ni leurs droits : pour en ajouter ou en retirer, faites une nouvelle commande et relancez-la sur la machine.")}</p>
         <p>{tx("Docker et la santé des disques ne sont pas des cases : ajoutez MSV_DOCKER=1 ou MSV_SMART=1 après « sudo env » (le groupe docker donne les droits de root).")}</p>
       </InfoNote>
       <Box on={!!value.sudo} onChange={(sudo) => set({ sudo })}>{tx("Autoriser des lectures avec sudo : le programme derrière chaque port, les services à relancer, les adresses bloquées par fail2ban, les machines virtuelles (Proxmox, KVM, Incus, LXD). Chacune est une règle exacte, en lecture seule.")}</Box>

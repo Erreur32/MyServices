@@ -37,19 +37,17 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 
 const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border disabled:opacity-40";
 
-/** The health of an agent as a bar and its figure out of 100 (green from 80, orange from 50); the pointer tells what is missing */
+/** The health of an agent in words: the worst of its three problems (late reports, old script, host to confirm), all of them in the pointer */
 const healthTone = (n: number) => scoreTone(n, 80, 50);
-const FILL = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad" };
-function HealthBar({ a }: Readonly<{ a: AgentInfo }>) {
+function HealthBadge({ a }: Readonly<{ a: AgentInfo }>) {
   const h = agentHealth(a);
   if (!h) return <Dim>-</Dim>;
-  const tone = healthTone(h.score), why = h.why.length ? h.why.join(" · ") : tx("relevés à l'heure, script à jour, machine reconnue");
-  return (
-    <span className="flex min-w-[8rem] items-center gap-2" title={why}>
-      <span className="h-2.5 flex-1 overflow-hidden rounded-full border border-line bg-bg2"><span className={`block h-full ${FILL[tone]}`} style={{ width: `${h.score}%` }} /></span>
-      <b className="w-[3ch] text-right font-mono text-xs tabular-nums">{h.score}</b>
-    </span>
-  );
+  const why = h.why.length ? h.why.join(" · ") : tx("relevés à l'heure, script à jour, machine reconnue");
+  if (a.state === "en attente") return <Badge tone="off" title={why}>… {tx("En attente")}</Badge>;
+  if (a.state !== "actif") return <Badge tone="bad" title={why}>✕ {tx("Relevés en retard")}</Badge>;
+  if (a.outdated) return <Badge tone="warn" title={why}>⚠ {tx("Script en retard")}</Badge>;
+  if (a.host_pending) return <Badge tone="warn" title={why}>⚠ {tx("Nom à confirmer")}</Badge>;
+  return <Badge tone="ok" title={why}>✓ {tx("Bon")}</Badge>;
 }
 
 const AgentVersion = ({ a }: Readonly<{ a: AgentInfo }>) => {
@@ -181,7 +179,7 @@ function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: M
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
       <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} /><AgentTodo a={a} ssh={typeof conf?.ssh === "string"} /></span></td>
       <td className="px-3 py-2"><AgentOptionBoxes a={a} /></td>
-      <td className="px-3 py-2"><HealthBar a={a} /></td>
+      <td className="px-3 py-2"><HealthBadge a={a} /></td>
       <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
       <td className="px-3 py-2"><AgentActions a={a} kind={a.kind ?? "windows"} onChanged={onChanged} onInstall={setInstall} /></td>
     </tr>

@@ -8,6 +8,8 @@
 
 **What's new?**
 - **Which boxes to tick**: the command of a Linux agent now carries a note above its boxes. When in doubt, tick only sudo. Local DNS and backups only where they exist. borgmatic and Nginx Proxy Manager only on the machine that runs them, otherwise the install stops. Docker and disk health are added by hand (`MSV_DOCKER=1`, `MSV_SMART=1`).
+- **Automatic update has a limit**: it replaces only the agent's script. A box added or removed (sudo, DNS, backups…) needs a new command, run again on the machine.
+- **Agent health in words**: the Health column of the Agents page says « Good », or names the problem (reports late, script out of date, host to confirm) instead of a bar.
 - **Root or sudo**: the command says where to paste it, as root or from an account with sudo. It goes through sudo either way, so the sudo package is needed even as root.
 
 **Fixed**
