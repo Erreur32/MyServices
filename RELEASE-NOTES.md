@@ -8,6 +8,7 @@
 
 **What's new?**
 - **Which boxes to tick**: the command of a Linux agent now carries a note above its boxes. When in doubt, tick only sudo. Local DNS and backups only where they exist. borgmatic and Nginx Proxy Manager only on the machine that runs them, otherwise the install stops. Docker and disk health are added by hand (`MSV_DOCKER=1`, `MSV_SMART=1`).
+- **Root or sudo**: the command says where to paste it, as root or from an account with sudo. It goes through sudo either way, so the sudo package is needed even as root.
 
 **Fixed**
 - **A container updated in place is read again**: after `docker compose pull` then `up -d`, the container keeps its name but starts anew. MyServices now notices it at the next collection, instead of showing the old image and version for up to 2 hours.
