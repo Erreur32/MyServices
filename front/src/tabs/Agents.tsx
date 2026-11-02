@@ -299,7 +299,7 @@ export function AgentsOverview({ machines, list, open }: Readonly<{ machines: Re
         <StatTile n={s.silent} label={tx("Silencieux")} tone={s.silent ? "warn" : undefined} />
         <StatTile n={s.pending} label={tx("En attente")} />
         <StatTile n={s.rights} label={tx("Droits à compléter")} tone={s.rights ? "warn" : undefined} />
-        <HistoryTile n={s.outdated.length} label={tx("À mettre à jour")} tone={s.outdated.length ? "warn" : undefined} kind="strip" points={hist?.late ?? null} hours={hours} now={now} figure={late} fmt={(p) => tx("{0} à mettre à jour", late(p))} goodHigh={false} />
+        <HistoryTile n={toAsk.length} label={tx("À mettre à jour")} tone={toAsk.length ? "warn" : undefined} kind="strip" points={hist?.late ?? null} hours={hours} now={now} figure={late} fmt={(p) => tx("{0} à mettre à jour", late(p))} goodHigh={false} />
       </div>
       <FoldPanel id="agents-list" icon={MonitorUp} title={tx("Agents")} count={s.live.length} pinned>
         <InfoNote>{tx("Un agent s'installe depuis la page d'une machine, onglet Accès. Ses gestes sont sur sa ligne : mise à jour automatique ou immédiate, nouveau jeton, révocation.")}</InfoNote>

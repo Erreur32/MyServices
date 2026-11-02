@@ -304,14 +304,17 @@ def agent_health(a: dict) -> int | None:
 
 def agents_points(agents: list[dict], down: frozenset[str] = frozenset()) -> dict[str, tuple[int, int]]:
     """{key: (value, total)} of the Agents tiles, counted like the page: the agents not revoked; « running » is the ones answering in time, « late »
-    the ones with an older script that no update was asked for yet (as the value of its key the ones that are not, so a strip counts the late ones).
+    the manual ones with an older script that no update was asked for yet and whose machine answers (as the value of its key the ones that are not,
+    so a strip counts the late ones).
     The health leaves out a silent agent whose machine does not answer the ping (`down`, front lib/accessLists.ts agentDown): it is switched off."""
     live = [a for a in agents if a.get("state") != "révoqué"]
     if not live:
         return {}
     n = len(live)
-    late = sum(1 for a in live if a.get("outdated") and not a.get("update_requested"))
-    scores = [agent_health(a) or 0 for a in live if not (a.get("state") == "silencieux" and a.get("ip") in down)]
+    off = [a.get("state") == "silencieux" and a.get("ip") in down for a in live]
+    # « late » = what the page's button would ask: manual agents with an old script, not asked yet, whose machine answers
+    late = sum(1 for a, o in zip(live, off) if a.get("outdated") and not a.get("update_requested") and not a.get("auto_update") and not o)
+    scores = [agent_health(a) or 0 for a, o in zip(live, off) if not o]
     out = {AGENTS_RUNNING: (sum(1 for a in live if a.get("state") == "actif"), n), AGENTS_LATE: (n - late, n)}
     if scores:
         out[AGENTS_HEALTH] = (round(sum(scores) / len(scores)), 100)
