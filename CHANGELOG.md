@@ -13,6 +13,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Fixed
 - **Agents, « New command » for a machine outside the network**: the command started from the address of the admin's page (a LAN name the machine cannot reach) instead of the one the agent already sends through. The server now keeps the address each report came through (`reached_url`, added at start), and a new command starts from it, with « accept http » kept ticked when that address is plain http over the internet.
+- **Agents, a new token forgot everything**: making a new command revoked the agent and started an empty one, so a second new command before the first report came back with every box unticked. The new agent now keeps the last report (only for its boxes, never taken as fresh) and the address of the one it replaces.
 
 ## v0.35.6 (2026-11-02)
 

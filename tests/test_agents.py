@@ -122,6 +122,15 @@ class Agents(unittest.TestCase):
         listed = self.c.get(BASE + "/agents").json()["agents"][0]
         self.assertNotIn("report", listed)
 
+    def test_new_token_keeps_the_last_report_and_the_address(self):
+        token, info = self.create()
+        self.assertEqual(self.anon.post(BASE + "/agent/report", json=REPORT, headers={"Authorization": f"Bearer {token}", "Host": "10.0.0.5:8032"}).status_code, 200)
+        _, again = self.create()
+        listed = {a["id"]: a for a in self.c.get(BASE + "/agents", headers=self.h).json()["agents"]}
+        self.assertEqual((listed[again["id"]]["url"], listed[again["id"]]["state"]), ("http://10.0.0.5:8032", "en attente"))
+        kept = common.agents_store().fresh_reports()["192.168.1.60"]
+        self.assertEqual((kept["report"]["version"], kept["fresh"]), (REPORT["version"], False))   # kept for its boxes, never taken as fresh
+
     def test_v3_niveau_garde_en_base(self):
         token, info = self.create()
         self.assertEqual(self.send(token).status_code, 200)
