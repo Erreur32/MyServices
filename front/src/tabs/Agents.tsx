@@ -149,7 +149,7 @@ function AgentActions({ a, kind, onChanged, onInstall }: Readonly<{ a: AgentInfo
           {confirm !== "" && <>
             <span className="text-xs text-muted">{confirm === "renew" ? tx("L'ancien jeton cessera de marcher.") : tx("La machine n'enverra plus rien.")}</span>
             <button type="button" className={danger} onClick={() => {
-              if (confirm === "renew") { setConfirm(""); onInstall({ ip: a.ip, name: a.name, kind: a.kind ?? kind, auto: true, sudo: !!a.rights?.length || !!a.gaps?.includes("sudo"), options: a.options }); }
+              if (confirm === "renew") { setConfirm(""); onInstall({ ip: a.ip, name: a.name, kind: a.kind ?? kind, auto: true, sudo: !!a.rights?.length || !!a.gaps?.includes("sudo"), options: a.options, url: a.url ?? undefined }); }
               else void act(() => send("DELETE", `agents/${a.id}`), tx("révoqué"), setNote).then((ok) => ok && onChanged());
             }}>{tx("Confirmer")}</button>
             <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>

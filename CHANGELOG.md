@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+- **Agents, « New command » for a machine outside the network**: the command started from the address of the admin's page (a LAN name the machine cannot reach) instead of the one the agent already sends through. The server now keeps the address each report came through (`reached_url`, added at start), and a new command starts from it, with « accept http » kept ticked when that address is plain http over the internet.
+
 ## v0.35.6 (2026-11-02)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

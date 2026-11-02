@@ -129,6 +129,8 @@ class Agents(unittest.TestCase):
             self.assertEqual(db.execute("SELECT level FROM agents").fetchone()["level"], agents.report_level(REPORT))
         before, now = common.agents_store().store_report(info["id"], REPORT, "192.168.1.60")
         self.assertEqual(before, now)   # the previous level comes from the column, the old report is not parsed again
+        common.agents_store().store_report(info["id"], REPORT, "192.168.1.60", "http://x/../a b")   # not an address: the known one stays
+        self.assertEqual(common.agents_store().listing()[0]["url"], "http://testserver")
 
     def test_agent_externe_autorise_par_son_ip_sur_ses_seules_routes(self):
         ip = "203.0.113.7"
@@ -137,8 +139,10 @@ class Agents(unittest.TestCase):
         self.assertEqual(out.post(BASE + "/agent/report", json=REPORT, headers=token).status_code, 403)   # no agent for this address yet
         self.assertEqual(out.get("/agent/install.sh").status_code, 403)
         raw, info = self.create(ip)
-        self.assertEqual(out.post(BASE + "/agent/report", json=REPORT, headers={"Authorization": f"Bearer {raw}"}).status_code, 200)
+        self.assertEqual(out.post(BASE + "/agent/report", json=REPORT, headers={"Authorization": f"Bearer {raw}", "Host": "203.0.113.9:8032"}).status_code, 200)
         self.assertEqual(out.post(BASE + "/agent/report", json=REPORT, headers=token).status_code, 401)   # the token is still required
+        listed = self.c.get(BASE + "/agents", headers=self.h).json()["agents"]
+        self.assertEqual(next(a for a in listed if a["id"] == info["id"])["url"], "http://203.0.113.9:8032")   # where it sent, not the admin's page
         for path in ("/agent/install.sh", "/agent/agent.py", "/agent/install.ps1", "/agent/agent.ps1"):
             self.assertEqual(out.get(path).status_code, 200, path)
         for path in ("/", "/healthz", "/login.html", BASE + "/agents", BASE + "/status"):

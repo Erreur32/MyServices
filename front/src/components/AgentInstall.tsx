@@ -19,7 +19,7 @@ import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 export type AgentKind = "windows" | "linux";
 
 /** Machine pour laquelle on installe : `choose` laisse changer le type, `auto` crée l'agent tout de suite (nouvelle commande) */
-export interface InstallTarget { ip: string; name: string; kind: AgentKind; choose?: boolean; auto?: boolean; sudo?: boolean; options?: AgentOptions }
+export interface InstallTarget { ip: string; name: string; kind: AgentKind; choose?: boolean; auto?: boolean; sudo?: boolean; options?: AgentOptions; url?: string }
 
 // Exemple d'adresse du LAN : en local il n'y a pas de TLS, http est voulu
 const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
@@ -49,10 +49,11 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
   onSsh?: () => void;   // dans l'assistant : ouvre le réglage SSH dans une fenêtre ; sans cela, lien vers la page de la machine
 }>) {
   const [kind, setKind] = useState<AgentKind>(target.kind);
-  // Adresse de MyServices vue de la machine : par défaut celle de la page ; le champ ne s'affiche que pour la corriger
-  const [url, setUrl] = useState(location.origin);
+  // Adresse de MyServices vue de la machine : celle par laquelle l'agent envoie déjà, sinon celle de la page ; le champ ne s'affiche que pour la corriger
+  const [url, setUrl] = useState(target.url || location.origin);
   const [created, setCreated] = useState<{ info: AgentInfo; token: string } | null>(null);   // jeton gardé en mémoire de la page seulement
-  const [options, setOptions] = useState<AgentOptions>({ ...target.options, sudo: !!target.sudo || !!target.options?.sudo });
+  // an http address the agent already sends through was accepted at its install: keep that choice
+  const [options, setOptions] = useState<AgentOptions>({ ...target.options, sudo: !!target.sudo || !!target.options?.sudo, allowHttp: !!target.url && outsideProblem(target.url) === "clear" });
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [agents, setAgents] = useState<AgentsState | null>(null);
   const command = created ? installCommand(url, created.token, created.info.kind, options) : null;   // suit le champ « Adresse » même après la création
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
