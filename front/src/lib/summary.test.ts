@@ -72,7 +72,7 @@ describe("accueil", () => {
     expect(items[0].text).toBe("**plex.lan** ne répond plus (backend down), sur srv");
     expect(items[3].text).toBe("Santé : **srv · prod** : disque / rempli à 91 %");  // nom avec « · » gardé entier
     expect(items[3].href).toBe("machines/10.0.0.77/watch/disk");   // the link opens on the frame of the trouble
-    expect(items[3].fix).toEqual({ label: "Régler", href: "machines/10.0.0.77/settings" });
+    expect(items[3].fix).toEqual({ label: "Régler la machine", href: "machines/10.0.0.77/settings" });
   });
 });
 

@@ -48,7 +48,7 @@ export function plural(n: number, word: string, many = `${word}s`): string {
 
 const machineOf = (h: HealthHost) => splitHostName(h.name)[0];
 
-const machineFix = (ip: string) => (ip ? { label: tx("Régler"), href: `machines/${ip}/settings` } : undefined);
+const machineFix = (ip: string) => (ip ? { label: tx("Régler la machine"), href: `machines/${ip}/settings` } : undefined);
 
 /** Message technique raccourci (erreur SSH brute…) : le détail reste dans l'onglet */
 function short(msg: string, max = 70): string {
