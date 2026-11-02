@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.3 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **Home, notifications told clearly**: « Pour aller plus loin » says whether the notifications are not set (no channel), switched off (channels set but all off) or without an active rule (a channel ready, nothing sent), each with its own button.
 - **Home, three blocks on one line**: « Ce qui a changé depuis hier », the tasks card and the last alerts sent end at the same height.
