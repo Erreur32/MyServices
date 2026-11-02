@@ -248,6 +248,15 @@ class JailSurges(unittest.TestCase):
         self.assertIsNone(watcher.jail_surge_snaps(self.data(("sshd", 60, 90), ok=False)))
         self.assertIn("jail_hausse", __import__("msv.alerts.alerts", fromlist=["KINDS"]).KINDS)
 
+    def test_fail2ban_de_machine_qui_monte(self):
+        hosts = [{"id": "m1", "name": "web · 10.0.0.5", "system": {"fail2ban": {"total": 42, "usual": 3.4, "rising": True}}},
+                 {"id": "m2", "name": "nas · 10.0.0.6", "system": {"fail2ban": {"total": 4, "usual": 3, "rising": False}}}, {"id": "m3"}]
+        snaps = watcher.machine_jail_snaps(hosts)
+        self.assertEqual(list(snaps), ["jail_hausse:machine:m1"])
+        self.assertEqual((snaps["jail_hausse:machine:m1"]["machine"], snaps["jail_hausse:machine:m1"]["target"]), ("web", "Fail2ban"))
+        self.assertIn("42 IP bannies maintenant, contre 3 d'habitude", snaps["jail_hausse:machine:m1"]["text"])
+        self.assertIsNone(watcher.machine_jail_snaps(None))
+
 
 class AlertsLevel(unittest.TestCase):
     """The alerts level set on the service page: « down » keeps only outages and returns, « none » keeps nothing."""

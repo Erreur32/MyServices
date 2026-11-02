@@ -68,6 +68,43 @@ def sample(db_path: str | Path, stats_file: Path, now: float | None = None) -> i
     return store(db_path, HEALTH, pt, now) if pt else 0
 
 
+FAIL2BAN = "fail2ban."   # + machine id: IP banned now by the Fail2ban of that machine (agent or SSH), out of its jails
+RISE_MIN, RISE_FACTOR = 10, 3   # a machine's Fail2ban « goes up »: at least this many IP banned now AND this many times its usual level
+
+
+def fail2ban_read(h: dict) -> dict | None:
+    """The Fail2ban of a machine of stats.json when it was read this pass (allowed and answering), else None."""
+    f = (h.get("system") or {}).get("fail2ban") if isinstance(h, dict) else None
+    return f if isinstance(f, dict) and f.get("available") and f.get("access") and not f.get("down") else None
+
+
+def fail2ban_points(stats: dict) -> dict[str, tuple[int, int]]:
+    """{key: (IP banned now, jails)} of each machine whose Fail2ban was read."""
+    return {FAIL2BAN + str(h["id"]): (int(f.get("total") or 0), len(f.get("jails") or []))
+            for h in stats.get("hosts") or [] if (f := fail2ban_read(h)) and h.get("id") is not None}
+
+
+def sample_fail2ban(db_path: str | Path, stats_file: Path, now: float | None = None) -> int:
+    """One point per machine whose Fail2ban was read in stats_file; how many were added."""
+    try:
+        stats = json.loads(stats_file.read_text(encoding="utf-8"))
+        ts = int(datetime.fromisoformat(str(stats.get("timestamp"))).timestamp())
+    except (OSError, ValueError):
+        return 0
+    return sum(store(db_path, key, (ts, *vt), now) for key, vt in fail2ban_points(stats).items())
+
+
+def fail2ban_trend(db_path: str | Path, machine_id: str, banned: int, now: float | None = None) -> dict:
+    """The peak of the last 24 h (now included), the usual level (mean of the six days before, None until there are some) and whether it goes up."""
+    now = now or time.time()
+    pts = series(db_path, FAIL2BAN + str(machine_id), 168, now)
+    day = [v for ts, v, _ in pts if ts >= now - 86400]
+    before = [v for ts, v, _ in pts if ts < now - 86400]
+    usual = round(sum(before) / len(before), 1) if before else None
+    rising = usual is not None and banned >= RISE_MIN and banned >= RISE_FACTOR * max(1.0, usual)
+    return {"peak": max([*day, banned]), "usual": usual, "rising": rising}
+
+
 def _gear_up(g: dict) -> bool:
     if g.get("online") is not None:
         return bool(g["online"])

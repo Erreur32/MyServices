@@ -5,6 +5,7 @@ import { tx } from "./i18n";
 import { risky } from "./ssh";
 import { splitHostName } from "./format";
 import { certIssue } from "./status";
+import { machineFail2ban } from "./machineFail2ban";
 
 export type Severity = "bad" | "warn";
 export type Area = "fail2ban" | "sites" | "certs" | "ssh" | "access" | "ports";
@@ -82,6 +83,15 @@ function sshFindings(snap: Snapshot): Finding[] {
   });
 }
 
+/** A machine whose own Fail2ban (agent or SSH) bans far more than usual */
+function machineJailFindings(snap: Snapshot): Finding[] {
+  return machineFail2ban(snap.health).filter((m) => m.state === "rising").map((m): Finding => ({
+    sev: "warn", area: "fail2ban", title: tx("Fail2ban monte sur {0}", m.name), sub: m.ip, href: `#machines/${m.ip}`,
+    detail: tx("{0} IP bannies, contre {1} d'habitude", m.total, Math.round(m.usual ?? 0)),
+    fix: tx("Voir les jails qui bannissent ; si l'attaque dure, bloquer les adresses au pare-feu ou durcir la jail."),
+  }));
+}
+
 /** One device's finding: its sensitive ports */
 export const portFinding = (d: { hostname?: string | null; vendor?: string | null; ip: string }, hit: number[]): Finding => ({
   sev: "warn", area: "ports", title: d.hostname || d.vendor || d.ip, detail: hit.map((p) => `${p} ${SENSITIVE[p]}`).join(" · "),
@@ -102,7 +112,7 @@ export const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "access", "po
 
 /** Everything that needs a look, red first, then by area */
 export function securityFindings(snap: Snapshot, access: Finding[] = []): Finding[] {
-  return [...threatFindings(snap), ...certFindings(snap), ...siteFindings(snap), ...sshFindings(snap), ...access, ...portFindings(snap)]
+  return [...threatFindings(snap), ...machineJailFindings(snap), ...certFindings(snap), ...siteFindings(snap), ...sshFindings(snap), ...access, ...portFindings(snap)]
     .filter((f) => !isIgnored(snap.data.security_ignore, f))
     .sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad") || AREAS.indexOf(a.area) - AREAS.indexOf(b.area));
 }

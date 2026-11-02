@@ -430,6 +430,22 @@ def jail_surge_snaps(data: dict) -> dict | None:
     return out
 
 
+def machine_jail_snaps(hosts: list[dict] | None) -> dict | None:
+    """Machines whose Fail2ban (read by their agent or over SSH) goes up: the health pass sets `rising` (tile_history.fail2ban_trend). None: no
+    stats.json."""
+    if hosts is None:
+        return None
+    out = {}
+    for h in hosts:
+        f = (h.get("system") or {}).get("fail2ban") or {}
+        if f.get("rising"):
+            name = str(h.get("name") or h.get("id")).split(" · ")[0][:40]
+            out[f'jail_hausse:machine:{h.get("id")}'] = {
+                "label": name, "machine": name, "target": "Fail2ban",
+                "text": f"{f.get('total', 0)} IP bannies maintenant, contre {f.get('usual') or 0:.0f} d'habitude (Fail2ban de la machine)"}
+    return out
+
+
 def diff_threats(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
     """« New threat » once per cluster ; the first reading of LogviewR is the reference. A threat no longer active is forgotten after
     a week (kept meanwhile so that it does not come back as new)."""
@@ -581,7 +597,8 @@ def main() -> int:
     iev, icur = diff_points("maj_image", state.get("images"), image_snaps(data))
     uev, ucur = diff_points("maj_machine", state.get("machine_updates"), machine_update_snaps(health_hosts(), state.get("machine_updates")))
     jev, jcur = diff_points("jail_hausse", state.get("jails_up"), jail_surge_snaps(data))
-    events = sorted(tev + xev + iev + uev + jev + events, key=lambda e: -SEVERITY[e["kind"]])
+    mjev, mjcur = diff_points("jail_hausse", state.get("machine_jails_up"), machine_jail_snaps(health_hosts()))   # apart: one source unread keeps the other
+    events = sorted(tev + xev + iev + uev + jev + mjev + events, key=lambda e: -SEVERITY[e["kind"]])
     nev, ncur = diff_network(state.get("network"), network_snaps(data) if data.get("network") else None)
     events = sorted(nev + events, key=lambda e: -SEVERITY[e["kind"]])
     age = (datetime.now(timezone.utc) - datetime.fromisoformat(data["generated"])).total_seconds() / 60
@@ -605,6 +622,7 @@ def main() -> int:
         dcur, vcur, vpending = state.get("dns", dcur), state.get("virt", vcur), state.get("vpending", {})
         tcur, xcur, ncur = state.get("threats", tcur), state.get("nextcloud", xcur), state.get("network", ncur)
         icur, jcur, ucur = state.get("images", icur), state.get("jails_up", jcur), state.get("machine_updates", ucur)
+        mjcur = state.get("machine_jails_up", mjcur)
 
     if dry:
         print(f"=== DRY RUN (baseline={baseline}) · {len(events)} événement(s) ===")
@@ -634,7 +652,7 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
-                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur, "images": icur, "machine_updates": ucur, "jails_up": jcur,
+                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur, "images": icur, "machine_updates": ucur, "jails_up": jcur, "machine_jails_up": mjcur,
                                       "stale_reported": state.get("stale_reported", False) if same_gen else age > STALE_MIN,
                                       "gen": data.get("generated"), "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")

@@ -33,6 +33,7 @@ import html as html_lib
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import time
@@ -42,11 +43,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from msv.alerts import notify
-from msv.core.config import CFG, next_timer_run
+from msv.core.config import CFG, db_path, next_timer_run
 from msv.core import inventory_cache
 from msv.machines.winname import windows_name
 from msv.core.docker_state import allowed_names, intended_stop
-from msv.collect import readers
+from msv.collect import readers, tile_history
 from msv.remote.sshmux import SSH_MUX, ssh_run
 
 DOCKER_LABEL = "🐳 Docker"
@@ -2189,6 +2190,17 @@ def merge_only(previous: list[dict], previous_asleep: list[dict], hosts: list[di
             asleep + [a for a in previous_asleep if a["id"] not in fresh and a.get("ip") != only])
 
 
+def add_fail2ban_trend(hosts: list[dict], now: float) -> None:
+    """Each Fail2ban read gets its peak of 24 h, its usual level and whether it goes up (tile_history), the same for the page and the alert."""
+    try:
+        db = db_path(CFG)
+        for h in hosts:
+            if (f := tile_history.fail2ban_read(h)) is not None and h.get("id") is not None:
+                f.update(tile_history.fail2ban_trend(db, h["id"], int(f.get("total") or 0), now))
+    except (OSError, sqlite3.Error) as e:   # no base: the page shows the bans without a trend
+        print(f"  ⚠ tendance Fail2ban : {e}")
+
+
 def main() -> int:
     dry = "--dry-run" in sys.argv
     ts = datetime.now(timezone.utc).isoformat()
@@ -2261,6 +2273,7 @@ def main() -> int:
         return 0
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    add_fail2ban_trend(hosts, now)
     record_events(hosts, prev_levels, ts)
     STATS_JSON.write_text(json.dumps(stats, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     INDEX.write_text(render_html(stats), encoding="utf-8")

@@ -231,5 +231,39 @@ class GpuLive(unittest.TestCase):
             self.assertEqual(th.sample_gpu_live(Path(tmp) / "t.db", Path(tmp) / "c.json"), 0)
 
 
+class MachineFail2ban(unittest.TestCase):
+    """A machine's own Fail2ban (agent or SSH): one point per health pass, its peak of 24 h, its usual level and whether it goes up."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.db = Path(self.tmp.name) / "t.db"
+        self.file = Path(self.tmp.name) / "stats.json"
+
+    def put(self, at, **f2b):
+        hosts = [{"id": "m1", "system": {"fail2ban": f2b}}, {"id": "m2", "system": {}}]
+        self.file.write_text(json.dumps({"timestamp": datetime.fromtimestamp(at, timezone.utc).isoformat(), "hosts": hosts}), encoding="utf-8")
+        return th.sample_fail2ban(self.db, self.file, now=at)
+
+    def test_only_a_fail2ban_read_is_kept(self):
+        self.assertEqual(self.put(NOW, available=True, access=True, total=4, jails=[{"name": "sshd", "banned": 4}]), 1)
+        self.assertEqual(self.put(NOW + 600, available=True, access=False, total=4), 0)    # no sudo rule: not read
+        self.assertEqual(self.put(NOW + 1200, available=True, access=True, down=True), 0)  # not answering
+        self.assertEqual(self.put(NOW + 1800, available=False), 0)                       # not installed
+        self.assertEqual(th.series(self.db, th.FAIL2BAN + "m1", 24, NOW + 1800), [[int(NOW), 4, 1]])
+
+    def test_trend_peak_usual_and_rising(self):
+        for day in range(2, 7):   # 2 IP banned a day for five days, 20 yesterday evening, 35 now
+            self.put(NOW - day * 86400, available=True, access=True, total=2)
+        self.put(NOW - 3600 * 5, available=True, access=True, total=20)
+        t = th.fail2ban_trend(self.db, "m1", 35, NOW)
+        self.assertEqual((t["peak"], t["usual"], t["rising"]), (35, 2.0, True))
+        self.assertFalse(th.fail2ban_trend(self.db, "m1", 5, NOW)["rising"])       # under 10: too few to matter
+        self.assertEqual(th.fail2ban_trend(self.db, "m1", 5, NOW)["peak"], 20)
+
+    def test_no_history_no_rise(self):
+        self.assertEqual(th.fail2ban_trend(self.db, "m9", 50, NOW), {"peak": 50, "usual": None, "rising": False})
+
+
 if __name__ == "__main__":
     unittest.main()

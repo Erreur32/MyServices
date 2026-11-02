@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Security, Fail2ban of the machines**: the Fail2ban page lists the Fail2ban of every machine read by its agent or over SSH, with its jails that ban, the IP banned now, the peak of 24 h and a state (rising, usual, calm, not read with the sudo rule to add, not installed). The page and its menu entry show without LogviewR.
+- **Alert « Jail going up » for a machine**: a machine whose Fail2ban bans at least 10 IP and 3 times its usual level (mean of the 6 days before, kept by each health pass) raises the alert and a finding on the security overview, which opens the machine.
+
 ### Fixed
 - **Backups read by an agent are fresh**: a Linux agent reads its backup folders again before each backups run of the server, instead of only every 6 hours, so the Backups page no longer lags hours behind a machine read by its agent. Linux agent version 9.
 - **No « late » copy before its run**: a copy whose description gives its time (« rsync 10:30 ») is not judged late on an archive it could not take yet; a weekly backup made at night no longer shows its copies late until the copy of the morning has run.

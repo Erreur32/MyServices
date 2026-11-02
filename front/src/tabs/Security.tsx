@@ -28,6 +28,8 @@ import { ConnectorsLink, PageHead } from "../components/PageHead";
 import { WazuhPage } from "../components/WazuhPage";
 import type { Host } from "../types";
 import { NoteLine } from "../components/form";
+import { MachineFail2ban } from "../components/MachineFail2ban";
+import { machineFail2ban, readF2b } from "../lib/machineFail2ban";
 
 type Sub = "overview" | "fail2ban" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area: Area }[] = [
@@ -322,12 +324,17 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
     (snap.data.network ?? []).length ? "MynetworK" : ""];
   const bySsh = tx("{0} machine(s) lue(s) par SSH", snap.data.machine_list.filter((m) => !m.disabled && m.info?.sshd).length);
   if (sub === "wazuh") return <WazuhPage snap={snap} admin={admin} />;   // its own entry of the side menu, shown when a Wazuh is read
-  if (sub === "fail2ban") return (   // its own entry of the side menu, under Security: Fail2ban only
-    <div className="flex flex-col gap-4 py-4">
-      <PageHead icon={Ban} title={tx("Fail2ban")} tags={<HeadTags sources={[tools[0]]} at={snap.data.generated} />} actions={admin && <ConnectorsLink types={["logviewr"]} />} />
-      {sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>}
-    </div>
-  );
+  if (sub === "fail2ban") {   // its own entry of the side menu, under Security: the machines' own Fail2ban, then the ones LogviewR reads
+    const machines = machineFail2ban(snap.health), read = readF2b(machines).length;
+    return (
+      <div className="flex flex-col gap-4 py-4">
+        <PageHead icon={Ban} title={tx("Fail2ban")} tags={<HeadTags counts={read ? [tx("{0} machine(s) lue(s)", read)] : []} sources={[tools[0]]} at={snap.data.generated} />} actions={admin && <ConnectorsLink types={["logviewr"]} />} />
+        {machines.length > 0 && <MachineFail2ban rows={machines} />}
+        {sources.length > 0 && <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</>}
+        {!sources.length && !machines.length && <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-4 py-4">
       <PageHead icon={ShieldCheck} title={tx("Sécurité")} tags={<HeadTags counts={[bySsh]} sources={tools} at={snap.data.generated} />} actions={admin && <ConnectorsLink types={["wazuh", "crowdsec", "logviewr"]} />} />
