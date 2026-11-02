@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.1 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **Security, Fail2ban of the machines**: the Fail2ban page lists the Fail2ban of every machine read by its agent or over SSH, with its jails that ban, the IP banned now, the peak of 24 h and a state (rising, usual, calm, not read with the sudo rule to add, not installed). The page and its menu entry show without LogviewR.
 - **Security, Web traffic** (`#security/traffic`): the requests of each machine's Nginx Proxy Manager, read in its access logs by the Linux agent (version 11) or over SSH, the same reading both ways. Per machine: requests per hour over 24 h against its usual hour, the load and disk wait beside it (a load from backup copies is told apart from an attack), and its sites with their diffuse scraping share (addresses that stay under the Fail2ban limits) and their 5xx; then the busiest addresses of the last hour. Only totals and the 10 busiest addresses leave the machine.
@@ -21,7 +25,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Sortable tables**: a sortable column shows a faint double arrow, and a column of figures starts from the highest. Now sortable too: Agents, SSH connections, Settings Requests, Virtualization guests, Wazuh machines, backup sets (inside each machine), Tapo and Domotique devices, and the new Security tables.
 - **Security, sites and web traffic**: each site shows its favicon; on Exposed sites the domain, its machine and its marks (wanted public, ignored) are three aligned columns. The alert limits card says for each limit whether an alert is sent or it is shown on the page only.
 - **Home title**: when the only serious points are backups, the title says a backup is to pick up again instead of « one serious point » (a backup is not the top priority of the network); the other serious titles have a second wording. More geek quotes and nerd proverbs in the calm sentence.
-- **Kernel notice of a machine**: a hung task report keeps its own line (« task … blocked for more than 120 seconds ») without the two fixed lines the kernel prints under it; when every line is a hung task, the notice says processes are stuck on the disk, often a big copy or a backup. Any other kernel error keeps the general words.
+- **Home, « À traiter maintenant »**: a health line is never cut, its duration included. Its hint follows the cause: a hung task says there is nothing to do if a copy was running and that it clears by itself 12 h later, a disk, memory or temperature limit points to Machine settings, other causes have no hint. The header keeps the date and time only: the counts of machines, services and backup sets are already in the figures below.
+- **Kernel notice of a machine**: a hung task report keeps its own line (« task … blocked for more than 120 seconds ») without the two fixed lines the kernel prints under it; when every line is a hung task, the notice gives how many processes were stuck on the disk and at what time (« 3 process(es) stuck on the disk at 11:08 (a copy, a backup?) »), short enough for the home page. Any other kernel error keeps the general words.
 - **Cards of labels and values**: a label never wraps onto a second line (wider label column, cut with its full text on hover as a last resort).
 
 ### Fixed

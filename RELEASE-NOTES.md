@@ -1,24 +1,25 @@
-# Release notes: MyServices 0.35.0
+# Release notes: MyServices 0.35.1
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating.
 
-**0.35.0** (2 November 2026) rebuilds the DNS page: everything that asks for an action is on Servers, and each name now tells where it lives and who runs its DNS.
+**0.35.1** (2 November 2026) watches the web traffic of your Nginx Proxy Manager and the Fail2ban of every machine, and makes the home page and the tables easier to read.
 
 ## For everyone
 
 **What's new?**
-- **One table for each name**: on DNS, Servers, each name shows its NPM and machine, who runs its DNS, its Cloudflare state and the answer of your local DNS, with a verdict that says what to do and where. Every column sorts, and the table opens on the alerts.
-- **Cloudflare card**: how your names are served, and how many ask for a look, next to the sync and instance cards.
-- **Who runs the DNS**: read from each domain, with the logo of the known hosts (Cloudflare, OVH, Hostinger and others).
-- **Alerts in one place**: they move from Details to Servers, and the menu dot and the home page counters open them there. Details keeps the sources, the rewrites and the machine names, on two columns.
-- **Two NPM, no more confusion**: the single « NPM = address » note is gone. Each name shows its own NPM and machine.
+- **Web traffic** (Security, Web traffic): the requests of each Nginx Proxy Manager over 24 h against its usual hour, the load beside it (a load from backup copies is told apart from an attack), each site with its favicon, its diffuse scraping share and its 5xx, and the busiest addresses of the last hour. Read by the Linux agent (version 11) or over SSH.
+- **Two new alerts**: « Web traffic peak » (3 times the usual hour, at least 1,000 requests) and « Diffuse scraping » (a site fed for more than 40 % by many addresses that stay under the Fail2ban limits).
+- **Fail2ban of every machine** on the Fail2ban page, without LogviewR, and the alert « Jail going up » for a machine.
+- **Sortable tables everywhere**: a faint double arrow shows a column that sorts.
+- **Home page**: a health line is never cut, its hint follows the cause, a backup is no longer called « one serious point », and the calm sentence has more geek quotes.
+- **Kernel notices**: a disk blocked by a big copy reads « 3 process(es) stuck on the disk at 11:08 (a copy, a backup?) », without the kernel's fixed lines. Any other kernel error keeps its own words.
 
-**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing else to do. See [MIGRATION.md](MIGRATION.md).
+**Fixed**: backups read by an agent are fresh before each run, no « late » copy before its time, no false « DNS absent ».
+
+**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing else to do; check your saved alert rules if you want the new alerts sent. See [MIGRATION.md](MIGRATION.md).
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.35.0` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
-- **Agent**: no change, Linux agent version 8.
-- **DNS hosts**: asked of the DNS servers of the page, never of a public resolver, once a day per domain.
-- **Two instances on one network**: shift the collection of one of them, see [MIGRATION.md](MIGRATION.md).
+- **Image**: `ghcr.io/erreur32/myservices:0.35.1` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **Agent**: Linux agent version 11, updated by itself when automatic update is on. Reading the NPM logs needs `docker ps` and `docker inspect` for the reading account; only totals and the 10 busiest addresses leave the machine.
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).
