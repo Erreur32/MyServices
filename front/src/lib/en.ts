@@ -1690,6 +1690,8 @@ export const EN: Record<string, string> = {
   "IP, identifiant et mot de passe requis, sans espace dans l'IP ni l'identifiant : sinon la ligne est ignorée.": "IP, login and password required, with no space in the IP or the login: otherwise the row is left out.",
   "Un mot de passe ne peut pas contenir « ; » : changez-le dans l'appli Tapo.": "A password cannot hold « ; »: change it in the Tapo app.",
   "Ajouter une caméra": "Add a camera",
+  "Le compte de l'agent ne lit pas Docker : les conteneurs sont lus par le SSH.": "The agent's account cannot read Docker: the containers are read over SSH.",
+  "Le compte de l'agent ne lit pas Docker : ses conteneurs ne sont pas lus. Nouvelle commande, cochez « Lire Docker », puis lancez-la sur la machine (ce groupe donne les droits de root).": "The agent's account cannot read Docker: its containers are not read. New command, tick « Read Docker », then run it on the machine (that group gives root rights).",
   "Copie ajoutée au jeu : premier relevé en cours": "Copy added to the set: first reading in progress",
   "Dossier suivi : premier relevé en cours, l'onglet Sauvegardes apparaît ensuite": "Folder followed: first reading in progress, the Backups tab appears next",
   "Dossier distant (FTP, FTPS, Samba)": "Remote folder (FTP, FTPS, Samba)",

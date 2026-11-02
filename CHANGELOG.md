@@ -11,6 +11,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.8 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **SSH connections, « ESXi key » on every machine**: since the app's ECDSA key (for ESXi) was added after its own key in each alias, the page took the last `IdentityFile` and said « ESXi key » everywhere. It now keeps the first one, the key SSH tries first: « app key ».
+- **Agents, the Docker line where no Nginx Proxy Manager runs**: since 0.35.6 the line « cannot read Docker: no containers, no web traffic of NPM, tick Read Docker » showed on every machine whose agent cannot read Docker, even where SSH reads the containers and no NPM runs. It now asks for the box (root-equivalent) only where a NPM runs; elsewhere it says the containers are read over SSH.
+
 ## v0.35.7 (2026-11-02)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

@@ -12,19 +12,26 @@ const GAP: Record<string, () => string> = {
   fail2ban: () => tx("Sans sudo, l'agent ne voit pas les adresses bloquées par fail2ban : Nouvelle commande, cochez la case sudo, puis lancez-la sur la machine."),
 };
 
+// Docker unread: the box is worth its root rights only where Nginx Proxy Manager runs (its web traffic needs it); elsewhere SSH reads the containers
+const dockerLine = (npm: boolean, ssh: boolean) => npm ? GAP.docker()
+  : ssh ? tx("Le compte de l'agent ne lit pas Docker : les conteneurs sont lus par le SSH.")
+  : tx("Le compte de l'agent ne lit pas Docker : ses conteneurs ne sont pas lus. Nouvelle commande, cochez « Lire Docker », puis lancez-la sur la machine (ce groupe donne les droits de root).");
+const line = (g: string, npm: boolean, ssh: boolean) => (g === "docker" ? dockerLine(npm, ssh) : GAP[g]?.() ?? g);
+
 /** Shown only when something is to be done: what the agent cannot read with no SSH to read it instead, and the rights only the agent can use */
-export function AgentTodo({ a, ssh }: Readonly<{ a: AgentInfo; ssh: boolean }>) {
-  // with SSH the inventory is read over it, but never the web traffic: Docker stays to do
-  const gaps = (a.gaps ?? []).filter((g) => !ssh || g === "docker"), lines = [...gaps, ...a.rights ?? []].map((g) => GAP[g]?.() ?? g);
+export function AgentTodo({ a, ssh, npm = false }: Readonly<{ a: AgentInfo; ssh: boolean; npm?: boolean }>) {
+  // with SSH the inventory is read over it, but never the web traffic of a NPM on that machine: Docker stays to do there
+  const gaps = (a.gaps ?? []).filter((g) => !ssh || (g === "docker" && npm)), lines = [...gaps.map((g) => line(g, npm, ssh)), ...(a.rights ?? []).map((g) => GAP[g]?.() ?? g)];
   if (!lines.length) return null;
   const label = tx("À faire sur cet agent"), noSsh = !ssh && gaps.length ? [tx("Cette machine n'a pas de SSH pour le lire à la place.")] : [];
   return <span title={[label, ...lines, ...noSsh].join("\n")} className="inline-flex text-warn"><TriangleAlert size={14} aria-label={label} /></span>;
 }
 
-export function AgentGaps({ gaps }: Readonly<{ gaps: string[] }>) {
+/** What a working agent cannot read, on the SSH page: that machine has SSH */
+export function AgentGaps({ gaps, npm = false }: Readonly<{ gaps: string[]; npm?: boolean }>) {
   return (
     <span className="flex flex-col gap-0.5 text-xs text-muted">
-      {gaps.map((g) => <span key={g}>{GAP[g]?.() ?? g}</span>)}
+      {gaps.map((g) => <span key={g}>{line(g, npm, true)}</span>)}
       <span className="text-dim">{tx("Rien n'est cassé : la collecte passe par le SSH pour ce qui manque, si la machine en a un.")}</span>
     </span>
   );
