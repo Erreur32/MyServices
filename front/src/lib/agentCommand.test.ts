@@ -75,7 +75,7 @@ describe("commande d'installation de l'agent", () => {
 describe("cases d'un agent", () => {
   const on = (o?: AgentOptions) => agentBoxes(o).filter((b) => b.on).map((b) => b.label);
   it("montre toutes les cases, cochées ou non", () => {
-    expect(agentBoxes()).toHaveLength(5);
+    expect(agentBoxes()).toHaveLength(6);
     expect(on()).toEqual([]);
     expect(on({ sudo: true, npm: "/a/npm-api.sh" })).toEqual(["sudo", "NPM"]);
     expect(on({ npm: "" })).toEqual(["NPM"]);   // empty: the script was set by the install, still read

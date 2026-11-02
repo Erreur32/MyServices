@@ -25,7 +25,7 @@ export function outsideProblem(url: string): "private" | "clear" | null {
 }
 
 /** Options of a Linux agent, the variables of agent/install.sh. `npm`: absent = not read, empty = have the script installed, else its path */
-export interface AgentOptions { sudo?: boolean; dns?: boolean; backups?: boolean; backupDirs?: string; borgmatic?: boolean; allowHttp?: boolean; npm?: string; npmUrl?: string }
+export interface AgentOptions { sudo?: boolean; docker?: boolean; dns?: boolean; backups?: boolean; backupDirs?: string; borgmatic?: boolean; allowHttp?: boolean; npm?: string; npmUrl?: string }
 
 const SAFE_PATH = /^\/[A-Za-z0-9._/-]+$/;   // what the installer accepts; nothing else goes in a command to paste
 const NPM_URL = /^http:\/\/[A-Za-z0-9.-]+(:\d{1,5})?$/;
@@ -44,6 +44,7 @@ export function npmProblem({ npm, npmUrl }: AgentOptions): boolean {
 export function agentBoxes(o: AgentOptions = {}): { label: string; on: boolean; detail?: string }[] {
   return [
     { label: "sudo", on: !!o.sudo },
+    { label: "Docker", on: !!o.docker },
     { label: tx("DNS local"), on: !!o.dns },
     { label: tx("sauvegardes"), on: !!o.backups, detail: o.backupDirs },
     { label: "borgmatic", on: !!o.borgmatic },
@@ -53,7 +54,7 @@ export function agentBoxes(o: AgentOptions = {}): { label: string; on: boolean; 
 
 function linuxEnv(o: AgentOptions, http: boolean): string {
   const dirs = o.backups ? backupDirs(o.backupDirs ?? "") : [], path = o.npm?.trim(), address = (o.npmUrl ?? "").trim();
-  const env = [http && "MSV_ALLOW_HTTP=1", o.sudo && "MSV_SUDO=1", o.dns && "MSV_DNS=1", o.backups && "MSV_BACKUPS=1", dirs.length > 0 && `MSV_BACKUP_DIRS=${dirs.join(",")}`, o.borgmatic && "MSV_BORGMATIC=1"];
+  const env = [http && "MSV_ALLOW_HTTP=1", o.sudo && "MSV_SUDO=1", o.docker && "MSV_DOCKER=1", o.dns && "MSV_DNS=1", o.backups && "MSV_BACKUPS=1", dirs.length > 0 && `MSV_BACKUP_DIRS=${dirs.join(",")}`, o.borgmatic && "MSV_BORGMATIC=1"];
   if (o.npm !== undefined && !npmProblem(o)) env.push(`MSV_NPM=${path || "install"}`, !path && address !== "" && `MSV_NPM_URL=${address}`);
   return env.filter(Boolean).map((v) => `${v} `).join("");
 }

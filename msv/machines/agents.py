@@ -385,6 +385,8 @@ def options_of(report: dict | None) -> dict:
     if not isinstance(raw, dict):
         return {}
     out: dict = {k: True for k in ("sudo", "dns", "backups", "borgmatic") if raw.get(k) is True}
+    if (linux_inventory(report) or {}).get("containers"):   # its account reads Docker now: a new command keeps the box ticked
+        out["docker"] = True
     found = raw.get("backupDirs")
     dirs = [d for d in found if isinstance(d, str) and SAFE_PATH.fullmatch(d)] if isinstance(found, list) else []
     if dirs:

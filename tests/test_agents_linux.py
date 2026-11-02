@@ -404,6 +404,13 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertEqual(agents.options_of({"data": {"cmds": {"options": [0, "not json"]}}}), {})
         self.assertEqual(agents.options_of(rep(["x"])), {})
 
+    def test_options_keep_docker_ticked_when_the_agent_reads_containers(self):
+        from connectors import docker_ssh
+        ps = "web|nginx:1|0.0.0.0:8080->80/tcp|Up 2 days|site||||\n" + docker_ssh.ENV_MARK + "\n"
+        rep = lambda rc, out: {"data": {"kind": "linux", "cmds": {"options": [0, json.dumps({"sudo": True})], docker_ssh.DOCKER_SH: [rc, out]}}}  # noqa: E731
+        self.assertEqual(agents.options_of(rep(0, ps)), {"sudo": True, "docker": True})
+        self.assertEqual(agents.options_of(rep(1, "permission denied")), {"sudo": True})   # no docker group: the box stays off
+
     def test_scan_dns_lit_les_outils_sans_les_comptes(self):
         ns = {"__name__": "dns_test"}
         exec(compile(agents.script("dns-scan.py"), "<dns-scan>", "exec"), ns)

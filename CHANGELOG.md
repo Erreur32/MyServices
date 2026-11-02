@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Linux agent, « Read Docker » box**: the install command gains a box that puts the agent's account in the docker group (`MSV_DOCKER=1`, root-equivalent, said next to the box). With it the agent reads the containers and the web traffic of Nginx Proxy Manager (`#security/traffic`), and its service sees `/home` read-only, where Docker volumes often live. A new command keeps the box ticked when the agent already reads containers. The « To do on this agent » hint now keeps the Docker line even when the machine has SSH, since SSH never reads the web traffic.
+
 ## v0.35.5 (2026-11-02)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
