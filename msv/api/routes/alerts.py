@@ -123,7 +123,7 @@ def about_payload(force: bool) -> dict:
     from msv.core import about
     version = os.environ.get("MYSERVICES_VERSION", "dev")
     got = about.latest(Path(core.CFG["state_dir"]), force=force, enabled=bool(core.CFG.get("update_check", True)), current=version)
-    tag = (got.get("release") or {}).get("tag")
+    tag = about.offered(got.get("release"))
     return {"version": version, "latest": got.get("release"), "checked_at": got.get("checked_at"), "error": got.get("error"), "enabled": got.get("enabled", True),
             "update_available": about.newer(tag, version), "running": about.core_version(version),
             "released": about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md")),

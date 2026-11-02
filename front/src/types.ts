@@ -826,6 +826,7 @@ export interface AgentInfo {
   host_pending?: string | null; // autre nom de poste vu : relevés refusés jusqu'à confirmation de l'admin
   auto_update?: boolean;       // mise à jour automatique : l'agent récupère le script du serveur s'il est plus ancien
   update_requested?: boolean;  // « mettre à jour maintenant » demandé, pas encore pris en compte
+  update_stuck?: boolean;      // update offered two reports ago and the agent still in its old version (agents._public)
   latest_version?: string;     // version du script d'agent servi par cette installation
   outdated?: boolean;          // l'agent est plus ancien que le script servi
   gaps?: string[];             // what its fresh report lacks to replace SSH (agents.inventory_gaps)

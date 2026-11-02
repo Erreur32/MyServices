@@ -152,6 +152,10 @@ class AgentsPoints(unittest.TestCase):
         got = th.agents_points(agents, frozenset({"10.0.0.2"}))
         self.assertEqual(got[th.AGENTS_HEALTH], (round((100 + 50) / 2), 100))
         self.assertEqual(got[th.AGENTS_RUNNING], (1, 3))
+        # « late » counts only what the button would ask: manual, not asked yet, machine answering
+        late = [{"state": "actif", "outdated": True}, {"state": "actif", "outdated": True, "auto_update": True},
+                {"state": "silencieux", "outdated": True, "ip": "10.0.0.2"}, {"state": "silencieux", "outdated": True, "ip": "10.0.0.3"}]
+        self.assertEqual(th.agents_points(late, frozenset({"10.0.0.2"}))[th.AGENTS_LATE], (4 - 2, 4))
         # an agent answering in time keeps its health even if the ping fails (ping blocked on that machine)
         self.assertEqual(th.agents_points([{"state": "actif", "ip": "10.0.0.1"}], frozenset({"10.0.0.1"}))[th.AGENTS_HEALTH], (100, 100))
         # every agent switched off: no health point rather than a false 0
