@@ -56,6 +56,10 @@ class WithoutAdGuard(unittest.TestCase):
         self.assertEqual(d["sync"], {})
         self.assertEqual(d["rewrites_diff"], [])
 
+    def test_loopback_answer_is_no_lan_name(self):
+        d = self.run_check({"srv": ["127.0.1.1"], "pc": ["10.0.0.42"]}, [])   # the DNS server on srv answers its own name from /etc/hosts
+        self.assertEqual([(m["name"], m["state"], m["answer"]) for m in d["machines"]], [("pc", "ailleurs", ["10.0.0.42"]), ("srv", "absent", [])])
+
     def test_public_answer_is_no_lan_name(self):
         rows = [row("app.example.org")]
         d = self.run_check({"app.example.org": ["10.0.0.5"], "pc": ["203.0.113.9"], "srv": ["203.0.113.9"]}, rows)   # a bare name caught by a public domain

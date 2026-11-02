@@ -646,7 +646,9 @@ def machine_names_check(servers, search, asked):
         if ip in DISABLED or not HOST_RE.match(m[0].lower()):
             continue
         got = _name_answers(m[0].lower(), search, servers, asked)
-        lan = [a for a in got if _private(a)]   # a home network: a bare name landing on a public address is no LAN name at all, not a wrong one
+        # a home network: a bare name landing on a public address is no LAN name at all, not a wrong one; nor a loopback one (127.0.1.1,
+        # the Debian /etc/hosts line a DNS server on that very machine answers its own name with)
+        lan = [a for a in got if _private(a) and not a.startswith("127.")]
         if ip in got:
             state = "ok"
         elif lan:
