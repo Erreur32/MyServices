@@ -252,6 +252,9 @@ class Snapshot(unittest.TestCase):
         self.cam.snapshot.return_value = b"<html>"
         r = self.get("entree")
         self.assertEqual((r.status_code, r.json()["error"]), (503, "la réponse n'est pas une image"))   # not 502: Cloudflare would hide the reason
+        self.cam.snapshot.side_effect = ConnectorError("image refusée (Unauthorized)")
+        r = self.get("entree")
+        self.assertEqual((r.status_code, r.json()["error"]), (503, "image refusée (Unauthorized)"))   # the tile shows it
 
     def test_live_feed_relayed_audited_and_limited(self):
         import io

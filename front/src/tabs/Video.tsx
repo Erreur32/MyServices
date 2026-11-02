@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ROOT, type Snapshot } from "../api";
 import { useSort } from "../lib/filter";
 import { bytes, hm } from "../lib/format";
-import { pictureReason } from "../lib/picture";
+import { pictureReason, pictureText } from "../lib/picture";
 import { tx } from "../lib/i18n";
 import { sinceText } from "../lib/last24h";
 import { usePageView } from "../lib/route";
@@ -257,7 +257,7 @@ function Picture({ cam }: Readonly<{ cam: CameraRow }>) {
   const btn = "rounded-full bg-card/90 p-1.5 text-muted hover:text-txt";
   return (
     <div className="relative mt-2 overflow-hidden rounded-lg border border-line bg-bg2">
-      {failed ? <div className="flex items-center gap-2 p-3 text-sm text-muted"><ImageOff size={14} className="shrink-0" aria-hidden />{typeof failed === "string" ? tx("Image non lue : {0}", failed) : live ? tx("Flux non lu : l'outil n'a pas répondu.") : tx("Image non lue : l'outil n'a pas répondu.")}</div>
+      {failed ? <div className="flex items-center gap-2 p-3 text-sm text-muted"><ImageOff size={14} className="shrink-0" aria-hidden />{pictureText(failed, live)}</div>
         : <img src={url} alt={live ? tx("Flux de la caméra {0}", cam.name) : tx("Image de la caméra {0}", cam.name)} loading="lazy" className="block w-full" onError={fail} />}
       <div className="absolute right-1.5 top-1.5 flex gap-1">
         {live
