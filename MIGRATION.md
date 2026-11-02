@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.6 → 0.35.7
+
+**Nothing to do.** No setting or volume change. The agents table gains one column (`reached_url`, the address each agent sends through), added by itself at start. The camera accounts of the Tapo connector are now edited one row per camera and kept in the same form: a config already set keeps working.
+
 ## 0.35.5 → 0.35.6
 
 **Nothing to do for the update itself.** No setting, volume, agent or database change. The command of a Linux agent gains a « Read Docker » box (`MSV_DOCKER=1`): it puts the agent's account in the docker group, which is root-equivalent, and lets its service see `/home` read-only, where Docker volumes often live.

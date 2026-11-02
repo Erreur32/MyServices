@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.7 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **Tapo, camera accounts one row per camera**: the « Camera accounts » field was one text (« IP login password ; … »). It is now a list: one row per camera with its IP (picked among the devices found, or typed), its login and its password, a 🗑 to remove it and « Add a camera ». Saved accounts stay hidden until shown with the admin password, and are saved in the same form, so nothing changes for a config already set.
 
