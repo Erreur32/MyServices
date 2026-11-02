@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import connectors
-from msv.collect import readers
+from msv.collect import dns_zones, readers
 from msv.core import docker_state
 from msv.core.docker_state import allowed_names, intended_stop
 import connectors.base as cbase
@@ -737,11 +737,13 @@ def dns_check(rows):
                         | {"silent": sum(1 for d in names if ans[(ip, d)] is None)} for ip in servers},
         "machines": machine_names_check(servers, search, ans),
         "sync": sync,
+        "zones": dns_zones.zones(servers, names, DNS_ZONES),
         **report,
     }
 
 
 DNS_DIFF_SEEN = os.path.join(CFG["cache_dir"], "dns-diff-seen.json")
+DNS_ZONES = os.path.join(CFG["cache_dir"], "dns-zones.json")
 SYNC_GRACE_MIN = 3   # minutes added to the sync interval before a difference counts: the run itself takes a moment
 
 

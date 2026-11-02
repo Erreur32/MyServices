@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Dns, Host } from "../types";
-import { dnsFigures, dnsWatch } from "./dnsState";
+import { dnsFigures, dnsWatch, npmList, npmWhere, serverList } from "./dnsState";
 
 const g = (o: Partial<Dns>): Dns => ({ servers: {}, rewrites_diff: [], user_rules_diff: [], orphans: [], ...o });
 const host = (id: number, issues: [string, string][]): Host => ({ type: "proxy", id, enabled: true, domains: [`h${id}.lan`], dns: { issues } } as unknown as Host);
@@ -25,5 +25,14 @@ describe("DNS in state mode", () => {
     expect(rows.map((r) => [r.sev, r.area])).toEqual([["bad", "Instance"], ["warn", "Réécritures"]]);
     expect(rows[1].title).toBe("1 différence(s) entre instances");
     expect(dnsFigures(d, []).serversUp).toBe(1);
+  });
+  it("two NPM: each domain names its own machine, the sources list both, an unknown machine keeps its address", () => {
+    const d = g({ npm_ips: { home: "10.0.0.1", remote: "203.0.113.5" }, servers: { "10.0.0.2": { name: "A", readable: true, rewrites: 1, silent: 0 } } });
+    const machines = [{ ip: "10.0.0.1", name: "Myoueb" }];
+    expect(npmWhere(d, machines, "home")).toBe("Myoueb (10.0.0.1)");
+    expect(npmWhere(d, machines, "remote")).toBe("203.0.113.5");
+    expect(npmWhere(d, machines, "gone")).toBe("gone");
+    expect(npmList(d, machines)).toBe("Myoueb (10.0.0.1), 203.0.113.5");
+    expect(serverList(d)).toBe("A (10.0.0.2)");
   });
 });
