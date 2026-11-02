@@ -329,8 +329,9 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
     return (
       <div className="flex flex-col gap-4 py-4">
         <PageHead icon={Ban} title={tx("Fail2ban")} tags={<HeadTags counts={read ? [tx("{0} machine(s) lue(s)", read)] : []} sources={[tools[0]]} at={snap.data.generated} />} actions={admin && <ConnectorsLink types={["logviewr"]} />} />
+        {sources.length > 0 && <Fail2banStats sources={sources} />}
         {machines.length > 0 && <MachineFail2ban rows={machines} />}
-        {sources.length > 0 && <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</>}
+        {sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}
         {!sources.length && !machines.length && <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>}
       </div>
     );
