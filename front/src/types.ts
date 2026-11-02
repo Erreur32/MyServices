@@ -100,7 +100,7 @@ export interface Host {
   nginx_online?: boolean;
   webcheck?: WebCheck & { hsts?: boolean; headers_ok?: number; headers_total?: number; checked?: number };
   uptime?: { name?: string; status: string; response_ms?: number | null; cert_days?: number | null }[];
-  dns?: { issues: [string, ...unknown[]][]; rewrites?: unknown[] };
+  dns?: { issues: [string, ...unknown[]][]; rewrites?: unknown[]; answers?: Record<string, Record<string, string[] | null>> };
   web?: string;
   by_agent?: boolean;   // silent port (no web page) whose state comes from the agent report: followed live without any connection
   direct_ok?: boolean;
@@ -170,7 +170,8 @@ export interface Rewrite {
 }
 
 export interface Dns {
-  npm_ip?: string;
+  npm_ips?: Record<string, string>;   // NPM connector name -> address of its machine
+  zones?: Record<string, string>;   // domain -> who runs its DNS, read from its NS
   resolver?: { servers: string[]; search: string[] } | null;   // set when no DNS tool is wired: the resolvers asked and the search domains
   machines?: { ip: string; name: string; state: "ok" | "ailleurs" | "absent"; answer: string[] }[];   // each followed machine's name asked to the servers
   servers: Record<string, DnsServer & { container?: string; user_rules?: number }>;

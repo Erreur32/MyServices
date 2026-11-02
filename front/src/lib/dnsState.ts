@@ -10,7 +10,7 @@ export interface DnsFigures { domains: number; domainsOk: number; servers: numbe
 /** A server answers: an AdGuard whose configuration is read and whose queries all answer, or a plain resolver that answered everything */
 export const serverUp = (s: Dns["servers"][string]): boolean => (s.resolver ? !s.silent : s.readable && !s.silent);
 
-const ISSUE: Record<string, string> = { absent: tx("ne résout pas"), ecart: tx("réponses différentes selon le serveur"), hors_lan: tx("résout hors du LAN"), bloque: tx("bloqué par une règle"), nom: tx("nom invalide") };
+export const ISSUE: Record<string, string> = { absent: tx("ne résout pas"), ecart: tx("réponses différentes selon le serveur"), hors_lan: tx("résout hors du LAN"), bloque: tx("bloqué par une règle"), nom: tx("nom invalide") };
 
 export function dnsFigures(g: Dns, hosts: Host[], at = Date.now()): DnsFigures {
   const checked = hosts.filter((r) => r.enabled && r.dns);
@@ -20,6 +20,24 @@ export function dnsFigures(g: Dns, hosts: Host[], at = Date.now()): DnsFigures {
   return { domains: checked.length, domainsOk: checked.filter((r) => !r.dns!.issues.length).length, servers: servers.length, serversUp: servers.filter(serverUp).length,
     sync: dnsSync(g, at), rewrites: counts.length ? Math.max(...counts) : null, diff };
 }
+
+/** Where a NPM runs: the followed machine at its address and the address; a home network and a remote server can each have their own */
+export function npmPlace(g: Dns, machines: { ip: string; name: string }[], npm?: string): { name: string; ip: string } {
+  const ip = (npm && g.npm_ips?.[npm]) || "";
+  return { name: machines.find((m) => m.ip === ip)?.name ?? (ip ? "" : npm ?? "-"), ip };
+}
+
+/** The same place in words */
+export function npmWhere(g: Dns, machines: { ip: string; name: string }[], npm?: string): string {
+  const { name, ip } = npmPlace(g, machines, npm);
+  return name && ip ? `${name} (${ip})` : name || ip;
+}
+
+/** The NPM read, each with its machine */
+export const npmList = (g: Dns, machines: { ip: string; name: string }[]): string => Object.keys(g.npm_ips ?? {}).map((k) => npmWhere(g, machines, k)).join(", ");
+
+/** The DNS servers asked, each with its address */
+export const serverList = (g: Dns): string => Object.entries(g.servers).map(([ip, s]) => `${s.name} (${ip})`).join(", ");
 
 /** Rewrites to look at: differences between instances, orphans, invalid names (one row each) */
 function rewriteRows(g: Dns): DnsRow[] {

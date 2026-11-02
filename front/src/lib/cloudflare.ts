@@ -68,7 +68,7 @@ export interface Check { name: string; zone: string; record: "proxied" | "dns" |
 
 export const CHECK_ORDER: CheckTone[] = ["bad", "warn", "info", "ok"];
 const wildcardOf = (name: string) => `*.${name.split(".").slice(1).join(".")}`;
-const zoneOf = (name: string, zones: CloudflareZone[]) => zones.filter((z) => name === z.name || name.endsWith(`.${z.name}`)).sort((a, b) => b.name.length - a.name.length)[0];
+export const zoneOf = (name: string, zones: CloudflareZone[]) => zones.filter((z) => name === z.name || name.endsWith(`.${z.name}`)).sort((a, b) => b.name.length - a.name.length)[0];
 
 /** The reverse proxy entries by name: NPM hosts, Apache and nginx vhosts; an enabled entry wins over a disabled one */
 function hostsByName(hosts: Host[]): Map<string, Host> {
@@ -83,7 +83,7 @@ function hostsByName(hosts: Host[]): Map<string, Host> {
   return out;
 }
 
-function recordOf(z: CloudflareZone, name: string): CloudflareRecord | undefined {
+export function recordOf(z: CloudflareZone, name: string): CloudflareRecord | undefined {
   const records = z.dns?.records ?? [], exact = records.filter((r) => r.name.toLowerCase() === name);
   if (exact.length) return exact.find((r) => r.proxied) ?? exact[0];
   return records.find((r) => r.name.toLowerCase() === wildcardOf(name));

@@ -55,8 +55,8 @@ const BUBBLE: Record<CardTone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", wa
 
 /** Card with a coloured header strip (title, count in a round bubble) over a table with fixed columns and headers. Nothing is shown without a row,
  *  unless `empty` (the "all good" message) is given. `footer` goes under the table. */
-export function TableCard({ title, tone, count, cols, rows, sort, note, empty, footer, className = "", zebra = false, foldable = false, folded = false }: Readonly<{
-  title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string; k?: string }[]; rows: ReactNode[][]; sort?: ColumnSort; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string; zebra?: boolean; foldable?: boolean; folded?: boolean;   // zebra: every other row darker; foldable: the header strip folds the frame, `folded` is its starting state
+export function TableCard({ title, tone, count, cols, rows, sort, note, empty, footer, className = "", zebra = false, foldable = false, folded = false, tableWidth = "min-w-[420px]" }: Readonly<{
+  title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string; k?: string }[]; rows: ReactNode[][]; sort?: ColumnSort; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string; zebra?: boolean; foldable?: boolean; folded?: boolean; tableWidth?: string;   // zebra: every other row darker; foldable: the header strip folds the frame, `folded` is its starting state
 }>) {
   const [shut, setShut] = useState(foldable && folded);
   const n = count ?? rows.length;
@@ -71,7 +71,7 @@ export function TableCard({ title, tone, count, cols, rows, sort, note, empty, f
       {!shut && note && <p className="border-b border-line/60 px-4 py-2 text-sm text-muted">{note}</p>}
       {shut ? null : rows.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] table-fixed border-collapse text-sm">
+          <table className={`w-full ${tableWidth} table-fixed border-collapse text-sm`}>
             <thead>
               <tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
                 {cols.map((c) => <th key={c.label} className={`px-4 py-2 ${c.className ?? ""}`}>{c.k && sort ? <SortLabel k={c.k} sort={sort}>{c.label}</SortLabel> : c.label}</th>)}

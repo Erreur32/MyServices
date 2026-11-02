@@ -37,7 +37,8 @@ class WithoutAdGuard(unittest.TestCase):
                 mock.patch.object(myservices, "MACHINES", {"10.0.0.5": ("srv", "", "srv"), "10.0.0.9": ("pc", "", None)}), \
                 mock.patch.object(myservices, "NPM_IPS", {"npm": "10.0.0.5"}), \
                 mock.patch.object(myservices, "dns_ask_all", side_effect=lambda s, names: {n: answers.get(n) for n in names}), \
-                mock.patch.object(myservices, "mark_waiting"), mock.patch.object(myservices.cbase, "load_state", return_value={}), \
+                mock.patch.object(myservices, "mark_waiting"), mock.patch.object(myservices.dns_zones, "zones", return_value={}), \
+                mock.patch.object(myservices.cbase, "load_state", return_value={}), \
                 mock.patch.object(myservices.cbase, "save_state"):
             return myservices.dns_check(rows)
 
