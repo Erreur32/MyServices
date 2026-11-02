@@ -43,7 +43,7 @@ function KeepSsh({ why, children }: Readonly<{ why: ReactNode; children?: ReactN
   );
 }
 
-function SshAdvice({ ip, need, uses, canInstall, gaps }: Readonly<{ ip: string; need: SshNeed; uses: string[]; canInstall: boolean; gaps: string[] }>) {
+function SshAdvice({ ip, need, uses, canInstall, gaps, npm }: Readonly<{ ip: string; need: SshNeed; uses: string[]; canInstall: boolean; gaps: string[]; npm: boolean }>) {
   const install = <a href={`#machines/${ip}/agent`} className="inline-flex items-center gap-1 text-xs text-link hover:underline"><Cpu size={13} aria-hidden />{tx("Installer l'agent")} ›</a>;
   const agentPage = <a href={`#machines/${ip}/agent`} className="text-link hover:underline">{tx("Page de l'agent")} ›</a>;
   switch (need) {
@@ -51,7 +51,7 @@ function SshAdvice({ ip, need, uses, canInstall, gaps }: Readonly<{ ip: string; 
     case "offer_agent": return install;
     case "no_agent": return <KeepSsh why={tx("Aucun agent ne s'installe sur ce système.")} />;
     case "silent": return <KeepSsh why={tx("L'agent n'envoie plus de relevé : le SSH prend le relais.")}>{agentPage}</KeepSsh>;
-    case "partial": return <KeepSsh why={<AgentGaps gaps={gaps} />}>{agentPage}</KeepSsh>;
+    case "partial": return <KeepSsh why={<AgentGaps gaps={gaps} npm={npm} />}>{agentPage}</KeepSsh>;
     case "uses": return <KeepSsh why={tx("L'agent ne lit pas : {0}", useText(uses))}>{canInstall && install}</KeepSsh>;
     default: return (
       <span className="flex flex-col items-start gap-0.5 text-xs">
@@ -88,6 +88,8 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
   const refused = count("refused");
   const usesOf = (ip: string) => st.ssh_uses?.[ip] ?? [];
   const gapsOf = (ip: string) => agents.find((a) => a.ip === ip && a.state === "actif")?.gaps ?? [];
+  const npmIps = new Set(Object.values(snap.data.dns?.npm_ips ?? {}));
+  const npmOf = (ip: string) => npmIps.has(ip) || agents.some((a) => a.ip === ip && a.options?.npm !== undefined);
   const needOf = (r: SshRow) => sshNeed(r.state === "off", usesOf(r.ip), withAgent.has(r.ip), working.has(r.ip), advice[r.ip]?.agent_possible, gapsOf(r.ip).length > 0);
   const needs = rows.map(needOf);
   const keep = needs.filter((n) => n === "uses" || n === "no_agent" || n === "silent" || n === "partial").length;
@@ -134,7 +136,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
                       <td className="px-3 py-2 font-mono text-xs">{r.access || <Dim>-</Dim>}</td>
                       <td className="px-3 py-2">{r.state === "off" || !seen?.ssh ? <Dim>-</Dim> : <Badge tone={keyTone} title={seen.ssh.key_fp ?? undefined}>{keyLabel}</Badge>}</td>
                       <td className="px-3 py-2"><Badge tone={tone} title={r.message || undefined}>{label}</Badge></td>
-                      <td className="px-3 py-2"><SshAdvice ip={r.ip} need={needOf(r)} uses={usesOf(r.ip)} gaps={gapsOf(r.ip)} canInstall={!withAgent.has(r.ip) && advice[r.ip]?.agent_possible !== false} /></td>
+                      <td className="px-3 py-2"><SshAdvice ip={r.ip} need={needOf(r)} uses={usesOf(r.ip)} gaps={gapsOf(r.ip)} npm={npmOf(r.ip)} canInstall={!withAgent.has(r.ip) && advice[r.ip]?.agent_possible !== false} /></td>
                       <td className="px-3 py-2 text-right"><SettingsLink href={`#settings/machines/ssh/${r.ip}`} of={r.name} /></td>
                     </tr>
                   );

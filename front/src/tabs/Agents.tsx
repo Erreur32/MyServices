@@ -214,7 +214,7 @@ export function AccessGuide() {
 /** Vue d'ensemble, en bas de Réglages → Machines : comment choisir entre agent, SSH et connecteur, et les agents révoqués */
 /** One agent in the list of Machines → Agents: its machine, type, state, version, last report and its gestures in the row; a new command
  *  (new token) is shown under the row */
-function AgentRow({ a, conf, down, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: MachineConf; down: Down; onChanged: () => void; lit: boolean }>) {
+function AgentRow({ a, conf, down, onChanged, lit, npm }: Readonly<{ a: AgentInfo; conf?: MachineConf; down: Down; onChanged: () => void; lit: boolean; npm: boolean }>) {
   const [tone, label] = STATE[a.state], name = conf?.name ?? a.name;
   const [install, setInstall] = useState<InstallTarget | null>(null);
   return (
@@ -224,7 +224,7 @@ function AgentRow({ a, conf, down, onChanged, lit }: Readonly<{ a: AgentInfo; co
       <td className="px-3 py-2 font-mono text-xs tabular-nums text-dim">{a.ip}</td>
       <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
-      <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} down={down} />{!down && <AgentTodo a={a} ssh={typeof conf?.ssh === "string"} />}</span></td>
+      <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1"><AgentVersion a={a} down={down} />{!down && <AgentTodo a={a} ssh={typeof conf?.ssh === "string"} npm={npm} />}</span></td>
       <td className="px-3 py-2"><AgentUpdate a={a} down={down} onChanged={onChanged} /></td>
       <td className="px-3 py-2"><AgentOptionBoxes a={a} /></td>
       <td className="px-3 py-2"><HealthBadge a={a} down={down} /></td>
@@ -240,7 +240,7 @@ function AgentRow({ a, conf, down, onChanged, lit }: Readonly<{ a: AgentInfo; co
  *  the late ones, then the revoked ones. An agent is installed from the page of its machine, Access tab. */
 
 /** The live agents, every column but Options sorts; the order of the server until one is picked */
-function AgentsTable({ live, machines, downOf, reload, open }: Readonly<{ live: AgentInfo[]; machines: Record<string, MachineConf>; downOf: (a: AgentInfo) => Down; reload: () => void; open?: string }>) {
+function AgentsTable({ live, machines, downOf, reload, open, npm }: Readonly<{ live: AgentInfo[]; machines: Record<string, MachineConf>; downOf: (a: AgentInfo) => Down; reload: () => void; open?: string; npm: Set<string> }>) {
   const keyOf = useCallback((a: AgentInfo, k: string): string | number => {
     if (k === "name") return (machines[a.ip]?.name ?? a.name ?? "").toLowerCase();
     if (k === "ip") return ipNum(a.ip);
@@ -262,12 +262,12 @@ function AgentsTable({ live, machines, downOf, reload, open }: Readonly<{ live: 
           {th("version", tx("Version"))}{th("update", tx("Mise à jour"))}<th className="px-3 py-2">{tx("Options")}</th>{th("health", tx("Santé"))}{th("seen", tx("Dernier relevé"))}<th className="px-3 py-2" />
         </tr></thead>
         {/* keyed by machine: a new command gives the agent a new id, and the row must keep the frame showing that command */}
-        <tbody>{sorted.map((a) => <AgentRow key={a.ip} a={a} conf={machines[a.ip]} down={downOf(a)} onChanged={reload} lit={open === a.ip} />)}</tbody>
+        <tbody>{sorted.map((a) => <AgentRow key={a.ip} a={a} conf={machines[a.ip]} down={downOf(a)} onChanged={reload} lit={open === a.ip} npm={npm.has(a.ip) || a.options?.npm !== undefined} />)}</tbody>
       </table>
     </div>
   );
 }
-export function AgentsOverview({ machines, list, open }: Readonly<{ machines: Record<string, MachineConf>; list: Machine[]; open?: string }>) {
+export function AgentsOverview({ machines, list, open, npm = new Set() }: Readonly<{ machines: Record<string, MachineConf>; list: Machine[]; open?: string; npm?: Set<string> }>) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const reload = useCallback(() => { read<AgentsState>("agents").then(setSt).catch(() => undefined); }, []);
@@ -306,7 +306,7 @@ export function AgentsOverview({ machines, list, open }: Readonly<{ machines: Re
         <NoteLine note={note} />
         {s.live.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun agent installé : le SSH lit déjà vos machines, ou aucun PC n'en a besoin.")}</p>}
         {s.live.length > 0 && (
-          <AgentsTable live={s.live} machines={machines} downOf={downOf} reload={reload} open={open} />
+          <AgentsTable live={s.live} machines={machines} downOf={downOf} reload={reload} open={open} npm={npm} />
         )}
       </FoldPanel>
       {s.revoked.length > 0 && <FoldPanel id="agents-revoked" icon={KeyRound} title={tx("Agents révoqués")} count={s.revoked.length} startFolded>

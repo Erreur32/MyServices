@@ -135,7 +135,7 @@ def ssh_config() -> dict[str, dict]:
                 cur["port"] = int(v)
             elif k == "user":
                 cur["user"] = v
-            elif k == "identityfile":
+            elif k == "identityfile" and not cur["identity"]:   # the first one is tried first: the app's own, its ECDSA one (ESXi) comes after
                 cur["identity"] = v
     return out
 

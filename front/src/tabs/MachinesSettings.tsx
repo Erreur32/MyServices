@@ -77,7 +77,7 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   // The address only picks a known machine: its IP is then taken from the list, never from the address (nothing typed in the URL reaches the page)
   const wanted = one ? decodeURIComponent(one) : undefined;
   const open = wanted === "new" ? "new" : Object.keys(st.machines).find((ip) => ip === wanted);
-  if (part === "agents") return <AgentsOverview machines={st.machines} list={snap.data.machine_list} open={open} />;
+  if (part === "agents") return <AgentsOverview machines={st.machines} list={snap.data.machine_list} open={open} npm={new Set(Object.values(snap.data.dns?.npm_ips ?? {}))} />;
   if (part === "ssh" && open === "new") return <NewSshPage snap={snap} st={st} />;
   if (part === "ssh" && open) return <SshPage ip={open} snap={snap} st={st} />;
   if (part === "ssh") return <div className="flex flex-col gap-4"><KeyRefusedAlert snap={snap} /><SshConnections st={st} snap={snap} /></div>;
