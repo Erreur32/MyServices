@@ -8,13 +8,14 @@ import { Overlay } from "../components/Overlay";
 import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
+import { CameraAccounts } from "../components/CameraAccounts";
 import { act, danger, fieldFrame, fieldText, input, primary, quiet, type Note } from "../lib/forms";
 import { FoldPanel } from "../components/FoldPanel";
 import { Badge, Card, Count, Dim, SearchBox, Th } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
-import type { AgentInfo, AgentsState, ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias } from "../types";
+import type { AgentInfo, AgentsState, ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias, TapoDevice } from "../types";
 import { cardNotice, cardsTitle, cardView, noticeTip, toWatch, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
 import { agentSummary } from "../lib/accessLists";
 import { configFor, modeOf, npmAgent } from "../lib/connectorModes";
@@ -132,7 +133,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
         {only.length > 0 && <button type="button" className="col-span-full justify-self-start text-sm font-semibold text-link hover:underline" onClick={() => setOnly([])}>{tx("Voir tous mes connecteurs")}</button>}
         {listed.length === 0 && <p className="col-span-full py-4 text-center text-sm text-muted">{tx("Aucun connecteur ne correspond.")}</p>}
         {listed.map((i) => (
-          <InstanceCard key={`${i.type}/${i.name}`} inst={i} view={views.get(key(i))!} hosts={snap.data.hosts} collect={collect} type={typeOf(i)} reload={reload}
+          <InstanceCard key={`${i.type}/${i.name}`} inst={i} view={views.get(key(i))!} hosts={snap.data.hosts} devices={cardOf(i)?.devices} collect={collect} type={typeOf(i)} reload={reload}
             toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
               tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
             onCollect={(on) => { setSrcKey(`${i.type}/${i.name}`); setSrcNote(null); setToggling(`${i.type}/${i.name}`); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
@@ -488,8 +489,8 @@ function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: C
   );
 }
 
-function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEdited: setEdit }: Readonly<{
-  view: CardView; toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEdited: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+function InstanceCard({ inst, view, hosts, devices, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEdited: setEdit }: Readonly<{
+  view: CardView; toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; devices?: TapoDevice[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEdited: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }>) {
   const [note, setNote] = useState<Note>(null);
   const url = inst.config.url as string | undefined;
@@ -517,7 +518,7 @@ function InstanceCard({ inst, view, hosts, collect, type, reload, onCollect, tog
       <div className="px-3 empty:hidden">
         {toggling && <output className="inline-flex items-center gap-1.5 pb-2 text-xs text-warn"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</output>}
         <ToggleNote note={toggleNote ?? null} onForce={onForce} />
-        {edit && <ConnectorForm type={type} inst={inst} hosts={hosts} aside={<>
+        {edit && <ConnectorForm type={type} inst={inst} hosts={hosts} devices={devices} aside={<>
           {inst.enabled && (!s || s.pending) && <p className="text-sm"><StatusLine s={s && { ...s, found: [] }} collect={collect} /></p>}
           <CardDetail view={view} notice={notice} page={PAGE[inst.type]} />
         </>} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)}
@@ -584,10 +585,12 @@ function ChoiceInput({ f, v, box, put }: Readonly<{ f: ConnectorField; v?: ConfV
 }
 
 /** The input of a field, by its kind; `put` gives its new value */
-function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }: Readonly<{
-  f: ConnectorField; v?: ConfValue; box: string; need: boolean; kept: boolean; inst?: ConnectorInstance; picksMachine: boolean; aliases: SshAlias[]; put: (x: ConfValue) => void;
+function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, devices, put }: Readonly<{
+  f: ConnectorField; v?: ConfValue; box: string; need: boolean; kept: boolean; inst?: ConnectorInstance; picksMachine: boolean; aliases: SshAlias[]; devices: TapoDevice[]; put: (x: ConfValue) => void;
 }>) {
   const text = String(v ?? "");
+  const reveal = inst ? (password: string) => send<{ value: string }>("POST", `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}/reveal`, { field: f.name, password }).then((r) => r.value) : undefined;
+  if (f.kind === "accounts") return <CameraAccounts value={text} kept={kept} reveal={reveal} devices={devices} box={box} put={put} />;
   if (f.kind === "bool") return <input type="checkbox" className="h-4 w-4" checked={!!v} onChange={(e) => put(e.target.checked)} />;
   if (f.name === "ssh" && picksMachine) return (
     <select className={box} value={text} onChange={(e) => put(e.target.value)} required={need}>
@@ -599,7 +602,7 @@ function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }:
   if (f.secret) return (
     <SecretInput value={text} onChange={put} kept={kept} className={box}
       placeholder={kept ? tx("déjà renseigné : laisser vide pour garder") : ""}
-      reveal={inst ? (password) => send<{ value: string }>("POST", `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}/reveal`, { field: f.name, password }).then((r) => r.value) : undefined} />
+      reveal={reveal} />
   );
   if (f.name === "every") return (   // minutes, within what connectors/base.py period() keeps
     <span className="flex items-center gap-2"><input className={`${box} !w-28`} type="number" inputMode="numeric" min={1} max={1440} step={1} value={text} placeholder={tx("défaut")} onChange={(e) => put(e.target.value)} /><span className="text-sm text-muted">{tx("minutes")}</span></span>
@@ -611,7 +614,7 @@ function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, put }:
   );
 }
 
-export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = false, aside, onSaved, onDone, onCancel, onDelete }: Readonly<{ aside?: ReactNode; onDelete?: () => void; type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; found?: Service; hosts?: Host[]; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }>) {
+export function ConnectorForm({ type, inst, prefill, found, hosts, devices = [], quietSave = false, aside, onSaved, onDone, onCancel, onDelete }: Readonly<{ aside?: ReactNode; onDelete?: () => void; type: ConnectorType; inst?: ConnectorInstance; devices?: TapoDevice[]; prefill?: Prefill | null; found?: Service; hosts?: Host[]; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }>) {
   const [name, setName] = useState(inst?.name || prefill?.name || type.type);
   const [conf, setConf] = useState<Conf>(() => {
     const init: Conf = {};
@@ -670,7 +673,7 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
     const kept = inst && f.secret && inst.set[f.name];
     const v = conf[f.name];
     const need = needed(f), box = fieldBox(need, !kept && (v === undefined || v === ""));
-    const input = <FieldInput f={f} v={v} box={box} need={need} kept={!!kept} inst={inst} picksMachine={!!modeDef} aliases={aliases} put={(x) => setConf({ ...conf, [f.name]: x })} />;
+    const input = <FieldInput f={f} v={v} box={box} need={need} kept={!!kept} inst={inst} picksMachine={!!modeDef} aliases={aliases} devices={devices} put={(x) => setConf({ ...conf, [f.name]: x })} />;
     const help = f.help && <span className="text-xs text-dim">{tx(f.help)}</span>;
     if (f.kind === "bool") return <div key={f.name} className="flex flex-col gap-1"><label className="flex items-center gap-2 text-sm text-muted">{input}{tx(f.label)}</label>{help}</div>;
     return <Field key={f.name} label={need ? <Required text={tx(f.label)} /> : tx(f.label)}>{input}{help}</Field>;

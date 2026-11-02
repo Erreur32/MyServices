@@ -92,7 +92,7 @@ class RateLimited(ConnectorError):
 class Field:
     name: str
     label: str
-    kind: str = "text"  # text, url, password, number, bool, choice
+    kind: str = "text"  # text, url, password, number, bool, choice, accounts (« ip user password ; … », one row per camera on the page)
     required: bool = False
     secret: bool = False
     default: object = None

@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Tapo, camera accounts one row per camera**: the « Camera accounts » field was one text (« IP login password ; … »). It is now a list: one row per camera with its IP (picked among the devices found, or typed), its login and its password, a 🗑 to remove it and « Add a camera ». Saved accounts stay hidden until shown with the admin password, and are saved in the same form, so nothing changes for a config already set.
+
 ### Fixed
 - **Agents, « New command » for a machine outside the network**: the command started from the address of the admin's page (a LAN name the machine cannot reach) instead of the one the agent already sends through. The server now keeps the address each report came through (`reached_url`, added at start), and a new command starts from it, with « accept http » kept ticked when that address is plain http over the internet.
 - **Tapo, cameras the discovery cannot name**: some C310 answer the discovery without saying their model and refuse the reading (port 80 closed, only 443 open). They were listed as « other », so the camera account given for them was never used and no picture came. A device given a camera account is now a camera, and its picture is asked with that account.

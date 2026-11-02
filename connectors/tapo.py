@@ -89,8 +89,8 @@ class Tapo(Connector):
         Field("password", "Mot de passe Tapo", "password", required=True, secret=True),
         Field("targets", "Adresse de recherche", default="255.255.255.255",
               help="Adresse de diffusion de ton réseau (par exemple 192.168.1.255) ou IP d'un appareil. Plusieurs : séparées par des virgules. Les appareils répondent sur le réseau local."),
-        Field("camera_accounts", "Comptes caméra", "password", secret=True,
-              help="Pour l'image des caméras sans enregistreur : « IP identifiant motdepasse », séparés par « ; ». C'est le compte caméra créé dans l'appli Tapo (Réglages avancés), pas le compte Tapo."),
+        Field("camera_accounts", "Comptes caméra", "accounts", secret=True,
+              help="Pour l'image des caméras sans enregistreur : une ligne par caméra. C'est le compte caméra créé dans l'appli Tapo (Réglages avancés), pas le compte Tapo."),
     )
     setup_fields = ("username", "password", "targets")
     guide = ("Ouvre l'application Tapo et note l'e-mail et le mot de passe du compte qui possède tes appareils.",

@@ -678,7 +678,7 @@ export interface AlertsState {
 export interface ConnectorField {
   name: string;
   label: string;
-  kind: "text" | "url" | "password" | "number" | "bool" | "choice";
+  kind: "text" | "url" | "password" | "number" | "bool" | "choice" | "accounts";   // accounts: one row per camera (CameraAccounts)
   required: boolean;
   secret: boolean;
   default: unknown;
