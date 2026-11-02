@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.9 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Cameras, « Picture not read: the tool did not answer » with no reason**: a refused picture came back as a 502, which Cloudflare replaces with its own « Bad gateway » page, and the tile showed no reason anyway. The server now answers 503 with the reason, and the tiles of the Cameras and Tapo pages show it. A Tapo camera paused 10 min after a refusal keeps saying the first reason.
+
 ## v0.35.8 (2026-11-02)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

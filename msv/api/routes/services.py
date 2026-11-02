@@ -212,6 +212,9 @@ def _stream_camera_known(connector: str, name: str, camera: str) -> bool:
     return bool(block.get("snapshot")) and camera in known
 
 
+UPSTREAM = 503   # a camera or its recorder failed: not 502, which Cloudflare replaces with its own page, hiding the reason
+
+
 def _camera_picture(connector: str, name: str, camera: str) -> bytes | JSONResponse:
     """The picture asked from the connector, or the refusal to send back."""
     import connectors
@@ -221,7 +224,7 @@ def _camera_picture(connector: str, name: str, camera: str) -> bytes | JSONRespo
             return deny(404, "connecteur introuvable")
         return inst.snapshot(camera)
     except connectors.ConnectorError as e:
-        return deny(502, str(e))
+        return deny(UPSTREAM, str(e))
 
 
 @router.get(API + "/favicon/{name}", tags=["services"], summary="Icône d'un service, lue sur le service par la collecte")
@@ -243,7 +246,7 @@ def stream_snapshot(connector: str, name: str, camera: str, request: Request):
     if isinstance(img, Response):
         return img
     if img[:3] != b"\xff\xd8\xff" and img[:8] != b"\x89PNG\r\n\x1a\n":   # JPEG or PNG only
-        return deny(502, "la réponse n'est pas une image")
+        return deny(UPSTREAM, "la réponse n'est pas une image")
     return Response(img, media_type=PNG if img[:4] == b"\x89PNG" else "image/jpeg", headers={"Cache-Control": "no-store"})   # not audited: the page asks one per tile
 
 
@@ -305,7 +308,7 @@ def stream_live(connector: str, name: str, camera: str, request: Request):
     except connectors.ConnectorError as e:
         with _live_lock:
             _live_open -= 1
-        return deny(502, str(e))
+        return deny(UPSTREAM, str(e))
     label = f"{name} · {camera}"[:200]
     store().audit("flux de caméra ouvert", request.state.user["username"], ip_of(request), label)
     return StreamingResponse(_live_feed(upstream, request.state.user["username"], ip_of(request), label),

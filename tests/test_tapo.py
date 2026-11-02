@@ -132,9 +132,10 @@ class CameraPicture(unittest.TestCase):
     def test_a_refused_camera_is_not_asked_again_for_a_while(self):
         c = self.conn(RuntimeError("Unauthorized"))
         for _ in range(3):
-            with self.assertRaises(ConnectorError):
+            with self.assertRaises(ConnectorError) as e:
                 self.picture(c)
         self.assertEqual(len(self.cam.asked), 1)
+        self.assertIn("Unauthorized", str(e.exception))   # the pause still says why
 
     def test_a_camera_nobody_saw_has_no_picture(self):
         c = self.conn(b"")

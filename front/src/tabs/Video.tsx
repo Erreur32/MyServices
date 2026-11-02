@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ROOT, type Snapshot } from "../api";
 import { useSort } from "../lib/filter";
 import { bytes, hm } from "../lib/format";
+import { pictureReason, pictureText } from "../lib/picture";
 import { tx } from "../lib/i18n";
 import { sinceText } from "../lib/last24h";
 import { usePageView } from "../lib/route";
@@ -241,7 +242,7 @@ const LIVE_MAX_S = 300;   // the server stops a live feed after this long (route
  *  The live feed starts on a click on the play button, stops with the cross, and by itself after LIVE_MAX_S. */
 function Picture({ cam }: Readonly<{ cam: CameraRow }>) {
   const [at, setAt] = useState(() => Date.now());
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | boolean>(false);   // a string: the reason the server gave
   const [live, setLive] = useState(false);
   useEffect(() => {
     if (!live) return;
@@ -251,11 +252,13 @@ function Picture({ cam }: Readonly<{ cam: CameraRow }>) {
   const conn = cam.card.conn;
   if (!conn?.stream?.snapshot || cam.up === false) return null;
   const q = new URLSearchParams({ connector: conn.connector, name: conn.instance ?? conn.name, camera: cam.name, t: String(at) });
+  const url = `${ROOT}api/v1/stream/${live ? "live" : "snapshot"}?${q}`;
+  const fail = () => { setFailed(true); if (!live) pictureReason(url, setFailed); };
   const btn = "rounded-full bg-card/90 p-1.5 text-muted hover:text-txt";
   return (
     <div className="relative mt-2 overflow-hidden rounded-lg border border-line bg-bg2">
-      {failed ? <div className="flex items-center gap-2 p-3 text-sm text-muted"><ImageOff size={14} aria-hidden />{live ? tx("Flux non lu : l'outil n'a pas répondu.") : tx("Image non lue : l'outil n'a pas répondu.")}</div>
-        : <img src={`${ROOT}api/v1/stream/${live ? "live" : "snapshot"}?${q}`} alt={live ? tx("Flux de la caméra {0}", cam.name) : tx("Image de la caméra {0}", cam.name)} loading="lazy" className="block w-full" onError={() => setFailed(true)} />}
+      {failed ? <div className="flex items-center gap-2 p-3 text-sm text-muted"><ImageOff size={14} className="shrink-0" aria-hidden />{pictureText(failed, live)}</div>
+        : <img src={url} alt={live ? tx("Flux de la caméra {0}", cam.name) : tx("Image de la caméra {0}", cam.name)} loading="lazy" className="block w-full" onError={fail} />}
       <div className="absolute right-1.5 top-1.5 flex gap-1">
         {live
           ? <button type="button" onClick={() => { setLive(false); setFailed(false); setAt(Date.now()); }} aria-label={tx("Arrêter le flux")} title={tx("Arrêter le flux")} className={btn}><Square size={14} aria-hidden /></button>

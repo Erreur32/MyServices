@@ -1,5 +1,5 @@
 // « Domotique › Tapo »: plugs with their power and energy, cameras with their state, the other devices, then the table of everything the account shows.
-import { Camera, Plug } from "lucide-react";
+import { Camera, ImageOff, Plug } from "lucide-react";
 import { useState } from "react";
 import { ROOT, type Snapshot } from "../api";
 import { ConnectorsLink, PageHead } from "../components/PageHead";
@@ -10,6 +10,7 @@ import { ipNum } from "../lib/format";
 import { appIcon } from "../lib/appIcons";
 import { linePath, scaleOf } from "../lib/domotique";
 import { LOCALE, tx } from "../lib/i18n";
+import { pictureReason, pictureText } from "../lib/picture";
 import { tapoGroups, tapoState, tapoSummary, wifiBars, type TapoTone } from "../lib/tapo";
 import { recorderAt } from "../lib/video";
 import type { TapoDevice } from "../types";
@@ -102,12 +103,13 @@ function PlugCard({ d }: Readonly<{ d: TapoDevice }>) {
 
 /** A camera tells whether it answers; its picture comes from the recorder that films the same address */
 function CameraCard({ d, snap }: Readonly<{ d: TapoDevice; snap: Snapshot }>) {
-  const [failed, setFailed] = useState(false), rec = recorderAt(snap, d.ip);
-  const q = rec && new URLSearchParams({ connector: rec.connector, name: rec.name, camera: rec.camera });
+  const [failed, setFailed] = useState<string | boolean>(false), rec = recorderAt(snap, d.ip);   // a string: the reason the server gave
+  const q = rec && new URLSearchParams({ connector: rec.connector, name: rec.name, camera: rec.camera }), url = `${ROOT}api/v1/stream/snapshot?${q}`;
   return (
     <article className={CARD}>
       <div className="flex items-start justify-between gap-2"><Title d={d} /><State d={d} /></div>
-      {q && rec && d.online && !failed && <img src={`${ROOT}api/v1/stream/snapshot?${q}`} alt={tx("Image de la caméra {0}", d.name)} title={tx("Image lue par {0} ({1})", rec.engine, rec.camera)} loading="lazy" className="aspect-video w-full rounded-lg object-cover" onError={() => setFailed(true)} />}
+      {q && rec && d.online && !failed && <img src={url} alt={tx("Image de la caméra {0}", d.name)} title={tx("Image lue par {0} ({1})", rec.engine, rec.camera)} loading="lazy" className="aspect-video w-full rounded-lg object-cover" onError={() => { setFailed(true); pictureReason(url, setFailed); }} />}
+      {typeof failed === "string" && <p className="flex items-center gap-2 text-xs text-warn"><ImageOff size={14} className="shrink-0" aria-hidden />{pictureText(failed)}</p>}
       <div className="flex items-center gap-2.5 text-xs text-muted"><Camera size={18} className="shrink-0 text-[#4acbd6]" aria-hidden />{d.fw ? tx("Firmware {0}", d.fw) : tx("Firmware inconnu")}</div>
     </article>
   );

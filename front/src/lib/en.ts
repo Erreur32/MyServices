@@ -3679,6 +3679,7 @@ export const EN: Record<string, string> = {
   "Ses caméras": "Its cameras",
   "Ses flux": "Its streams",
   "Image non lue : l'outil n'a pas répondu.": "Picture not read: the tool did not answer.",
+  "Image non lue : {0}": "Picture not read: {0}",
   "Image de la caméra {0}": "Picture of camera {0}",
   "muette": "silent",
   "filme": "filming",
