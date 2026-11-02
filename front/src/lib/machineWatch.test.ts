@@ -88,6 +88,9 @@ describe("à surveiller", () => {
     expect(it?.tone).toBe("warn");
     expect(it?.detail).toEqual(["nvme0: I/O error", "EXT4-fs error"]);
     expect(WATCH_SECTION.kernel).toBe("health");
+    const hung = "INFO: task bash:2337998 blocked for more than 120 seconds.";
+    expect(healthItems(health({ kernel: { has_errors: true, samples: [hung] } }))[0].text).toBe("processus bloqués sur le disque : souvent une grosse copie ou une sauvegarde");
+    expect(healthItems(health({ kernel: { has_errors: true, samples: [hung, "EXT4-fs error"] } }))[0].text).toBe("erreurs noyau récentes");   // another error: never hidden behind the backup reading
   });
 
   it("Windows : le CPU instantané fait une ligne ; conteneurs arrêtés comptés ; seuils de charge du serveur", () => {

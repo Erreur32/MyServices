@@ -711,6 +711,7 @@ export const EN: Record<string, string> = {
   "Enregistrer": "Save",
   "envoyé dans l'en-tête Authorization": "sent in the Authorization header",
   "erreur": "error",
+  "processus bloqués sur le disque : souvent une grosse copie ou une sauvegarde": "processes stuck on the disk: often a big copy or a backup",
   "erreurs noyau récentes": "recent kernel errors",
   "Essai": "Test",
   "Essayer": "Try",

@@ -48,6 +48,13 @@ class KernelErrors(unittest.TestCase):
         got = health.collect_kernel_errors(lambda cmd, timeout=0: (0, "\n".join([*self.NOTICE, real])))
         self.assertEqual(got, {"has_errors": True, "samples": [real]})
 
+    def test_a_hung_task_keeps_its_report_line_only(self):
+        report = "nov. 02 11:08:18 host kernel: INFO: task bash:2337998 blocked for more than 120 seconds."
+        lines = [report, "nov. 02 11:08:18 host kernel:       Not tainted 6.12.113+deb13-amd64 #1 Debian 6.12.113-1",
+                 "nov. 02 11:08:18 host kernel: \"echo 0 > /proc/sys/kernel/hung_task_timeout_secs\" disables this message.",
+                 "nov. 02 11:08:18 host kernel:       Tainted: G        W          6.1.0-18-amd64 #1 Debian 6.1.76-1"]
+        self.assertEqual(health.collect_kernel_errors(lambda cmd, timeout=0: (0, "\n".join(lines))), {"has_errors": True, "samples": [report]})
+
 
 if __name__ == "__main__":
     unittest.main()
