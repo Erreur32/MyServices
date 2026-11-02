@@ -1,14 +1,16 @@
 """Réglages → À propos : version installée, dernière version publiée sur GitHub, journal des changements.
 
 La dernière version est lue côté serveur (la page n'a pas le droit de contacter GitHub : CSP), sur demande ou à l'ouverture de l'onglet, avec un
-résultat gardé 6 heures dans state_dir. Une seule requête GET anonyme vers api.github.com (aucune donnée envoyée) ; coupée par la clé de
-configuration « update_check » (false). Le journal des changements est le CHANGELOG.md livré dans l'image.
+résultat gardé 6 heures dans state_dir. Une requête GET anonyme vers api.github.com (aucune donnée envoyée) ; quand une version plus récente est
+trouvée, deux requêtes anonymes vers ghcr.io disent si son image existe déjà (10 min plus tard sinon). Coupée par la clé de configuration
+« update_check » (false). Le journal des changements est le CHANGELOG.md livré dans l'image.
 """
 from __future__ import annotations
 
 import json
 import re
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -16,6 +18,10 @@ REPO = "Erreur32/MyServices"
 API = f"https://api.github.com/repos/{REPO}/releases/latest"
 TAGS_API = f"https://api.github.com/repos/{REPO}/tags?per_page=30"
 TTL = 6 * 3600
+PENDING_TTL = 600   # a release whose image is still being built (about 4 min after its tag): asked again soon
+IMAGE = REPO.lower()
+MANIFESTS = ", ".join(("application/vnd.oci.image.index.v1+json", "application/vnd.docker.distribution.manifest.list.v2+json",
+                       "application/vnd.oci.image.manifest.v1+json", "application/vnd.docker.distribution.manifest.v2+json"))
 SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?$")
 
 
@@ -77,7 +83,36 @@ def _get(url: str, opener) -> object:
         return json.loads(r.read(200_000))
 
 
+def image_ready(tag: str, opener=urllib.request.urlopen) -> bool:
+    """Whether ghcr.io already serves the image of this tag: the tag starts the build, a few minutes before the image exists. Only a clear « not
+    found » says no; ghcr.io unreachable says yes, so a release is never hidden."""
+    try:
+        got = _get(f"https://ghcr.io/token?scope=repository:{IMAGE}:pull", opener)
+        token = got["token"] if isinstance(got, dict) else ""
+        req = urllib.request.Request(f"https://ghcr.io/v2/{IMAGE}/manifests/{tag.lstrip('v')}", method="HEAD",
+                                     headers={"Authorization": f"Bearer {token}", "Accept": MANIFESTS, "User-Agent": "myservices-update-check"})
+        with opener(req, timeout=8):
+            return True
+    except urllib.error.HTTPError as e:
+        return e.code != 404
+    except (OSError, ValueError, KeyError):
+        return True
+
+
+def offered(rel: dict | None) -> str | None:
+    """The tag to announce: none while its image is not published yet."""
+    return None if not rel or rel.get("image_pending") else rel.get("tag")
+
+
 def fetch_latest(opener=urllib.request.urlopen, current: str | None = None) -> dict:
+    """The latest release, marked `image_pending` when it is newer than the installed version but its image is not on ghcr.io yet."""
+    rel = _release(opener, current)
+    if current and newer(rel.get("tag"), current) and not image_ready(rel["tag"], opener):
+        return {**rel, "image_pending": True}
+    return rel
+
+
+def _release(opener, current: str | None) -> dict:
     """The latest GitHub release. When it is older than the installed version (a tag pushed without its release), the highest published tag
     stands in for it: the page then says what is really the latest instead of a version older than the one running."""
     d = _get(API, opener)
@@ -110,7 +145,8 @@ def latest(state_dir: Path, force: bool = False, enabled: bool = True, now: floa
     if not enabled:
         return {"release": cur.get("release"), "checked_at": cur.get("checked_at"), "error": "vérification coupée (update_check)", "cached": True, "enabled": False}
     stale = newer(core_version(current) or current, (cur.get("release") or {}).get("tag"))   # installed is newer than the latest kept
-    if not force and not stale and cur.get("checked_at") and now - cur["checked_at"] < TTL:
+    keep = PENDING_TTL if (cur.get("release") or {}).get("image_pending") else TTL
+    if not force and not stale and cur.get("checked_at") and now - cur["checked_at"] < keep:
         return {**cur, "error": None, "cached": True, "enabled": True}
     try:
         cur = {"release": fetch_latest(opener, current), "checked_at": now}
@@ -130,7 +166,7 @@ def cached(state_dir: Path, current: str | None) -> dict:
         rel = json.loads((state_dir / "update-check.json").read_text(encoding="utf-8")).get("release") or {}
     except (OSError, ValueError):
         rel = {}
-    return {"available": newer(rel.get("tag"), current), "tag": rel.get("tag"), "url": rel.get("url")}
+    return {"available": newer(offered(rel), current), "tag": rel.get("tag"), "url": rel.get("url")}
 
 
 def changelog(path: Path) -> str:

@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+- **Update check, image first**: a new version is announced only once its image is on ghcr.io. The tag starts the build a few minutes before the image exists, and « vX available » showed while `docker compose pull` still found nothing. While the image is missing the check asks again after 10 minutes instead of 6 hours; ghcr.io unreachable never hides a release.
+
 ## v0.35.4 (2026-11-02)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

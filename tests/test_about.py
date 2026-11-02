@@ -128,6 +128,45 @@ class Latest(unittest.TestCase):
         r = about.latest(self.d, opener=Half(), now=1000.0, current="v0.9.5")
         self.assertEqual(r["release"]["tag"], "v0.9.4")
 
+    def test_release_without_its_image_is_not_announced_yet(self):
+        import urllib.error
+
+        class Ghcr(Fake):
+            ready = False
+
+            def __call__(self, req, timeout=0):
+                self.calls += 1
+                url = req.full_url
+                if "ghcr.io/token" in url:
+                    return io.BytesIO(b'{"token": "anonymous"}')
+                if "/manifests/" in url:
+                    self.asked = (url.rsplit("/", 1)[1], req.get_method())
+                    if not self.ready:
+                        raise urllib.error.HTTPError(url, 404, "not found", {}, None)
+                    return io.BytesIO(b"")
+                return io.BytesIO(json.dumps(RELEASE).encode())
+        g = Ghcr()
+        r = about.latest(self.d, opener=g, now=1000.0, current="v0.9.3")
+        self.assertTrue(r["release"]["image_pending"])
+        self.assertEqual(g.asked, ("0.9.4", "HEAD"))                      # the image tag has no « v »
+        self.assertIsNone(about.offered(r["release"]))
+        self.assertFalse(about.cached(self.d, "v0.9.3")["available"])    # tag pushed, image still building: nothing announced
+        about.latest(self.d, opener=g, now=1000.0 + 300, current="v0.9.3")
+        self.assertEqual(g.calls, 3)                                      # within 10 min: kept
+        g.ready = True
+        r = about.latest(self.d, opener=g, now=1000.0 + 601, current="v0.9.3")
+        self.assertNotIn("image_pending", r["release"])
+        self.assertTrue(about.cached(self.d, "v0.9.3")["available"])     # asked again after 10 min, not 6 h: the image is there
+
+    def test_ghcr_unreachable_never_hides_a_release(self):
+        class Down(Fake):
+            def __call__(self, req, timeout=0):
+                if "ghcr.io" in req.full_url:
+                    raise OSError("ghcr.io hors ligne")
+                return super().__call__(req, timeout)
+        r = about.latest(self.d, opener=Down(), now=1000.0, current="v0.9.3")
+        self.assertEqual(about.offered(r["release"]), "v0.9.4")
+
     def test_cached_reads_without_asking(self):
         self.assertFalse(about.cached(self.d, "v0.9.3")["available"])   # never checked: nothing to announce
         about.latest(self.d, opener=Fake(), now=1000.0)
