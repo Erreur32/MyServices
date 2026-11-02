@@ -23,7 +23,7 @@ from msv.machines.agent_reports import DEFAULT_INTERVAL, FRESH_MULT, fresh_repor
 from msv.machines.winname import windows_name
 
 VERSION = "9"                # Windows agent (agent.ps1)
-LINUX_VERSION = "8"          # Linux agent (agent.py)
+LINUX_VERSION = "9"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
 PS_AGENT = "agent.ps1"       # script de l'agent Windows
 SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}

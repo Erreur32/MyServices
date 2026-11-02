@@ -213,11 +213,19 @@ async def agent_report(request: Request):
     return await run_in_threadpool(_agent_report, a, raw, ip_of(request))
 
 
+BACKUP_LEAD = 1800   # s before a backups run: the agent reads its folders again at its first report after it (two reports at 15 min)
+
+
 def backup_request(ip: str) -> dict | None:
     from msv.backups import backups, backups_admin
     try:
         req = backups.agent_request(ip)
-        return {**req, "names": backups_admin.agent_find_names()} if req else None
+        if not req:
+            return None
+        out = {**req, "names": backups_admin.agent_find_names()}
+        if nxt := core.next_run("backups"):
+            out["due"] = nxt - BACKUP_LEAD
+        return out
     except (OSError, ValueError, KeyError):   # no backups-meta.json, or unreadable: the report is still taken
         return None
 

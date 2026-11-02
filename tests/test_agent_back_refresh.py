@@ -23,6 +23,14 @@ class AgentBackRefresh(unittest.TestCase):
     def test_no_collect_for_a_regular_report(self):
         self.assertEqual(self.chains_for("actif"), 0)
 
+    def test_the_backup_request_says_when_to_read_again(self):
+        with mock.patch("msv.backups.backups.agent_request", return_value={"locs": {}, "disks": True, "crons": True}), \
+             mock.patch("msv.backups.backups_admin.agent_find_names", return_value=[]), \
+             mock.patch.object(access.core, "next_run", return_value=10_000.0):
+            self.assertEqual(access.backup_request("10.0.0.9")["due"], 10_000.0 - access.BACKUP_LEAD)
+        with mock.patch("msv.backups.backups.agent_request", return_value=None):
+            self.assertIsNone(access.backup_request("10.0.0.9"))
+
 
 if __name__ == "__main__":
     unittest.main()

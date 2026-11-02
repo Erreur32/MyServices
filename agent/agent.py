@@ -148,8 +148,9 @@ def backup_scan(conf, now):
     req = state.get("req")
     if not isinstance(req, dict):
         return None
-    # Followed folders only: the archive names to look for change with every backup
-    if state.get("scanned") == req.get("locs") and now - state.get("at", 0) < BACKUP_EVERY and state.get("result"):
+    # Followed folders only: the archive names to look for change with every backup. `due`: read again once before each backups run of the server
+    at, due = state.get("at", 0), req.get("due") if isinstance(req.get("due"), (int, float)) else 0
+    if state.get("scanned") == req.get("locs") and now - at < BACKUP_EVERY and not at < due <= now and state.get("result"):
         return state["result"]
     result = root_script(conf, json.dumps(req).encode("utf-8"), 270)
     state.update(scanned=req.get("locs"), at=now, result=result)

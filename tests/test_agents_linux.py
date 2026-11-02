@@ -328,15 +328,20 @@ class LinuxAgentScripts(unittest.TestCase):
         rep["10.0.0.9"]["report"]["data"]["cmds"]["backups"] = [1, "sudo: a password is required"]
         self.assertIsNone(backups.agent_scan({"ip": "10.0.0.9", "ssh": "nas"}, req, rep))
 
-    def test_agent_rescanne_quand_le_serveur_demande_autre_chose(self):
+    @staticmethod
+    def _agent_scanning(d):
+        """The rendered agent with its backup state in `d` and a fake root scan: (namespace, scans made, scan config)."""
         ns = {"__name__": "agent_test", "__file__": "/tmp/agent.py"}
         exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        ns["BACKUP_STATE"] = str(Path(d, "backups.json"))
+        calls = []
+        done = SimpleNamespace(returncode=0, stdout=b'{"locs": {}}', stderr=b"")
+        ns["subprocess"] = SimpleNamespace(run=lambda *a, **k: (calls.append(k["input"]) or done), PIPE=-1, TimeoutExpired=TimeoutError)
+        return ns, calls, {"python": "/usr/bin/python3", "script": "/x"}
+
+    def test_agent_rescanne_quand_le_serveur_demande_autre_chose(self):
         with tempfile.TemporaryDirectory() as d:
-            ns["BACKUP_STATE"] = str(Path(d, "backups.json"))
-            calls = []
-            done = SimpleNamespace(returncode=0, stdout=b'{"locs": {}}', stderr=b"")
-            ns["subprocess"] = SimpleNamespace(run=lambda *a, **k: (calls.append(k["input"]) or done), PIPE=-1, TimeoutExpired=TimeoutError)
-            conf = {"python": "/usr/bin/python3", "script": "/x"}
+            ns, calls, conf = self._agent_scanning(d)
             self.assertIsNone(ns["backup_scan"](conf, 1000))   # nothing asked yet
             ns["keep_backup_request"]({"locs": {"a": {}}})
             self.assertEqual(ns["backup_scan"](conf, 1000), [0, '{"locs": {}}'])
@@ -347,6 +352,20 @@ class LinuxAgentScripts(unittest.TestCase):
             ns["keep_backup_request"]({"locs": {"b": {}}})
             ns["backup_scan"](conf, 1000 + ns["BACKUP_EVERY"])
             self.assertEqual(len(calls), 3)                    # other folders
+
+    def test_agent_relit_avant_chaque_releve_des_sauvegardes_du_serveur(self):
+        with tempfile.TemporaryDirectory() as d:
+            ns, calls, conf = self._agent_scanning(d)
+            ns["keep_backup_request"]({"locs": {"a": {}}, "due": 5000})
+            ns["backup_scan"](conf, 1000)
+            ns["backup_scan"](conf, 4999)
+            self.assertEqual(len(calls), 1)                    # before the time asked: kept
+            ns["backup_scan"](conf, 5000)
+            ns["backup_scan"](conf, 5900)
+            self.assertEqual(len(calls), 2)                    # once after it, not at every report
+            ns["keep_backup_request"]({"locs": {"a": {}}, "due": "soon"})
+            ns["backup_scan"](conf, 6000)
+            self.assertEqual(len(calls), 2)                    # a strange value is ignored
 
     def test_installeur_pose_pve_et_borgmatic_sans_entree_du_serveur(self):
         import subprocess

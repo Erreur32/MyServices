@@ -12,6 +12,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Fixed
+- **Backups read by an agent are fresh**: a Linux agent reads its backup folders again before each backups run of the server, instead of only every 6 hours, so the Backups page no longer lags hours behind a machine read by its agent. Linux agent version 9.
+- **No « late » copy before its run**: a copy whose description gives its time (« rsync 10:30 ») is not judged late on an archive it could not take yet; a weekly backup made at night no longer shows its copies late until the copy of the morning has run.
 - **No false « DNS absent »**: when the HTTPS probe cannot resolve a name that the DNS servers of the page answer in the same collection, the service shows a grey « lookup failed » for that pass instead of an orange missing DNS, and is no point to fix. The probe also keeps the cause of a failed lookup (name unknown, or no answer in time), shown in the detail.
 
 ## v0.35.0 (2026-11-02)

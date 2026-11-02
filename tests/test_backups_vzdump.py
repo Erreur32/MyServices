@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -182,6 +183,15 @@ class Analyse(unittest.TestCase):
         self.assertEqual(judge(7, 3), "ok")        # weekly copy: last run 3 days ago, nothing missed
         self.assertEqual(judge(7, 9), "warn")      # weekly copy that missed its run
         self.assertEqual(backups.copy_grace_s({}), backups.GRACE_H * 3600)
+
+    def test_copie_a_heure_fixe_pas_en_retard_avant_son_passage(self):
+        at = lambda d, h, m=0: datetime(2026, 11, d, h, m).timestamp()
+        grace = backups.GRACE_H * 3600
+        via = {"via": "rsync tiré par Proxmox 10:30"}
+        self.assertEqual(backups.copy_due(via, at(2, 0, 30)), at(2, 10, 30) + grace)    # archive of the night: the copy of the morning
+        self.assertEqual(backups.copy_due(via, at(2, 11)), at(3, 10, 30) + grace)       # made after the copy: the next day's
+        self.assertEqual(backups.copy_due({"via": "rsync"}, at(2, 0, 30)), at(2, 0, 30) + grace)   # no time given: as before
+        self.assertEqual(backups.copy_due({"via": "lun. 09:00", "every_days": 7}, at(2, 0, 30)), at(2, 0, 30) + backups.copy_grace_s({"every_days": 7}))
 
     def test_dump_sur_stockage_reseau_compte_hors_machine(self):
         sets, _ = self.run_analyse([])
