@@ -15,7 +15,11 @@ TIMEOUT = 2.0
 MAX_AGE_S = 86400
 POINTER = 0xC0
 MAX_JUMPS = 16   # a looping compressed name in a broken answer stops here
-PROVIDERS = {"cloudflare.com": "Cloudflare", "ovh.net": "OVH", "anycast.me": "OVH", "dns-parking.com": "Hostinger"}   # any other host shows the domain of its NS
+# Part of the name of a NS -> its DNS host; any other host shows the domain of its NS
+PROVIDERS = {"cloudflare.com": "Cloudflare", "ovh.net": "OVH", "anycast.me": "OVH", "dns-parking.com": "Hostinger", "hostinger.": "Hostinger", "gandi.net": "Gandi",
+             "domaincontrol.com": "GoDaddy", "registrar-servers.com": "Namecheap", "digitalocean.com": "DigitalOcean", "hetzner.": "Hetzner", "first-ns.de": "Hetzner",
+             "ui-dns.": "IONOS", ".awsdns-": "AWS Route 53", "googledomains.com": "Google Cloud", "azure-dns.": "Azure", "scw.cloud": "Scaleway", "infomaniak.": "Infomaniak",
+             "porkbun.com": "Porkbun", "vultr.com": "Vultr", "linode.com": "Linode"}
 
 
 def root_of(name: str) -> str | None:
@@ -74,8 +78,8 @@ def ask_ns(server: str, domain: str, timeout: float = TIMEOUT) -> list[str] | No
 def provider(servers: list[str]) -> str | None:
     """The DNS host behind name servers: its name when known, else the domain of the first one."""
     for ns in servers:
-        for suffix, name in PROVIDERS.items():
-            if ns == suffix or ns.endswith("." + suffix):
+        for mark, name in PROVIDERS.items():
+            if mark in ns:
                 return name
     return root_of(servers[0]) if servers else None
 

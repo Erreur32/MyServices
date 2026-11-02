@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CloudflareZone, Dns, Host } from "../types";
-import { cloudCounts, compareKey, dnsCompare, isAlert } from "./dnsCompare";
+import { dnsHostIcon } from "./appIcons";
+import { cloudCounts, compareKey, dnsCompare, isAlert, machineRanks } from "./dnsCompare";
 import type { DnsRow } from "./dnsState";
 
 const g = (o: Partial<Dns> = {}): Dns => ({ servers: {}, rewrites_diff: [], user_rules_diff: [], orphans: [], npm_ips: { home: "10.0.0.1", remote: "203.0.113.5" }, zones: { "serveur.fr": "OVH" }, ...o });
@@ -43,16 +44,33 @@ describe("DNS comparison", () => {
     const rows = dnsCompare(g(), [], machines, zones, []);
     expect(find(rows, "blog.maison.fr")).toMatchObject({ npm: "-", npmIp: "", tone: "info", note: "enregistrement sans host NPM actif" });
   });
+  it("a host switched off with no record is not listed: it was cut on purpose", () => {
+    const off = host(["ancien.maison.fr"], "home", [], { enabled: false });
+    expect(dnsCompare(g(), [off], machines, zones, []).map((r) => r.name)).not.toContain("ancien.maison.fr");
+  });
   it("sorts the alerts first on the verdict column, and every other column on its text", () => {
     const rows = dnsCompare(g(), [host(["blog.maison.fr"], "home"), host(["git.site.info"], "remote", [["absent", "git.site.info"]])], machines, zones, []);
     expect(compareKey(find(rows, "git.site.info"), "tone")).toBeLessThan(compareKey(find(rows, "blog.maison.fr"), "tone") as number);
     expect(compareKey(find(rows, "git.site.info"), "npm")).toBe("ovh");
     expect(compareKey(find(rows, "blog.maison.fr"), "cloud")).toBe("proxied");
   });
+  it("each machine gets its own rank, and a row without a machine none", () => {
+    const rows = dnsCompare(g(), [host(["a.maison.fr"], "home"), host(["b.maison.fr"], "home"), host(["c.serveur.fr"], "remote")], machines, zones, []);
+    const ranks = machineRanks(rows);
+    expect([...ranks]).toEqual([["maison", 0], ["ovh", 1]]);
+  });
   it("without Cloudflare no state is claimed, and the alerts about no name stay in the table", () => {
     const watch: DnsRow[] = [{ key: "sync", sev: "bad", area: "Synchro", title: "synchro en retard", detail: "", anchor: "servers" }, { key: "host/x", sev: "warn", area: "Domaine", title: "dup", detail: "", anchor: "domains" }];
     const rows = dnsCompare(g(), [host(["a.maison.fr"], "home")], machines, [], watch);
     expect(rows.map((r) => r.name)).toEqual(["synchro en retard", "a.maison.fr"]);
     expect(find(rows, "a.maison.fr")).toMatchObject({ cloud: null, tone: "ok" });
+  });
+});
+
+describe("logo of a DNS host", () => {
+  it("names a file for a known host, nothing for the others", () => {
+    expect(dnsHostIcon("OVH")).toMatch(/ovh\.svg$/);
+    expect(dnsHostIcon("AWS Route 53")).toMatch(/aws-route53\.svg$/);
+    expect(dnsHostIcon("DNS local")).toBeNull();
   });
 });

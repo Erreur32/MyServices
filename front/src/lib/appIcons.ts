@@ -42,6 +42,13 @@ export function appIcon(apps: readonly string[] | undefined): string | null {
   return null;
 }
 
+// Kept apart from FILES: appIconByText looks for these names inside any text, and a short one like « OVH » would catch a service's name
+const DNS_HOSTS: Record<string, string> = { Cloudflare: "cloudflare", OVH: "ovh", Hostinger: "hostinger", GoDaddy: "godaddy", Namecheap: "namecheap", DigitalOcean: "digitalocean", Hetzner: "hetzner",
+  IONOS: "ionos", "AWS Route 53": "aws-route53", "Google Cloud": "google-cloud", Scaleway: "scaleway", Infomaniak: "infomaniak", Porkbun: "porkbun", Vultr: "vultr" };
+
+/** Logo of a DNS host named by the collection (msv/collect/dns_zones.py), null without one */
+export const dnsHostIcon = (name: string): string | null => (DNS_HOSTS[name] ? iconUrl(DNS_HOSTS[name]) : null);
+
 /** Photos of the devices MynetworK knows by model (copied from it): the Freebox Ultra, Pop and Revolution, and the UniFi access points.
  *  « Freebox v9 » is the Ultra and « v6 » the Revolution (the name MynetworK reads from the box); null when the model has no photo. */
 const MODELS: [RegExp, string][] = [

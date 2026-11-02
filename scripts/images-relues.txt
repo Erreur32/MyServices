@@ -233,3 +233,16 @@ affd7ee69e447356e3d6a08cc64ac116  front/public/icons/tmobile-home-internet.svg
 cf7b3468c0d31d4cbd323521a335d89c  front/public/icons/windows-admin-center.png
 e5842dffd1b3e608d79836e015d81ee7  front/public/icons/tapo.svg
 fcb1635b48e497c0b8331ccd8ae56d9c  front/public/icons/windows-admin-center.svg
+cafdd127c11b861f826ab820295c895a  front/public/icons/aws-route53.svg
+db6c108aa42dee46b93d073bec28ad07  front/public/icons/digitalocean.svg
+8e4ba400273f4d4958601456a6c896cf  front/public/icons/godaddy.svg
+07ce6160c8cf616b12817bd9acc0ba3d  front/public/icons/google-cloud.svg
+b7c40562d5d909a859f037e65de06c0c  front/public/icons/hetzner.svg
+1ad7258ba494f5faa6f05e978f8d5d83  front/public/icons/hostinger.svg
+77b2db4f9c0d2a24c238b77b47928668  front/public/icons/infomaniak.svg
+6ec7d0bb98332271927faef5f3beb0d8  front/public/icons/ionos.svg
+6dae7ffb608842b13f75e06ebfdcfa7e  front/public/icons/namecheap.svg
+2cd6e123e4e5a1e162e18f93aecf2336  front/public/icons/ovh.svg
+cba36395d4b376f0f42bc48c1247715a  front/public/icons/porkbun.svg
+5442093d0976a93c63dec1a09e0ce058  front/public/icons/scaleway.svg
+c06a8893c25a37ffc52afb96b76e57cd  front/public/icons/vultr.svg

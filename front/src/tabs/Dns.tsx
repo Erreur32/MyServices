@@ -9,7 +9,7 @@ import { dnsSync } from "../lib/status";
 import type { Selected } from "../lib/filter";
 import { Badge, ChipButton, Dim, Empty, TableCard, type Tone } from "../components/ui";
 import { LABEL_BAND } from "../components/DetailSection";
-import { appIcon } from "../lib/appIcons";
+import { appIcon, dnsHostIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 import { hm } from "../lib/format";
 import { usePageView, useRoute } from "../lib/route";
@@ -19,7 +19,7 @@ import { BandwidthTile } from "../components/BandwidthTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import type { Period } from "../lib/tileHistory";
 import { dnsFigures, dnsWatch, npmList, serverList, serverUp, type DnsFigures } from "../lib/dnsState";
-import { cloudCounts, compareKey, dnsCompare, isAlert, type CloudState, type CompareRow } from "../lib/dnsCompare";
+import { cloudCounts, compareKey, dnsCompare, isAlert, machineRanks, type CloudState, type CompareRow } from "../lib/dnsCompare";
 import { useSort } from "../lib/filter";
 import { cloudflareZones } from "../lib/cloudflare";
 import { HeadTags } from "../components/HeadTags";
@@ -144,9 +144,10 @@ function SyncCard({ g, st, last, content, diffCount }: Readonly<{ g: Dns; st: { 
   );
 }
 
-// One blue family for the states of a name, the columns stay calm: only a missing record and the verdicts that ask for an action are coloured
-const CLOUD_TEXT: Record<CloudState, [string, string]> = { proxied: ["text-link", tx("proxifié")], dns: ["text-link/80", tx("DNS seul")], wildcard: ["text-link/60", tx("par joker")], none: ["text-bad", tx("aucun enregistrement")], outside: ["text-muted", tx("hors Cloudflare")] };
+// One blue family for the states of a name, the columns stay calm: only the verdicts that ask for an action are coloured
+const CLOUD_TEXT: Record<CloudState, [string, string]> = { proxied: ["text-link", tx("proxifié")], dns: ["text-link/80", tx("DNS seul")], wildcard: ["text-link/60", tx("par joker")], none: ["text-muted", tx("aucun enregistrement")], outside: ["text-muted", tx("hors Cloudflare")] };
 const VERDICT: Partial<Record<CompareRow["tone"], [Tone, string]>> = { bad: ["bad", tx("À corriger")], warn: ["warn", tx("À vérifier")] };
+const MACHINE_COLORS = ["text-apache", "text-npm", "text-loc", "text-accent"];   // the theme's colours that are neither a state nor the blue of the addresses
 const QUIET: Partial<Record<CompareRow["tone"], string>> = { info: tx("Info"), ok: tx("OK") };
 
 /** The Cloudflare card: how the names are served, and how many ask for a look */
@@ -161,7 +162,13 @@ function CloudflareCard({ rows, zones }: Readonly<{ rows: CompareRow[]; zones: n
 
 function CloudCell({ state }: Readonly<{ state: CloudState }>) {
   const [color, text] = CLOUD_TEXT[state];
-  return <span className={color}>{text}</span>;
+  return <span className={`inline-flex items-center gap-1.5 ${color}`}>{state === "proxied" && <Cloud size={14} className="shrink-0 fill-current text-[#F38020]" aria-hidden />}{text}</span>;
+}
+
+/** Who runs the DNS, with its logo on a white tile: some brand colours would vanish on a dark theme */
+function ManagerCell({ name }: Readonly<{ name: string }>) {
+  const logo = dnsHostIcon(name);
+  return <span className="inline-flex items-center gap-1.5 text-muted">{logo && <img src={logo} alt="" className="h-5 w-5 shrink-0 rounded bg-white p-0.5" />}{name}</span>;
 }
 
 function VerdictCell({ r }: Readonly<{ r: CompareRow }>) {
@@ -169,12 +176,12 @@ function VerdictCell({ r }: Readonly<{ r: CompareRow }>) {
   return <span className="block min-w-0">{badge ? <Badge tone={badge[0]}>{badge[1]}</Badge> : <span className="text-xs text-muted">{QUIET[r.tone]}</span>}{r.verdict && <span className="mt-1 block text-xs text-muted">{r.verdict}</span>}</span>;
 }
 
-/** One line of the comparison, each column in the order of the table: names in the text colour, addresses in the mono blue */
-function compareCells(r: CompareRow, cloud: boolean): ReactNode[] {
+/** One line of the comparison, each column in the order of the table: domains in the text colour, each machine in its own, addresses in the mono blue */
+function compareCells(r: CompareRow, cloud: boolean, machine?: string): ReactNode[] {
   return [
     <span key="n" className="block min-w-0 break-words"><b className="font-semibold text-txt">{r.name}</b>{r.note && <span className="block text-xs text-muted">{r.note}</span>}</span>,
-    <span key="w" className="block min-w-0 break-words"><span className="text-txt">{r.npm}</span>{r.npmIp && <span className="block font-mono text-xs text-link">{r.npmIp}</span>}</span>,
-    <span key="m" className="text-muted">{r.manager}</span>,
+    <span key="w" className="block min-w-0 break-words"><span className={`font-medium ${machine ?? "text-muted"}`}>{r.npm}</span>{r.npmIp && <span className="block font-mono text-xs text-link">{r.npmIp}</span>}</span>,
+    <ManagerCell key="m" name={r.manager} />,
     ...(cloud ? [<span key="c">{r.cloud ? <CloudCell state={r.cloud} /> : "-"}</span>] : []),
     <span key="a" className={`block min-w-0 break-words font-mono text-xs ${/\d/.test(r.answer) ? "text-link" : "text-muted"}`}>{r.answer}</span>,
     <VerdictCell key="v" r={r} />,
@@ -186,6 +193,8 @@ function CompareTable({ g, rows, cloud, lit }: Readonly<{ g: Dns; rows: CompareR
   const [picked, setPicked] = useState<boolean | null>(null);
   const alerts = rows.filter(isAlert), all = picked ?? alerts.length === 0;
   const { sorted, ...sort } = useSort(all ? rows : alerts, compareKey, "tone");
+  const ranks = machineRanks(rows);
+  const colorOf = (r: CompareRow) => { const rank = ranks.get(r.npm); return rank === undefined ? undefined : MACHINE_COLORS[rank % MACHINE_COLORS.length]; };
   const cols = [{ label: tx("Domaine"), k: "name", className: "w-[22%]" }, { label: tx("NPM (machine)"), k: "npm", className: "w-[18%]" }, { label: tx("DNS géré par"), k: "manager", className: "w-[11%]" },
     ...(cloud ? [{ label: "Cloudflare", k: "cloud", className: "w-[12%]" }] : []), { label: g.resolver ? tx("Résolveur") : "AdGuard", k: "answer", className: "w-[14%]" }, { label: tx("Verdict"), k: "tone" }];
   return (
@@ -195,7 +204,7 @@ function CompareTable({ g, rows, cloud, lit }: Readonly<{ g: Dns; rows: CompareR
         <ChipButton on={all} count={rows.length} label={tx("Tout")} onClick={() => setPicked(true)} />
       </fieldset>
       <DataCard id="domains" lit={lit} title={tx("Alertes et comparaison par domaine")} tone={alerts.length ? "warn" : "ok"} tableWidth="min-w-[860px]" zebra sort={sort} cols={cols}
-        rows={sorted.map((r) => compareCells(r, cloud))} empty={tx("Aucune alerte DNS : tout répond et résout comme attendu.")} />
+        rows={sorted.map((r) => compareCells(r, cloud, colorOf(r)))} empty={tx("Aucune alerte DNS : tout répond et résout comme attendu.")} />
     </div>
   );
 }

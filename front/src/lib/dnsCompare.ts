@@ -69,7 +69,7 @@ export function dnsCompare(g: Dns, hosts: Host[], machines: Machines, zones: Clo
       out.push(nameRow(g, r, name, machines, zones, checks.get(name)));
     }
   }
-  for (const c of checks.values()) if (!seen.has(c.name)) out.push(cloudRow(g, c, machines, zones));
+  for (const c of checks.values()) if (!seen.has(c.name) && c.record !== "none") out.push(cloudRow(g, c, machines, zones));   // a host switched off without a record is simply cut
   return out.sort((a, b) => CHECK_ORDER.indexOf(a.tone) - CHECK_ORDER.indexOf(b.tone) || a.name.localeCompare(b.name));
 }
 
@@ -83,6 +83,12 @@ export function compareKey(r: CompareRow, key: string): string | number {
     case "tone": return CHECK_ORDER.indexOf(r.tone);
     default: return r.name;
   }
+}
+
+/** The place of each machine among those of the table, for its colour: by position, so two machines never share one until the colours run out */
+export function machineRanks(rows: CompareRow[]): Map<string, number> {
+  const names = [...new Set(rows.filter((r) => r.npmIp).map((r) => r.npm))].sort((a, b) => a.localeCompare(b));
+  return new Map(names.map((name, i) => [name, i]));
 }
 
 /** The figures of the Cloudflare card */

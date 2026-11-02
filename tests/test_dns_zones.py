@@ -36,6 +36,9 @@ def test_names_the_host_else_the_domain_of_its_ns():
     assert z.provider(["carl.ns.cloudflare.com"]) == "Cloudflare"
     assert z.provider(["dns200.anycast.me", "ns200.anycast.me"]) == "OVH"
     assert z.provider(["ns1.example.net"]) == "example.net"
+    assert z.provider(["ns-12.awsdns-34.org"]) == "AWS Route 53"
+    assert z.provider(["ns1.dns-parking.com"]) == "Hostinger"
+    assert z.provider(["ns1051.ui-dns.de"]) == "IONOS"
     assert z.provider([]) is None
 
 
