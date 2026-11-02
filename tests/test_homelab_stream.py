@@ -250,7 +250,8 @@ class Snapshot(unittest.TestCase):
         self.assertEqual(r.content, JPEG)
         self.assertEqual(self.get("../../etc").status_code, 404)   # a camera not seen at the last collection
         self.cam.snapshot.return_value = b"<html>"
-        self.assertEqual(self.get("entree").status_code, 502)
+        r = self.get("entree")
+        self.assertEqual((r.status_code, r.json()["error"]), (503, "la réponse n'est pas une image"))   # not 502: Cloudflare would hide the reason
 
     def test_live_feed_relayed_audited_and_limited(self):
         import io
