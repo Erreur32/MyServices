@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.7 → 0.35.8
+
+**Nothing to do.** No setting, volume, agent or database change. The SSH connections page now names the app's key instead of « ESXi key », and the agents page asks for « Read Docker » only on a machine where Nginx Proxy Manager runs.
+
 ## 0.35.6 → 0.35.7
 
 **Nothing to do.** No setting or volume change. The agents table gains one column (`reached_url`, the address each agent sends through), added by itself at start. The camera accounts of the Tapo connector are now edited one row per camera and kept in the same form: a config already set keeps working.
