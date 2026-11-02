@@ -11,7 +11,8 @@ import { AgentInstall, type AgentKind, type InstallTarget } from "../components/
 import { agentBoxes } from "../lib/agentCommand";
 import { NewAgentPage } from "./NewAgent";
 import { act, danger, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Dim, Loading } from "../components/ui";
+import { Badge, Dim, Loading, SortTh } from "../components/ui";
+import { useSort } from "../lib/filter";
 import { StatTile } from "../components/StatTile";
 import { HistoryTile, useAgentsHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
@@ -191,6 +192,33 @@ function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: M
 
 /** Machines → Agents: every agent in use with its gestures (the same block as on the machine's page), figures on top, one button to update
  *  the late ones, then the revoked ones. An agent is installed from the page of its machine, Access tab. */
+
+/** The live agents, every column but Options sorts; the order of the server until one is picked */
+function AgentsTable({ live, machines, reload, open }: Readonly<{ live: AgentInfo[]; machines: Record<string, MachineConf>; reload: () => void; open?: string }>) {
+  const keyOf = useCallback((a: AgentInfo, k: string): string | number => {
+    if (k === "name") return (machines[a.ip]?.name ?? a.name ?? "").toLowerCase();
+    if (k === "kind") return a.kind ?? "windows";
+    if (k === "state") return a.state;
+    if (k === "version") return Number(a.version) || 0;
+    if (k === "health") return agentHealth(a)?.score ?? -1;
+    if (k === "seen") return a.last_seen ?? 0;
+    return 0;
+  }, [machines]);
+  const { sorted, ...sort } = useSort(live, keyOf, "");
+  const th = (k: string, label: string) => <SortTh k={k} sort={sort} className="px-3 py-2">{label}</SortTh>;
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full min-w-[900px] border-collapse text-sm">
+        <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+          {th("name", tx("Machine"))}{th("kind", tx("Type"))}{th("state", tx("État"))}
+          {th("version", tx("Version"))}<th className="px-3 py-2">{tx("Options")}</th>{th("health", tx("Santé"))}{th("seen", tx("Dernier relevé"))}<th className="px-3 py-2" />
+        </tr></thead>
+        {/* keyed by machine: a new command gives the agent a new id, and the row must keep the frame showing that command */}
+        <tbody>{sorted.map((a) => <AgentRow key={a.ip} a={a} conf={machines[a.ip]} onChanged={reload} lit={open === a.ip} />)}</tbody>
+      </table>
+    </div>
+  );
+}
 export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<string, MachineConf>; open?: string }>) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
@@ -228,16 +256,7 @@ export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<s
         <NoteLine note={note} />
         {s.live.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun agent installé : le SSH lit déjà vos machines, ou aucun PC n'en a besoin.")}</p>}
         {s.live.length > 0 && (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse text-sm">
-              <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Type")}</th><th className="px-3 py-2">{tx("État")}</th>
-                <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Options")}</th><th className="px-3 py-2">{tx("Santé")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
-              </tr></thead>
-              {/* keyed by machine: a new command gives the agent a new id, and the row must keep the frame showing that command */}
-              <tbody>{s.live.map((a) => <AgentRow key={a.ip} a={a} conf={machines[a.ip]} onChanged={reload} lit={open === a.ip} />)}</tbody>
-            </table>
-          </div>
+          <AgentsTable live={s.live} machines={machines} reload={reload} open={open} />
         )}
       </FoldPanel>
       {s.revoked.length > 0 && <FoldPanel id="agents-revoked" icon={KeyRound} title={tx("Agents révoqués")} count={s.revoked.length} startFolded>

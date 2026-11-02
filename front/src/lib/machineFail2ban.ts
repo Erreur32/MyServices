@@ -9,7 +9,7 @@ export interface MachineF2b {
   jails: { name: string; banned: number }[]; total: number; peak: number | null; usual: number | null; rule?: string;
 }
 
-const STATE_ORDER: F2bState[] = ["rising", "usual", "unread", "calm", "absent"];
+export const STATE_ORDER: F2bState[] = ["rising", "usual", "unread", "calm", "absent"];
 
 /** One row per machine whose health pass looked for Fail2ban, the ones to look at first */
 export function machineFail2ban(health: Health | null): MachineF2b[] {

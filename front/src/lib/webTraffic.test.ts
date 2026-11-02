@@ -29,7 +29,7 @@ describe("web traffic", () => {
     const snap = { data: { hosts: [], machine_list: [], security: [], network: [] }, health: health(OVH) } as unknown as Snapshot;
     const got = securityFindings(snap).filter((f) => f.area === "traffic");
     expect(got.map((f) => [f.title, f.detail, f.href])).toEqual([
-      ["Pic de trafic web sur ovh", "plus de 3 fois l'heure habituelle", "#security/traffic"],
+      ["Pic de trafic web sur le NPM de ovh", "plus de 3 fois l'heure habituelle", "#security/traffic"],
       ["rss.test", "aspiration diffuse, sous les seuils de Fail2ban", "#security/traffic"],
       ["api.test", "plus de 5 % d'erreurs 5xx sur 10 min", "#security/traffic"],
     ]);

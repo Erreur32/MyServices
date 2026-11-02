@@ -10,7 +10,7 @@ export interface WebMachine {
   load: number | null; ncpu: number; iowait: number | null; sites: SiteRow[];
 }
 
-const VERDICT_ORDER: SiteVerdict[] = ["diffuse", "errors", "usual"];
+export const VERDICT_ORDER: SiteVerdict[] = ["diffuse", "errors", "usual"];
 export const LOAD_DISK = 30;   // % of CPU time waiting for the disks: from there a high load is the disks' (copies), not the web's
 
 const hourOf = (t: number): number => Math.floor(t / 3600) * 3600;

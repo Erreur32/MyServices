@@ -17,6 +17,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Alerts « Web traffic peak » and « Diffuse scraping »**: a machine at 3 times its usual hour and at least 1,000 requests, or a site whose requests come for more than 40 % from at least 30 addresses at 50 to 400 requests each. A site answering more than 5 % of 5xx over 10 minutes is shown on the page and the overview, without being sent.
 - **Alert « Jail going up » for a machine**: a machine whose Fail2ban bans at least 10 IP and 3 times its usual level (mean of the 6 days before, kept by each health pass) raises the alert and a finding on the security overview, which opens the machine.
 
+### Changed
+- **Sortable tables**: a sortable column shows a faint double arrow, and a column of figures starts from the highest. Now sortable too: Agents, SSH connections, Settings Requests, Virtualization guests, Wazuh machines, backup sets (inside each machine), Tapo and Domotique devices, and the new Security tables.
+
 ### Fixed
 - **Backups read by an agent are fresh**: a Linux agent reads its backup folders again before each backups run of the server, instead of only every 6 hours, so the Backups page no longer lags hours behind a machine read by its agent. Linux agent version 9.
 - **No « late » copy before its run**: a copy whose description gives its time (« rsync 10:30 ») is not judged late on an archive it could not take yet; a weekly backup made at night no longer shows its copies late until the copy of the morning has run.

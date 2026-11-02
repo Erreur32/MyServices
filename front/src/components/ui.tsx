@@ -1,5 +1,5 @@
 // Éléments communs des onglets : barre de recherche et pastilles, en-têtes triables, badges d'état.
-import { ChevronDown, ChevronUp, Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Chip, Facet } from "../lib/filter";
 
@@ -74,7 +74,7 @@ export function TableCard({ title, tone, count, cols, rows, sort, note, empty, f
           <table className={`w-full ${tableWidth} table-fixed border-collapse text-sm`}>
             <thead>
               <tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                {cols.map((c) => <th key={c.label} className={`px-4 py-2 ${c.className ?? ""}`}>{c.k && sort ? <SortLabel k={c.k} sort={sort}>{c.label}</SortLabel> : c.label}</th>)}
+                {cols.map((c) => <th key={c.label} aria-sort={ariaSort(c.k, sort)} className={`px-4 py-2 ${c.className ?? ""}`}>{c.k && sort ? <SortLabel k={c.k} sort={sort}>{c.label}</SortLabel> : c.label}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
@@ -294,20 +294,34 @@ export function Chip({ label, on, act }: Readonly<{ label: string; on: boolean; 
 
 type ColumnSort = { key: string; asc: boolean; by: (k: string) => void };
 
+/** A sortable header: a faint double arrow says the column sorts, the arrow of the order once it does */
 function SortLabel({ k, sort, children }: Readonly<{ k: string; sort: ColumnSort; children?: ReactNode }>) {
   const on = sort.key === k;
+  let mark = <ChevronsUpDown size={12} className="opacity-40" aria-hidden />;
+  if (on) mark = sort.asc ? <ChevronUp size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />;
   return (
-    <button type="button" onClick={() => sort.by(k)} className={`inline-flex items-center gap-1 uppercase hover:text-txt ${on ? "text-txt" : ""}`}>
-      {children}{on && (sort.asc ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+    <button type="button" onClick={() => sort.by(k)} title={tx("Trier")} className={`inline-flex items-center gap-1 uppercase hover:text-txt ${on ? "text-txt" : ""}`}>
+      {children}{mark}
     </button>
   );
+}
+
+/** aria-sort of a header cell */
+const ariaSort = (k: string | undefined, sort: ColumnSort | undefined): "ascending" | "descending" | undefined => {
+  if (!k || sort?.key !== k) return undefined;
+  return sort.asc ? "ascending" : "descending";
+};
+
+/** A header cell that keeps the look of its table and only adds the sort */
+export function SortTh({ k, sort, className = "", title, children }: Readonly<{ k: string; sort: ColumnSort; className?: string; title?: string; children?: ReactNode }>) {
+  return <th title={title} aria-sort={ariaSort(k, sort)} className={className}><SortLabel k={k} sort={sort}>{children}</SortLabel></th>;
 }
 
 export function Th({ k, sort, children, className = "", title }: Readonly<{
   title?: string; k?: string; sort?: ColumnSort; children?: ReactNode; className?: string;
 }>) {
   return (
-    <th title={title} className={`sticky top-0 z-10 whitespace-nowrap border-b border-line bg-bg2 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim ${className}`}>
+    <th title={title} aria-sort={ariaSort(k, sort)} className={`sticky top-0 z-10 whitespace-nowrap border-b border-line bg-bg2 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim ${className}`}>
       {k && sort ? <SortLabel k={k} sort={sort}>{children}</SortLabel> : children}
     </th>
   );

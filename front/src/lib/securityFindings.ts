@@ -98,7 +98,7 @@ function machineJailFindings(snap: Snapshot): Finding[] {
 function trafficFindings(snap: Snapshot): Finding[] {
   return webMachines(snap.health).flatMap((m): Finding[] => {
     const href = "#security/traffic";
-    const out: Finding[] = m.web.rising ? [{ sev: "warn", area: "traffic", title: tx("Pic de trafic web sur {0}", m.name), href, detail: tx("plus de 3 fois l'heure habituelle"),
+    const out: Finding[] = m.web.rising ? [{ sev: "warn", area: "traffic", title: tx("Pic de trafic web sur le NPM de {0}", m.name), href, detail: tx("plus de 3 fois l'heure habituelle"),
       sub: tx("{0} requêtes en une heure, contre {1} d'habitude", Math.max(m.web.last ?? 0, m.web.now ?? 0), m.web.usual ?? 0),
       fix: tx("Regarder les sites et les adresses les plus actives ; bloquer au pare-feu ou dans NPM ce qui n'est pas voulu.") }] : [];
     for (const r of m.sites) {

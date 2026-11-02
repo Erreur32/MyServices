@@ -81,14 +81,15 @@ export function useFilter<T>(items: T[], facets: Facet<T>[], text: (item: T) => 
   return { query, setQuery, shown, total: items.length, chips, toggle, only, reset, active, sel, setSel };
 }
 
-/** Tri par colonne : clic = trier, 2e clic = ordre inverse. */
-export function useSort<T>(rows: T[], keyOf: (row: T, key: string) => string | number, initial: string) {
+/** Sort by column: a click sorts, a second click reverses. A column of numbers starts with the highest (the busiest, the most banned), a column of
+ *  text from A. */
+export function useSort<T>(rows: T[], keyOf: (row: T, key: string) => string | number, initial: string, initialAsc = true) {
   const [key, setKey] = useState(initial);
-  const [asc, setAsc] = useState(true);
+  const [asc, setAsc] = useState(initialAsc);
   const sorted = useMemo(() => [...rows].sort((a, b) => {
     const x = keyOf(a, key), y = keyOf(b, key);
     return (x < y ? -1 : x > y ? 1 : 0) * (asc ? 1 : -1);
   }), [rows, key, asc, keyOf]);
-  const by = (k: string) => { if (k === key) setAsc(!asc); else { setKey(k); setAsc(true); } };
+  const by = (k: string) => { if (k === key) setAsc(!asc); else { setKey(k); setAsc(typeof (rows.length ? keyOf(rows[0], k) : "") !== "number"); } };
   return { sorted, key, asc, by };
 }
