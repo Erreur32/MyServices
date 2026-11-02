@@ -5,6 +5,12 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.34.3 → 0.35.0
+
+**Nothing to do.** No setting, volume, agent or database change. Once a day the collection asks your DNS servers for the NS of each domain and keeps the answer in `dns-zones.json`, in the existing cache folder. The DNS alerts are now on DNS, Servers: an old address that led to them opens that page.
+
+**Good to know.** With two MyServices on the same network, for example a test instance beside the real one, shift the collection of one of them by a few minutes (Tasks and schedules). AdGuard limits a whole `/24` to 20 queries per second by default, and two collections at the same minute come close to it.
+
 ## 0.34.2 → 0.34.3
 
 **Nothing to do.** No setting, volume, agent or database change. A new command now keeps the automatic update choice of the old agent. An agent that lost it with an earlier new command stays on manual: switch it back on from the Agents page if you want it. An install made with the new command clears the cache of the agent, so new rights show on the first report.

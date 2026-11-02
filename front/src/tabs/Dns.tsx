@@ -145,7 +145,7 @@ function SyncCard({ g, st, last, content, diffCount }: Readonly<{ g: Dns; st: { 
 }
 
 // One blue family for the states of a name, the columns stay calm: only the verdicts that ask for an action are coloured
-const CLOUD_TEXT: Record<CloudState, [string, string]> = { proxied: ["text-link", tx("proxifié")], dns: ["text-link/80", tx("DNS seul")], wildcard: ["text-link/60", tx("par joker")], none: ["text-muted", tx("aucun enregistrement")], outside: ["text-muted", tx("hors Cloudflare")] };
+const CLOUD_TEXT: Record<CloudState, [string, string]> = { proxied: ["text-link", tx("proxifié")], dns: ["text-link/80", tx("DNS seul")], wildcard: ["font-bold text-txt", "*"], none: ["text-muted", tx("aucun enregistrement")], outside: ["text-muted", tx("hors Cloudflare")] };
 const VERDICT: Partial<Record<CompareRow["tone"], [Tone, string]>> = { bad: ["bad", tx("À corriger")], warn: ["warn", tx("À vérifier")] };
 const MACHINE_COLORS = ["text-apache", "text-npm", "text-loc", "text-accent"];   // the theme's colours that are neither a state nor the blue of the addresses
 const QUIET: Partial<Record<CompareRow["tone"], string>> = { info: tx("Info"), ok: tx("OK") };
@@ -162,7 +162,7 @@ function CloudflareCard({ rows, zones }: Readonly<{ rows: CompareRow[]; zones: n
 
 function CloudCell({ state }: Readonly<{ state: CloudState }>) {
   const [color, text] = CLOUD_TEXT[state];
-  return <span className={`inline-flex items-center gap-1.5 ${color}`}>{state === "proxied" && <Cloud size={14} className="shrink-0 fill-current text-[#F38020]" aria-hidden />}{text}</span>;
+  return <span className={`inline-flex items-center gap-1.5 ${color}`} title={state === "wildcard" ? tx("par joker") : undefined}>{state === "proxied" && <Cloud size={14} className="shrink-0 fill-current text-[#F38020]" aria-hidden />}{text}</span>;
 }
 
 /** Who runs the DNS, with its logo on a white tile: some brand colours would vanish on a dark theme */

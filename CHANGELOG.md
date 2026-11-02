@@ -11,6 +11,19 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.0 (2026-11-02)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **DNS, Servers**: one sortable table compares each name, with its NPM and machine, who runs its DNS, its Cloudflare state, the answer of the local DNS and a verdict that says what to do and where. It opens on the alerts.
+- **DNS, Cloudflare card**: how the names are served (proxied, DNS only, wildcard, outside Cloudflare) and how many ask for a look, next to the sync and instance cards.
+- **DNS hosts**: read from the NS of each domain, with the logo of the known ones. Asked of the DNS servers of the page, never of a public resolver, once a day per domain.
+
+### Changed
+- **DNS, alerts**: they move from Details to Servers, and the menu dot and the home page counters open them there. Details keeps the sources of the check, the rewrites and the machine names, on two columns.
+- **DNS, which NPM**: the single « NPM = address » note was wrong with two NPM. Each name now shows its own NPM and machine, and Details lists all of them.
+
 ## v0.34.3 (2026-11-01)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
