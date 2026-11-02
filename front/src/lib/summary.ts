@@ -6,7 +6,7 @@ import type { Selected } from "./filter";
 import { splitHostName } from "./format";
 import { CHECK, CLEANUP, certIssue, checks, dnsDown, dnsSync, hostName, status } from "./status";
 import { tx } from "./i18n";
-import { healthCauses } from "./machineWatch";
+import { healthCauses, hungOnly } from "./machineWatch";
 
 export type TabId = "home" | "history" | "machines" | "services" | "domotique" | "cloudflare" | "ai" | "stream" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
 
@@ -23,6 +23,7 @@ export interface Attention {
   href?: string;  // adresse exacte (ex. « settings/machines ») quand l'onglet ne suffit pas
   fix?: { label: string; href: string };   // administrator: the setting that settles the alert, beside the button that shows it
   dot?: string;   // the menu entry that carries the dot when it is not the tab's own entry (« connectors » for a connector in trouble)
+  help?: string;  // the hint under the line when it depends on the cause (health); absent: the hint of its category, "" none
 }
 
 export interface Inputs {
@@ -85,15 +86,21 @@ function npmWarnings(hosts: Host[]): Attention[] {
   });
 }
 
+/** The hint under a health line: only where there is something to know or a setting to change */
+function healthHelp(h: HealthHost, kind?: string): string {
+  if (kind === "kernel" && hungOnly(h)) return tx("Rien à faire si une copie tournait à cette heure : l'avertissement s'efface seul 12 h après.");
+  return kind === "disk" || kind === "mem" || kind === "temp" ? tx("Si c'est son niveau normal, monte le seuil dans Régler la machine.") : "";
+}
+
 /** A machine whose health needs a look: its name, the exact trouble, and a link to the frame of its page that explains it */
 function healthLine(h: HealthHost, l: "down" | "crit" | "warn", data: Data): Attention {
   const ip = splitHostName(h.name)[1], name = data.machine_list.find((m) => m.ip === ip)?.name || machineOf(h);
   const base = { category: "sante" as const, level: l === "warn" ? "warn" as const : "crit" as const, tab: "machines" as const, sel: HEALTH_SEL, fix: machineFix(ip) };
-  if (l === "down") return { ...base, text: tx("Santé : **{0}** est injoignable", name), action: tx("Voir la machine"), href: ip ? `machines/${ip}` : undefined };
+  if (l === "down") return { ...base, text: tx("Santé : **{0}** est injoignable", name), action: tx("Voir la machine"), href: ip ? `machines/${ip}` : undefined, help: "" };
   const cause = healthCauses(h);
   const general = l === "crit" ? tx("Santé : **{0}** est en état critique", name) : tx("Santé : **{0}** est à surveiller", name);
   const page = cause.kind ? `machines/${ip}/watch/${cause.kind}` : `machines/${ip}`;
-  return { ...base, text: cause.text ? tx("Santé : **{0}** : {1}", name, short(cause.text)) : general, action: tx("Voir la santé"), href: ip ? page : undefined };
+  return { ...base, text: cause.text ? tx("Santé : **{0}** : {1}", name, cause.text) : general, action: tx("Voir la santé"), href: ip ? page : undefined, help: healthHelp(h, cause.kind) };
 }
 
 /** Liste « à regarder » : rouge d'abord, puis orange, dans l'ordre des onglets. */

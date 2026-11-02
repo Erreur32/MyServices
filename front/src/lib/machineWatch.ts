@@ -130,8 +130,9 @@ export function healthItems(h: HealthHost): WatchItem[] {
   if (dk?.issues?.length) add("warn", "docker", tx("Docker : {0}", dk.issues.map((c) => typeof c === "string" ? c : `${c.name} (${c.status})`).join(", ")));
   if (dk?.loops?.length) add("warn", "docker", tx("Docker : redémarre en boucle : {0}", dk.loops.map((c) => `${c.name} (${c.restarts})`).join(", ")));
   if (h.kernel?.has_errors) {   // only hung tasks: processes waiting on a saturated disk (a big copy, a backup); any other line keeps the general words
-    const hung = !!h.kernel.samples?.length && h.kernel.samples.every((l) => l.includes("blocked for more than"));
-    add("warn", "kernel", hung ? tx("processus bloqués sur le disque : souvent une grosse copie ou une sauvegarde") : tx("erreurs noyau récentes"), h.kernel.samples);
+    const s = h.kernel.samples ?? [], hung = hungOnly(h);
+    const at = /(\d{2}:\d{2}):\d{2}/.exec(s.at(-1) ?? "")?.[1] ?? "?";   // the latest report, short enough for the home line
+    add("warn", "kernel", hung ? tx("{0} processus bloqué(s) sur le disque à {1} (copie, sauvegarde ?)", s.length, at) : tx("erreurs noyau récentes"), s);
   }
   for (const d of h.smart?.disks || []) if (d.failed) add("bad", "smart", tx("SMART : {0} en défaut", d.device));
   if (h.load?.available) {
@@ -172,6 +173,9 @@ function connectorItems(m: Machine, connectors: Connector[]): WatchItem[] {
 }
 
 /** Why the health of a machine is not « ok », short: what the server flagged when it says, the worst first; `kind` is the frame that explains it */
+/** Every kernel line is a hung task: processes waited on a saturated disk (a big copy, a backup), no other kernel error */
+export const hungOnly = (h: HealthHost): boolean => !!h.kernel?.samples?.length && h.kernel.samples.every((l) => l.includes("blocked for more than"));
+
 export function healthCauses(h: HealthHost, max = 2): { text: string; kind?: WatchKind } {
   const flagged = new Set(Object.entries(h.checks ?? {}).filter(([, level]) => level === "warn" || level === "crit").map(([check]) => CHECK_KIND[check]));
   const items = healthItems(h).filter((i) => i.tone !== "info" && (!flagged.size || flagged.has(i.kind))).sort((a, b) => RANK[b.tone] - RANK[a.tone]);

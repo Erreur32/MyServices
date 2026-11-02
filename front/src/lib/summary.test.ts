@@ -96,6 +96,15 @@ describe("santé sur l'accueil", () => {
     expect(it0.text).toBe("Santé : **10.0.0.2** est à surveiller");
     expect(it0.href).toBe("machines/10.0.0.2");
   });
+
+  it("the whole sentence, and a hint that follows the cause", () => {
+    const hung = "nov. 02 11:08:18 host kernel: INFO: task bash:2337998 blocked for more than 120 seconds.";
+    const k = line({ checks: { kernel: "warn" }, kernel: { has_errors: true, samples: [hung, hung, hung] } });
+    expect(k.text).toBe("Santé : **10.0.0.2** : 3 processus bloqué(s) sur le disque à 11:08 (copie, sauvegarde ?)");   // never cut
+    expect(k.help).toContain("copie tournait");
+    expect(line({ disks: [{ mount: "/", used_pct: 91, warning: true }] } as Partial<HealthHost>).help).toContain("monte le seuil");
+    expect(line({ checks: { load: "warn" }, load: { available: true, load_1: 8, ncpu: 4 } as HealthHost["load"] }).help).toBe("");   // no limit to change: no hint
+  });
 });
 
 describe("avertissements de l'accueil", () => {

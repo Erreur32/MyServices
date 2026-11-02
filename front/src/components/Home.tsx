@@ -26,7 +26,7 @@ const LIMIT = 8;
 const KIND: Record<Category, { label: string; Icon: LucideIcon; tint: string; help: string }> = {
   machines: { label: tx("Machines"), Icon: Monitor, tint: "bg-link/10 text-link", help: tx("Vérifie qu'elle est allumée et branchée. Si elle est souvent éteinte, indique-le dans ses réglages.") },
   services: { label: tx("Services"), Icon: Globe, tint: "bg-loc/10 text-loc", help: tx("Vérifie que le service tourne sur sa machine. S'il est arrêté exprès, mets-le en pause dans ses réglages.") },
-  sante: { label: tx("Santé"), Icon: HeartPulse, tint: "bg-ok/10 text-ok", help: tx("Si c'est normal pour cette machine, ajuste ses seuils dans Régler la machine.") },
+  sante: { label: tx("Santé"), Icon: HeartPulse, tint: "bg-ok/10 text-ok", help: "" },   // its hint depends on the cause: Attention.help
   dns: { label: tx("DNS"), Icon: Shield, tint: "bg-npm/10 text-npm", help: tx("Un domaine ou un serveur DNS n'est plus d'accord avec le reste : le détail est sur la page DNS.") },
   sauvegardes: { label: tx("Sauvegardes"), Icon: HardDrive, tint: "bg-apache/10 text-apache", help: tx("Vérifie que la copie a bien tourné. Si elle passe moins souvent, règle son rythme dans le jeu.") },
   connecteurs: { label: tx("Connecteurs"), Icon: Plug, tint: "bg-muted/10 text-muted", help: tx("MyServices n'arrive plus à lire cet outil : vérifie son adresse et son accès.") },
@@ -45,20 +45,13 @@ export function openAttention(it: Attention, go: (t: TabId) => void, goFilter: (
   else go(it.tab);
 }
 
-/** « 12 machines, 41 services, 6 jeux de sauvegarde suivis » */
-export function followedLine(snap: Snapshot): string {
-  const parts = [tx("{0} machine(s)", snap.data.machine_list.filter((m) => !m.disabled).length), tx("{0} service(s)", snap.data.hosts.filter((r) => r.enabled).length)];
-  if (snap.backups) parts.push(tx("{0} jeu(x) de sauvegarde", snap.backups.summary.sets));
-  return tx("{0} suivis", parts.join(", "));
-}
-
 function Badge({ category, n }: Readonly<{ category: Category; n?: number }>) {
   const { label, Icon, tint } = KIND[category];
   return <span className={`inline-flex w-fit items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-bold ${tint}`}><Icon size={14} aria-hidden />{label}{n != null && <span className="font-mono">{n}</span>}</span>;
 }
 
 function Line({ it, admin, go, goFilter }: Readonly<{ it: Attention; admin: boolean; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
-  const crit = it.level === "crit", fix = admin ? it.fix : undefined;
+  const crit = it.level === "crit", fix = admin ? it.fix : undefined, help = it.help ?? KIND[it.category].help;
   return (
     <li className="grid items-center gap-x-3 gap-y-1.5 rounded-xl bg-bg/60 px-3 py-2.5 sm:grid-cols-[8.5rem_minmax(0,1fr)_auto]">
       <Badge category={it.category} />
@@ -67,7 +60,7 @@ function Line({ it, admin, go, goFilter }: Readonly<{ it: Attention; admin: bool
           <span aria-hidden className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${crit ? "bg-bad" : "bg-warn"}`} />
           <span className="min-w-0"><Rich text={it.text} /></span>
         </p>
-        <p className="mt-0.5 text-[13px] text-muted">{KIND[it.category].help}</p>
+        {help && <p className="mt-0.5 text-[13px] text-muted">{help}</p>}
       </div>
       <div className="grid grid-cols-2 gap-1.5 sm:w-[20.4rem]">   {/* two slots of one width: every « Voir » on the right, « Régler » left of it, aligned row to row */}
         {fix && <a href={`#${fix.href}`} className={`${FILL} ${SLOT}`}>{fix.label}</a>}
@@ -170,7 +163,7 @@ function Hero({ snap, items, now }: Readonly<{ snap: Snapshot; items: Attention[
   return (
     <section className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div>
-        <p className="text-sm text-dim">{day.charAt(0).toUpperCase() + day.slice(1)}, {hm(now)} · {followedLine(snap)}</p>
+        <p className="text-sm text-dim">{day.charAt(0).toUpperCase() + day.slice(1)}, {hm(now)}</p>
         <h1 className={`mt-1 text-3xl font-extrabold leading-tight sm:text-4xl [&_b]:font-extrabold ${TITLE_TONE[story.tone]}`}><Rich text={story.title} /></h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted"><Rich text={story.text} /></p>
       </div>
