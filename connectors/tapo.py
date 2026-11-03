@@ -9,20 +9,22 @@ from __future__ import annotations
 
 import asyncio
 import re
+import shutil
+import subprocess
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 from connectors.base import Connector, ConnectorError, Field, Result
 from connectors.homelab_stream import camera
 from connectors.status_kit import MAX_FACTS, MAX_PROBLEMS, fact, num
 
+PICTURE_S = 15         # seconds for one picture of a stream (ffmpeg takes 1 to 2 s on a Tapo)
 DISCOVERY_S = 6        # seconds a discovery waits for the devices to answer
 SERIES_TTL = 600       # the power curve of a plug is read again after this long
 AUTH_WORDS = ("credential", "auth", "password", "login", "forbidden")
-SNAPSHOT_PAUSE = 600   # a camera that refused its account is left alone this long: it locks itself after too many failed logins
 CAMERAS_TTL = 7 * 86400   # names and addresses kept for the pictures; every collection writes them again
 _series: dict[str, tuple[float, list]] = {}   # shortcut: kept in memory per process, a restart reads the curves again
-_refused: dict[str, tuple[float, str]] = {}               # same shortcut: a restart may try a refused camera once more
 
 
 def _lib():
@@ -37,6 +39,41 @@ def _reason(error: str) -> str:
     ip = re.search(r'ip: "([^"]+)"|url: "https?://([^/":]+)', text)
     tail = text.rstrip(" })]")[-120:]   # the closing braces of the nested errors would push the cause out
     return f"{ip.group(1) or ip.group(2)} : {tail}" if ip else tail
+
+
+def _accounts_of(conf: dict) -> dict[str, tuple[str, str]]:
+    """{ip: (user, password)} of the cameras; an entry that is not « ip user password » is left out."""
+    bits = [part.split(None, 2) for part in str(conf.get("camera_accounts") or "").split(";")]
+    return {b[0]: (b[1], b[2]) for b in bits if len(b) == 3}
+
+
+_TAPO_LOGIN = "compte caméra de {} : c'est le compte Tapo (e-mail), la caméra le refuse ; créer le compte caméra dans l'appli Tapo (Réglages avancés › Compte de la caméra)"
+
+
+def _given_tapo_login(conf: dict) -> list[str]:
+    """The cameras given the Tapo login itself (e-mail and password): a camera refuses it, only its own camera account opens its stream."""
+    email, password = str(conf.get("username") or "").strip().lower(), conf.get("password") or ""
+    return [ip for ip, (user, pw) in _accounts_of(conf).items() if email and user.strip().lower() == email and pw == password]
+
+
+def _refusal(why: str) -> str:
+    hint = " : compte caméra refusé, identifiant et mot de passe tiennent compte des majuscules" if "401" in why else ""
+    return f"image refusée ({why}){hint}"
+
+
+def _stream_picture(ip: str, user: str, password: str) -> bytes:
+    """One picture of the camera's main stream (stream1) by ffmpeg, as Home Assistant and Frigate read a Tapo: no HTTPS login, so an old TLS or a model the library cannot read still gives its picture."""
+    url = f"rtsp://{quote(user, safe='')}:{quote(password, safe='')}@{ip}:554/stream1"
+    cmd = ["ffmpeg", "-nostdin", "-loglevel", "error", "-rtsp_transport", "tcp", "-i", url, "-frames:v", "1", "-f", "image2", "-c:v", "mjpeg", "pipe:1"]
+    try:
+        r = subprocess.run(cmd, capture_output=True, timeout=PICTURE_S)   # NOSONAR S4721: argument list, no shell; ip from the camera accounts
+    except subprocess.TimeoutExpired:
+        raise ConnectorError(f"image refusée (pas d'image du flux en {PICTURE_S} s)") from None
+    if r.returncode == 0 and r.stdout:
+        return r.stdout
+    lines = [x for x in r.stderr.decode("utf-8", "replace").splitlines() if x.strip()]
+    why = re.sub(r"rtsp://\S+", "rtsp://…", lines[-1] if lines else f"ffmpeg code {r.returncode}")[:160]   # the url holds the password
+    raise ConnectorError(_refusal(f"{ip} : {why}"))
 
 
 def _ip(d) -> str:
@@ -105,9 +142,13 @@ class Tapo(Connector):
         return [t.strip() for t in raw.split(",") if t.strip()] or ["255.255.255.255"]
 
     def _accounts(self) -> dict[str, tuple[str, str]]:
-        """{ip: (user, password)} of the cameras; an entry that is not « ip user password » is left out."""
-        bits = [part.split(None, 2) for part in str(self.conf.get("camera_accounts") or "").split(";")]
-        return {b[0]: (b[1], b[2]) for b in bits if len(b) == 3}
+        return _accounts_of(self.conf)
+
+    @classmethod
+    def refuse(cls, conf: dict) -> str:
+        """Why these settings cannot be saved: a camera given the Tapo login (e-mail) instead of its camera account, which it always refuses."""
+        ips = _given_tapo_login(conf)
+        return _TAPO_LOGIN.format(", ".join(ips)) if ips else ""
 
     async def _unread(self, lib, known: set[str]) -> list[dict]:
         """The devices that answer the discovery but refuse the reading: it needs no account, so a camera refused by the account is still listed."""
@@ -221,24 +262,27 @@ class Tapo(Connector):
 
     def snapshot(self, cam: str) -> bytes:
         """The picture of a camera, with its camera account. Any camera model is opened by the C225 driver: only the login and the picture are used."""
-        ip = self.ctx.cached(self._cameras_key(), CAMERAS_TTL, dict).get(cam)
+        return self._picture(self.ctx.cached(self._cameras_key(), CAMERAS_TTL, dict).get(cam))
+
+    def _picture(self, ip: str | None) -> bytes:
         account = self._accounts().get(ip)
         if not account:
             raise ConnectorError("caméra sans compte caméra")
-        at, why = _refused.get(ip, (0.0, ""))
-        if time.time() - at < SNAPSHOT_PAUSE:   # the first reason stays said, the camera is not asked again meanwhile
-            raise ConnectorError(f"image refusée ({why}) : nouvel essai dans quelques minutes")
-        lib = _lib()
+        if ip in _given_tapo_login(self.conf):   # not even tried: failed logins lock the camera
+            raise ConnectorError(_TAPO_LOGIN.format(ip))
+        if shutil.which("ffmpeg"):
+            return _stream_picture(ip, *account)
+        lib = _lib()   # an install without ffmpeg: the library's own RTSP snapshot (it fails on some models, C520WS)
 
         async def run():
             handler = await lib.ApiClient(self.conf.get("username", ""), self.conf.get("password", ""), 10).c225(ip)
             return await handler.get_snapshot(*account)
 
         try:
-            return bytes(asyncio.run(run()))
+            shot = asyncio.run(run())
+            return bytes(getattr(shot, "data", shot))   # tapo 0.12 gives a Snapshot (data, content_type), older ones the bytes
         except Exception as e:   # noqa: BLE001 : the library has no public error type
-            _refused[ip] = (time.time(), _reason(str(e)))
-            raise ConnectorError(f"image refusée ({_refused[ip][1]})") from None
+            raise ConnectorError(_refusal(_reason(str(e)))) from None
 
     @staticmethod
     def _summary(devices: list[dict], errors: list[str]) -> dict:
@@ -262,8 +306,16 @@ class Tapo(Connector):
         return {"version": None, "facts": facts[:MAX_FACTS], "problems": problems[:MAX_PROBLEMS], "devices": devices}
 
     def test(self) -> Result:
+        """The reading, then one picture per camera given a camera account: each camera says if its account opens it."""
         try:
             d = self.collect()
         except ConnectorError as e:
             return Result(False, str(e))
-        return Result(True, f"{len(d['devices'])} appareil(s) lu(s)")
+        said = [f"{len(d['devices'])} appareil(s) lu(s)"]
+        for ip in self._accounts():   # a refused camera does not fail the test: the plugs are still read
+            try:
+                self._picture(ip)
+                said.append(f"caméra {ip} : image OK")
+            except ConnectorError as e:
+                said.append(f"caméra {ip} : {e}")
+        return Result(True, " ; ".join(said))

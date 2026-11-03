@@ -11,6 +11,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.37.2 (2026-11-03)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Tapo, camera accounts**: « Test » now tries one picture per camera given a camera account and says for each one « picture OK » or why it is refused; a refused camera does not switch off the connector. Saving refuses a camera account that is the Tapo login itself (e-mail and password), which a camera always refuses, and says to create the camera account in the Tapo app; a camera already saved that way is not asked for its picture. A refused picture is asked again at once (no more 10-minute pause), and a refusal (401) says the camera account is case sensitive.
+- **Tapo, camera pictures by ffmpeg**: a picture is now one frame of the camera's main stream (`stream1`) read by ffmpeg, as Home Assistant and Frigate do. A C520WS and cameras whose old TLS the library refused (`HandshakeFailure`) now give their picture; the library stays the fallback where ffmpeg is missing. The image carries one static ffmpeg binary (9.0.2, pinned by digest, about +200 MB). The picture of the library (tapo 0.12 Snapshot object) is also read correctly.
+
 ## v0.37.1 (2026-11-03)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

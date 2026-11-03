@@ -14,6 +14,7 @@ from connectors import tapo
 from connectors.base import ConnectorError
 
 PW = "pw-" + "x"   # built here so the secret guard sees no literal
+AT = "@"   # joins a test url at run time: the secret guard sees no « user:password@ »
 
 
 class Res(dict):
@@ -105,7 +106,9 @@ def conn(results):
 
 class CameraPicture(unittest.TestCase):
     def setUp(self):
-        tapo._refused.clear()
+        no_ffmpeg = mock.patch.object(tapo.shutil, "which", return_value=None)   # these read the picture through the library
+        no_ffmpeg.start()
+        self.addCleanup(no_ffmpeg.stop)
         self.conf = {"name": "t", "username": "me@example.com", "password": PW, "targets": "192.0.2.255", "camera_accounts": f"192.0.2.9 cam {PW} two; broken entry"}
 
     def conn(self, picture):
@@ -129,13 +132,15 @@ class CameraPicture(unittest.TestCase):
         self.conn(b"")
         self.assertNotIn("stream", self.out)
 
-    def test_a_refused_camera_is_not_asked_again_for_a_while(self):
-        c = self.conn(RuntimeError("Unauthorized"))
-        for _ in range(3):
-            with self.assertRaises(ConnectorError) as e:
-                self.picture(c)
-        self.assertEqual(len(self.cam.asked), 1)
-        self.assertIn("Unauthorized", str(e.exception))   # the pause still says why
+    def test_a_picture_refused_with_a_401_says_the_account_is_case_sensitive(self):
+        c = self.conn(RuntimeError("401 response to DESCRIBE CSeq=2: Received Unauthorized after trying digest auth"))
+        with self.assertRaises(ConnectorError) as e:
+            self.picture(c)
+        self.assertIn("majuscules", str(e.exception))
+
+    def test_the_snapshot_object_of_the_library_gives_its_bytes(self):
+        c = self.conn(NS(data=b"\xff\xd8\xffjpeg", content_type="image/jpeg"))   # tapo 0.12
+        self.assertEqual(self.picture(c), b"\xff\xd8\xffjpeg")
 
     def test_a_camera_nobody_saw_has_no_picture(self):
         c = self.conn(b"")
@@ -226,6 +231,35 @@ class Collect(unittest.TestCase):
         self.assertIn("401 Unauthorized", reason)
         self.assertNotIn("conn:", reason)
 
+    def test_the_tapo_login_given_as_a_camera_account_is_refused_with_the_way_out(self):
+        conf = {"username": "Me@example.com", "password": PW, "camera_accounts": f"192.0.2.11 me@example.com {PW}; 192.0.2.12 cam {PW}; 192.0.2.13 me@example.com other"}
+        why = tapo.Tapo.refuse(conf)
+        self.assertIn("192.0.2.11", why)
+        self.assertNotIn("192.0.2.12", why)
+        self.assertNotIn("192.0.2.13", why)   # a camera account may be named by the e-mail, with its own password
+        self.assertIn("Compte de la caméra", why)
+        self.assertEqual(tapo.Tapo.refuse({**conf, "camera_accounts": f"192.0.2.12 cam {PW}"}), "")
+
+    def test_a_camera_given_the_tapo_login_is_not_asked_for_its_picture(self):
+        conf = {"name": "t", "username": "me@example.com", "password": PW, "camera_accounts": f"192.0.2.11 me@example.com {PW}"}
+        c = tapo.Tapo(conf, None)
+        c.ctx = mock.Mock(cached=lambda *a: {"Cam": "192.0.2.11"})
+        with mock.patch.object(tapo, "_lib") as lib, self.assertRaises(ConnectorError) as e:
+            c.snapshot("Cam")
+        lib.assert_not_called()
+        self.assertIn("compte Tapo (e-mail)", str(e.exception))
+
+    def test_the_test_tries_each_camera_and_says_which_one_is_refused(self):
+        conf = {"name": "t", "username": "me@example.com", "password": PW, "camera_accounts": f"192.0.2.11 cam {PW}; 192.0.2.12 cam {PW}"}
+        c = tapo.Tapo(conf, None)
+        refused = ConnectorError("image refusée (401 Unauthorized)")
+        with mock.patch.object(tapo.Tapo, "collect", return_value={"devices": [{}, {}]}), \
+             mock.patch.object(tapo.Tapo, "_picture", side_effect=[b"jpg", refused]):
+            r = c.test()
+        self.assertTrue(r.ok)   # a camera refused does not switch off the plugs
+        self.assertIn("caméra 192.0.2.11 : image OK", r.message)
+        self.assertIn("caméra 192.0.2.12 : image refusée (401 Unauthorized)", r.message)
+
     def test_a_device_refused_by_the_account_is_still_listed_from_the_discovery(self):
         raw = Res(ip="192.0.2.11", message=Res(result=Res(device_model="C310", device_name="Cam", device_id="c9", firmware_version="1.9")))
         seen = Res(ip="192.0.2.9", message=Res(result=Res(device_model="P110M")))
@@ -255,3 +289,40 @@ class Collect(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StreamPicture(unittest.TestCase):
+    def setUp(self):
+        self.conf = {"name": "t", "username": "me@example.com", "password": PW, "camera_accounts": f"192.0.2.9 Cam {PW}@x"}
+        self.c = tapo.Tapo(self.conf, None)
+        with_ffmpeg = mock.patch.object(tapo.shutil, "which", return_value="/usr/bin/ffmpeg")
+        with_ffmpeg.start()
+        self.addCleanup(with_ffmpeg.stop)
+
+    def run_ffmpeg(self, **done):
+        with mock.patch.object(tapo.subprocess, "run", return_value=NS(**{"returncode": 0, "stdout": b"", "stderr": b"", **done})) as run, \
+             mock.patch.object(tapo, "_lib") as lib:
+            try:
+                return self.c._picture("192.0.2.9"), run
+            finally:
+                lib.assert_not_called()   # with ffmpeg, the library is not used for the picture
+
+    def test_ffmpeg_reads_one_picture_of_stream1_with_the_camera_account(self):
+        picture, run = self.run_ffmpeg(stdout=b"\xff\xd8jpeg")
+        self.assertEqual(picture, b"\xff\xd8jpeg")
+        cmd = run.call_args.args[0]
+        self.assertIn(f"rtsp://Cam:{PW}%40x{AT}192.0.2.9:554/stream1", cmd)   # the password is quoted, its case kept
+        self.assertEqual(cmd[cmd.index("-frames:v") + 1], "1")
+
+    def test_a_refusal_never_shows_the_password_and_says_the_case(self):
+        err = f"[rtsp @ 0x1] method DESCRIBE failed: 401 Unauthorized\nrtsp://Cam:{PW}{AT}192.0.2.9:554/stream1: Server returned 401 Unauthorized".encode()
+        with self.assertRaises(ConnectorError) as e:
+            self.run_ffmpeg(returncode=8, stderr=err)
+        self.assertNotIn(PW, str(e.exception))
+        self.assertIn("192.0.2.9", str(e.exception))
+        self.assertIn("majuscules", str(e.exception))
+
+    def test_a_silent_stream_is_cut_after_its_time(self):
+        with mock.patch.object(tapo.subprocess, "run", side_effect=tapo.subprocess.TimeoutExpired("ffmpeg", 15)), self.assertRaises(ConnectorError) as e:
+            self.c._picture("192.0.2.9")
+        self.assertIn("pas d'image du flux", str(e.exception))
