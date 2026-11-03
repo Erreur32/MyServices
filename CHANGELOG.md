@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.35.10 (2026-11-03)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Tapo, « picture refused » cut before its cause**: when the camera could not be reached, the error of the library names it in `url`, not `ip`, and the tile kept only the first 160 characters, where the cause is not. The tile now shows the camera's address, then the end of the error, where the cause is.
+
 ## v0.35.9 (2026-11-02)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
