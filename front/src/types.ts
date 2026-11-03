@@ -190,6 +190,8 @@ export interface Connector {
   name: string;
   ok: boolean;
   message: string;
+  stale?: boolean;   // the last good reading kept: the tool no longer answers
+  warning?: string;   // read fine but incomplete
   ip?: string;  // machine visée (connecteurs SSH : Docker, process, AdGuard)
   found?: { name: string; count: number }[];
 }

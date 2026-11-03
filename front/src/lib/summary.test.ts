@@ -147,4 +147,14 @@ describe("every attention line leads somewhere", () => {
     expect(got.find((i) => i.text.startsWith("Docker illisible"))?.href).toBe("settings/machines");
     expect(got.find((i) => i.category === "sauvegardes")?.action).toBe("Voir le jeu");
   });
+
+  it("connector dot: a failed, stale or partial reading, never a point the tool reports", () => {
+    const d = { generated: "", hosts: [], machine_list: [], connectors: [
+      { type: "a", name: "fail", ok: false, message: "refused" }, { type: "b", name: "old", ok: true, stale: true, message: "" },
+      { type: "c", name: "half", ok: true, warning: "lecture partielle : ss without root", message: "" }, { type: "process", name: "dev", ip: "10.0.0.2", ok: true, warning: "x", message: "" }, { type: "nextcloud", name: "fine", ok: true, message: "" }] } as unknown as Data;
+    const texts = attention({ data: d, now: NOW }).filter((i) => i.dot === "connectors").map((i) => i.text);
+    expect(texts).toHaveLength(3);
+    expect(texts[1]).toContain("lecture périmée");
+    expect(texts[2]).toContain("lecture partielle : ss without root");
+  });
 });

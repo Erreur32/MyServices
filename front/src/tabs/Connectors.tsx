@@ -16,7 +16,7 @@ import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import type { AgentInfo, AgentsState, ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias, TapoDevice } from "../types";
-import { cardNotice, cardsTitle, cardView, noticeTip, toWatch, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
+import { cardNotice, cardsTitle, cardView, noticeTip, toWatch, WATCH, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
 import { agentSummary } from "../lib/accessLists";
 import { configFor, modeOf, npmAgent } from "../lib/connectorModes";
 import { readConnector, RereadButton } from "../components/Reread";
@@ -45,7 +45,7 @@ export const connectorsPart = (v?: string): ConnectorsPart => {
 };
 const RUN_RANK: Record<string, number> = { true: 0, false: 2 };
 const MINE = "settings/connectors";
-const WATCH = "*watch", OFF = "*off";   // filters of « My connectors », beside the categories
+const OFF = "*off";   // filters of « My connectors », beside the categories
 // The page that shows what a connector reads
 const PAGE: Record<string, string> = {
   cloudflare: "cloudflare/overview", netatmo: "domotique/netatmo", tapo: "domotique/tapo", mynetwork: "network", unifi: "network", freebox: "network", "upnp-box": "network", fritzbox: "network", sfrbox: "network", livebox: "network", "vodafone-station": "network", "sagemcom-fast": "network", bbox: "network", "swisscom-box": "network", "connect-box": "network", "liberty-gateway": "network", "speedport": "network", "technicolor-gateway": "network", "tmobile-home-internet": "network", "hitron-coda": "network", "verizon-fios": "network", "arris-surfboard": "network", "openwrt": "network", "mikrotik": "network", "asus-router": "network", "tplink-router": "network", logviewr: "security", wazuh: "security", npm: "services",

@@ -60,6 +60,7 @@ export function cardNotice(inst: ConnectorInstance, view: CardView): CardNotice 
   return point ? { text: point, tone: "warn" } : null;
 }
 
+export const WATCH = "*watch";   // the « To check » chip of « My connectors », also ticked by the menu dot
 export const toWatch = (v: CardView) => v.tone === "warn" || v.tone === "bad";
 
 /** The sentence above the list */

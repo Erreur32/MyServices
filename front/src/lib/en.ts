@@ -3017,6 +3017,7 @@ export const EN: Record<string, string> = {
   "Voir le jeu": "See the set",
   "Voir l'accès": "See the access",
   "Voir le connecteur": "See the connector",
+  "lecture périmée": "stale reading",
   "Consulter": "View",
   "Comptes et accès": "Accounts and access",
   "Disponibilité, {0} jours": "Availability, {0} days",
