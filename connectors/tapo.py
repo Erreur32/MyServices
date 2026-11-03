@@ -19,10 +19,8 @@ from connectors.status_kit import MAX_FACTS, MAX_PROBLEMS, fact, num
 DISCOVERY_S = 6        # seconds a discovery waits for the devices to answer
 SERIES_TTL = 600       # the power curve of a plug is read again after this long
 AUTH_WORDS = ("credential", "auth", "password", "login", "forbidden")
-SNAPSHOT_PAUSE = 600   # a camera that refused its account is left alone this long: it locks itself after too many failed logins
 CAMERAS_TTL = 7 * 86400   # names and addresses kept for the pictures; every collection writes them again
 _series: dict[str, tuple[float, list]] = {}   # shortcut: kept in memory per process, a restart reads the curves again
-_refused: dict[tuple, tuple[float, str]] = {}             # same shortcut: a restart may try a refused camera once more
 
 
 def _lib():
@@ -248,10 +246,6 @@ class Tapo(Connector):
             raise ConnectorError("caméra sans compte caméra")
         if ip in _given_tapo_login(self.conf):   # not even tried: failed logins lock the camera
             raise ConnectorError(_TAPO_LOGIN.format(ip))
-        key = (ip, *account)   # a camera account changed since the refusal is tried at once
-        at, why = _refused.get(key, (0.0, ""))
-        if time.time() - at < SNAPSHOT_PAUSE:   # the first reason stays said, the camera is not asked again meanwhile
-            raise ConnectorError(f"image refusée ({why}) : nouvel essai dans quelques minutes")
         lib = _lib()
 
         async def run():
@@ -261,8 +255,9 @@ class Tapo(Connector):
         try:
             return bytes(asyncio.run(run()))
         except Exception as e:   # noqa: BLE001 : the library has no public error type
-            _refused[key] = (time.time(), _reason(str(e)))
-            raise ConnectorError(f"image refusée ({_refused[key][1]})") from None
+            why = _reason(str(e))
+            hint = " : compte caméra refusé, identifiant et mot de passe tiennent compte des majuscules" if "401" in why else ""
+            raise ConnectorError(f"image refusée ({why}){hint}") from None
 
     @staticmethod
     def _summary(devices: list[dict], errors: list[str]) -> dict:

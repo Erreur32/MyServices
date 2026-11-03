@@ -105,7 +105,6 @@ def conn(results):
 
 class CameraPicture(unittest.TestCase):
     def setUp(self):
-        tapo._refused.clear()
         self.conf = {"name": "t", "username": "me@example.com", "password": PW, "targets": "192.0.2.255", "camera_accounts": f"192.0.2.9 cam {PW} two; broken entry"}
 
     def conn(self, picture):
@@ -129,22 +128,11 @@ class CameraPicture(unittest.TestCase):
         self.conn(b"")
         self.assertNotIn("stream", self.out)
 
-    def test_a_refused_camera_is_not_asked_again_for_a_while(self):
-        c = self.conn(RuntimeError("Unauthorized"))
-        for _ in range(3):
-            with self.assertRaises(ConnectorError) as e:
-                self.picture(c)
-        self.assertEqual(len(self.cam.asked), 1)
-        self.assertIn("Unauthorized", str(e.exception))   # the pause still says why
-
-    def test_a_changed_camera_account_is_tried_at_once(self):
-        c = self.conn(RuntimeError("Unauthorized"))
-        with self.assertRaises(ConnectorError):
+    def test_a_picture_refused_with_a_401_says_the_account_is_case_sensitive(self):
+        c = self.conn(RuntimeError("401 response to DESCRIBE CSeq=2: Received Unauthorized after trying digest auth"))
+        with self.assertRaises(ConnectorError) as e:
             self.picture(c)
-        c.conf = {**self.conf, "camera_accounts": f"192.0.2.9 cam2 {PW}"}
-        with self.assertRaises(ConnectorError):
-            self.picture(c)
-        self.assertEqual(self.cam.asked, [("cam", f"{PW} two"), ("cam2", PW)])
+        self.assertIn("majuscules", str(e.exception))
 
     def test_a_camera_nobody_saw_has_no_picture(self):
         c = self.conn(b"")
