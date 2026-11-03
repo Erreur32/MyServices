@@ -34,8 +34,9 @@ def _lib():
 def _reason(error: str) -> str:
     """The address of the device, then the end of the error of the library: its cause comes last, after a long head."""
     text = error.strip()
-    ip = re.search(r'ip: "([^"]+)"', text)
-    return f"{ip.group(1)} : {text[-120:]}" if ip else text[:160]
+    ip = re.search(r'ip: "([^"]+)"|url: "https?://([^/":]+)', text)
+    tail = text.rstrip(" })]")[-120:]   # the closing braces of the nested errors would push the cause out
+    return f"{ip.group(1) or ip.group(2)} : {tail}" if ip else tail
 
 
 def _ip(d) -> str:
