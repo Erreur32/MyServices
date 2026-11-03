@@ -39,6 +39,21 @@ def _reason(error: str) -> str:
     return f"{ip.group(1) or ip.group(2)} : {tail}" if ip else tail
 
 
+def _accounts_of(conf: dict) -> dict[str, tuple[str, str]]:
+    """{ip: (user, password)} of the cameras; an entry that is not « ip user password » is left out."""
+    bits = [part.split(None, 2) for part in str(conf.get("camera_accounts") or "").split(";")]
+    return {b[0]: (b[1], b[2]) for b in bits if len(b) == 3}
+
+
+_TAPO_LOGIN = "compte caméra de {} : c'est le compte Tapo (e-mail), la caméra le refuse ; créer le compte caméra dans l'appli Tapo (Réglages avancés › Compte de la caméra)"
+
+
+def _given_tapo_login(conf: dict) -> list[str]:
+    """The cameras given the Tapo login itself (e-mail and password): a camera refuses it, only its own camera account opens its stream."""
+    email, password = str(conf.get("username") or "").strip().lower(), conf.get("password") or ""
+    return [ip for ip, (user, pw) in _accounts_of(conf).items() if email and user.strip().lower() == email and pw == password]
+
+
 def _ip(d) -> str:
     """The address of a discovered device: the library gives (ip, port), a plain text is taken as it is."""
     addr = getattr(d, "address", None)
@@ -105,9 +120,13 @@ class Tapo(Connector):
         return [t.strip() for t in raw.split(",") if t.strip()] or ["255.255.255.255"]
 
     def _accounts(self) -> dict[str, tuple[str, str]]:
-        """{ip: (user, password)} of the cameras; an entry that is not « ip user password » is left out."""
-        bits = [part.split(None, 2) for part in str(self.conf.get("camera_accounts") or "").split(";")]
-        return {b[0]: (b[1], b[2]) for b in bits if len(b) == 3}
+        return _accounts_of(self.conf)
+
+    @classmethod
+    def refuse(cls, conf: dict) -> str:
+        """Why these settings cannot be saved: a camera given the Tapo login (e-mail) instead of its camera account, which it always refuses."""
+        ips = _given_tapo_login(conf)
+        return _TAPO_LOGIN.format(", ".join(ips)) if ips else ""
 
     async def _unread(self, lib, known: set[str]) -> list[dict]:
         """The devices that answer the discovery but refuse the reading: it needs no account, so a camera refused by the account is still listed."""
@@ -221,10 +240,14 @@ class Tapo(Connector):
 
     def snapshot(self, cam: str) -> bytes:
         """The picture of a camera, with its camera account. Any camera model is opened by the C225 driver: only the login and the picture are used."""
-        ip = self.ctx.cached(self._cameras_key(), CAMERAS_TTL, dict).get(cam)
+        return self._picture(self.ctx.cached(self._cameras_key(), CAMERAS_TTL, dict).get(cam))
+
+    def _picture(self, ip: str | None) -> bytes:
         account = self._accounts().get(ip)
         if not account:
             raise ConnectorError("caméra sans compte caméra")
+        if ip in _given_tapo_login(self.conf):   # not even tried: failed logins lock the camera
+            raise ConnectorError(_TAPO_LOGIN.format(ip))
         at, why = _refused.get(ip, (0.0, ""))
         if time.time() - at < SNAPSHOT_PAUSE:   # the first reason stays said, the camera is not asked again meanwhile
             raise ConnectorError(f"image refusée ({why}) : nouvel essai dans quelques minutes")
@@ -262,8 +285,16 @@ class Tapo(Connector):
         return {"version": None, "facts": facts[:MAX_FACTS], "problems": problems[:MAX_PROBLEMS], "devices": devices}
 
     def test(self) -> Result:
+        """The reading, then one picture per camera given a camera account: each camera says if its account opens it."""
         try:
             d = self.collect()
         except ConnectorError as e:
             return Result(False, str(e))
-        return Result(True, f"{len(d['devices'])} appareil(s) lu(s)")
+        said = [f"{len(d['devices'])} appareil(s) lu(s)"]
+        for ip in self._accounts():   # a refused camera does not fail the test: the plugs are still read
+            try:
+                self._picture(ip)
+                said.append(f"caméra {ip} : image OK")
+            except ConnectorError as e:
+                said.append(f"caméra {ip} : {e}")
+        return Result(True, " ; ".join(said))

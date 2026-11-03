@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+- **Tapo, camera accounts**: « Test » now tries one picture per camera given a camera account and says for each one « picture OK » or why it is refused; a refused camera does not switch off the connector. Saving refuses a camera account that is the Tapo login itself (e-mail and password), which a camera always refuses, and says to create the camera account in the Tapo app; a camera already saved that way is not asked for its picture, so failed logins do not lock it.
+
 ## v0.37.1 (2026-11-03)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

@@ -226,6 +226,35 @@ class Collect(unittest.TestCase):
         self.assertIn("401 Unauthorized", reason)
         self.assertNotIn("conn:", reason)
 
+    def test_the_tapo_login_given_as_a_camera_account_is_refused_with_the_way_out(self):
+        conf = {"username": "Me@example.com", "password": PW, "camera_accounts": f"192.0.2.11 me@example.com {PW}; 192.0.2.12 cam {PW}; 192.0.2.13 me@example.com other"}
+        why = tapo.Tapo.refuse(conf)
+        self.assertIn("192.0.2.11", why)
+        self.assertNotIn("192.0.2.12", why)
+        self.assertNotIn("192.0.2.13", why)   # a camera account may be named by the e-mail, with its own password
+        self.assertIn("Compte de la caméra", why)
+        self.assertEqual(tapo.Tapo.refuse({**conf, "camera_accounts": f"192.0.2.12 cam {PW}"}), "")
+
+    def test_a_camera_given_the_tapo_login_is_not_asked_for_its_picture(self):
+        conf = {"name": "t", "username": "me@example.com", "password": PW, "camera_accounts": f"192.0.2.11 me@example.com {PW}"}
+        c = tapo.Tapo(conf, None)
+        c.ctx = mock.Mock(cached=lambda *a: {"Cam": "192.0.2.11"})
+        with mock.patch.object(tapo, "_lib") as lib, self.assertRaises(ConnectorError) as e:
+            c.snapshot("Cam")
+        lib.assert_not_called()
+        self.assertIn("compte Tapo (e-mail)", str(e.exception))
+
+    def test_the_test_tries_each_camera_and_says_which_one_is_refused(self):
+        conf = {"name": "t", "username": "me@example.com", "password": PW, "camera_accounts": f"192.0.2.11 cam {PW}; 192.0.2.12 cam {PW}"}
+        c = tapo.Tapo(conf, None)
+        refused = ConnectorError("image refusée (401 Unauthorized)")
+        with mock.patch.object(tapo.Tapo, "collect", return_value={"devices": [{}, {}]}), \
+             mock.patch.object(tapo.Tapo, "_picture", side_effect=[b"jpg", refused]):
+            r = c.test()
+        self.assertTrue(r.ok)   # a camera refused does not switch off the plugs
+        self.assertIn("caméra 192.0.2.11 : image OK", r.message)
+        self.assertIn("caméra 192.0.2.12 : image refusée (401 Unauthorized)", r.message)
+
     def test_a_device_refused_by_the_account_is_still_listed_from_the_discovery(self):
         raw = Res(ip="192.0.2.11", message=Res(result=Res(device_model="C310", device_name="Cam", device_id="c9", firmware_version="1.9")))
         seen = Res(ip="192.0.2.9", message=Res(result=Res(device_model="P110M")))

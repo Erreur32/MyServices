@@ -140,6 +140,8 @@ def _merged(type_: str, name: str, conf: dict, old: dict | None) -> dict:
     plain = secrets_store.decrypt_all(new, config_file())
     if missing := TYPES[type_].validate(plain):
         raise SettingsError(", ".join(missing))
+    if why := getattr(TYPES[type_], "refuse", lambda _: "")(plain):   # a value no test catches, such as a Tapo camera given the Tapo login
+        raise SettingsError(why)
     return {"name": name, **new}
 
 
