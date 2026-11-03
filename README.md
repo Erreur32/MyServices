@@ -50,7 +50,7 @@
 > - **Feedback is welcome**: [questions and ideas](https://github.com/Erreur32/MyServices/discussions), bug reports and connector requests
 >   (see below). Pull requests are not handled yet.
 >
-> Every version is tagged and published as a Docker image. Numbers stay **below 2.0.0** until the project is declared stable (`0.35.10`, `0.35.11`…).
+> Every version is tagged and published as a Docker image. Numbers stay **below 2.0.0** until the project is declared stable (`0.36.0`, `0.36.1`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in English).
 
 ## Local only, private by design
@@ -105,7 +105,7 @@ Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
-Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.35.10` pins a version, `:main` tracks the latest commit of the `main` branch.
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.36.0` pins a version, `:main` tracks the latest commit of the `main` branch.
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
 ---
@@ -237,7 +237,7 @@ A connector lets MyServices read a tool through its API, **read-only**: give it 
 | **Storage and backups** | Proxmox Backup Server, Veeam Backup & Replication, Veeam for Microsoft 365, Backrest, borgmatic, UrBackup, TrueNAS, Synology DSM, remote folder (FTP, FTPS, Samba) |
 | **Power** | UPS (NUT) |
 | **AI** | **Hermes Agent**, **GpuViewR**, **Ollama**, llama.cpp, **Open WebUI**, OpenAI-compatible API (vLLM, LM Studio, LocalAI, KoboldCpp, LiteLLM) |
-| **Video and cameras** | **Frigate**, Shinobi, go2rtc, MediaMTX, Owncast |
+| **Video and cameras** | **Frigate**, Shinobi, Reolink, ONVIF (most IP cameras), go2rtc, MediaMTX, Owncast |
 | **Channels** | Discord, Telegram, webhook |
 
 > **In bold: used every day on the author's own network.** The others were written from each service's documentation and **tried against

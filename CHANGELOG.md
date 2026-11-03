@@ -11,6 +11,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.36.0 (2026-11-03)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **ONVIF connector**: any IP camera or recorder that speaks ONVIF (Hikvision, Dahua, Amcrest, Axis, Foscam, Annke, Reolink, Tapo on port 2020): maker, model, firmware, one camera per video source and the current picture, read-only. The account is dated at the camera's own clock, read first without it, so a camera with the wrong time still accepts it. Every address the camera gives is used on its own host only.
+- **Reolink connector**: a Reolink camera or NVR through its HTTP API: model, firmware, each camera and whether it is online, and the current picture, read-only. A guest account is enough.
+
 ## v0.35.10 (2026-11-03)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
