@@ -12,6 +12,7 @@ import { securityFindings, type Area } from "../lib/securityFindings";
 import { wazuhToWatch } from "../lib/wazuh";
 import { useDiscoveries } from "./DiscoveryCard";
 import { tx } from "../lib/i18n";
+import { plainText } from "../lib/richText";
 
 const KEY = "ms.nav.collapsed";
 type Level = "crit" | "warn";
@@ -55,7 +56,7 @@ const SHOWN = 8;   // alerts listed in the dot's tooltip, then « and N more »
 
 /** The tooltip of a dot: what it means, the alerts behind it (as the home page words them, without the bold marks), then what a click does */
 function dotTip(level: Level, why: string[] = []): string {
-  const lines = why.slice(0, SHOWN).map((t) => `• ${t.replaceAll("**", "")}`);
+  const lines = why.slice(0, SHOWN).map((t) => `• ${plainText(t)}`);
   if (why.length > SHOWN) lines.push(tx("… et {0} autres", why.length - SHOWN));
   return [levelText(level), ...lines, tx("Cliquer pour voir les éléments concernés")].join("\n");
 }

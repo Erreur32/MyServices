@@ -7,6 +7,7 @@ import { splitHostName } from "./format";
 import { CHECK, CLEANUP, certIssue, checks, dnsDown, dnsSync, hostName, status } from "./status";
 import { tx } from "./i18n";
 import { healthCauses, hungOnly } from "./machineWatch";
+import { machineTag } from "./richText";
 
 export type TabId = "home" | "history" | "machines" | "services" | "domotique" | "cloudflare" | "ai" | "stream" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
 
@@ -96,22 +97,23 @@ function healthHelp(h: HealthHost, kind?: string): string {
 function healthLine(h: HealthHost, l: "down" | "crit" | "warn", data: Data): Attention {
   const ip = splitHostName(h.name)[1], name = data.machine_list.find((m) => m.ip === ip)?.name || machineOf(h);
   const base = { category: "sante" as const, level: l === "warn" ? "warn" as const : "crit" as const, tab: "machines" as const, sel: HEALTH_SEL, fix: machineFix(ip) };
-  if (l === "down") return { ...base, text: tx("Santé : **{0}** est injoignable", name), action: tx("Voir la machine"), href: ip ? `machines/${ip}` : undefined, help: "" };
+  const tag = machineTag(name);
+  if (l === "down") return { ...base, text: tx("{0} est injoignable", tag), action: tx("Voir la machine"), href: ip ? `machines/${ip}` : undefined, help: "" };
   const cause = healthCauses(h);
-  const general = l === "crit" ? tx("Santé : **{0}** est en état critique", name) : tx("Santé : **{0}** est à surveiller", name);
+  const general = l === "crit" ? tx("{0} est en état critique", tag) : tx("{0} est à surveiller", tag);
   const page = cause.kind ? `machines/${ip}/watch/${cause.kind}` : `machines/${ip}`;
-  return { ...base, text: cause.text ? tx("Santé : **{0}** : {1}", name, cause.text) : general, action: tx("Voir la santé"), href: ip ? page : undefined, help: healthHelp(h, cause.kind) };
+  return { ...base, text: cause.text ? `${tag} ${cause.text}` : general, action: tx("Voir la santé"), href: ip ? page : undefined, help: healthHelp(h, cause.kind) };
 }
 
 /** Liste « à regarder » : rouge d'abord, puis orange, dans l'ordre des onglets. */
 export function attention({ data, health, backups }: Inputs): Attention[] {
   const out: Attention[] = [];
   for (const m of data.machine_list)
-    if (!m.ping && !m.off && !m.disabled) out.push({ category: "machines", level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines", action: tx("Voir la machine"), sel: { state: ["down"] }, href: `machines/${m.ip}`, fix: machineFix(m.ip) });
+    if (!m.ping && !m.off && !m.disabled) out.push({ category: "machines", level: "crit", text: tx("{0} ne répond plus au ping ({1})", machineTag(m.name), m.ip), tab: "machines", action: tx("Voir la machine"), sel: { state: ["down"] }, href: `machines/${m.ip}`, fix: machineFix(m.ip) });
   out.push(...npmWarnings(data.hosts));
   for (const r of data.hosts) {
     const [cls, label] = status(r);
-    if (cls === "bad") out.push({ category: "services", level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", r.machine) : ""), tab: "services", action: tx("Voir le service"), sel: { status: ["bad"] }, href: serviceHref(r), fix: { label: tx("Régler le service"), href: `services/edit/${encodeURIComponent(serviceKey(r))}` } });
+    if (cls === "bad") out.push({ category: "services", level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", machineTag(r.machine)) : ""), tab: "services", action: tx("Voir le service"), sel: { status: ["bad"] }, href: serviceHref(r), fix: { label: tx("Régler le service"), href: `services/edit/${encodeURIComponent(serviceKey(r))}` } });
     const cert = r.enabled && !r.paused ? certIssue(r) : "";
     if (cert) out.push({ category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), cert), tab: "services", action: tx("Voir le site"), sel: { status: ["warn"] }, href: serviceHref(r) });
   }
@@ -122,7 +124,8 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
   const reboot = (health?.hosts || []).filter((h) => h.reboot_required);
   if (reboot.length) {
     const ip = reboot.length === 1 ? splitHostName(reboot[0].name)[1] : "";
-    out.push({ category: "sante", level: "warn", text: tx("Redémarrage demandé sur {0}", names(reboot.map(machineOf))), tab: "machines", action: tx("Voir les machines"), href: ip ? `machines/${ip}/watch/reboot` : undefined });
+    const tags = reboot.map((h) => { const at = splitHostName(h.name)[1]; return machineTag(machineOf(h), at ? `machines/${at}/watch/reboot` : undefined); });
+    out.push({ category: "sante", level: "warn", text: tx("Redémarrage demandé {0}", tags.join(" ")), tab: "machines", action: tx("Voir les machines"), href: ip ? `machines/${ip}/watch/reboot` : undefined });
   }
   if (data.dns) {
     for (const n of dnsDown(data.dns)) out.push({ category: "dns", level: "crit", text: tx("Le serveur DNS **{0}** ne répond pas", n), tab: "dns", action: tx("Voir le DNS"), sel: { alerts: ["on"] } });
