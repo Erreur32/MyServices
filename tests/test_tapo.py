@@ -137,6 +137,15 @@ class CameraPicture(unittest.TestCase):
         self.assertEqual(len(self.cam.asked), 1)
         self.assertIn("Unauthorized", str(e.exception))   # the pause still says why
 
+    def test_a_changed_camera_account_is_tried_at_once(self):
+        c = self.conn(RuntimeError("Unauthorized"))
+        with self.assertRaises(ConnectorError):
+            self.picture(c)
+        c.conf = {**self.conf, "camera_accounts": f"192.0.2.9 cam2 {PW}"}
+        with self.assertRaises(ConnectorError):
+            self.picture(c)
+        self.assertEqual(self.cam.asked, [("cam", f"{PW} two"), ("cam2", PW)])
+
     def test_a_camera_nobody_saw_has_no_picture(self):
         c = self.conn(b"")
         with self.assertRaises(ConnectorError):

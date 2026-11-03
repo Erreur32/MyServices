@@ -22,7 +22,7 @@ AUTH_WORDS = ("credential", "auth", "password", "login", "forbidden")
 SNAPSHOT_PAUSE = 600   # a camera that refused its account is left alone this long: it locks itself after too many failed logins
 CAMERAS_TTL = 7 * 86400   # names and addresses kept for the pictures; every collection writes them again
 _series: dict[str, tuple[float, list]] = {}   # shortcut: kept in memory per process, a restart reads the curves again
-_refused: dict[str, tuple[float, str]] = {}               # same shortcut: a restart may try a refused camera once more
+_refused: dict[tuple, tuple[float, str]] = {}             # same shortcut: a restart may try a refused camera once more
 
 
 def _lib():
@@ -248,7 +248,8 @@ class Tapo(Connector):
             raise ConnectorError("caméra sans compte caméra")
         if ip in _given_tapo_login(self.conf):   # not even tried: failed logins lock the camera
             raise ConnectorError(_TAPO_LOGIN.format(ip))
-        at, why = _refused.get(ip, (0.0, ""))
+        key = (ip, *account)   # a camera account changed since the refusal is tried at once
+        at, why = _refused.get(key, (0.0, ""))
         if time.time() - at < SNAPSHOT_PAUSE:   # the first reason stays said, the camera is not asked again meanwhile
             raise ConnectorError(f"image refusée ({why}) : nouvel essai dans quelques minutes")
         lib = _lib()
@@ -260,8 +261,8 @@ class Tapo(Connector):
         try:
             return bytes(asyncio.run(run()))
         except Exception as e:   # noqa: BLE001 : the library has no public error type
-            _refused[ip] = (time.time(), _reason(str(e)))
-            raise ConnectorError(f"image refusée ({_refused[ip][1]})") from None
+            _refused[key] = (time.time(), _reason(str(e)))
+            raise ConnectorError(f"image refusée ({_refused[key][1]})") from None
 
     @staticmethod
     def _summary(devices: list[dict], errors: list[str]) -> dict:
