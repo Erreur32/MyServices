@@ -70,14 +70,14 @@ def _shinobi_camera(m: dict) -> dict:
 class Shinobi(StatusConnector):
     """Shinobi CCTV: each camera (monitor) with its mode (watch only, record, stopped) and its state. The API key is part of the address
     (/<api key>/monitor/<group key>), read-only key from the Shinobi dashboard › API. Routes (GET): /<key>/monitor/<group>,
-    /<key>/jpeg/<group>/<monitor>/s.jpg (the picture an admin asks for, never kept)."""
+    /<key>/icon/<group>/<monitor>?noflags=1 (a picture taken at once, never kept; the key needs « Can View Snapshots »)."""
     type = "shinobi"
     label = "Shinobi"
     images = ("shinobisystems/shinobi", "registry.gitlab.com/shinobi-systems/shinobi", "migoller/shinobidocker")
     tested = ()
     fields = (
         Field("url", "Adresse de Shinobi", "url", required=True, help="http://<IP>:8080"),
-        Field("api_key", "Clé d'API", "password", required=True, secret=True, help="tableau de bord Shinobi › API : une clé avec les seuls droits de lecture"),
+        Field("api_key", "Clé d'API", "password", required=True, secret=True, help="tableau de bord Shinobi › API : une clé avec les seuls droits de lecture, plus « Can View Snapshots » pour l'image des caméras"),
         Field("group_key", "Clé de groupe", "text", required=True, help="Paramètres du compte › Clé de groupe"),
         VERIFY,
     )
@@ -111,7 +111,11 @@ class Shinobi(StatusConnector):
         mid = next((m.get("mid") for m in self._monitors() if (m.get("name") or m.get("mid")) == cam), None)
         if not mid:
             raise ConnectorError("caméra inconnue")
-        return self.get(f"{self._base()}/jpeg/{self._group()}/{urllib.parse.quote(str(mid), safe='')}/s.jpg", binary=True)
+        # /icon/ takes a picture of the stream at once (Shinobi's ffmpeg); /jpeg/…/s.jpg is only written when « JPEG API » is on for that camera
+        img = self.get(f"{self._base()}/icon/{self._group()}/{urllib.parse.quote(str(mid), safe='')}?noflags=1", binary=True)
+        if img[:1] == b"{":   # Shinobi answers 200 with {ok: false} when the key may not view pictures
+            raise ConnectorError("Shinobi refuse l'image : cocher « Can View Snapshots » sur la clé d'API (Shinobi › API)")
+        return img
 
 
 class Reolink(StatusConnector):

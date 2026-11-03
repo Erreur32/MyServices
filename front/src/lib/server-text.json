@@ -1,6 +1,7 @@
 {
  "exact": {
   "API REST introuvable (vCenter 6.7 ou plus récent ?)": "REST API not found (vCenter 6.7 or newer?)",
+  "Shinobi refuse l'image : cocher « Can View Snapshots » sur la clé d'API (Shinobi › API)": "Shinobi refuses the picture: tick « Can View Snapshots » on the API key (Shinobi › API)",
   "Archify n'est pas installé dans cette image": "Archify is not installed in this image",
   "ce connecteur n'offre pas de flux en direct": "this connector has no live stream",
   "une génération est déjà en cours": "a generation is already running",
@@ -1024,7 +1025,7 @@
     "seulement si llama-server est lancé avec --api-key": "only if llama-server is started with --api-key",
     "smb": "smb",
     "sonarr": "sonarr",
-    "tableau de bord Shinobi › API : une clé avec les seuls droits de lecture": "Shinobi dashboard › API: a key with read-only permissions",
+    "tableau de bord Shinobi › API : une clé avec les seuls droits de lecture, plus « Can View Snapshots » pour l'image des caméras": "Shinobi dashboard › API: a key with read-only permissions, plus « Can View Snapshots » for the camera pictures",
     "tableau de bord http://<IP>:19119 (le plus complet) ou passerelle http://<IP>:8642": "dashboard http://<IP>:19119 (the most complete) or gateway http://<IP>:8642",
     "tailscale": "tailscale",
     "un administrateur local en lecture seule (« View Only »), sans double authentification": "a local read-only administrator (“View Only”), without two-factor authentication",

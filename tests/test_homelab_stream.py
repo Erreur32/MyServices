@@ -86,7 +86,7 @@ class Stream(unittest.TestCase):
             {"mid": "a1", "name": "Entrée", "mode": "record", "status": "Recording", "details": details, "host": "10.0.0.5", "path": "/secret"},
             {"mid": "b2", "name": "Garage", "mode": "start", "status": "Died", "details": json.dumps({"auto_host": f"rtsp://{ACCOUNT}@10.0.0.6/live"})},
             {"mid": "c3", "name": "Cave", "mode": "stop", "status": "Stopped"}]),
-            f"/{KEY}/jpeg/grp/a1/s.jpg": (200, JPEG)}
+            f"/{KEY}/icon/grp/a1?noflags=1": (200, JPEG)}
         c = self.make(Shinobi, api_key=KEY, group_key="grp")
         d = c.collect()
         cams = d["stream"]["cameras"]
@@ -99,6 +99,10 @@ class Stream(unittest.TestCase):
         self.assertEqual(c.snapshot("Entrée"), JPEG)
         with self.assertRaises(ConnectorError):
             c.snapshot("Inconnue")
+        Fake.routes[f"/{KEY}/icon/grp/a1?noflags=1"] = (200, {"ok": False, "msg": "Not Authorized"})   # a key without « Can View Snapshots »
+        with self.assertRaises(ConnectorError) as e:
+            c.snapshot("Entrée")
+        self.assertIn("Can View Snapshots", str(e.exception))
         self.assertFalse(any(KEY in route for _, route in reqstats._rows), "the key never reaches the request counters")
         Fake.routes = {f"/{KEY}/monitor/grp": (200, {"ok": False, "msg": "Not Authorized"})}
         with self.assertRaises(ConnectorError) as e:
