@@ -134,6 +134,10 @@ class CameraPicture(unittest.TestCase):
             self.picture(c)
         self.assertIn("majuscules", str(e.exception))
 
+    def test_the_snapshot_object_of_the_library_gives_its_bytes(self):
+        c = self.conn(NS(data=b"\xff\xd8\xffjpeg", content_type="image/jpeg"))   # tapo 0.12
+        self.assertEqual(self.picture(c), b"\xff\xd8\xffjpeg")
+
     def test_a_camera_nobody_saw_has_no_picture(self):
         c = self.conn(b"")
         with self.assertRaises(ConnectorError):

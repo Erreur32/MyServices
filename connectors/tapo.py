@@ -253,7 +253,8 @@ class Tapo(Connector):
             return await handler.get_snapshot(*account)
 
         try:
-            return bytes(asyncio.run(run()))
+            shot = asyncio.run(run())
+            return bytes(getattr(shot, "data", shot))   # tapo 0.12 gives a Snapshot (data, content_type), older ones the bytes
         except Exception as e:   # noqa: BLE001 : the library has no public error type
             why = _reason(str(e))
             hint = " : compte caméra refusé, identifiant et mot de passe tiennent compte des majuscules" if "401" in why else ""
