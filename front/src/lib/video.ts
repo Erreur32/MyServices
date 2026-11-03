@@ -10,7 +10,7 @@ export type StreamCard = ServiceCard<StreamRole>;
 
 /** The video connector types, with their role and name when their row has no « stream » block yet (data written before it existed) */
 const STREAM_TYPES: Record<string, [StreamRole, string]> = {
-  frigate: ["nvr", "Frigate"], shinobi: ["nvr", "Shinobi"], reolink: ["nvr", "Reolink"], go2rtc: ["relay", "go2rtc"], mediamtx: ["relay", "MediaMTX"], owncast: ["live", "Owncast"],
+  frigate: ["nvr", "Frigate"], shinobi: ["nvr", "Shinobi"], reolink: ["nvr", "Reolink"], onvif: ["nvr", "ONVIF"], go2rtc: ["relay", "go2rtc"], mediamtx: ["relay", "MediaMTX"], owncast: ["live", "Owncast"],
 };
 /** The video apps of known_apps.py, whatever category the rules of this install give them */
 const ROLE_OF_APP: Record<string, StreamRole> = {

@@ -26,7 +26,7 @@ const FILES: Record<string, string> = {
   incus: "incus", lxd: "lxd", virtualbox: "virtualbox", "hyper-v": "hyper-v",
   ollama: "ollama", "llama.cpp": "llama-cpp", "hermes agent": "hermes-agent", hermes: "hermes-agent",
   "open webui": "open-webui", vllm: "vllm", localai: "localai", "api compatible openai": "openai", "lm studio": "openai", litellm: "openai", koboldcpp: "openai",
-  shinobi: "shinobi.png", reolink: "reolink", go2rtc: "go2rtc.png", owncast: "owncast", zoneminder: "zoneminder.png", motioneye: "motioneye", "agent dvr": "agent-dvr.png",
+  shinobi: "shinobi.png", reolink: "reolink", onvif: "onvif", go2rtc: "go2rtc.png", owncast: "owncast", zoneminder: "zoneminder.png", motioneye: "motioneye", "agent dvr": "agent-dvr.png",
   scrypted: "scrypted.png", "kerberos.io": "kerberos", kerberos: "kerberos", restreamer: "restreamer",
 };
 

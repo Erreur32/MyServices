@@ -247,3 +247,4 @@ cba36395d4b376f0f42bc48c1247715a  front/public/icons/porkbun.svg
 5442093d0976a93c63dec1a09e0ce058  front/public/icons/scaleway.svg
 c06a8893c25a37ffc52afb96b76e57cd  front/public/icons/vultr.svg
 2641efa97a47b6bb9bece81a4779b7c7  front/public/icons/reolink.svg
+13c1fe985109849eff342c5388ff66ee  front/public/icons/onvif.svg

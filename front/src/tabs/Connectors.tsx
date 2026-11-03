@@ -49,7 +49,7 @@ const WATCH = "*watch", OFF = "*off";   // filters of « My connectors », besid
 // The page that shows what a connector reads
 const PAGE: Record<string, string> = {
   cloudflare: "cloudflare/overview", netatmo: "domotique/netatmo", tapo: "domotique/tapo", mynetwork: "network", unifi: "network", freebox: "network", "upnp-box": "network", fritzbox: "network", sfrbox: "network", livebox: "network", "vodafone-station": "network", "sagemcom-fast": "network", bbox: "network", "swisscom-box": "network", "connect-box": "network", "liberty-gateway": "network", "speedport": "network", "technicolor-gateway": "network", "tmobile-home-internet": "network", "hitron-coda": "network", "verizon-fios": "network", "arris-surfboard": "network", "openwrt": "network", "mikrotik": "network", "asus-router": "network", "tplink-router": "network", logviewr: "security", wazuh: "security", npm: "services",
-  ollama: "ai", "open-webui": "ai", hermes: "ai", gpuviewr: "ai", frigate: "stream", reolink: "stream",
+  ollama: "ai", "open-webui": "ai", hermes: "ai", gpuviewr: "ai", frigate: "stream", reolink: "stream", onvif: "stream",
 };
 const DOT: Record<CardTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", off: "bg-dim" };
 const CHIP: Record<CardTone, string> = { ok: "", warn: "!border-warn/60 !text-warn", bad: "!border-bad/60 !text-bad", off: "" };

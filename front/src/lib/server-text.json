@@ -1171,7 +1171,15 @@
   "Un compte invité de la caméra suffit. MyServices lit le modèle, le firmware, les caméras et l'image du moment, jamais le flux.": "A guest account of the camera is enough. MyServices reads the model, the firmware, the cameras and the current picture, never the stream.",
   "http://<IP>": "http://<IP>",
   "un compte de la caméra ; un compte « invité » suffit pour lire": "an account of the camera; a « guest » account is enough to read",
-  "accès refusé : compte de la caméra à vérifier": "access refused: check the camera's account"
+  "accès refusé : compte de la caméra à vérifier": "access refused: check the camera's account",
+  "Activez ONVIF dans les réglages de la caméra (souvent coupé par défaut) et créez-y un compte ONVIF : un compte « utilisateur » suffit.": "Turn ONVIF on in the camera's settings (often off by default) and create an ONVIF account there: a « user » account is enough.",
+  "Adresse de la caméra": "Address of the camera",
+  "MyServices lit le fabricant, le modèle, le firmware, les caméras et l'image du moment, jamais le flux.": "MyServices reads the maker, the model, the firmware, the cameras and the current picture, never the stream.",
+  "ONVIF": "ONVIF",
+  "Utilisateur ONVIF": "ONVIF user",
+  "http://<IP>, avec le port ONVIF s'il n'est pas 80 (http://<IP>:8000)": "http://<IP>, with the ONVIF port when it is not 80 (http://<IP>:8000)",
+  "accès refusé : compte ONVIF à vérifier (ou ONVIF coupé sur la caméra)": "access refused: check the ONVIF account (or ONVIF is off on the camera)",
+  "la caméra ne donne pas d'image par ONVIF": "the camera gives no picture over ONVIF"
  },
  "templates": [
   ["^connexion refusée par le routeur \\(code (.+)\\) : le compte doit exister dans /etc/config/rpcd$", "login refused by the router (code $1): the account must exist in /etc/config/rpcd"],
