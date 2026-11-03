@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.37.3 (2026-11-03)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Shinobi, camera pictures**: a picture is now taken at once from the camera's stream by Shinobi (`/icon/` route), so « JPEG API » no longer has to be on for each camera. When the API key may not view pictures, the tile says to tick « Can View Snapshots » on the key, instead of « the answer is not a picture ».
+
 ## v0.37.2 (2026-11-03)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
