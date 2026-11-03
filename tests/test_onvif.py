@@ -1,6 +1,7 @@
 """ONVIF connector on a fake camera: its clock dates the account, one camera per video source, addresses kept on the camera's host."""
 import base64
 import hashlib
+import importlib.util
 import re
 import sys
 import time
@@ -25,6 +26,7 @@ def profile(token: str, source: str) -> str:
     return f'<trt:Profiles token="{token}"><tt:Name>{token}</tt:Name><tt:VideoSourceConfiguration><tt:SourceToken>{source}</tt:SourceToken></tt:VideoSourceConfiguration></trt:Profiles>'
 
 
+@unittest.skipUnless(importlib.util.find_spec("defusedxml"), "defusedxml lives in the image")
 class Camera(unittest.TestCase):
     def make(self, sources=("v1",), media="http://192.0.2.99:8080/onvif/media", snap="http://192.0.2.99/snap.jpg?p=1", refuse=False):
         c = onvif.Onvif({"name": "o", "url": "http://10.0.0.8", "user": "viewer", "password": PW}, Context(timeout=5))
