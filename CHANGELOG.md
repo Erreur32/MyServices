@@ -11,6 +11,20 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.37.0 (2026-11-03)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+- **Settings › Connectors, one page per connector**: a card opens the connector's own page (`#settings/connectors/<type>/<name>`), alone in a blue frame: its state, where a warning comes from, what it reads and its settings. Back, Close and Cancel return to the list with its filter and search; unsaved settings ask before leaving.
+- **Connectors, where a warning comes from**: a block tells apart the reading by MyServices (failed, stale, partial) and what the tool itself reports (a Nextcloud share without a password: to handle in Nextcloud). « To check » becomes two chips, « Reading to check » and « Reported by the tool »; a card says « Stale reading », « Partial reading » or « Reported: 1 item ».
+- **Connectors menu dot**: it also lights for a stale or partial reading, never for a point the tool reports, and a click on it opens the page on « Reading to check ». A partial SSH reading of a machine stays on Machines.
+- **Services, one page per service**: a card opens the service's own page (`#services/all/<place>`): where it runs, the full sheet of the place picked, then its settings, always open. A click on a row changes the place; the pencil of each row is gone. Links to a service (home page) open its page.
+- **Services, the follow button shows the state**: green when the service is followed, orange when it is hidden.
+- **Machine page**: the machine's information sits in one blue frame, with « Machines » and « Close » above it, like the connector and service pages.
+- **Home, « To deal with now »**: the machine leads the line as a badge, each cause on its own line with its duration; « Restart requested » lists its machines as badges.
+- **Adding a connector**: searching a camera maker without its own connector (Abus, Hikvision, Dahua, Axis...) finds ONVIF.
+
 ## v0.36.0 (2026-11-03)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

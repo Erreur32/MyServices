@@ -54,7 +54,7 @@ describe("accueil", () => {
     d.dns = { orphans: [{ domain: "vieux.lan" }], servers: {}, rewrites_diff: [], user_rules_diff: [] } as unknown as Data["dns"];
     const items = attention({ data: d, now: NOW, health: { timestamp: "", hosts: [{ id: "srv", name: "srv · prod · 10.0.0.2", reachable: true, level: "ok", reboot_required: true }] } });
     expect(items.map((i) => i.tab).sort()).toEqual(["dns", "machines"]);
-    expect(items.find((i) => i.tab === "machines")!.text).toBe("Redémarrage demandé sur **srv · prod**");
+    expect(items.find((i) => i.tab === "machines")!.text).toBe("Redémarrage demandé [[m:srv · prod|machines/10.0.0.2/watch/reboot]]");
     expect(items.find((i) => i.tab === "dns")!.text).toContain("1 réécriture AdGuard orpheline");
   });
 
@@ -69,8 +69,8 @@ describe("accueil", () => {
     });
     expect(items.map((i) => [i.level, i.tab])).toEqual([
       ["crit", "services"], ["crit", "backups"], ["warn", "services"], ["warn", "machines"]]);
-    expect(items[0].text).toBe("**plex.lan** ne répond plus (backend down), sur srv");
-    expect(items[3].text).toBe("Santé : **srv · prod** : disque / rempli à 91 %");  // nom avec « · » gardé entier
+    expect(items[0].text).toBe("**plex.lan** ne répond plus (backend down), sur [[m:srv]]");
+    expect(items[3].text).toBe("[[m:srv · prod]] disque / rempli à 91 %");  // nom avec « · » gardé entier
     expect(items[3].href).toBe("machines/10.0.0.77/watch/disk");   // the link opens on the frame of the trouble
     expect(items[3].fix).toEqual({ label: "Régler la machine", href: "machines/10.0.0.77/settings" });
   });
@@ -82,25 +82,25 @@ describe("santé sur l'accueil", () => {
 
   it("donne le nom de la machine et la cause signalée par le serveur, pas ce qui attend", () => {
     const it0 = line({ checks: { load: "warn" }, load: { available: true, load_1: 8, ncpu: 4 } as HealthHost["load"], apt: { upgradable: 3 } as HealthHost["apt"] }, [{ ip: "10.0.0.2", name: "Tower", ping: true }]);
-    expect(it0.text).toBe("Santé : **Tower** : charge 8 pour 4 CPU");
+    expect(it0.text).toBe("[[m:Tower]] charge 8 pour 4 CPU");
     expect(it0.href).toBe("machines/10.0.0.2/watch/load");
   });
 
   it("deux causes au plus, le reste compté", () => {
     const disks = ["/", "/a", "/b"].map((mount) => ({ mount, used_pct: 91, warning: true }));
-    expect(line({ disks }).text).toBe("Santé : **10.0.0.2** : disque / rempli à 91 %, disque /a rempli à 91 % (+1)");
+    expect(line({ disks }).text).toBe("[[m:10.0.0.2]] disque / rempli à 91 %\ndisque /a rempli à 91 % (+1)");
   });
 
   it("sans cause connue : la phrase générale et la page de la machine", () => {
     const it0 = line({});
-    expect(it0.text).toBe("Santé : **10.0.0.2** est à surveiller");
+    expect(it0.text).toBe("[[m:10.0.0.2]] est à surveiller");
     expect(it0.href).toBe("machines/10.0.0.2");
   });
 
   it("the whole sentence, and a hint that follows the cause", () => {
     const hung = "nov. 02 11:08:18 host kernel: INFO: task bash:2337998 blocked for more than 120 seconds.";
     const k = line({ checks: { kernel: "warn" }, kernel: { has_errors: true, samples: [hung, hung, hung] } });
-    expect(k.text).toBe("Santé : **10.0.0.2** : 3 processus bloqué(s) sur le disque à 11:08 (copie, sauvegarde ?)");   // never cut
+    expect(k.text).toBe("[[m:10.0.0.2]] 3 processus bloqué(s) sur le disque à 11:08 (copie, sauvegarde ?)");   // never cut
     expect(k.help).toContain("copie tournait");
     expect(line({ disks: [{ mount: "/", used_pct: 91, warning: true }] } as Partial<HealthHost>).help).toContain("monte le seuil");
     expect(line({ checks: { load: "warn" }, load: { available: true, load_1: 8, ncpu: 4 } as HealthHost["load"] }).help).toBe("");   // no limit to change: no hint
@@ -146,5 +146,15 @@ describe("every attention line leads somewhere", () => {
     expect(got.find((i) => i.category === "machines")?.sel).toEqual({ state: ["down"] });
     expect(got.find((i) => i.text.startsWith("Docker illisible"))?.href).toBe("settings/machines");
     expect(got.find((i) => i.category === "sauvegardes")?.action).toBe("Voir le jeu");
+  });
+
+  it("connector dot: a failed, stale or partial reading, never a point the tool reports", () => {
+    const d = { generated: "", hosts: [], machine_list: [], connectors: [
+      { type: "a", name: "fail", ok: false, message: "refused" }, { type: "b", name: "old", ok: true, stale: true, message: "" },
+      { type: "c", name: "half", ok: true, warning: "lecture partielle : ss without root", message: "" }, { type: "process", name: "dev", ip: "10.0.0.2", ok: true, warning: "x", message: "" }, { type: "nextcloud", name: "fine", ok: true, message: "" }] } as unknown as Data;
+    const texts = attention({ data: d, now: NOW }).filter((i) => i.dot === "connectors").map((i) => i.text);
+    expect(texts).toHaveLength(3);
+    expect(texts[1]).toContain("lecture périmée");
+    expect(texts[2]).toContain("lecture partielle : ss without root");
   });
 });

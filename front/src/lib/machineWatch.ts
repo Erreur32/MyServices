@@ -2,6 +2,7 @@
 // pour la partie santé, à la liste de problèmes de l'onglet Machines (mêmes phrases aux deux endroits).
 import type { Connector, HealthHost, HostSystem, Machine } from "../types";
 import { bytes, dur } from "./format";
+import { sinceTag } from "./richText";
 import { shortProbe } from "./machineFigures";
 import { MSTATE, mState } from "./machines";
 import { tx } from "./i18n";
@@ -9,7 +10,7 @@ import { tx } from "./i18n";
 export type WatchTone = "bad" | "warn" | "info";
 export type WatchKind = "down" | "ssh" | "disk" | "systemd" | "docker" | "kernel" | "smart" | "load" | "ssh_auth" | "mem" | "temp" | "reboot" | "updates" | "services" | "connector" | "access"
   | "pm2" | "raid" | "zfs" | "mounts" | "ntp" | "timers" | "auto_upd";
-export interface WatchItem { tone: WatchTone; kind: WatchKind; text: string; detail?: string[] }   // detail: the messages behind the notice (kernel errors…), shown in its tooltip and in the machine window
+export interface WatchItem { tone: WatchTone; kind: WatchKind; text: string; detail?: string[]; lead?: string; since?: string }   // lead and since: the text before « , depuis » and the duration, for the home line   // detail: the messages behind the notice (kernel errors…), shown in its tooltip and in the machine window
 
 /** The section of the machine window where a notice is explained (data-sec), so a badge can lead the eye there */
 export const WATCH_SECTION: Record<WatchKind, "system" | "health" | "updates" | "access" | "services"> = {   // system: the measures (processor, memory, disks, temperature)
@@ -114,7 +115,7 @@ function withSince(items: WatchItem[], h: HealthHost): WatchItem[] {
   const since = new Map(Object.entries(h.check_s ?? {}).map(([check, s]) => [CHECK_KIND[check], s]));
   return items.map((i) => {
     const s = i.kind === "temp" ? 0 : since.get(i.kind) ?? 0;
-    return s >= 60 ? { ...i, text: tx("{0}, depuis {1}", i.text, dur(s)) } : i;
+    return s >= 60 ? { ...i, text: tx("{0}, depuis {1}", i.text, dur(s)), lead: i.text, since: dur(s) } : i;
   });
 }
 
@@ -179,7 +180,7 @@ export const hungOnly = (h: HealthHost): boolean => !!h.kernel?.samples?.length 
 export function healthCauses(h: HealthHost, max = 2): { text: string; kind?: WatchKind } {
   const flagged = new Set(Object.entries(h.checks ?? {}).filter(([, level]) => level === "warn" || level === "crit").map(([check]) => CHECK_KIND[check]));
   const items = healthItems(h).filter((i) => i.tone !== "info" && (!flagged.size || flagged.has(i.kind))).sort((a, b) => RANK[b.tone] - RANK[a.tone]);
-  const shown = items.slice(0, max).map((i) => i.text).join(", ");
+  const shown = items.slice(0, max).map((i) => (i.since ? `${i.lead} ${sinceTag(tx("depuis {0}", i.since))}` : i.text)).join("\n");   // one cause per line, its duration in grey
   return { text: items.length > max ? tx("{0} (+{1})", shown, items.length - max) : shown, kind: items[0]?.kind };
 }
 

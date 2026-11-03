@@ -3,10 +3,12 @@ import type { ConnectorInstance, ServiceStatus } from "../types";
 import { connectorAdvice, type ConnectorAdvice } from "./connectorAdvice";
 import { tx } from "./i18n";
 
-export type CardTone = "ok" | "warn" | "bad" | "off";
+export type CardTone = "ok" | "warn" | "bad" | "off" | "info";
+/** Where a warning comes from: the reading by MyServices, or what the tool itself reports (a Nextcloud share) */
+export type CardSource = "read" | "tool" | "";
 export interface CardFigure { label: string; value: string; tone?: "ok" | "warn" | "bad" }
 export interface CardView {
-  tone: CardTone; state: string; figures: CardFigure[]; facts: CardFigure[]; problems: string[];
+  tone: CardTone; state: string; source: CardSource; figures: CardFigure[]; facts: CardFigure[]; problems: string[];
 }
 
 // Plain words for what a connector counts; `facts` and `problems` are told by the card itself, the others say the same number twice
@@ -28,14 +30,14 @@ export function cardView(inst: ConnectorInstance, card?: ServiceStatus): CardVie
   const facts: CardFigure[] = (card?.facts ?? []).map((f) => ({ label: f.label, value: f.value, tone: f.tone }));
   const problems = card?.problems ?? [];
   const figures = [...facts.filter((f) => f.value.length <= SHORT), ...counted].slice(0, 3);
-  const base = { figures, facts: facts.length ? facts : counted, problems };   // facts already tell what the counters say
+  const base = { figures, facts: facts.length ? facts : counted, problems, source: "" as CardSource };   // facts already tell what the counters say
   if (!inst.enabled) return { ...base, tone: "off", state: tx("Coupé") };
   if (!s) return { ...base, tone: "off", state: tx("Pas encore lu") };
   if (s.pending) return { ...base, tone: "off", state: tx("Relecture") };
-  if (!s.ok) return { ...base, tone: "bad", state: tx("En échec") };
-  if (s.stale) return { ...base, tone: "warn", state: tx("Périmé") };
-  if (s.warning) return { ...base, tone: "warn", state: tx("Partiel") };
-  if (problems.length) return { ...base, tone: "warn", state: problems.length > 1 ? tx("{0} points", problems.length) : tx("1 point") };
+  if (!s.ok) return { ...base, source: "read", tone: "bad", state: tx("En échec") };
+  if (s.stale) return { ...base, source: "read", tone: "warn", state: tx("Lecture périmée") };
+  if (s.warning) return { ...base, source: "read", tone: "warn", state: tx("Lecture partielle") };
+  if (problems.length) return { ...base, source: "tool", tone: "info", state: problems.length > 1 ? tx("Signalé : {0} points", problems.length) : tx("Signalé : 1 point") };
   return { ...base, tone: "ok", state: tx("Lu") };
 }
 
@@ -60,11 +62,12 @@ export function cardNotice(inst: ConnectorInstance, view: CardView): CardNotice 
   return point ? { text: point, tone: "warn" } : null;
 }
 
-export const toWatch = (v: CardView) => v.tone === "warn" || v.tone === "bad";
+export const READ = "*read", TOOL = "*tool";   // chips of « My connectors »: a reading to look at (also ticked by the menu dot), a point the tool reports
 
 /** The sentence above the list */
 export function cardsTitle(views: CardView[]): string {
-  const failing = views.filter((v) => v.tone === "bad").length, watch = views.filter((v) => v.tone === "warn").length;
+  const failing = views.filter((v) => v.tone === "bad").length, read = views.filter((v) => v.source === "read").length, tool = views.filter((v) => v.source === "tool").length;
   const head = failing ? tx("{0} connecteurs, {1} en échec.", views.length, failing) : tx("{0} connecteurs, aucun en échec.", views.length);
-  return watch ? `${head} ${tx("{0} à vérifier.", watch)}` : head;
+  const more = [read ? tx("{0} à revoir côté lecture", read) : "", tool ? tx("{0} signalés par l'outil", tool) : ""].filter(Boolean).join(", ");
+  return more ? `${head} ${more}.` : head;
 }

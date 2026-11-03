@@ -22,7 +22,7 @@ import type { Machine } from "../types";
 import { cellColor, pct, pctTone, type Item, type Report } from "./Availability";
 import { MachineModal } from "./MachinesSettings";
 import { COLOR, StatTile } from "../components/StatTile";
-import { BackButton } from "../components/BackButton";
+import { BackButton, PageExit } from "../components/BackButton";
 import { WazuhCard } from "../components/WazuhCard";
 import type { MachineFigure } from "../lib/machineFigures";
 import { METRIC_COLUMN, minMax, spanStart, sparkPath, SPAN_S, type MetricKey, type MetricPoint } from "../lib/sparkline";
@@ -236,8 +236,10 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
     {admin && <a href={`#machines/${m.ip}/settings`} className={`${quiet} no-underline`}><SlidersHorizontal size={14} aria-hidden />{tx("Réglages")} ›</a>}
   </>;
   return (
-    <div className="flex flex-col gap-4 py-4">
-      {head(backButton(tx("Machines"), onBack), right)}
+    <div className="flex flex-col gap-3 py-4">
+      <PageExit label={tx("Machines")} onLeave={onBack} />
+      <section className="flex flex-col gap-4 rounded-xl border border-link bg-bg2 p-3 ring-2 ring-link sm:p-4" aria-label={m.name}>
+      {head(null, right)}
       {asking && <FollowAsk m={m} onClose={() => setAsking(false)} />}
       {m.disabled && <NotFollowedBanner />}
       <div className="flex flex-wrap items-stretch gap-2">
@@ -254,6 +256,7 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
         running: guestsOf(m, snap.data.virtualization, snap.data.machine_list).length ? <GuestsCard snap={snap} m={m} /> : null,
         protection: <WazuhCard snap={snap} ip={m.ip} name={m.name} />,
       })}
+      </section>
     </div>
   );
 }

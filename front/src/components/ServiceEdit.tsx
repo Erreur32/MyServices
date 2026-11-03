@@ -56,7 +56,7 @@ function machineLabel(r: Host): string {
 
 const changed = (a: Form, b: Form) => (Object.keys(a) as (keyof Form)[]).filter((k) => a[k] !== b[k]).length;
 
-export function ServiceEdit({ r, logo, onClose }: Readonly<{ r: Host; logo: ReactNode; onClose: () => void }>) {
+export function ServiceEdit({ r, logo, onClose, onCancel = onClose, onDirty }: Readonly<{ r: Host; logo: ReactNode; onClose: () => void; onCancel?: () => void; onDirty?: (d: boolean) => void }>) {
   const [doc, setDoc] = useState<MetaDoc | null>(null), [start, setStart] = useState<Form | null>(null), [f, setF] = useState<Form | null>(null);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -65,6 +65,7 @@ export function ServiceEdit({ r, logo, onClose }: Readonly<{ r: Host; logo: Reac
       setDoc(d); setStart(form); setF(form);
     }).catch((err) => setNote({ ok: false, text: (err as Error).message }));
   }, [r.type, r.id]);
+  useEffect(() => onDirty?.(!!f && !!start && changed(f, start) > 0), [f, start, onDirty]);   // a service's page asks before leaving unsaved settings
   if (!f || !start || !doc) return <NoteLine note={note} />;
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF({ ...f, [k]: v });
   const npmOpen = r.type === "proxy" && !r.acl && !r.acl_adv;   // « public on purpose » only means something for an NPM host without protection
@@ -150,7 +151,7 @@ export function ServiceEdit({ r, logo, onClose }: Readonly<{ r: Host; logo: Reac
       <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-line/60 bg-card/95 px-3 py-2">
         <span className="mr-auto text-sm text-muted">{n ? tx("{0} changement(s) non enregistré(s)", n) : tx("Aucun changement")}</span>
         <NoteLine note={note} />
-        <button type="button" className={quiet} onClick={onClose}>{tx("Annuler")}</button>
+        <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
         <button type="submit" className={primary} disabled={busy || !n}><Save size={14} aria-hidden />{tx("Enregistrer")}</button>
       </div>
     </form>

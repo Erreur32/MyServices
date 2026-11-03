@@ -3,8 +3,8 @@
 // with its pencil. The plumbing stays folded at the bottom.
 import { scoreTone } from "../lib/figureTones";
 import { usePageView } from "../lib/route";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, EyeOff, Globe, Layers, Pencil, Plus, Server, Boxes, Undo2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, EyeOff, Globe, Layers, Plus, Server, Boxes, Undo2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ipNum } from "../lib/format";
@@ -28,7 +28,8 @@ import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
 import { ManualActions, ManualService, type ManualInitial } from "../components/ManualService";
 import { StatTile } from "../components/StatTile";
-import { input, primary } from "../lib/forms";
+import { input, primary, quiet } from "../lib/forms";
+import { LeaveAsk, PageExit } from "../components/BackButton";
 import { figures, mergePorts, toWatch } from "../lib/servicesState";
 import { groupPorts, groupServices, groupsTitle, hostDomains, sections, toCheck, type GroupTone, type ServiceGroup } from "../lib/serviceGroups";
 import { HeadTags } from "../components/HeadTags";
@@ -36,7 +37,6 @@ import { PageHead } from "../components/PageHead";
 import { HistoryTile, useServicesHistory } from "../components/HistoryTile";
 import { PeriodSwitch, usePeriod } from "../components/PeriodSwitch";
 import type { Period } from "../lib/tileHistory";
-import { flash } from "../lib/flash";
 import { isHidden, serviceKey, setServiceHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidden";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
@@ -165,10 +165,10 @@ const ROW_BUTTON = "shrink-0 rounded-md border border-txt/25 bg-bg p-1 text-txt 
 
 function HideToggle({ r, hidden, watched }: Readonly<{ r: Host; hidden: boolean; watched: boolean }>) {
   const toggle = (e: { stopPropagation: () => void }) => { e.stopPropagation(); void setServiceHidden(r, hostName(r), !hidden, !watched); };
-  if (hidden) return <button type="button" className={ROW_BUTTON} title={tx("Afficher de nouveau dans les alertes")} aria-label={tx("Afficher de nouveau dans les alertes")} onClick={toggle}><Undo2 size={16} aria-hidden /></button>;
+  if (hidden) return <button type="button" className={`${ROW_BUTTON} !border-warn/60 !text-warn`} title={tx("Afficher de nouveau dans les alertes")} aria-label={tx("Afficher de nouveau dans les alertes")} onClick={toggle}><Undo2 size={16} aria-hidden /></button>;
   const tip = watched ? tx("Masquer des alertes et du point du menu tant que le problème ne change pas")
     : tx("Ne plus suivre ce service : plus jamais dans les alertes ni dans le point du menu, même en panne, jusqu'à ce qu'il soit réaffiché");
-  return <button type="button" className={ROW_BUTTON} title={tip} aria-label={tx("Masquer des alertes")} onClick={toggle}><EyeOff size={16} aria-hidden /></button>;
+  return <button type="button" className={`${ROW_BUTTON} !border-ok/50 !text-ok`} title={tip} aria-label={tx("Masquer des alertes")} onClick={toggle}><EyeOff size={16} aria-hidden /></button>;   // green: followed, orange: hidden, the state at a glance
 }
 
 const SERVICE_VIEWS = ["watch", "all", "fresh", "item", "edit", "manual", "new"] as const;
@@ -181,8 +181,8 @@ const GROUP_DOT: Record<GroupTone, string> = { ok: "bg-ok", warn: "bg-warn", bad
 const GROUP_EDGE: Record<GroupTone, string> = { ok: "border-dim/50", warn: "border-warn/50", bad: "border-bad/60", off: "border-dim/50" };
 const groupState = (g: ServiceGroup) => ({ ok: tx("En ligne"), warn: tx("À vérifier"), bad: tx("En panne"), off: tx("Désactivé") })[g.tone];
 
-/** One row of an opened card: where the service runs; a click shows its sheet under the table */
-function PlaceRow({ r, ports, hidden, watched, admin, picked, editing, onPick, onEdit, onNote }: Readonly<{ r: Host; ports: Host[]; hidden: boolean; watched: boolean; admin: boolean; picked: boolean; editing: boolean; onPick: (key: string) => void; onEdit: () => void; onNote: (n: Note) => void }>) {
+/** One row of a service's page: where the service runs; a click shows its sheet and settings under the table */
+function PlaceRow({ r, ports, hidden, watched, admin, picked, onPick, onNote }: Readonly<{ r: Host; ports: Host[]; hidden: boolean; watched: boolean; admin: boolean; picked: boolean; onPick: (key: string) => void; onNote: (n: Note) => void }>) {
   const [cls, label, why] = status(r), domains = hostDomains(r), flags = checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => `⚑ ${CHECK[k][0]}`), url = openUrl(r);
   return (
     <tr onClick={() => onPick(keyOfRow(r))} aria-current={picked || undefined} className={`cursor-pointer border-t border-line hover:!bg-link/10 ${picked ? "bg-link/15" : "even:bg-bg/30"} ${r.enabled ? "" : "opacity-60"}`}>
@@ -199,7 +199,6 @@ function PlaceRow({ r, ports, hidden, watched, admin, picked, editing, onPick, o
         )}
         {admin && <HideToggle r={r} hidden={hidden} watched={watched} />}
         {admin && r.ip && r.port && <RereadButton compact label={tx("Tester {0}", hostName(r))} tip={tx("Tester ce service maintenant : connexion et page web, rien n'est enregistré")} run={testService(r.ip, r.port, r.scheme, hostName(r))} onNote={onNote} className={ROW_BUTTON} />}
-        {admin && <button type="button" className={ROW_BUTTON} title={tx("Modifier")} aria-label={tx("Modifier")} aria-pressed={editing} onClick={(e) => { e.stopPropagation(); onEdit(); }}><Pencil size={16} aria-hidden /></button>}
       </span></td>
     </tr>
   );
@@ -240,7 +239,7 @@ function GroupLogo({ name, lead }: Readonly<{ name: string; lead?: Host }>) {
 }
 
 /** The places of an opened card: a row per place, or the connector cards of a service that runs on no machine */
-function PlacesTable({ g, hiddenMap, watchKeys, admin, sheetKey, editing, onPick, onEdit, onNote }: Readonly<{ g: ServiceGroup; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean; sheetKey: string | null; editing: boolean; onPick: (key: string) => void; onEdit: (key: string) => void; onNote: (n: Note) => void }>) {
+function PlacesTable({ g, hiddenMap, watchKeys, admin, sheetKey, onPick, onNote }: Readonly<{ g: ServiceGroup; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean; sheetKey: string | null; onPick: (key: string) => void; onNote: (n: Note) => void }>) {
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-card">
       <table className="w-full text-sm">
@@ -248,7 +247,7 @@ function PlacesTable({ g, hiddenMap, watchKeys, admin, sheetKey, editing, onPick
         <tbody>
           {mergePorts(g.hosts).map(({ lead: r, ports }) => {
             const picked = ports.some((p) => keyOfRow(p) === sheetKey);
-            return <PlaceRow key={keyOfRow(r)} r={r} ports={ports} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(keyOfRow(r))} admin={admin} picked={picked} editing={picked && editing} onPick={onPick} onEdit={() => onEdit(keyOfRow(r))} onNote={onNote} />;
+            return <PlaceRow key={keyOfRow(r)} r={r} ports={ports} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(keyOfRow(r))} admin={admin} picked={picked} onPick={onPick} onNote={onNote} />;
           })}
           {!g.hosts.length && g.cards.map((c) => (   // read by a connector only: the same columns, nothing runs on a machine
             <tr key={c.name} className="border-t border-line">
@@ -266,56 +265,73 @@ function PlacesTable({ g, hiddenMap, watchKeys, admin, sheetKey, editing, onPick
   );
 }
 
-/** The sheet of one place, under the table: what it is and how it answers, or the same blocks as fields */
-function PlaceSheet({ r, hosts, admin, editing, onClose }: Readonly<{ r: Host; hosts: Host[]; admin: boolean; editing: boolean; onClose: () => void }>) {
-  if (editing) return <ServiceEdit key={keyOfRow(r)} r={r} logo={<ServiceLogo r={r} auto />} onClose={onClose} />;
-  return (
-    <>
-      {admin && r.manual && r.ip && r.port && <ManualActions r={r} onEdit={() => { location.hash = servicePage("manual", r); }} />}
-      <ServiceDetail r={r} admin={admin} ports={portsOf(r, hosts)} related={relatedOf(r, hosts)} onOpen={openService} />
-    </>
-  );
-}
-
-/** The place a card opens on: the one a link points at, the only one there is, else none until a row is clicked */
+/** The place a page opens on: the one the address names, else the row that speaks for the service */
 function firstSheet(g: ServiceGroup, focusKey: string): string | null {
   if (g.hosts.some((r) => keyOfRow(r) === focusKey)) return focusKey;
-  const places = mergePorts(g.hosts);
-  return places.length === 1 ? keyOfRow(places[0].lead) : null;
+  const lead = leadOf(g) ?? g.hosts[0];
+  return lead ? keyOfRow(lead) : null;
 }
 
-/** An opened card: where the service runs, the sheet of the place picked (its pencil edits it in place), what to check */
-function CardDetail({ g, hosts, focusKey, reasons, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; hosts: Host[]; focusKey: string; reasons: { k: Check; where: string }[]; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
-  const [sheetKey, setSheetKey] = useState(() => firstSheet(g, focusKey)), [editing, setEditing] = useState(false), [note, setNote] = useState<Note>(null);
-  useEffect(() => { if (g.hosts.some((r) => keyOfRow(r) === focusKey)) { setSheetKey(focusKey); setEditing(false); } }, [focusKey]);   // eslint-disable-line react-hooks/exhaustive-deps -- once per link, a new reading must not undo a click
-  const sheet = g.hosts.find((r) => keyOfRow(r) === sheetKey);
-  const pick = (key: string) => { setSheetKey(key === sheetKey && !editing ? null : key); setEditing(false); };
-  const edit = (key: string) => { setEditing(!(editing && key === sheetKey)); setSheetKey(key); };
+/** What turned a service « À vérifier », and where */
+const reasonsOf = (g: ServiceGroup) => g.hosts.filter((r) => status(r)[0] !== "off").flatMap((r) => checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => ({ k, where: hostDomains(r)[0] ?? targetOf(r) })));
+
+/** The address of a service's own page: on its row that speaks for it, else (read by a connector only) on the group */
+const groupPage = (g: ServiceGroup) => `#services/all/${encodeURIComponent(g.hosts.length ? keyOfRow(leadOf(g) ?? g.hosts[0]) : g.key)}`;
+
+/** A service's own page (#services/all/<place>), alone in a frame: where it runs, the full sheet of the place picked, then its settings */
+function ServicePage({ g, hosts, focusKey, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; hosts: Host[]; focusKey: string; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
+  const [note, setNote] = useState<Note>(null), [dirty, setDirty] = useState(false), [pending, setPending] = useState<(() => void) | null>(null), [saved, setSaved] = useState(0);
+  const sheetKey = firstSheet(g, focusKey), sheet = g.hosts.find((r) => keyOfRow(r) === sheetKey);
+  const guard = (go: () => void) => (dirty ? setPending(() => go) : go());   // unsaved settings: ask before they are lost
+  const back = () => { location.hash = "#services/all"; };
+  const pick = (key: string) => { if (key !== sheetKey) guard(() => location.replace(`#services/all/${encodeURIComponent(key)}`)); };
+  const lead = leadOf(g), url = lead ? openUrl(lead) : g.cards[0]?.url, reasons = reasonsOf(g);
   return (
-    <div className="flex flex-col gap-3 border-t border-line/60 p-3">
-      {(g.hosts.length > 0 || g.cards.length > 0) && <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} sheetKey={sheetKey} editing={editing} onPick={pick} onEdit={edit} onNote={setNote} />}
-      <NoteLine note={note} />
-      {sheet && <PlaceSheet r={sheet} hosts={hosts} admin={admin} editing={editing} onClose={() => setEditing(false)} />}
-      {reasons.length > 0 && <div data-watch="check" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+    <div className="flex flex-col gap-3 py-4">
+      <PageExit label={tx("Services")} onLeave={() => guard(back)} />
+      {pending && <LeaveAsk onQuit={() => { setPending(null); setDirty(false); pending(); }} onStay={() => setPending(null)} />}
+      <section className="flex flex-col gap-4 rounded-xl border border-link bg-bg2 p-3 ring-2 ring-link sm:p-4" aria-label={g.name}>
+        <div className="flex flex-wrap items-center gap-3">
+          <GroupLogo name={g.name} lead={lead} />
+          <span className="min-w-0"><h1 className="text-xl font-bold">{g.name}</h1><span className="block text-xs text-muted">{whereOf(g)}</span></span>
+          <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-bold ${GROUP_TEXT[g.tone]}`}><span className={`h-2 w-2 rounded-full ${GROUP_DOT[g.tone]}`} aria-hidden />{groupState(g)}</span>
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            {url && <a href={url} target="_blank" rel="noopener" className={`${quiet} no-underline`}>{(g.domains[0] ?? addressOf(g, lead))}<ExternalLink size={13} aria-hidden /></a>}
+            {g.cards.length > 0 && <a href="#settings/connectors" onClick={() => pointConnectors([g.cards[0].connector])} className={`${quiet} no-underline`}>{tx("Connecteur {0}", g.cards[0].label)}</a>}
+            {g.cards.some((c) => c.connector === "netatmo") && <a href="#domotique/netatmo" className={`${quiet} no-underline`}>{tx("Ouvrir la page")}</a>}
+          </span>
+        </div>
+        {reasons.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
           <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À vérifier")}</h4>
           <ul className="divide-y divide-warn/20 text-sm">{reasons.map(({ k, where }) => <li key={`${k}:${where}`} className="py-1"><b>{CHECK[k][0]}</b> <span className="text-muted">({where})</span> : {CHECK[k][1]}</li>)}</ul>
         </div>}
-      {g.problems.length > 0 && <div data-watch="problems" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
+        {g.problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
           <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
           <ul className="divide-y divide-warn/20 text-sm">{g.problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
         </div>}
-      <div className="flex flex-wrap gap-4 text-sm font-semibold empty:hidden">
-        {g.cards.some((c) => c.connector === "netatmo") && <a href="#domotique/netatmo" className="text-link hover:underline">{tx("Ouvrir la page")}</a>}
-        {g.cards.length > 0 && <a href="#settings/connectors" onClick={() => pointConnectors([g.cards[0].connector])} className="text-link hover:underline">{tx("Connecteur {0}", g.cards[0].label)}</a>}
-      </div>
+        <PageSection title={tx("Où il tourne")}>
+          <PlacesTable g={g} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} sheetKey={sheetKey} onPick={pick} onNote={setNote} />
+          <NoteLine note={note} />
+        </PageSection>
+        {sheet && <PageSection title={tx("Fiche")}>
+          {admin && sheet.manual && sheet.ip && sheet.port && <ManualActions r={sheet} onEdit={() => guard(() => { location.hash = servicePage("manual", sheet); })} />}
+          <ServiceDetail r={sheet} admin={admin} ports={portsOf(sheet, hosts)} related={relatedOf(sheet, hosts)} onOpen={(h) => guard(() => openService(h))} />
+        </PageSection>}
+        {sheet && admin && <PageSection title={tx("Réglages")}>
+          <ServiceEdit key={`${keyOfRow(sheet)}#${saved}`} r={sheet} logo={<ServiceLogo r={sheet} auto />} onDirty={setDirty} onClose={() => { setDirty(false); setSaved(saved + 1); }} onCancel={() => guard(back)} />
+        </PageSection>}
+      </section>
     </div>
   );
 }
 
-/** One service: the top opens it, the link under its name opens the service itself */
-function ServiceCard({ g, hosts, open, focus, focusKey, onToggle, hiddenMap, watchKeys, admin }: Readonly<{ g: ServiceGroup; hosts: Host[]; open: boolean; focus: boolean; focusKey: string; onToggle: () => void; hiddenMap: HiddenMap; watchKeys: Set<string>; admin: boolean }>) {
-  const box = useRef<HTMLElement>(null);
-  useEffect(() => { if (focus) setTimeout(() => flash(box.current?.querySelector<HTMLElement>("[data-watch]") ?? box.current), 120); }, [focus]);   // reached by a link (#services/all/<key>): show what to check
+/** A titled part of a service's page */
+function PageSection({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
+  return <div className="flex flex-col gap-2"><h2 className="text-xs font-bold uppercase tracking-wide text-muted">{title}</h2>{children}</div>;
+}
+
+/** One service: the top opens its own page, the link under its name opens the service itself */
+function ServiceCard({ g }: Readonly<{ g: ServiceGroup }>) {
   const lead = leadOf(g);
   const url = lead ? openUrl(lead) : g.cards[0]?.url;
   const text = g.domains[0] ?? addressOf(g, lead);
@@ -328,21 +344,19 @@ function ServiceCard({ g, hosts, open, focus, focusKey, onToggle, hiddenMap, wat
   );
   const ports = groupPorts(g);
   const more = [moreDomains(g.domains.length), g.hosts.some((r) => exposure(r) === "public" || exposure(r) === "ouvert") ? tx("Public") : ""].filter(Boolean).join(" · ");
-  const reasons = g.hosts.filter((r) => status(r)[0] !== "off").flatMap((r) => checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => ({ k, where: hostDomains(r)[0] ?? targetOf(r) })));   // what turned the card « À vérifier »
   return (
-    <article ref={box} className={`min-w-0 rounded-xl border bg-bg2 ${open ? "col-span-full border-link" : GROUP_EDGE[g.tone]}`}>
-      <button type="button" onClick={onToggle} aria-expanded={open} title={open ? tx("Fermer") : tx("Ouvrir")} className="group flex w-full items-center gap-2.5 rounded-t-xl px-3 pt-2.5 text-left hover:bg-link/10">
+    <article className={`min-w-0 rounded-xl border bg-bg2 ${GROUP_EDGE[g.tone]}`}>
+      <button type="button" onClick={() => { location.hash = groupPage(g); }} title={tx("Ouvrir la page du service")} className="group flex w-full items-center gap-2.5 rounded-t-xl px-3 pt-2.5 text-left hover:bg-link/10">
         <GroupLogo name={g.name} lead={lead} />
         <span className="min-w-0 flex-1"><b className="block truncate text-sm">{g.name}</b><span className="block truncate text-xs text-muted" title={g.machines.join(", ")}>{whereOf(g)}</span></span>
         <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold ${GROUP_TEXT[g.tone]}`}><span className={`h-2 w-2 rounded-full ${GROUP_DOT[g.tone]}`} aria-hidden />{groupState(g)}</span>
-        <ChevronDown size={18} className={`shrink-0 text-muted transition-transform group-hover:text-link ${open ? "rotate-180" : ""}`} aria-hidden />
+        <ChevronDown size={18} className="shrink-0 -rotate-90 text-muted group-hover:text-link" aria-hidden />
       </button>
       <div className={`flex min-w-0 flex-wrap items-center gap-x-2 px-3 pl-[3.875rem] pt-0.5 text-xs ${ports.length > 1 ? "" : "pb-2.5"}`}>
         {url ? <a href={url} target="_blank" rel="noopener" className="inline-flex min-w-0 items-center gap-1 font-semibold text-link hover:underline">{label}<ExternalLink size={12} className="shrink-0" aria-hidden /></a> : <span className="inline-flex min-w-0 items-center gap-1 text-muted">{label}</span>}
         {more && <span className="ml-auto shrink-0 text-muted">{more}</span>}
       </div>
       {ports.length > 1 && <p className="truncate px-3 pb-2.5 pl-[3.875rem] font-mono text-xs text-muted" title={tx("Ports : {0}", ports.join(", "))}>{ports.map((p) => `:${p}`).join(" ")}</p>}
-      {open && <CardDetail g={g} hosts={hosts} focusKey={focusKey} reasons={reasons} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />}
     </article>
   );
 }
@@ -379,6 +393,13 @@ function ServicesTiles({ hosts, hidden, generated, hours }: Readonly<{ hosts: Ho
   );
 }
 
+/** #services/all/<key>: that service's own page, on that place (a link from the home page, a card of the list); the list keeps its filter meanwhile */
+function pointedService(route: string, groups: ServiceGroup[]): [string, ServiceGroup | undefined] {
+  if (!route.startsWith("#services/all/")) return ["", undefined];
+  const key = decodeURIComponent(route.split("/")[2] ?? "");
+  return [key, groups.find((g) => g.key === key || g.hosts.some((r) => keyOfRow(r) === key))];
+}
+
 export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
   const hiddenMap = useServicesHidden();
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
@@ -403,7 +424,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const text = useCallback((g: ServiceGroup) => [g.name, ...g.domains, ...g.machines, ...g.hosts.flatMap((r) => [r.name, r.ip, r.port, r.target, r.category, r.service?.name, r.service?.image, r.service?.title, r.description])].join(" "), []);
   // Everything shows by default; a filter asked elsewhere (home page counter, machine) is kept as it is
   const f = useFilter(groups, facets, text, route.startsWith("#services/watch") ? { alert: ["on"] } : initial);   // the old « To watch » address: the alerts
-  const [byMachine, setByMachine] = useByMachine(), [opened, setOpened] = useState(""), [techOpen, setTechOpen] = useState(false);
+  const [byMachine, setByMachine] = useByMachine(), [techOpen, setTechOpen] = useState(false);
   const keyOf = useCallback((g: ServiceGroup, k: string): string | number => {
     const r = g.hosts[0];
     switch (k) {
@@ -415,16 +436,8 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   }, []);
   const sort = useSort(f.shown, keyOf, "status");
   const shownReal = sort.sorted.filter((g) => !g.tech), shownTech = sort.sorted.filter((g) => g.tech);
-  // #services/all/<key>: a link from the home page opens that service, even behind a filter or among the technical components
-  const focusKey = route.startsWith("#services/all/") ? decodeURIComponent(route.split("/")[2] ?? "") : "";
-  const focused = focusKey ? groups.find((g) => g.hosts.some((r) => keyOfRow(r) === focusKey)) : undefined;
-  useEffect(() => {
-    if (!focused) return;
-    setOpened(focused.key);
-    if (focused.tech) setTechOpen(true);
-    if (!f.shown.some((g) => g.key === focused.key)) f.reset();
-  }, [focused?.key]);   // eslint-disable-line react-hooks/exhaustive-deps -- once per link, a new reading must not reopen a card closed since
-  const card = (g: ServiceGroup) => <ServiceCard key={g.key} g={g} hosts={snap.data.hosts} open={opened === g.key} focus={focused?.key === g.key} focusKey={focusKey} onToggle={() => setOpened(opened === g.key ? "" : g.key)} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />;
+  const [focusKey, focused] = pointedService(route, groups);
+  const card = (g: ServiceGroup) => <ServiceCard key={g.key} g={g} />;
   const viewButton = (on: boolean, label: string, Icon: typeof Layers, pick: boolean) => (
     <ChipButton on={on} mark={<Icon size={14} aria-hidden />} label={label} onClick={() => setByMachine(pick)} />
   );
@@ -438,6 +451,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   if (moved) return null;
   const page = view === "manual" ? snap.data.hosts.find((r) => keyOfRow(r) === decodeURIComponent(pageKey)) : undefined;
   if (view === "new" || page) return <ServicePageSettings r={page} snap={snap} />;
+  if (view === "all" && focused) return <ServicePage key={focused.key} g={focused} hosts={snap.data.hosts} focusKey={focusKey} hiddenMap={hiddenMap} watchKeys={watchKeys} admin={admin} />;
   if (view !== "watch" && view !== "all" && view !== "fresh") return <Empty>{tx("Ce service n'existe plus.")} <a href="#services/all" className="text-link hover:underline">{tx("Tous les services")}</a></Empty>;
   return (
     <div className="flex flex-col gap-4 py-4">
