@@ -1,10 +1,11 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, ExternalLink, EyeOff, HelpCircle, Loader2, Package, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ExternalLink, EyeOff, HelpCircle, Loader2, Package, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
+import { LeaveAsk, PageExit } from "../components/BackButton";
 import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
@@ -164,17 +165,8 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const opened = openKey ? st.instances.find((i) => key(i) === openKey) : undefined;
   if (opened) return (   // the connector's own page: its state, where a warning comes from, what it reads and its settings, without the other cards
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <button type="button" className={quiet} onClick={leave}><ArrowLeft size={15} aria-hidden />{tx("Retour")}</button>
-        <button type="button" className={`${quiet} ml-auto`} onClick={leave}><X size={15} aria-hidden />{tx("Fermer")}</button>
-      </div>
-      {leaving && (
-        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-warn/50 bg-warn/10 px-4 py-2.5 text-sm">
-          {tx("Quitter sans enregistrer ? Les réglages modifiés seront perdus.")}
-          <button type="button" className={danger} onClick={back}>{tx("Quitter")}</button>
-          <button type="button" className={quiet} onClick={() => setLeaving(false)}>{tx("Rester")}</button>
-        </div>
-      )}
+      <PageExit label={tx("Mes connecteurs")} onLeave={leave} />
+      {leaving && <LeaveAsk onQuit={back} onStay={() => setLeaving(false)} />}
       {card(opened, true)}
     </div>
   );

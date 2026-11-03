@@ -3952,6 +3952,8 @@ export const EN: Record<string, string> = {
   "{0} connecteurs, aucun en échec.": "{0} connectors, none failing.",
   "Quitter sans enregistrer ? Les réglages modifiés seront perdus.": "Leave without saving? The changed settings will be lost.",
   "Quitter": "Leave",
+  "Où il tourne": "Where it runs",
+  "Ouvrir la page du service": "Open the service's page",
   "Rester": "Stay",
   "Lecture à revoir": "Reading to check",
   "Signalé par l'outil": "Reported by the tool",

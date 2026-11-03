@@ -1,7 +1,7 @@
 // The page of one machine (#machines/<ip>): what the Machines tab showed in a window (identity, system, access, software, backups, health,
 // updates, UniFi or Freebox), its availability over 30 days, and, for an administrator, its settings (identity, options, access) in the page:
 // the window of Réglages → Machines is no longer needed for a machine that exists. Back to the list with « Machines ».
-import { ArrowRight, Boxes, EthernetPort, Globe, SlidersHorizontal, X } from "lucide-react";
+import { ArrowRight, Boxes, EthernetPort, Globe, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
 import { FollowAsk, FollowButton, NotFollowedBanner } from "../components/MachineFollow";
@@ -22,7 +22,7 @@ import type { Machine } from "../types";
 import { cellColor, pct, pctTone, type Item, type Report } from "./Availability";
 import { MachineModal } from "./MachinesSettings";
 import { COLOR, StatTile } from "../components/StatTile";
-import { BackButton } from "../components/BackButton";
+import { BackButton, PageExit } from "../components/BackButton";
 import { WazuhCard } from "../components/WazuhCard";
 import type { MachineFigure } from "../lib/machineFigures";
 import { METRIC_COLUMN, minMax, spanStart, sparkPath, SPAN_S, type MetricKey, type MetricPoint } from "../lib/sparkline";
@@ -237,10 +237,7 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
   </>;
   return (
     <div className="flex flex-col gap-3 py-4">
-      <div className="flex flex-wrap items-center gap-2">{/* outside the frame, like a connector's page: the way out */}
-        {backButton(tx("Machines"), onBack)}
-        <button type="button" className={`${quiet} ml-auto`} onClick={onBack}><X size={15} aria-hidden />{tx("Fermer")}</button>
-      </div>
+      <PageExit label={tx("Machines")} onLeave={onBack} />
       <section className="flex flex-col gap-4 rounded-xl border border-link bg-bg2 p-3 ring-2 ring-link sm:p-4" aria-label={m.name}>
       {head(null, right)}
       {asking && <FollowAsk m={m} onClose={() => setAsking(false)} />}
