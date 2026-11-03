@@ -2,6 +2,7 @@
 import json
 import sys
 import threading
+import urllib.parse
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -10,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from connectors import reqstats  # noqa: E402
 from connectors.base import ConnectorError, Context  # noqa: E402
 from connectors.homelab_media import Frigate  # noqa: E402
-from connectors.homelab_stream import Go2rtc, MediaMTX, Owncast, Shinobi, codec_of  # noqa: E402
+from connectors.homelab_stream import Go2rtc, MediaMTX, Owncast, Reolink, Shinobi, codec_of  # noqa: E402
 
 ACCOUNT = "cam" + ":" + "fake"   # built here: the guard refuses an account written in an address
 
@@ -207,6 +208,49 @@ class Stream(unittest.TestCase):
         self.assertEqual([codec_of("video, recvonly, HEVC"), codec_of("MJPEG"), codec_of("audio, Opus")], ["H.265", "MJPEG", None])
         self.assertEqual(reqstats.route_of(f"http://h/{KEY}/monitor/grp"), "/*/monitor/grp")
         self.assertEqual(reqstats.route_of("http://h/api/v1/processes"), "/api/v1/processes")
+
+
+class ReolinkApi(unittest.TestCase):
+    """The Reolink API answers a list, one answer per command; the account rides in the query, which the counters drop."""
+
+    def make(self, answers: dict, snap: bytes = JPEG):
+        c = Reolink({"name": "r", "url": "http://10.0.0.7", "user": "guest", "password": PW}, Context(timeout=5))
+        self.asked = []
+
+        def http(url, **kw):
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+            self.asked.append((q["cmd"][0], q.get("channel", [None])[0], q["password"][0]))
+            return snap if q["cmd"][0] == "Snap" else answers[q["cmd"][0]]
+        c.ctx.http = http
+        return c
+
+    def test_a_lone_camera_is_one_camera_with_its_picture(self):
+        c = self.make({"GetDevInfo": [{"cmd": "GetDevInfo", "code": 0, "value": {"DevInfo": {"model": "RLC-510A", "firmVer": "v3.0.0.2033", "name": "Jardin", "channelNum": 1}}}]})
+        d = c.collect()
+        self.assertEqual((d["version"], d["facts"][0]["value"], d["stream"]["cameras"][0]["name"]), ("v3.0.0.2033", "RLC-510A", "Jardin"))
+        self.assertNotIn("channel", d["stream"]["cameras"][0])
+        self.assertNotIn(PW, json.dumps(d))
+        self.assertEqual(c.snapshot("Jardin"), JPEG)
+        self.assertEqual(self.asked[-1], ("Snap", "0", PW))   # the password goes as it is, encoded in the query
+
+    def test_an_nvr_lists_its_channels_and_says_the_silent_one(self):
+        c = self.make({"GetDevInfo": [{"code": 0, "value": {"DevInfo": {"model": "RLN8-410", "channelNum": 8}}}],
+                       "GetChannelstatus": [{"code": 0, "value": {"status": [{"channel": 0, "name": "Entrée", "online": 1}, {"channel": 3, "online": 0}]}}]})
+        d = c.collect()
+        self.assertEqual([(x["name"], x["up"]) for x in d["stream"]["cameras"]], [("Entrée", True), ("Canal 4", False)])
+        self.assertEqual(d["problems"], ["caméra « Canal 4 » sans image"])
+        c.snapshot("Canal 4")
+        self.assertEqual(self.asked[-1][:2], ("Snap", "3"))
+
+    def test_a_refused_account_and_a_refused_picture_say_why(self):
+        c = self.make({"GetDevInfo": [{"code": 1, "error": {"detail": "login failed", "rspCode": -7}}]})
+        with self.assertRaises(ConnectorError) as e:
+            c.collect()
+        self.assertIn("accès refusé", str(e.exception))
+        c = self.make({"GetDevInfo": [{"code": 0, "value": {"DevInfo": {"name": "Cour"}}}]}, snap=b'[{"cmd":"Snap","code":1,"error":{"detail":"ability error"}}]')
+        with self.assertRaises(ConnectorError) as e:
+            c.snapshot("Cour")
+        self.assertIn("ability error", str(e.exception))
 
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
