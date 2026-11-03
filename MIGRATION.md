@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.37.2 → 0.37.3
+
+**Nothing to do.** No setting, volume, agent or database change. Behaviour that changes by itself: a Shinobi camera picture is now taken at once by Shinobi (`/icon/` route), so « JPEG API » no longer has to be on for each camera. The Shinobi API key needs the « Can View Snapshots » permission for the pictures; without it, the tile now says so.
+
 ## 0.37.1 → 0.37.2
 
 **Nothing to do.** No setting, volume, agent or database change. Behaviour that changes by itself: a Tapo camera picture is now read from the camera's stream (`stream1`) by ffmpeg, which the image now carries (about +200 MB). In Settings › Connectors › Tapo, « Test » now tries each camera account; a camera account must be the one created in the Tapo app (case sensitive), not the Tapo e-mail login, which saving now refuses.
