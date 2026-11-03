@@ -17,6 +17,10 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends tini openssh-client smbclient iputils-ping iproute2 ca-certificates tzdata \
  && rm -rf /var/lib/apt/lists/*
 
+# ffmpeg (a Tapo camera picture read from its stream, connectors/tapo.py): one static binary (135 MB, amd64 and arm64),
+# pinned by digest; the Debian package would pull 600 MB of graphics libraries.
+COPY --from=mwader/static-ffmpeg:9.0.2-1@sha256:f5d100184884eb3e82b0eb14bb5ebf98da99826ac824989720297fb9ef21c822 /ffmpeg /usr/local/bin/ffmpeg
+
 # Archify (carte de l'infra en HTML, archify_map.py) : version figée, empreinte vérifiée
 COPY --from=front /usr/local/bin/node /usr/local/bin/node
 ARG ARCHIFY_VERSION=3.0.1
