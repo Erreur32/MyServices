@@ -219,6 +219,13 @@ class Collect(unittest.TestCase):
         self.assertTrue(tapo._reason(cause).startswith("10.0.0.12 : "))
         self.assertIn('NoCipherSuitesInCommon"', tapo._reason(cause))
 
+    def test_a_picture_refused_on_the_stream_keeps_the_cause_before_the_connection_context(self):
+        cause = ("RTSP DESCRIBE failed: 401 Unauthorized" + "x" * 40 + "\\n\\nconn: 192.0.2.191:38962(me)->192.0.2.15:554@2026-11-03T17:30:25.560602061Z"
+                 "\\nmsg: 220@2026-11-03T17:30:25.576139779Z")
+        reason = tapo._reason(cause)
+        self.assertIn("401 Unauthorized", reason)
+        self.assertNotIn("conn:", reason)
+
     def test_a_device_refused_by_the_account_is_still_listed_from_the_discovery(self):
         raw = Res(ip="192.0.2.11", message=Res(result=Res(device_model="C310", device_name="Cam", device_id="c9", firmware_version="1.9")))
         seen = Res(ip="192.0.2.9", message=Res(result=Res(device_model="P110M")))

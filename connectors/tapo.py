@@ -33,7 +33,7 @@ def _lib():
 
 def _reason(error: str) -> str:
     """The address of the device, then the end of the error of the library: its cause comes last, after a long head."""
-    text = error.strip()
+    text = error.split("conn: ")[0].replace("\\n", " ").strip()   # an RTSP error ends with its connection context, the cause is before it
     ip = re.search(r'ip: "([^"]+)"|url: "https?://([^/":]+)', text)
     tail = text.rstrip(" })]")[-120:]   # the closing braces of the nested errors would push the cause out
     return f"{ip.group(1) or ip.group(2)} : {tail}" if ip else tail
