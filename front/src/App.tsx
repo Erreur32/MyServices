@@ -139,7 +139,8 @@ export default function App() {
   return (
     <div className="flex min-h-screen">
       <Sidebar snap={snap} badges={badges} why={why} onNavigate={navigated} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)}
-        onBadge={(item) => { setMenuOpen(false); const sel = DOT_FILTER[item.id]; if (item.id === "connectors") pointConnectors([], READ); /* shortcut: read when the page opens, so a click while already on it does not filter; upgrade with a hash filter if it bothers */ if (sel) goFilter(item.tab, sel); else location.hash = `#${item.hash}`; }} />
+        onBadge={(item) => { setMenuOpen(false); const sel = DOT_FILTER[item.id]; if (item.id === "connectors") { pointConnectors([], READ); }   /* shortcut: read when the page opens, so a click while already on it does not filter; upgrade with a hash filter if it bothers */
+          if (sel) { goFilter(item.tab, sel); } else { location.hash = `#${item.hash}`; } }} />
       <div className="min-w-0 flex-1 px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />
       <Header snap={snap} now={now} onMenu={() => setMenuOpen(true)} />

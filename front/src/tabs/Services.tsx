@@ -393,6 +393,13 @@ function ServicesTiles({ hosts, hidden, generated, hours }: Readonly<{ hosts: Ho
   );
 }
 
+/** #services/all/<key>: that service's own page, on that place (a link from the home page, a card of the list); the list keeps its filter meanwhile */
+function pointedService(route: string, groups: ServiceGroup[]): [string, ServiceGroup | undefined] {
+  if (!route.startsWith("#services/all/")) return ["", undefined];
+  const key = decodeURIComponent(route.split("/")[2] ?? "");
+  return [key, groups.find((g) => g.key === key || g.hosts.some((r) => keyOfRow(r) === key))];
+}
+
 export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
   const hiddenMap = useServicesHidden();
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
@@ -429,9 +436,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   }, []);
   const sort = useSort(f.shown, keyOf, "status");
   const shownReal = sort.sorted.filter((g) => !g.tech), shownTech = sort.sorted.filter((g) => g.tech);
-  // #services/all/<key>: that service's own page, on that place (a link from the home page, a card of the list); the list keeps its filter meanwhile
-  const focusKey = route.startsWith("#services/all/") ? decodeURIComponent(route.split("/")[2] ?? "") : "";
-  const focused = focusKey ? groups.find((g) => g.key === focusKey || g.hosts.some((r) => keyOfRow(r) === focusKey)) : undefined;
+  const [focusKey, focused] = pointedService(route, groups);
   const card = (g: ServiceGroup) => <ServiceCard key={g.key} g={g} />;
   const viewButton = (on: boolean, label: string, Icon: typeof Layers, pick: boolean) => (
     <ChipButton on={on} mark={<Icon size={14} aria-hidden />} label={label} onClick={() => setByMachine(pick)} />

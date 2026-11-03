@@ -436,10 +436,6 @@ function cardRing(active: boolean, tone: CardTone): string {
   return tone === "warn" ? "border-warn/50" : "border-dim/50";
 }
 
-function openTip(locked: boolean): string {
-  return locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : tx("Ouvrir : infos, adresse, accès et options du connecteur");
-}
-
 /** The first line of a card: logo, name, version and state */
 function CardHead({ inst, category, view, notice, open }: Readonly<{ inst: ConnectorInstance; category?: string; view: CardView; notice: CardNotice | null; open: boolean }>) {
   const s = inst.status, icon = appIcon([inst.label]), tip = noticeTip(notice, view);
@@ -543,11 +539,12 @@ function InstanceCard({ inst, view, hosts, devices, collect, type, reload, onCol
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
   const s = inst.status;
   const notice = cardNotice(inst, view);
+  const tip = locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : tx("Ouvrir : infos, adresse, accès et options du connecteur");
   return (
     <div id={`connector-${inst.type}-${inst.name}`} className="min-w-0"><div className={`flex h-full flex-col rounded-xl border bg-bg2 ${cardRing(open, view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
       {/* the whole top of the card opens its own page: state, what it reads, its settings and its test, in one place */}
       <button type="button" className="group rounded-t-xl text-left hover:bg-link/10 disabled:cursor-default disabled:hover:bg-transparent" disabled={locked || open}
-        title={open ? undefined : openTip(locked)} onClick={onOpen}>
+        title={open ? undefined : tip} onClick={onOpen}>
         <CardHead inst={inst} category={type.category} view={view} notice={notice} open={open} />
         {open ? <span className="block h-2" /> : <span className="grid min-h-12 grid-cols-3 gap-2 px-3 pb-1.5 pt-2">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
       </button>

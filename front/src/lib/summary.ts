@@ -140,7 +140,8 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
     out.push({ category: "connecteurs", level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "settings", action: tx("Voir l'accès"), dot: "machines", href: "settings/machines" });
   for (const c of data.connectors || [])
     if (c.type !== "docker" && (!c.ok || (!c.ip && (c.stale || c.warning)))) {   // the reading itself in trouble; what the tool reports (a Nextcloud share) stays on its card, a partial SSH reading of a machine (ip) on Machines
-      const why = c.ok ? (c.stale ? tx("lecture périmée") : short(c.warning!)) : short(c.message);
+      let why = short(c.message);
+      if (c.ok) why = c.stale ? tx("lecture périmée") : short(c.warning!);
       out.push({ category: "connecteurs", level: "warn", text: tx("Connecteur **{0}** ({1}) : {2}", c.name, c.type, why), tab: "settings", action: tx("Voir le connecteur"), dot: "connectors", href: "settings/connectors" });
     }
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "crit" ? -1 : 1));

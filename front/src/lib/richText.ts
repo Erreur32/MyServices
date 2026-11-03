@@ -2,9 +2,9 @@
 // in grey, and a line break between two causes. plainText gives the same words for a tooltip.
 const clean = (s: string) => s.replaceAll(/[[\]|]/g, "");
 
-export const machineTag = (name: string, href?: string) => `[[m:${clean(name)}${href ? `|${href}` : ""}]]`;
+export const machineTag = (name: string, href?: string) => `[[m:${clean(name)}${href ? "|" + href : ""}]]`;
 export const sinceTag = (text: string) => `[[since:${clean(text)}]]`;
 
 /** The text without its markup: the badge becomes its name, the duration follows after a comma, causes are joined by commas */
 export const plainText = (text: string) =>
-  text.replaceAll(/\[\[m:([^\]|]+)(?:\|[^\]]*)?\]\]/g, "$1").replaceAll(/\s*\[\[since:([^\]]+)\]\]/g, ", $1").replaceAll("\n", ", ").replaceAll("**", "");
+  text.replaceAll(/\[\[m:([^\]|]+)(?:\|[^\]]*)?\]\]/g, "$1").replaceAll(/\[\[since:([^\]]+)\]\]/g, ", $1").replaceAll(" , ", ", ").replaceAll("\n", ", ").replaceAll("**", "");
