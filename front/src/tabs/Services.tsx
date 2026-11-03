@@ -165,10 +165,10 @@ const ROW_BUTTON = "shrink-0 rounded-md border border-txt/25 bg-bg p-1 text-txt 
 
 function HideToggle({ r, hidden, watched }: Readonly<{ r: Host; hidden: boolean; watched: boolean }>) {
   const toggle = (e: { stopPropagation: () => void }) => { e.stopPropagation(); void setServiceHidden(r, hostName(r), !hidden, !watched); };
-  if (hidden) return <button type="button" className={ROW_BUTTON} title={tx("Afficher de nouveau dans les alertes")} aria-label={tx("Afficher de nouveau dans les alertes")} onClick={toggle}><Undo2 size={16} aria-hidden /></button>;
+  if (hidden) return <button type="button" className={`${ROW_BUTTON} !border-warn/60 !text-warn`} title={tx("Afficher de nouveau dans les alertes")} aria-label={tx("Afficher de nouveau dans les alertes")} onClick={toggle}><Undo2 size={16} aria-hidden /></button>;
   const tip = watched ? tx("Masquer des alertes et du point du menu tant que le problème ne change pas")
     : tx("Ne plus suivre ce service : plus jamais dans les alertes ni dans le point du menu, même en panne, jusqu'à ce qu'il soit réaffiché");
-  return <button type="button" className={ROW_BUTTON} title={tip} aria-label={tx("Masquer des alertes")} onClick={toggle}><EyeOff size={16} aria-hidden /></button>;
+  return <button type="button" className={`${ROW_BUTTON} !border-ok/50 !text-ok`} title={tip} aria-label={tx("Masquer des alertes")} onClick={toggle}><EyeOff size={16} aria-hidden /></button>;   // green: followed, orange: hidden, the state at a glance
 }
 
 const SERVICE_VIEWS = ["watch", "all", "fresh", "item", "edit", "manual", "new"] as const;
