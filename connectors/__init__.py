@@ -26,7 +26,8 @@ from connectors.homelab_backups import Backrest, Borgmatic, UrBackup, Veeam365
 from connectors.homelab_downloads import Bazarr, Overseerr, QBittorrent, Transmission
 from connectors.homelab_media import Arr, Frigate
 from connectors.homelab_ai import Hermes, LlamaCpp, Ollama, OpenAICompatible, OpenWebUI
-from connectors.homelab_stream import Go2rtc, MediaMTX, Owncast, Shinobi
+from connectors.homelab_stream import Go2rtc, MediaMTX, Owncast, Reolink, Shinobi
+from connectors.onvif import Onvif
 from connectors.homelab_more import Arcane, Glances, GpuViewR, NetAlertX, Pulse, Rybbit, SpeedtestTracker, Tautulli, Umami, Wazuh, Webmin
 from connectors.homelab_virt import ProxmoxDatacenter, Unraid
 from connectors.homelab_monitoring import Healthchecks, Jellyfin, Netdata, Prometheus
@@ -62,7 +63,7 @@ from connectors.upnp_box import UPnPBox
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, LocalDns, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, RemoteFolder, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Cloudflare, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, OpenAICompatible, OpenWebUI, Shinobi, Go2rtc, MediaMTX, Owncast, Netatmo, UPnPBox, FritzBox, SFRBox, Livebox, VodafoneStation, SagemcomFast, BouyguesBbox, SwisscomBox, ConnectBox, LibertyGateway, Speedport, TechnicolorGateway, TMobileHome, HitronCoda, VerizonFios, ArrisSurfboard, OpenWrt, MikroTik, AsusRouter, TplinkRouter, Tapo, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, LocalDns, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, RemoteFolder, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Cloudflare, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, OpenAICompatible, OpenWebUI, Shinobi, Reolink, Onvif, Go2rtc, MediaMTX, Owncast, Netatmo, UPnPBox, FritzBox, SFRBox, Livebox, VodafoneStation, SagemcomFast, BouyguesBbox, SwisscomBox, ConnectBox, LibertyGateway, Speedport, TechnicolorGateway, TMobileHome, HitronCoda, VerizonFios, ArrisSurfboard, OpenWrt, MikroTik, AsusRouter, TplinkRouter, Tapo, Discord, Telegram)}
 
 
 RETIRED = {"windows-admin-center"}   # removed types: what an older config.json still holds is skipped, an unknown type would stop every connector

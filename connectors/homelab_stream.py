@@ -1,4 +1,4 @@
-"""Video and cameras, read-only: Shinobi (camera recorder), go2rtc and MediaMTX (stream relays), Owncast (live broadcast).
+"""Video and cameras, read-only: Shinobi (camera recorder), Reolink (a camera or its NVR), go2rtc and MediaMTX (stream relays), Owncast (live broadcast).
 
 Each one adds a « stream » block to its result, the same for all (Frigate too, in homelab_media.py), read by the « Video and cameras » page:
 {role: "nvr" | "relay" | "live", engine, cameras: [{name, up, fps, detect, record, events, last}], streams: [{name, ready, codec, readers,
@@ -14,6 +14,7 @@ import urllib.parse
 from connectors.base import ConnectorError, Field
 from connectors.status_kit import StatusConnector, fact, num, rows, stream_host
 
+PW_LABEL = "Mot de passe"
 VERIFY = Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé")
 MAX_ITEMS = 64
 CODEC = re.compile(r"\b(H\.?26[45]|HEVC|AV1|VP[89]|MJPEG|JPEG)\b", re.I)
@@ -112,6 +113,63 @@ class Shinobi(StatusConnector):
             raise ConnectorError("caméra inconnue")
         return self.get(f"{self._base()}/jpeg/{self._group()}/{urllib.parse.quote(str(mid), safe='')}/s.jpg", binary=True)
 
+
+class Reolink(StatusConnector):
+    """A Reolink camera or NVR, read-only, through its HTTP API with the account in the query (« short connection »: no session to hold;
+    the request counters drop the query). POST /cgi-bin/api.cgi?cmd=GetDevInfo then GetChannelstatus (the NVR's channels),
+    GET ?cmd=Snap&channel=<n> (the picture an admin asks for, never kept)."""
+    type = "reolink"
+    label = "Reolink"
+    images = ()
+    tested = ()
+    fields = (
+        Field("url", "Adresse de la caméra ou du NVR", "url", required=True, help="http://<IP>"),
+        Field("user", "Utilisateur", "text", required=True, default="admin", help="un compte de la caméra ; un compte « invité » suffit pour lire"),
+        Field("password", PW_LABEL, "password", required=True, secret=True),
+        VERIFY,
+    )
+    setup_fields = ("url",)
+    guide = ("Dans l'appli Reolink : Réglages › Réseau › Avancé › Configuration des ports, le port HTTP (ou HTTPS) doit être activé.",
+             "Un compte invité de la caméra suffit. MyServices lit le modèle, le firmware, les caméras et l'image du moment, jamais le flux.")
+
+    def _query(self, cmd: str, **more) -> str:
+        return urllib.parse.urlencode({"cmd": cmd, **more, "user": self.conf.get("user") or "", "password": self.conf.get("password") or ""})
+
+    def _call(self, cmd: str) -> list[dict]:
+        raw = self.ctx.http(f"{self.base_url()}/cgi-bin/api.cgi?{self._query(cmd)}", method="POST", body=[{"cmd": cmd, "action": 0, "param": {}}], verify_tls=self.tls())
+        answers = [a for a in raw if isinstance(a, dict)] if isinstance(raw, list) else []
+        if not answers:
+            raise ConnectorError("réponse inattendue : l'adresse ne mène pas à une caméra Reolink")
+        err = answers[0].get("error") or {}
+        if answers[0].get("code") and err.get("rspCode") in (-6, -7, -27):   # please login first, login failed, wrong password
+            raise ConnectorError("accès refusé : compte de la caméra à vérifier")
+        return answers
+
+    def _cameras(self) -> tuple[dict, list[dict]]:
+        info = (self._call("GetDevInfo")[0].get("value") or {}).get("DevInfo") or {}
+        if int(info.get("channelNum") or 1) <= 1:
+            return info, [{**camera(info.get("name") or info.get("model") or "Reolink", up=True), "channel": 0}]
+        status = (self._call("GetChannelstatus")[0].get("value") or {}).get("status") or []
+        return info, [{**camera(s.get("name") or f"Canal {int(s.get('channel', 0)) + 1}", up=bool(s.get("online"))), "channel": int(s.get("channel", 0))}
+                      for s in status[:MAX_ITEMS] if isinstance(s, dict)]
+
+    def collect(self) -> dict:
+        info, cams = self._cameras()
+        head, problems = cameras_fact(cams)
+        out = self.out(info.get("firmVer"), [fact("Modèle", info.get("model") or "?"), head], problems)
+        out["stream"] = {"role": "nvr", "engine": "Reolink", "cameras": [{k: v for k, v in c.items() if k != "channel"} for c in cams], "snapshot": True}
+        return out
+
+    def snapshot(self, cam: str) -> bytes:
+        ch = next((c["channel"] for c in self._cameras()[1] if c["name"] == cam), None)
+        if ch is None:
+            raise ConnectorError("caméra inconnue")
+        img = self.get(f"/cgi-bin/api.cgi?{self._query('Snap', channel=ch, rs='msv')}", binary=True)
+        if img[:1] == b"[":   # a refusal comes back as JSON, with the camera's word for it
+            raise ConnectorError(f"image refusée par la caméra ({img[:160].decode('utf-8', 'replace')})")
+        return img
+
+
 class Go2rtc(StatusConnector):
     """go2rtc: the streams it relays, their codec and who reads them. Routes (GET, no key by default): /api (version), /api/streams,
     /api/frame.jpeg?src=<stream> (the picture an admin asks for, never kept). A producer's address is never kept."""
@@ -122,7 +180,7 @@ class Go2rtc(StatusConnector):
     fields = (
         Field("url", "Adresse de go2rtc", "url", required=True, help="http://<IP>:1984"),
         Field("user", "Utilisateur", "text", help="seulement si l'API demande un compte (api: username)"),
-        Field("password", "Mot de passe", "password", secret=True),
+        Field("password", PW_LABEL, "password", secret=True),
         VERIFY,
     )
     setup_fields = ("url",)
@@ -163,7 +221,7 @@ class MediaMTX(StatusConnector):
     fields = (
         Field("url", "Adresse de l'API MediaMTX", "url", required=True, help="http://<IP>:9997 (api: yes dans mediamtx.yml)"),
         Field("user", "Utilisateur", "text", help="un compte avec la seule permission « api »"),
-        Field("password", "Mot de passe", "password", secret=True),
+        Field("password", PW_LABEL, "password", secret=True),
         VERIFY,
     )
     setup_fields = ("url",)

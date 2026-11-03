@@ -1164,7 +1164,22 @@
   "firmware non pris en charge : seuls les Archer à interface web LuCI chiffrée (RSA 1024 bits puis AES) sont lus ici": "firmware not supported: only Archer routers with the encrypted LuCI web interface (1024-bit RSA then AES) are read here",
   "réponse illisible du routeur TP-Link (format non géré)": "unreadable answer from the TP-Link router (format not handled)",
   "le routeur TP-Link a fermé la session ou refuse la lecture : réessaie": "the TP-Link router closed the session or refuses the reading: try again",
-  "mot de passe trop long pour la clé du routeur TP-Link": "password too long for the key of the TP-Link router"
+  "mot de passe trop long pour la clé du routeur TP-Link": "password too long for the key of the TP-Link router",
+  "Adresse de la caméra ou du NVR": "Address of the camera or NVR",
+  "Dans l'appli Reolink : Réglages › Réseau › Avancé › Configuration des ports, le port HTTP (ou HTTPS) doit être activé.": "In the Reolink app: Settings › Network › Advanced › Port settings, the HTTP (or HTTPS) port must be on.",
+  "Reolink": "Reolink",
+  "Un compte invité de la caméra suffit. MyServices lit le modèle, le firmware, les caméras et l'image du moment, jamais le flux.": "A guest account of the camera is enough. MyServices reads the model, the firmware, the cameras and the current picture, never the stream.",
+  "http://<IP>": "http://<IP>",
+  "un compte de la caméra ; un compte « invité » suffit pour lire": "an account of the camera; a « guest » account is enough to read",
+  "accès refusé : compte de la caméra à vérifier": "access refused: check the camera's account",
+  "Activez ONVIF dans les réglages de la caméra (souvent coupé par défaut) et créez-y un compte ONVIF : un compte « utilisateur » suffit.": "Turn ONVIF on in the camera's settings (often off by default) and create an ONVIF account there: a « user » account is enough.",
+  "Adresse de la caméra": "Address of the camera",
+  "MyServices lit le fabricant, le modèle, le firmware, les caméras et l'image du moment, jamais le flux.": "MyServices reads the maker, the model, the firmware, the cameras and the current picture, never the stream.",
+  "ONVIF": "ONVIF",
+  "Utilisateur ONVIF": "ONVIF user",
+  "http://<IP>, avec le port ONVIF s'il n'est pas 80 (http://<IP>:8000)": "http://<IP>, with the ONVIF port when it is not 80 (http://<IP>:8000)",
+  "accès refusé : compte ONVIF à vérifier (ou ONVIF coupé sur la caméra)": "access refused: check the ONVIF account (or ONVIF is off on the camera)",
+  "la caméra ne donne pas d'image par ONVIF": "the camera gives no picture over ONVIF"
  },
  "templates": [
   ["^connexion refusée par le routeur \\(code (.+)\\) : le compte doit exister dans /etc/config/rpcd$", "login refused by the router (code $1): the account must exist in /etc/config/rpcd"],
