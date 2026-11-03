@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.36.0 → 0.37.0
+
+**Nothing to do.** No setting, volume, agent or database change: only the web pages change. Behaviour that changes by itself: the dot of the Connectors menu entry now also lights for a stale or partial reading, and a connector or a service opens on its own page.
+
 ## 0.35.10 → 0.36.0
 
 **Nothing to do.** No setting, volume, agent or database change. Two connectors are added, ONVIF and Reolink, in the Stream category: nothing is read until you add one.
