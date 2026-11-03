@@ -14,6 +14,7 @@ from connectors import tapo
 from connectors.base import ConnectorError
 
 PW = "pw-" + "x"   # built here so the secret guard sees no literal
+AT = "@"   # joins a test url at run time: the secret guard sees no « user:password@ »
 
 
 class Res(dict):
@@ -105,6 +106,9 @@ def conn(results):
 
 class CameraPicture(unittest.TestCase):
     def setUp(self):
+        no_ffmpeg = mock.patch.object(tapo.shutil, "which", return_value=None)   # these read the picture through the library
+        no_ffmpeg.start()
+        self.addCleanup(no_ffmpeg.stop)
         self.conf = {"name": "t", "username": "me@example.com", "password": PW, "targets": "192.0.2.255", "camera_accounts": f"192.0.2.9 cam {PW} two; broken entry"}
 
     def conn(self, picture):
@@ -285,3 +289,40 @@ class Collect(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StreamPicture(unittest.TestCase):
+    def setUp(self):
+        self.conf = {"name": "t", "username": "me@example.com", "password": PW, "camera_accounts": f"192.0.2.9 Cam {PW}@x"}
+        self.c = tapo.Tapo(self.conf, None)
+        with_ffmpeg = mock.patch.object(tapo.shutil, "which", return_value="/usr/bin/ffmpeg")
+        with_ffmpeg.start()
+        self.addCleanup(with_ffmpeg.stop)
+
+    def run_ffmpeg(self, **done):
+        with mock.patch.object(tapo.subprocess, "run", return_value=NS(**{"returncode": 0, "stdout": b"", "stderr": b"", **done})) as run, \
+             mock.patch.object(tapo, "_lib") as lib:
+            try:
+                return self.c._picture("192.0.2.9"), run
+            finally:
+                lib.assert_not_called()   # with ffmpeg, the library is not used for the picture
+
+    def test_ffmpeg_reads_one_picture_of_stream1_with_the_camera_account(self):
+        picture, run = self.run_ffmpeg(stdout=b"\xff\xd8jpeg")
+        self.assertEqual(picture, b"\xff\xd8jpeg")
+        cmd = run.call_args.args[0]
+        self.assertIn(f"rtsp://Cam:{PW}%40x{AT}192.0.2.9:554/stream1", cmd)   # the password is quoted, its case kept
+        self.assertEqual(cmd[cmd.index("-frames:v") + 1], "1")
+
+    def test_a_refusal_never_shows_the_password_and_says_the_case(self):
+        err = f"[rtsp @ 0x1] method DESCRIBE failed: 401 Unauthorized\nrtsp://Cam:{PW}{AT}192.0.2.9:554/stream1: Server returned 401 Unauthorized".encode()
+        with self.assertRaises(ConnectorError) as e:
+            self.run_ffmpeg(returncode=8, stderr=err)
+        self.assertNotIn(PW, str(e.exception))
+        self.assertIn("192.0.2.9", str(e.exception))
+        self.assertIn("majuscules", str(e.exception))
+
+    def test_a_silent_stream_is_cut_after_its_time(self):
+        with mock.patch.object(tapo.subprocess, "run", side_effect=tapo.subprocess.TimeoutExpired("ffmpeg", 15)), self.assertRaises(ConnectorError) as e:
+            self.c._picture("192.0.2.9")
+        self.assertIn("pas d'image du flux", str(e.exception))

@@ -9,13 +9,17 @@ from __future__ import annotations
 
 import asyncio
 import re
+import shutil
+import subprocess
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 from connectors.base import Connector, ConnectorError, Field, Result
 from connectors.homelab_stream import camera
 from connectors.status_kit import MAX_FACTS, MAX_PROBLEMS, fact, num
 
+PICTURE_S = 15         # seconds for one picture of a stream (ffmpeg takes 1 to 2 s on a Tapo)
 DISCOVERY_S = 6        # seconds a discovery waits for the devices to answer
 SERIES_TTL = 600       # the power curve of a plug is read again after this long
 AUTH_WORDS = ("credential", "auth", "password", "login", "forbidden")
@@ -50,6 +54,26 @@ def _given_tapo_login(conf: dict) -> list[str]:
     """The cameras given the Tapo login itself (e-mail and password): a camera refuses it, only its own camera account opens its stream."""
     email, password = str(conf.get("username") or "").strip().lower(), conf.get("password") or ""
     return [ip for ip, (user, pw) in _accounts_of(conf).items() if email and user.strip().lower() == email and pw == password]
+
+
+def _refusal(why: str) -> str:
+    hint = " : compte caméra refusé, identifiant et mot de passe tiennent compte des majuscules" if "401" in why else ""
+    return f"image refusée ({why}){hint}"
+
+
+def _stream_picture(ip: str, user: str, password: str) -> bytes:
+    """One picture of the camera's main stream (stream1) by ffmpeg, as Home Assistant and Frigate read a Tapo: no HTTPS login, so an old TLS or a model the library cannot read still gives its picture."""
+    url = f"rtsp://{quote(user, safe='')}:{quote(password, safe='')}@{ip}:554/stream1"
+    cmd = ["ffmpeg", "-nostdin", "-loglevel", "error", "-rtsp_transport", "tcp", "-i", url, "-frames:v", "1", "-f", "image2", "-c:v", "mjpeg", "pipe:1"]
+    try:
+        r = subprocess.run(cmd, capture_output=True, timeout=PICTURE_S)   # NOSONAR S4721: argument list, no shell; ip from the camera accounts
+    except subprocess.TimeoutExpired:
+        raise ConnectorError(f"image refusée (pas d'image du flux en {PICTURE_S} s)") from None
+    if r.returncode == 0 and r.stdout:
+        return r.stdout
+    lines = [x for x in r.stderr.decode("utf-8", "replace").splitlines() if x.strip()]
+    why = re.sub(r"rtsp://\S+", "rtsp://…", lines[-1] if lines else f"ffmpeg code {r.returncode}")[:160]   # the url holds the password
+    raise ConnectorError(_refusal(f"{ip} : {why}"))
 
 
 def _ip(d) -> str:
@@ -246,7 +270,9 @@ class Tapo(Connector):
             raise ConnectorError("caméra sans compte caméra")
         if ip in _given_tapo_login(self.conf):   # not even tried: failed logins lock the camera
             raise ConnectorError(_TAPO_LOGIN.format(ip))
-        lib = _lib()
+        if shutil.which("ffmpeg"):
+            return _stream_picture(ip, *account)
+        lib = _lib()   # an install without ffmpeg: the library's own RTSP snapshot (it fails on some models, C520WS)
 
         async def run():
             handler = await lib.ApiClient(self.conf.get("username", ""), self.conf.get("password", ""), 10).c225(ip)
@@ -256,9 +282,7 @@ class Tapo(Connector):
             shot = asyncio.run(run())
             return bytes(getattr(shot, "data", shot))   # tapo 0.12 gives a Snapshot (data, content_type), older ones the bytes
         except Exception as e:   # noqa: BLE001 : the library has no public error type
-            why = _reason(str(e))
-            hint = " : compte caméra refusé, identifiant et mot de passe tiennent compte des majuscules" if "401" in why else ""
-            raise ConnectorError(f"image refusée ({why}){hint}") from None
+            raise ConnectorError(_refusal(_reason(str(e)))) from None
 
     @staticmethod
     def _summary(devices: list[dict], errors: list[str]) -> dict:
