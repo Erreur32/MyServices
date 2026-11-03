@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.37.0 → 0.37.1
+
+**Nothing to do.** No setting, volume, agent or database change. A Tapo camera picture refused on its video stream now says the real cause on its tile.
+
 ## 0.36.0 → 0.37.0
 
 **Nothing to do.** No setting, volume, agent or database change: only the web pages change. Behaviour that changes by itself: the dot of the Connectors menu entry now also lights for a stale or partial reading, and a connector or a service opens on its own page.
