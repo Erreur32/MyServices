@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { AlertTriangle, Check, ChevronDown, ExternalLink, EyeOff, HelpCircle, Loader2, Package, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ExternalLink, EyeOff, HelpCircle, Loader2, Package, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
@@ -16,7 +16,7 @@ import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import type { AgentInfo, AgentsState, ConnectorField, ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service, SshAlias, TapoDevice } from "../types";
-import { cardNotice, cardsTitle, cardView, noticeTip, toWatch, WATCH, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
+import { cardNotice, cardsTitle, cardView, noticeTip, READ, TOOL, type CardNotice, type CardTone, type CardView } from "../lib/connectorCards";
 import { agentSummary } from "../lib/accessLists";
 import { configFor, modeOf, npmAgent } from "../lib/connectorModes";
 import { readConnector, RereadButton } from "../components/Reread";
@@ -46,14 +46,19 @@ export const connectorsPart = (v?: string): ConnectorsPart => {
 const RUN_RANK: Record<string, number> = { true: 0, false: 2 };
 const MINE = "settings/connectors";
 const OFF = "*off";   // filters of « My connectors », beside the categories
+const listState = { view: "", find: "" };   // the filter and search of « My connectors », found again when back from a connector's page (Settings is mounted again on each address)
+/** The address of a connector's own page */
+const pageOf = (i: { type: string; name: string }) => `#${MINE}/${i.type}/${encodeURIComponent(i.name)}`;
 // The page that shows what a connector reads
 const PAGE: Record<string, string> = {
   cloudflare: "cloudflare/overview", netatmo: "domotique/netatmo", tapo: "domotique/tapo", mynetwork: "network", unifi: "network", freebox: "network", "upnp-box": "network", fritzbox: "network", sfrbox: "network", livebox: "network", "vodafone-station": "network", "sagemcom-fast": "network", bbox: "network", "swisscom-box": "network", "connect-box": "network", "liberty-gateway": "network", "speedport": "network", "technicolor-gateway": "network", "tmobile-home-internet": "network", "hitron-coda": "network", "verizon-fios": "network", "arris-surfboard": "network", "openwrt": "network", "mikrotik": "network", "asus-router": "network", "tplink-router": "network", logviewr: "security", wazuh: "security", npm: "services",
   ollama: "ai", "open-webui": "ai", hermes: "ai", gpuviewr: "ai", frigate: "stream", reolink: "stream", onvif: "stream",
 };
-const DOT: Record<CardTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", off: "bg-dim" };
-const CHIP: Record<CardTone, string> = { ok: "", warn: "!border-warn/60 !text-warn", bad: "!border-bad/60 !text-bad", off: "" };
-const TEXT: Record<CardTone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad", off: "text-muted" };
+const BRANDS: Record<string, string> = { onvif: "Abus Hikvision Dahua Axis Amcrest Foscam Hanwha Uniview Annke Lorex" };   // camera makers without their own connector: their search finds ONVIF
+const DOT: Record<CardTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", off: "bg-dim", info: "bg-link" };
+const CHIP: Record<CardTone, string> = { ok: "", warn: "!border-warn/60 !text-warn", bad: "!border-bad/60 !text-bad", off: "", info: "!border-link/60 !text-link" };
+const TAG: Record<CardTone, string> = { ok: "bg-ok/15 text-ok", warn: "bg-warn/15 text-warn", bad: "bg-bad/15 text-bad", off: "bg-dim/15 text-muted", info: "bg-link/15 text-link" };   // the « Reading » tag of a connector's page
+const TEXT: Record<CardTone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad", off: "text-muted", info: "text-link" };
 
 /** Tools already read over SSH or by an agent on a followed machine (AdGuard, Proxmox, ESXi, KVM, Hyper-V…): a connector would add nothing */
 function ReadElsewhere({ list, types, collect }: Readonly<{ list: ConnectorStatus[]; types: ConnectorType[]; collect: ReturnType<typeof useCollectTask> }>) {
@@ -85,12 +90,15 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
-  const [edited, setEdited] = useState(focusKey);  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
+  const [, , openType, openName] = location.hash.slice(1).split("/");   // #settings/connectors/<type>/<name>: that connector's own page, alone
+  const openKey = part === "mine" && openType && openName ? `${openType}/${decodeURIComponent(openName)}` : "";
+  const [dirty, setDirty] = useState(false), [leaving, setLeaving] = useState(false);   // settings changed and not saved: leaving the page asks first
   const [pointed] = useState(takePointed), [only, setOnly] = useState<string[]>([]), pointing = useRef(true);   // the connector button of a page: its connector opened, or its connectors alone
   const [linking, setLinking] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire prend la place de la liste
   const [saved, setSaved] = useState<string[]>([]);   // detected services just activated: hidden at once, before any reload
   const [cat, setCat] = useState(""), [query, setQuery] = useState("");   // category and search of the picker (empty: all)
-  const [view, setView] = useState(""), [find, setFind] = useState("");   // filter and search of my connectors
+  const [view, setView] = useState(listState.view), [find, setFind] = useState(listState.find);   // filter and search of my connectors
+  useEffect(() => { listState.view = view; listState.find = find; }, [view, find]);
   const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false), [srcKey, setSrcKey] = useState(""), [toggling, setToggling] = useState("");   // toggling: the connector whose switch waits for the answer
   const collect = useCollectTask();
   const reload = useCallback(() => {
@@ -99,47 +107,49 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
         setSt(s); setError("");
         if (!pointing.current) return;
         pointing.current = false;
-        const hits = pointedHits(s.instances, s.types, pointed);
-        if (hits.length === 1) setEdited(`${hits[0].type}/${hits[0].name}`);
+        const hits = pointedHits(s.instances, s.types, pointed), focused = s.instances.find((i) => `${i.type}/${i.name}` === focusKey);
+        if (focused || hits.length === 1) location.replace(pageOf(focused ?? hits[0]));
         else if (pointed.category) setView(pointed.category);
         else if (hits.length > 1) setOnly(pointed.types);
       })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
-  }, [pointed]);
+  }, [pointed, focusKey]);
   useEffect(reload, [reload, snap.data.generated]);   // read again when a collection ends: states and versions up to date without F5
 
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const type = st.types.find((t) => t.type === adding);
   // Read over SSH or by an agent because a machine declares it (AdGuard, Proxmox by pvesh, Hyper-V): nothing to add for them
   const readElsewhere = st.others.filter((o) => o.via === "ssh" || o.via === "agent" || st.types.some((t) => t.type === o.type));
-  // An instance deleted (or renamed) while its form was open no longer locks the other buttons
-  const editing = st.instances.some((i) => `${i.type}/${i.name}` === edited) ? edited : "";
   const picking = part === "available";
   const activating = linking ? st.types.find((t) => t.type === linking.connector) : undefined;
   const key = (i: ConnectorInstance) => `${i.type}/${i.name}`;
   const cardOf = (i: ConnectorInstance) => snap.data.services_status?.find((c) => c.connector === i.type && c.name === i.name);
   const views = new Map(st.instances.map((i) => [key(i), cardView(i, cardOf(i))]));
   const typeOf = (i: ConnectorInstance) => st.types.find((t) => t.type === i.type)!;
-  const watching = st.instances.filter((i) => toWatch(views.get(key(i))!)).length, stopped = st.instances.filter((i) => !i.enabled).length, failing = [...views.values()].some((v) => v.tone === "bad");
+  const sourced = (src: string) => st.instances.filter((i) => views.get(key(i))!.source === src).length, stopped = st.instances.filter((i) => !i.enabled).length, failing = [...views.values()].some((v) => v.tone === "bad");
   const kept = (i: ConnectorInstance) => {
     if (only.length && !only.includes(i.type)) return false;
-    if (view === WATCH) return toWatch(views.get(key(i))!);
+    if (view === READ) return views.get(key(i))!.source === "read";
+    if (view === TOOL) return views.get(key(i))!.source === "tool";
     if (view === OFF) return !i.enabled;
     return !view || typeOf(i).category === view;
   };
-  const listed = st.instances.filter((i) => key(i) === edited || key(i) === focusKey || (kept(i) && searchHit(`${i.label} ${i.name} ${i.type}`, find)))
+  const listed = st.instances.filter((i) => kept(i) && searchHit(`${i.label} ${i.name} ${i.type}`, find))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name));   // alphabetical, like the picker
-  const mine = (<div className="mt-5 grid grid-flow-dense gap-x-2.5 gap-y-4 [grid-template-columns:repeat(auto-fill,minmax(max(min(100%,18rem),calc((100%_-_3.125rem)/6)),1fr))]">{/* a card being edited, opened or pointed at takes the row */}
-        {only.length > 0 && <button type="button" className="col-span-full justify-self-start text-sm font-semibold text-link hover:underline" onClick={() => setOnly([])}>{tx("Voir tous mes connecteurs")}</button>}
-        {listed.length === 0 && <p className="col-span-full py-4 text-center text-sm text-muted">{tx("Aucun connecteur ne correspond.")}</p>}
-        {listed.map((i) => (
+  const back = () => { setLeaving(false); location.hash = `#${MINE}`; };
+  const leave = () => (dirty ? setLeaving(true) : back());
+  const card = (i: ConnectorInstance, open: boolean) => (
           <InstanceCard key={`${i.type}/${i.name}`} inst={i} view={views.get(key(i))!} hosts={snap.data.hosts} devices={cardOf(i)?.devices} collect={collect} type={typeOf(i)} reload={reload}
             toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
               tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
             onCollect={(on) => { setSrcKey(`${i.type}/${i.name}`); setSrcNote(null); setToggling(`${i.type}/${i.name}`); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
               on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { setToggling(""); if (ok) { setChanged(true); reload(); } }); }}
-            focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={picking || !!adding} setEdited={(on) => setEdited(on ? `${i.type}/${i.name}` : "")} />
-        ))}
+            open={open} locked={picking || !!adding} onOpen={() => { location.hash = pageOf(i); }} onClose={back} onLeave={leave} onDirty={setDirty} />
+  );
+  const mine = (<div className="mt-5 grid grid-flow-dense gap-x-2.5 gap-y-4 [grid-template-columns:repeat(auto-fill,minmax(max(min(100%,18rem),calc((100%_-_3.125rem)/6)),1fr))]">
+        {only.length > 0 && <button type="button" className="col-span-full justify-self-start text-sm font-semibold text-link hover:underline" onClick={() => setOnly([])}>{tx("Voir tous mes connecteurs")}</button>}
+        {listed.length === 0 && <p className="col-span-full py-4 text-center text-sm text-muted">{tx("Aucun connecteur ne correspond.")}</p>}
+        {listed.map((i) => card(i, false))}
         {changed && (
           <div className="col-span-full flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
             {tx("Pris en compte à la prochaine collecte.")}
@@ -151,6 +161,23 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
         )}
         </div>);
   const done = () => { setAdding(""); reload(); if (picking) location.hash = MINE; };   // a connector added from the catalogue: back to « My connectors »
+  const opened = openKey ? st.instances.find((i) => key(i) === openKey) : undefined;
+  if (opened) return (   // the connector's own page: its state, where a warning comes from, what it reads and its settings, without the other cards
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <button type="button" className={quiet} onClick={leave}><ArrowLeft size={15} aria-hidden />{tx("Retour")}</button>
+        <button type="button" className={`${quiet} ml-auto`} onClick={leave}><X size={15} aria-hidden />{tx("Fermer")}</button>
+      </div>
+      {leaving && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-warn/50 bg-warn/10 px-4 py-2.5 text-sm">
+          {tx("Quitter sans enregistrer ? Les réglages modifiés seront perdus.")}
+          <button type="button" className={danger} onClick={back}>{tx("Quitter")}</button>
+          <button type="button" className={quiet} onClick={() => setLeaving(false)}>{tx("Rester")}</button>
+        </div>
+      )}
+      {card(opened, true)}
+    </div>
+  );
   const form = type && <ConnectorForm key={type.type} type={type} hosts={snap.data.hosts} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={done} onCancel={() => setAdding("")} />;
   return (
     <div className="flex flex-col gap-4">
@@ -164,7 +191,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
         )}
         {st.instances.length > 0 && <>
           <div className="flex flex-wrap items-start gap-x-3 gap-y-2 [&:not(:first-child)]:mt-3">
-            <CategoryChips types={st.instances.map(typeOf)} cat={view} setCat={setView} extra={[[WATCH, tx("À vérifier"), watching, failing ? "bad" : "warn"], [OFF, tx("Coupés"), stopped, "off"]]} />
+            <CategoryChips types={st.instances.map(typeOf)} cat={view} setCat={setView} extra={[[READ, tx("Lecture à revoir"), sourced("read"), failing ? "bad" : "warn"], [TOOL, tx("Signalé par l'outil"), sourced("tool"), "info"], [OFF, tx("Coupés"), stopped, "off"]]} />
           </div>
           {mine}
         </>}
@@ -183,7 +210,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
         {!type && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
         {!type && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
-            {st.types.filter((t) => (!cat || t.category === cat) && searchHit([t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)].join(" "), query))
+            {st.types.filter((t) => (!cat || t.category === cat) && searchHit([t.label, t.type, BRANDS[t.type] ?? "", catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)].join(" "), query))
               .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
               const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length, ssh = readElsewhere.filter((o) => o.type === t.type).length;
               return (
@@ -413,12 +440,12 @@ function ToggleNote({ note, onForce }: Readonly<{ note: Note; onForce?: () => vo
 function cardRing(active: boolean, tone: CardTone): string {
   if (active) return "border-link ring-2 ring-link";
   if (tone === "bad") return "border-bad/60";
+  if (tone === "info") return "border-link/40";
   return tone === "warn" ? "border-warn/50" : "border-dim/50";
 }
 
-function openTip(locked: boolean, open: boolean): string {
-  if (locked) return tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord");
-  return open ? tx("Fermer") : tx("Ouvrir : infos, adresse, accès et options du connecteur");
+function openTip(locked: boolean): string {
+  return locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : tx("Ouvrir : infos, adresse, accès et options du connecteur");
 }
 
 /** The first line of a card: logo, name, version and state */
@@ -435,7 +462,7 @@ function CardHead({ inst, category, view, notice, open }: Readonly<{ inst: Conne
         <span className="block truncate text-xs text-muted" title={sub}>{sub}{s?.version && <>{sub && " · "}<span className={s.version_tested === false ? "text-warn" : ""} title={s.version_tested === false ? tx("version non testée") : undefined}>v{s.version}</span></>}</span>
       </span>
       <span title={tip} data-tip-large className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold ${TEXT[view.tone]} ${tip ? "cursor-help" : ""}`}><span className={`h-2 w-2 rounded-full ${DOT[view.tone]}`} aria-hidden />{view.state}</span>
-      <ChevronDown size={18} className={`shrink-0 text-muted transition-transform group-hover:text-link ${open ? "rotate-180" : ""}`} aria-hidden />
+      {!open && <ChevronDown size={18} className="shrink-0 -rotate-90 text-muted group-hover:text-link" aria-hidden />}
     </span>
   );
 }
@@ -466,9 +493,40 @@ function CardFix({ notice, kept }: Readonly<{ notice: CardNotice; kept: boolean 
   );
 }
 
-/** The right column of an opened card: its troubles first, then what the connector reads */
-function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: CardNotice | null; page?: string }>) {
-  const problems = notice && !notice.advice && !view.problems.includes(notice.text) ? [notice.text, ...view.problems] : view.problems;
+/** Where a warning comes from, side by side: the reading by MyServices (the connector), and what the tool itself reports */
+function Origin({ inst, view, notice, url }: Readonly<{ inst: ConnectorInstance; view: CardView; notice: CardNotice | null; url?: string }>) {
+  const s = inst.status, reading = view.source === "read" && notice;
+  const head = (tag: string, title: string, tone: string) => (
+    <h4 className="flex items-center gap-2 whitespace-nowrap bg-bg px-3 py-2 text-sm font-bold"><span className={`rounded px-1.5 text-[10px] uppercase tracking-wide ${tone}`}>{tag}</span>{title}</h4>
+  );
+  let read: ReactNode = <p className="font-semibold text-ok">{tx("Le connecteur fonctionne")}{s?.version && <span className="font-normal text-muted"> · v{s.version}{s.version_tested === false ? ` (${tx("version non testée")})` : ""}</span>}</p>;
+  if (!inst.enabled) read = <p className="text-muted">{tx("Coupé : réglages gardés, plus rien de lu")}</p>;
+  else if (!s || s.pending) read = <p className="text-muted">{view.state}</p>;
+  else if (reading && notice.advice) read = <CardFix notice={notice} kept={view.figures.length > 0} />;
+  else if (reading) read = <><p className={`font-semibold ${TEXT[view.tone]}`}>{view.state}</p><p>{notice.text}</p></>;
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <section className="overflow-hidden rounded-lg border border-line">
+        {head(tx("Lecture"), tx("Le connecteur, côté MyServices"), TAG[view.source === "read" ? view.tone : "ok"])}
+        <div className="flex flex-col gap-1.5 px-3 py-2.5 text-sm">{read}</div>
+      </section>
+      <section className="overflow-hidden rounded-lg border border-line">
+        {head(tx("Outil"), tx("Signalé par {0}", inst.label), "bg-link/15 text-link")}
+        <div className="flex flex-col gap-1.5 px-3 py-2.5 text-sm">
+          {view.problems.length ? <>
+            <p className="font-semibold text-link">{view.problems.length > 1 ? tx("{0} points à regarder", view.problems.length) : tx("1 point à regarder")}</p>
+            <ul className="list-disc pl-5">{view.problems.map((p) => <li key={p}>{p}</li>)}</ul>
+            <p className="text-xs text-muted">{tx("À traiter dans {0}, pas dans MyServices.", inst.label)}</p>
+            {url && <a className="inline-flex items-center gap-1 self-start text-xs font-semibold text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{tx("Ouvrir {0}", inst.label)}<ExternalLink size={11} aria-hidden /></a>}
+          </> : <p className="text-muted">{tx("{0} ne remonte aucun point.", inst.label)}</p>}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** The right column of a connector's page: what the connector reads */
+function CardDetail({ view, page }: Readonly<{ view: CardView; page?: string }>) {
   return (
     <>
       {view.facts.length > 0 && <div>
@@ -480,33 +538,26 @@ function CardDetail({ view, notice, page }: Readonly<{ view: CardView; notice: C
           {view.facts.map((f) => <div key={f.label} className="-mb-px -mr-px min-w-0 border-b border-r border-line px-3 py-2"><dd className={`break-words text-sm font-semibold ${f.tone ? TEXT[f.tone] : ""}`}>{f.value}</dd><dt className="text-xs text-muted">{f.label}</dt></div>)}
         </dl>
       </div>}
-      {notice?.advice && <CardFix notice={notice} kept={view.figures.length > 0} />}
-      {problems.length > 0 && <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2">
-        <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warn"><AlertTriangle size={14} aria-hidden />{tx("À regarder")}</h4>
-        <ul className="divide-y divide-warn/20 text-sm">{problems.map((p) => <li key={p} className="py-1">{p}</li>)}</ul>
-      </div>}
     </>
   );
 }
 
-function InstanceCard({ inst, view, hosts, devices, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEdited: setEdit }: Readonly<{
-  view: CardView; toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; devices?: TapoDevice[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEdited: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+function InstanceCard({ inst, view, hosts, devices, collect, type, reload, onCollect, toggling, toggleNote, onForce, open, locked, onOpen, onClose, onLeave, onDirty }: Readonly<{
+  view: CardView; toggling?: boolean; toggleNote?: Note; onForce?: () => void; inst: ConnectorInstance; hosts: Host[]; devices?: TapoDevice[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void;
+  open: boolean; locked: boolean; onOpen: () => void; onClose: () => void; onLeave: () => void; onDirty: (d: boolean) => void;   // open: alone on its own page; locked: the add form is open
 }>) {
   const [note, setNote] = useState<Note>(null);
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (focus) box.current?.scrollIntoView({ block: "center" }); }, [focus]);
-  useEffect(() => { if (edit) box.current?.scrollIntoView({ block: "nearest" }); }, [edit]);
   const s = inst.status;
   const notice = cardNotice(inst, view);
   return (
-    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`min-w-0 scroll-mt-24 ${edit || focus ? "col-span-full" : ""}`}><div className={`flex h-full flex-col rounded-xl border bg-bg2 ${cardRing(!!(edit || focus), view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
-      {/* the whole top of the card opens it: state, what it reads, its settings and its test, in one place */}
-      <button type="button" className="group rounded-t-xl text-left hover:bg-link/10 disabled:cursor-default disabled:hover:bg-transparent" disabled={locked} aria-expanded={edit}
-        title={openTip(locked, edit)} onClick={() => setEdit(!edit)}>
-        <CardHead inst={inst} category={type.category} view={view} notice={notice} open={edit} />
-        {edit ? <span className="block h-2" /> : <span className="grid min-h-12 grid-cols-3 gap-2 px-3 pb-1.5 pt-2">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
+    <div id={`connector-${inst.type}-${inst.name}`} className="min-w-0"><div className={`flex h-full flex-col rounded-xl border bg-bg2 ${cardRing(open, view.tone)} ${inst.enabled ? "" : "opacity-80"}`}>
+      {/* the whole top of the card opens its own page: state, what it reads, its settings and its test, in one place */}
+      <button type="button" className="group rounded-t-xl text-left hover:bg-link/10 disabled:cursor-default disabled:hover:bg-transparent" disabled={locked || open}
+        title={open ? undefined : openTip(locked)} onClick={onOpen}>
+        <CardHead inst={inst} category={type.category} view={view} notice={notice} open={open} />
+        {open ? <span className="block h-2" /> : <span className="grid min-h-12 grid-cols-3 gap-2 px-3 pb-1.5 pt-2">{view.figures.map((f) => <Figure key={f.label} f={f} />)}</span>}
       </button>
       <div className="mt-auto flex items-center gap-1 border-t border-dashed border-line/60 py-1 pl-3 pr-2">
         <span className="min-w-0 flex-1 truncate text-xs text-dim"><CardWhere inst={inst} url={url} /></span>
@@ -518,11 +569,12 @@ function InstanceCard({ inst, view, hosts, devices, collect, type, reload, onCol
       <div className="px-3 empty:hidden">
         {toggling && <output className="inline-flex items-center gap-1.5 pb-2 text-xs text-warn"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</output>}
         <ToggleNote note={toggleNote ?? null} onForce={onForce} />
-        {edit && <ConnectorForm type={type} inst={inst} hosts={hosts} devices={devices} aside={<>
+        {open && <div className="mb-3 mt-1"><Origin inst={inst} view={view} notice={notice} url={url} /></div>}
+        {open && <ConnectorForm type={type} inst={inst} hosts={hosts} devices={devices} onDirty={onDirty} aside={<>
           {inst.enabled && (!s || s.pending) && <p className="text-sm"><StatusLine s={s && { ...s, found: [] }} collect={collect} /></p>}
-          <CardDetail view={view} notice={notice} page={PAGE[inst.type]} />
-        </>} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)}
-          onDelete={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => { if (ok) { setEdit(false); reload(); } })} />}
+          <CardDetail view={view} page={PAGE[inst.type]} />
+        </>} onSaved={reload} onDone={onClose} onCancel={onLeave}
+          onDelete={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => { if (ok) onClose(); })} />}
         <NoteLine note={note} />
       </div>
     </div></div>
@@ -614,7 +666,7 @@ function FieldInput({ f, v, box, need, kept, inst, picksMachine, aliases, device
   );
 }
 
-export function ConnectorForm({ type, inst, prefill, found, hosts, devices = [], quietSave = false, aside, onSaved, onDone, onCancel, onDelete }: Readonly<{ aside?: ReactNode; onDelete?: () => void; type: ConnectorType; inst?: ConnectorInstance; devices?: TapoDevice[]; prefill?: Prefill | null; found?: Service; hosts?: Host[]; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }>) {
+export function ConnectorForm({ type, inst, prefill, found, hosts, devices = [], quietSave = false, aside, onSaved, onDone, onCancel, onDelete, onDirty }: Readonly<{ aside?: ReactNode; onDelete?: () => void; onDirty?: (d: boolean) => void; type: ConnectorType; inst?: ConnectorInstance; devices?: TapoDevice[]; prefill?: Prefill | null; found?: Service; hosts?: Host[]; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }>) {
   const [name, setName] = useState(inst?.name || prefill?.name || type.type);
   const [conf, setConf] = useState<Conf>(() => {
     const init: Conf = {};
@@ -630,6 +682,8 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, devices = [],
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [help, setHelp] = useState(false);  // help folded: opened by its button, under the buttons
   // Façon de relier le service (NPM : API directe, par SSH, script) : décide des champs montrés, requis et envoyés
   const [mode, setMode] = useState(() => modeOf(type, inst?.config));
+  const [start] = useState(() => JSON.stringify([name, conf, mode]));   // what was there on opening: anything else is unsaved
+  useEffect(() => onDirty?.(JSON.stringify([name, conf, mode]) !== start), [name, conf, mode, start, onDirty]);
   const modeDef: ConnectorMode | undefined = (type.modes ?? []).find((m) => m.id === mode);
   const noCertificate = !!conf.url && !/^https:/i.test(String(conf.url));   // nothing to verify on a plain address
   const shown = (modeDef ? type.fields.filter((f) => modeDef.fields.includes(f.name)) : type.fields).filter((f) => f.name !== "verify_tls" || !noCertificate);

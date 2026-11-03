@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { ConnectorInstance, ServiceStatus } from "../types";
 import { connectorAdvice } from "./connectorAdvice";
-import { cardNotice, cardsTitle, cardView, noticeTip, toWatch } from "./connectorCards";
+import { cardNotice, cardsTitle, cardView, noticeTip } from "./connectorCards";
 
 const inst = (status: Partial<NonNullable<ConnectorInstance["status"]>> | null, enabled = true) => ({
   type: "x", label: "X", name: "x", config: {}, set: {}, enabled,
@@ -31,19 +31,24 @@ describe("connector cards", () => {
     expect(cardView(inst({}, false)).tone).toBe("off");
     expect(cardView(inst(null)).state).toBe("Pas encore lu");
     expect(cardView(inst({ ok: false })).tone).toBe("bad");
-    expect(cardView(inst({ stale: true })).state).toBe("Périmé");
-    expect(cardView(inst({}), card({ problems: ["a", "b"] })).state).toBe("2 points");
+    expect(cardView(inst({ stale: true })).state).toBe("Lecture périmée");
+    expect(cardView(inst({ warning: "x" })).state).toBe("Lecture partielle");
+    expect(cardView(inst({}), card({ problems: ["a", "b"] })).state).toBe("Signalé : 2 points");
     expect(cardView(inst({}), card({ problems: [] })).tone).toBe("ok");
   });
 
-  it("a connector switched off is not to watch, whatever it said last", () => {
-    expect(toWatch(cardView(inst({}, false), card({ problems: ["a"] })))).toBe(false);
+  it("a warning says where it comes from: the reading, or the tool; a connector switched off has none", () => {
+    expect(cardView(inst({ ok: false })).source).toBe("read");
+    expect(cardView(inst({ stale: true })).source).toBe("read");
+    expect(cardView(inst({}), card({ problems: ["a"] }))).toMatchObject({ source: "tool", tone: "info" });
+    expect(cardView(inst({}, false), card({ problems: ["a"] })).source).toBe("");
   });
 
   it("the title counts failures and points to look at", () => {
     const ok = cardView(inst({})), bad = cardView(inst({ ok: false })), warn = cardView(inst({ stale: true }));
     expect(cardsTitle([ok, ok])).toBe("2 connecteurs, aucun en échec.");
-    expect(cardsTitle([ok, bad, warn])).toBe("3 connecteurs, 1 en échec. 1 à vérifier.");
+    const tool = cardView(inst({}), card({ problems: ["a"] }));
+    expect(cardsTitle([ok, bad, warn, tool])).toBe("4 connecteurs, 1 en échec. 2 à revoir côté lecture, 1 signalés par l'outil.");
   });
 });
 
@@ -77,7 +82,7 @@ describe("the trouble of a connector", () => {
   it("the hover of the state gives its name, the trouble, the tool's words and the other points", () => {
     const tip = (status: Parameters<typeof inst>[0], c?: ServiceStatus) => { const i = inst(status), v = cardView(i, c); return noticeTip(cardNotice(i, v), v); };
     expect(tip({})).toBeUndefined();
-    expect(tip({}, card({ problems: ["a", "b"] }))).toBe("2 points\n[[warn:a]]\n• b");
+    expect(tip({}, card({ problems: ["a", "b"] }))).toBe("Signalé : 2 points\n[[warn:a]]\n• b");
     expect(tip({ ok: false, message: "HTTP 502" })).toBe("En échec\n[[bad:Le service ne répond pas (502)]]\n`HTTP 502`");
   });
 });
