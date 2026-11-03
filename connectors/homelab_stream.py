@@ -14,6 +14,7 @@ import urllib.parse
 from connectors.base import ConnectorError, Field
 from connectors.status_kit import StatusConnector, fact, num, rows, stream_host
 
+PW_LABEL = "Mot de passe"
 VERIFY = Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé")
 MAX_ITEMS = 64
 CODEC = re.compile(r"\b(H\.?26[45]|HEVC|AV1|VP[89]|MJPEG|JPEG)\b", re.I)
@@ -124,7 +125,7 @@ class Reolink(StatusConnector):
     fields = (
         Field("url", "Adresse de la caméra ou du NVR", "url", required=True, help="http://<IP>"),
         Field("user", "Utilisateur", "text", required=True, default="admin", help="un compte de la caméra ; un compte « invité » suffit pour lire"),
-        Field("password", "Mot de passe", "password", required=True, secret=True),
+        Field("password", PW_LABEL, "password", required=True, secret=True),
         VERIFY,
     )
     setup_fields = ("url",)
@@ -179,7 +180,7 @@ class Go2rtc(StatusConnector):
     fields = (
         Field("url", "Adresse de go2rtc", "url", required=True, help="http://<IP>:1984"),
         Field("user", "Utilisateur", "text", help="seulement si l'API demande un compte (api: username)"),
-        Field("password", "Mot de passe", "password", secret=True),
+        Field("password", PW_LABEL, "password", secret=True),
         VERIFY,
     )
     setup_fields = ("url",)
@@ -220,7 +221,7 @@ class MediaMTX(StatusConnector):
     fields = (
         Field("url", "Adresse de l'API MediaMTX", "url", required=True, help="http://<IP>:9997 (api: yes dans mediamtx.yml)"),
         Field("user", "Utilisateur", "text", help="un compte avec la seule permission « api »"),
-        Field("password", "Mot de passe", "password", secret=True),
+        Field("password", PW_LABEL, "password", secret=True),
         VERIFY,
     )
     setup_fields = ("url",)

@@ -83,8 +83,9 @@ class Camera(unittest.TestCase):
             c.snapshot("Caméra 9")
 
     def test_a_refused_account_says_so(self):
+        c = self.make(refuse=True)
         with self.assertRaises(ConnectorError) as e:
-            self.make(refuse=True).collect()
+            c.collect()
         self.assertIn("accès refusé", str(e.exception))
 
     def test_security_header_is_well_formed(self):
