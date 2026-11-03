@@ -213,6 +213,12 @@ class Collect(unittest.TestCase):
         self.assertIn("connection timed out", line)
         self.assertNotIn("compte", line)
 
+    def test_a_picture_that_cannot_connect_says_the_cause_at_the_end_of_the_error(self):
+        cause = ('Http(reqwest::Error { kind: Request, url: "https://10.0.0.12/", source: hyper_util::client::legacy::Error(Connect, Custom { kind: Other, '
+                 'error: Custom { kind: InvalidData, error: "peer is incompatible: NoCipherSuitesInCommon" } }) })')
+        self.assertTrue(tapo._reason(cause).startswith("10.0.0.12 : "))
+        self.assertIn('NoCipherSuitesInCommon"', tapo._reason(cause))
+
     def test_a_device_refused_by_the_account_is_still_listed_from_the_discovery(self):
         raw = Res(ip="192.0.2.11", message=Res(result=Res(device_model="C310", device_name="Cam", device_id="c9", firmware_version="1.9")))
         seen = Res(ip="192.0.2.9", message=Res(result=Res(device_model="P110M")))

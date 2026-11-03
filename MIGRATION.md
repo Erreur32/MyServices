@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.35.9 → 0.35.10
+
+**Nothing to do.** No setting, volume, agent or database change. A Tapo camera picture that cannot be read now shows the whole reason on its tile.
+
 ## 0.35.8 → 0.35.9
 
 **Nothing to do.** No setting, volume, agent or database change. A camera picture that cannot be read now says why on its tile. Behind a reverse proxy, the refusal now comes back as `503` instead of `502`, so a proxy such as Cloudflare lets the reason through.
