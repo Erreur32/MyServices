@@ -31,7 +31,9 @@ from msv.machines import setup
 # Champs d'une machine réglables depuis la page (le reste du fichier est gardé tel quel)
 FLAGS = ("off", "gateway", "npm", "npm_only", "vm", "disabled")
 TEXT = ("name", "role", "ssh", "adguard", "adguard_sync", "health", "os", "icon")
-PAGE = TEXT + FLAGS + ("health_sources", "stopped_ok", "temp_warn_c", "disk_warn_pct", "disk_crit_pct", "mem_warn_pct", "mem_crit_pct")   # every field the Machines page (and machines_config) may set
+PAGE = TEXT + FLAGS + ("health_sources", "stopped_ok", "temp_warn_c", "disk_warn_pct", "disk_crit_pct", "mem_warn_pct", "mem_crit_pct",
+                       "agent_ports", "agent_ignore")   # every field the Machines page (and machines_config) may set
+AGENT_PORTS_MODES = ("all", "reachable", "none")   # ports its agent reports -> services: every one, only those the collector reaches, or none
 LIMIT_LABELS = {"disk_warn_pct": "seuil disque (à surveiller)", "disk_crit_pct": "seuil disque (critique)",
                 "mem_warn_pct": "seuil mémoire (à surveiller)", "mem_crit_pct": "seuil mémoire (critique)"}
 TEMP_WARN_MIN, TEMP_WARN_MAX = 50, 110   # °C: a processor warning threshold a machine may set for itself (default: health.TEMP_WARN_C)
@@ -276,6 +278,16 @@ def _clean(m: dict) -> dict:
         if not isinstance(ok, list) or len(ok) > STOPPED_OK_MAX or any(not isinstance(x, str) or not re.fullmatch(r"[\w][\w.-]{0,127}", x.strip()) for x in ok):
             raise MachineError(f"conteneurs autorisés à rester arrêtés : {STOPPED_OK_MAX} noms au plus (lettres, chiffres, _ . -)")
         out["stopped_ok"] = list(dict.fromkeys(x.strip() for x in ok))
+    ap = m.get("agent_ports")
+    if ap:
+        if ap not in AGENT_PORTS_MODES:
+            raise MachineError("ports de l'agent → services : all, reachable ou none")
+        out["agent_ports"] = ap
+    ai = m.get("agent_ignore")
+    if ai:
+        if not isinstance(ai, list) or len(ai) > STOPPED_OK_MAX or any(not isinstance(x, str) or not re.fullmatch(r"[\w][\w.-]{0,127}", x.strip()) for x in ai):
+            raise MachineError(f"programmes ignorés : {STOPPED_OK_MAX} noms au plus (lettres, chiffres, _ . -)")
+        out["agent_ignore"] = list(dict.fromkeys(x.strip() for x in ai))
     t = m.get("temp_warn_c")
     if t not in (None, ""):
         if isinstance(t, bool) or not str(t).strip().isdigit() or not TEMP_WARN_MIN <= int(t) <= TEMP_WARN_MAX:
