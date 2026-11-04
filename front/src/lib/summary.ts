@@ -8,6 +8,7 @@ import { CHECK, CLEANUP, certIssue, checks, dnsDown, dnsSync, hostName, status }
 import { tx } from "./i18n";
 import { healthCauses, hungOnly } from "./machineWatch";
 import { machineTag } from "./richText";
+import { localVia } from "./eventOrigin";
 
 export type TabId = "home" | "history" | "machines" | "services" | "domotique" | "cloudflare" | "ai" | "stream" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
 
@@ -25,6 +26,7 @@ export interface Attention {
   fix?: { label: string; href: string };   // administrator: the setting that settles the alert, beside the button that shows it
   dot?: string;   // the menu entry that carries the dot when it is not the tab's own entry (« connectors » for a connector in trouble)
   help?: string;  // the hint under the line when it depends on the cause (health); absent: the hint of its category, "" none
+  via?: string[]; // what read the line (same labels as the Historique's « Lu par »): absent where the source is already obvious (ping, AdGuard…)
 }
 
 export interface Inputs {
@@ -76,6 +78,9 @@ const NPM_LINES = 3;
 /** The service in the list, opened on what to check */
 const serviceHref = (r: Host) => `services/all/${encodeURIComponent(serviceKey(r))}`;
 
+/** What read this service row: NPM for a proxied entry, else what read the local port (localVia) */
+const rowVia = (r: Host): string[] => (r.type === "local" ? localVia(r.service?.kind, r.by_agent) : ["NPM"]);
+
 /** NPM entries in warning: each with its exact reason and its link, or one line when there are many */
 function npmWarnings(hosts: Host[]): Attention[] {
   const warn = hosts.filter((r) => r.type !== "local" && r.enabled && !r.paused && status(r)[0] === "warn"), sel = { src: ["npm"], status: ["warn"] };
@@ -83,7 +88,7 @@ function npmWarnings(hosts: Host[]): Attention[] {
     return [{ category: "services", level: "warn", text: tx("{0} NPM avec avertissement : {1}", plural(warn.length, "entrée"), names(warn.map(hostName))), tab: "services", action: tx("Voir les entrées"), sel }];
   return warn.map((r) => {
     const why = checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => CHECK[k][0]).join(", ") || status(r)[1];
-    return { category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), why), tab: "services", action: tx("Voir le service"), sel, href: serviceHref(r) };
+    return { category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), why), tab: "services", action: tx("Voir le service"), sel, href: serviceHref(r), via: rowVia(r) };
   });
 }
 
@@ -113,9 +118,9 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
   out.push(...npmWarnings(data.hosts));
   for (const r of data.hosts) {
     const [cls, label] = status(r);
-    if (cls === "bad") out.push({ category: "services", level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", machineTag(r.machine)) : ""), tab: "services", action: tx("Voir le service"), sel: { status: ["bad"] }, href: serviceHref(r), fix: { label: tx("Régler le service"), href: `services/edit/${encodeURIComponent(serviceKey(r))}` } });
+    if (cls === "bad") out.push({ category: "services", level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", machineTag(r.machine)) : ""), tab: "services", action: tx("Voir le service"), sel: { status: ["bad"] }, href: serviceHref(r), fix: { label: tx("Régler le service"), href: `services/edit/${encodeURIComponent(serviceKey(r))}` }, via: rowVia(r) });
     const cert = r.enabled && !r.paused ? certIssue(r) : "";
-    if (cert) out.push({ category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), cert), tab: "services", action: tx("Voir le site"), sel: { status: ["warn"] }, href: serviceHref(r) });
+    if (cert) out.push({ category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), cert), tab: "services", action: tx("Voir le site"), sel: { status: ["warn"] }, href: serviceHref(r), via: rowVia(r) });
   }
   for (const h of health?.hosts || []) {
     const l = healthLevel(h);
