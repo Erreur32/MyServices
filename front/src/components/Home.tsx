@@ -18,6 +18,7 @@ import { LastDay } from "./LastDay";
 import { Missing } from "./Missing";
 import { Rich } from "./Rich";
 import { ScheduleCard } from "./ScheduleCard";
+import { Badge as SourceBadge } from "./ui";
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 import { useStoredFlag } from "../lib/storedFlag";
 import { Counters, KeyFigures } from "./StatsPage";
@@ -62,6 +63,7 @@ function Line({ it, admin, go, goFilter }: Readonly<{ it: Attention; admin: bool
           <span className="min-w-0"><Rich text={it.text} /></span>
         </p>
         {help && <p className="mt-0.5 text-[13px] text-muted">{help}</p>}
+        {it.via && <p className="mt-1 flex flex-wrap gap-1">{it.via.map((v) => <SourceBadge key={v} tone="off" title={tx("Lu par")}>{v}</SourceBadge>)}</p>}
       </div>
       <div className="grid grid-cols-2 gap-1.5 sm:w-[20.4rem]">   {/* two slots of one width: every « Voir » on the right, « Régler » left of it, aligned row to row */}
         {fix && <a href={`#${fix.href}`} className={`${FILL} ${SLOT}`}>{fix.label}</a>}

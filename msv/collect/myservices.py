@@ -336,6 +336,14 @@ def ssh_methods(cache, ip, port, force):
     return methods
 
 
+def agent_unreachable_backend(mode: str) -> tuple[dict, bool]:
+    """A local row built from an agent's open ports (brave, HASS.Agent…) whose port the collector itself cannot reach (Windows firewall,
+    a LAN-only rule…): shown as up, marked « filtré » (never a false « down »). `mode` (machine setting « agent_ports », PAGE) says whether
+    it is also dropped : « reachable » (default) hides a port the collector has never reached itself ; « all » keeps it ; a port is never
+    created at all under « none » (filtered earlier, in the row-building loop), so that case does not reach here."""
+    return {"up": True, "via": "agent", "filtered": True}, mode != "all"
+
+
 def probe_tcp(host, port):
     t = time.monotonic()
     try:
@@ -1317,10 +1325,15 @@ def main():
                     rows.append(row("local", f"{ip}:{hp}", ip, hp, name=c["name"],
                                     service=docker_service(dict(c, inner=inner), "port")))
     for ip, ports in procs.items():
+        from_agent = ip in agent_listen
+        conf = META_RAW.get("machines", {}).get(ip, {}) if from_agent else {}
+        if conf.get("agent_ports") == "none":
+            continue   # réglage de la machine : ses ports ne deviennent jamais des services
+        ignored = {x.casefold() for x in conf.get("agent_ignore") or []}
         for port, p in ports.items():
-            if p["lan"] and (ip, port) not in used:
+            if p["lan"] and (ip, port) not in used and p["name"].casefold() not in ignored:
                 used.add((ip, port))
-                rows.append(row("local", f"{ip}:{port}", ip, port, name=p["name"],
+                rows.append(row("local", f"{ip}:{port}", ip, port, name=p["name"], agent_port=from_agent,
                                 service=None if p.get("port_only") else {"kind": "process", "name": p["name"]}))
                 if process.internal_bind(p.get("addr"), ip):   # bound to a bridge or container address: the collector cannot reach it, the process is up (seen by ss)
                     rows[-1].update(internal=True, listen_addr=p["addr"], ssh_active=True,
@@ -1411,6 +1424,9 @@ def main():
             r["backend"] = {"up": True, "internal": True, "via": "ssh"}
         elif r.get("internal"):
             r["backend"] = {"up": None, "internal": True}
+        if r.get("agent_port") and r.get("backend", {}).get("up") is False:
+            mode = META_RAW.get("machines", {}).get(r["ip"], {}).get("agent_ports") or "reachable"
+            r["backend"], r["_drop"] = agent_unreachable_backend(mode)
         if i in public:
             r["public"] = public[i]
         if i in follow:
@@ -1450,6 +1466,7 @@ def main():
         if new_services.public_ignored(r["domains"], public_ignore):  # domaines jamais soumis à « public ? » (réglage Services)
             r["public_ignored"] = True
         new_services.apply_hand(r, m)
+    rows = [r for r in rows if not r.pop("_drop", False)]
 
     try:
         favicons.refresh(rows, Path(CFG["cache_dir"]).expanduser() / "favicons", _opener_insecure, PROBE_TIMEOUT)

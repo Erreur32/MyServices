@@ -756,6 +756,8 @@ export interface MachineConf {
   adguard_sync?: string;
   disk_warn_pct?: number; disk_crit_pct?: number; mem_warn_pct?: number; mem_crit_pct?: number;   // this machine's disk and memory limits (% used); absent: health.py's defaults
   temp_warn_c?: number;          // processor warning threshold of this machine (°C); absent: health.py's default
+  agent_ports?: "all" | "reachable" | "none";   // its agent's open ports -> services: all, only those the collector reaches (default), or none
+  agent_ignore?: string[];       // program names (agent's report) that never become a service, whatever agent_ports says
   [k: string]: unknown;
 }
 export interface SshAlias { alias: string; host: string; ip: string | null; user?: string; port?: number }

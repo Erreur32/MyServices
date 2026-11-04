@@ -74,6 +74,15 @@ describe("accueil", () => {
     expect(items[3].href).toBe("machines/10.0.0.77/watch/disk");   // the link opens on the frame of the trouble
     expect(items[3].fix).toEqual({ label: "Régler la machine", href: "machines/10.0.0.77/settings" });
   });
+
+  it("la panne d'un service local porte sa source (agent) ; une entrée NPM, la sienne", () => {
+    const local = host({ type: "local", domains: [], name: "brave", ip: "10.0.0.50", port: 34846,
+      service: { kind: "process" }, by_agent: true, backend: { up: false } });
+    const npm = host({ domains: ["plex.lan"], backend: { up: false } });
+    const items = attention({ data: data([local, npm]), now: NOW });
+    expect(items.find((i) => i.text.includes("brave"))!.via).toEqual(["agent MyServices"]);
+    expect(items.find((i) => i.text.includes("plex.lan"))!.via).toEqual(["NPM"]);
+  });
 });
 
 describe("santé sur l'accueil", () => {

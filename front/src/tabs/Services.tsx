@@ -12,6 +12,7 @@ import { Dot, Logo } from "../components/marks";
 import { appIcon, faviconUrl, serviceIcon } from "../lib/appIcons";
 import { LetterAvatar } from "../components/LetterAvatar";
 import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, openUrl, status, type Check } from "../lib/status";
+import { localVia } from "../lib/eventOrigin";
 import type { Host } from "../types";
 import { Badge, ChipButton, Empty, FilterBar, SearchBox, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
@@ -66,7 +67,7 @@ function useByMachine(): [boolean, (on: boolean) => void] {
 }
 
 /** Where the service is read from: its NPM entry, or the kind of service found on the machine */
-const via = (r: Host) => (r.type === "local" ? KIND_NAME[r.service?.kind ?? ""] || TYPE_NAME.local : TYPE_NAME[r.type]);
+const via = (r: Host) => (r.type === "local" ? localVia(r.service?.kind, r.by_agent).join(", ") : TYPE_NAME[r.type]);
 
 /** NPM entries served without a forced SSL: the only access risk worth a mark in the list (the rest is in the window) */
 function sslRisk(r: Host): string | null {

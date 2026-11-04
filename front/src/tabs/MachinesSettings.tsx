@@ -4,7 +4,7 @@
 // Les réglages de chaque machine sont dans sa page (#machines/<ip>) ; ici, trois sous-pages du menu Machines : ajouter et détecter,
 // les appareils vus par les outils et pas suivis, les agents. La clé refusée par une machine est signalée sur la page de la clé SSH.
 import { NetworkSettings } from "./NetworkSettings";
-import { Box, Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, Gauge, ShieldCheck, Thermometer, Trash2 } from "lucide-react";
+import { Box, Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, Radar, RefreshCw, Server, Gauge, ShieldCheck, Thermometer, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -18,6 +18,7 @@ import { BackButton } from "../components/BackButton";
 import { MachineIcon } from "../components/MachineIcon";
 import { AccessGuide, AgentBlock, AgentsOverview } from "./Agents";
 import { IconPicker } from "../components/IconPicker";
+import { IconChoice, type IconOption } from "../components/IconChoice";
 import { mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { KeyToAuthorize, SshParams, type CheckResult } from "../components/SshParams";
@@ -1057,6 +1058,34 @@ function StoppedOkSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
   );
 }
 
+type AgentPortsMode = "all" | "reachable" | "none";
+const AGENT_PORTS_MODES: IconOption<AgentPortsMode>[] = [
+  { value: "reachable", label: tx("Joignables"), icon: <Radar size={20} aria-hidden />, hint: tx("Un port que le serveur n'a jamais pu joindre lui-même ne devient pas un service (par défaut)") },
+  { value: "all", label: tx("Tous"), icon: <Radar size={20} aria-hidden />, hint: tx("Chaque port ouvert devient un service ; injoignable : « filtré par le pare-feu », jamais une panne") },
+  { value: "none", label: tx("Aucun"), icon: <Radar size={20} className="opacity-50" aria-hidden />, hint: tx("Les ports de cette machine ne deviennent jamais des services") },
+];
+
+/** Ports this machine's agent reports (brave, HASS.Agent…) that become services: all of them, only those the collector itself
+ *  can reach (default), or none ; a few programs can be ignored whatever the choice. */
+function AgentPortsSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
+  const { v, ss, autoSave } = ctx;
+  const mode = (typeof v.agent_ports === "string" ? v.agent_ports : "reachable") as AgentPortsMode;
+  const ignored = Array.isArray(v.agent_ignore) ? (v.agent_ignore as string[]) : [];
+  return (
+    <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4" aria-label={tx("Ports de l'agent → services")}>
+      <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Radar size={13} className="text-link" aria-hidden />{tx("Ports de l'agent → services")}</h4>
+      <InfoNote className="mb-3">{tx("Les ports que l'agent voit ouverts sur cette machine (brave, un service Windows…) peuvent devenir des services suivis.")}</InfoNote>
+      <IconChoice label={tx("Ports de l'agent → services")} value={mode} onPick={(x) => void autoSave("agent_ports", { agent_ports: x === "reachable" ? undefined : x })} options={AGENT_PORTS_MODES} />
+      <SavedMark k="agent_ports" s={ss} />
+      <div className="mt-3">
+        <TagInput label={tx("Jamais des services")} value={ignored.join(", ")} max={600} placeholder={tx("nom du programme, ex. brave")}
+          onChange={(text) => void autoSave("agent_ignore", { agent_ignore: text.split(",").map((t) => t.trim()).filter(Boolean) })} />
+        <SavedMark k="agent_ignore" s={ss} />
+      </div>
+    </section>
+  );
+}
+
 const TEMP_MIN = 50, TEMP_MAX = 110, TEMP_DEFAULT = 85;   // °C, as machines_admin.py accepts them
 
 /** Processor temperature threshold of this machine: health warns above it once the machine stays hot (critical 10 °C higher) */
@@ -1128,13 +1157,14 @@ function LimitsSetting({ ctx }: Readonly<{ ctx: FlagCtx }>) {
   );
 }
 
-function OptionsTab({ ctx, menu }: Readonly<{ ctx: FlagCtx; menu: OptionsState }>) {
+function OptionsTab({ ctx, menu, agentActive }: Readonly<{ ctx: FlagCtx; menu: OptionsState; agentActive?: boolean }>) {
   const groups = flagGroups(ctx.v, ctx.found);
   const count = groups.detected.length + groups.manual.length + groups.missing.length;
   return (
     <>
       <QuickSettings ctx={ctx} />
       {ctx.v.os !== "windows" && <StoppedOkSetting ctx={ctx} />}
+      {agentActive && <AgentPortsSetting ctx={ctx} />}
       <LimitsSetting ctx={ctx} />
       {!ctx.v.vm && <TempSetting ctx={ctx} />}
       {groups.active.length > 0 && (
@@ -1206,7 +1236,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
       {show("access") && <AccessTab tabbed={tabbed} agentActive={!!agent && agent.state !== "révoqué"} connectorsActive={linked.length > 0} agentMode={status.agentMode} sshBody={sshBody} agentBody={agentBody} connectorsBody={<ConnectorsBody linked={linked} />}
         sshSummary={<SshSummary sshOn={status.sshOn} agentMode={status.agentMode} refused={status.refusedSsh} />} agentSummary={<AgentSummary agent={agent} />} connectorSummary={<ConnectorSummary linked={linked} />} />}
       {show("identity") && <IdentityTab v={v} setV={setV} isNew={isNew} live={live} scan={scan} found={found} ss={ss} autoSave={autoSave} savedProc={savedProc} />}
-      {show("options") && <OptionsTab ctx={flagCtx} menu={menu} />}
+      {show("options") && <OptionsTab ctx={flagCtx} menu={menu} agentActive={!!agent && agent.state !== "révoqué"} />}
       <div className="flex flex-wrap items-center gap-1.5">
         <button type="submit" className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès, les options et les étiquettes s'enregistrent tout seuls")}>{tx("Enregistrer")}</button>
         {actions}
