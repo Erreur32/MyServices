@@ -44,7 +44,7 @@ from pathlib import Path
 
 from msv.alerts import notify
 from msv.core.config import CFG, db_path, next_timer_run
-from msv.core import inventory_cache
+from msv.core import inventory_cache, nosudo
 from msv.machines.winname import windows_name
 from msv.core.docker_state import allowed_names, intended_stop
 from msv.collect import readers, tile_history
@@ -719,7 +719,7 @@ def root_or_why(cmd: str) -> str:
 def sudo_rule(user: str, cmd: str) -> str:
     """The sudoers line that lets `user` run `cmd` alone, without password."""
     return f"{user} ALL=(root) NOPASSWD: {cmd}"
-SYSTEM_CMD = (
+_SYSTEM_TPL = (
     "export PATH=\"$PATH:/usr/sbin:/sbin\"; echo \"@@now $(date +%s)\"; echo \"@@user $(id -un)\"; "
     "echo @@pm2; pgrep -af '^PM2 v[0-9.]+: God Daemon' 2>/dev/null | sed 's/^[0-9]* /D /'; "
     "systemctl list-unit-files --no-legend --plain 'pm2-*' 2>/dev/null | awk '{print \"E\",$1,$2}'; "
@@ -743,11 +743,21 @@ SYSTEM_CMD = (
     "grep -h ' ERROR ' /var/log/unattended-upgrades/unattended-upgrades.log 2>/dev/null | tail -n 5 | sed 's/^/X /'; "
     "echo @@snap; command -v snap >/dev/null 2>&1 && timeout 10 snap refresh --list 2>&1 | head -n 30; "
     "echo @@who; who 2>/dev/null | head -n 20; "
-    f"echo @@nr; [ -x {NEEDRESTART} ] && {{ {as_root(NEEDRESTART_ARGS)} || echo NOSUDO; }}; "
-    f"echo @@f2b; [ -x {FAIL2BAN} ] && {{ {root_or_why(FAIL2BAN_ARGS)}; }}; "
+    "@@ROOT@@"
     "echo @@dkr; command -v docker >/dev/null 2>&1 && docker ps -q 2>/dev/null | head -n 200 "
     "| xargs -r docker inspect --format '{{.Name}}|{{.RestartCount}}|{{.State.StartedAt}}' 2>/dev/null; true"
 )
+_ROOT_READS = {"nr": (NEEDRESTART, f"{as_root(NEEDRESTART_ARGS)} || echo NOSUDO"), "f2b": (FAIL2BAN, root_or_why(FAIL2BAN_ARGS))}
+
+
+def system_cmd(skip: tuple = ()) -> str:
+    """SYSTEM_CMD where the root reads in `skip` (« nr », « f2b ») print NOSUDO without calling sudo: a refused sudo is logged,
+    and mailed by sudo (mail_badpass, mail_no_user) at every try."""
+    return _SYSTEM_TPL.replace("@@ROOT@@", "".join(f"echo @@{k}; [ -x {tool} ] && {{ {'echo NOSUDO' if k in skip else read}; }}; "
+                                                  for k, (tool, read) in _ROOT_READS.items()))
+
+
+SYSTEM_CMD = system_cmd()   # the agents' key for this output: its text must never change
 UU_STALE_DAYS = 3          # automatic updates that have not run for this long
 DOCKER_LOOP_N = 3          # restarts of a container that started again within the last hour: a loop
 
@@ -1629,10 +1639,23 @@ def collect_host(host: dict) -> dict:
         return {"id": host["id"], "name": host["name"], "reachable": True, "os": "esxi", "esxi": esxi.strip()[:80],
                 "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False, "reason": "esxi"}, "level": "ok", **_EMPTY_HOST_EXTRAS}
     # Every command in one connection, then SMART for all the disks in a second one; the collectors read the outputs like an agent report
-    recorded = run_batch(run, LINUX_AGENT_COMMANDS)
+    # A sudo refused on this machine is not asked again for a day (nosudo): sudo mails every refusal
+    alias = None if host.get("mode") == "local" else host.get("target")
+    skip = tuple(k for k in ("nr", "f2b") if nosudo.skipped(alias, k))
+    cmds = [system_cmd(skip) if c == SYSTEM_CMD else c for c in LINUX_AGENT_COMMANDS] if skip else LINUX_AGENT_COMMANDS
+    recorded = run_batch(run, cmds)
+    if skip:   # the collectors read the output under the usual command
+        recorded[SYSTEM_CMD] = recorded.pop(system_cmd(skip), [127, ""])
+    sec = _sections(recorded.get(SYSTEM_CMD, [1, ""])[1])
+    for k in ("nr", "f2b"):
+        if k not in skip and sec.get(k):   # the tool is there: sudo was asked
+            nosudo.record(alias, k, "NOSUDO" in sec[k])
     rc, out = recorded.get(SMART_LIST_CMD, [1, ""])
-    if rc == 0 and not host.get("vm"):
-        recorded.update(run_batch(run, [smart_cmd(t) for t in smart_targets(out)]))
+    if rc == 0 and not host.get("vm") and not nosudo.skipped(alias, "smart"):
+        smart = run_batch(run, [smart_cmd(t) for t in smart_targets(out)])
+        if smart:
+            nosudo.record(alias, "smart", any("sudo" in str(o) for _, o in smart.values()))   # smartctl never prints « sudo »
+        recorded.update(smart)
     return collect_linux(host, replay_runner(recorded))
 
 
@@ -2267,6 +2290,7 @@ def main() -> int:
         candidates, meta = load_hosts(set(agents) | awake)
     if only:
         candidates = [hc for hc in candidates if hc["ip"] == only]
+    nosudo.FORCE = bool(only)   # « Relire » of one machine asks its refused sudo reads again at once
     for hc in candidates:
         print(f"▸ {hc['name']}...")
         h = read_host(hc, agents.get(hc["ip"]), besz.get(hc["ip"]), api=apis.get(hc["ip"]))

@@ -31,6 +31,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from msv.core import nosudo
 from msv.core.config import CFG, HERE
 from connectors.backup_apis import DSM_FAIL, HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
@@ -148,7 +149,7 @@ if req.get("crons"):
                 out["crons"].append({"src": src, "line": " ".join(l.split())})
     rc, txt = sh("crontab -l 2>/dev/null")
     add("crontab " + out["user"], txt)
-    if out["user"] != "root":
+    if out["user"] != "root" and req.get("root_cron", True):   # cron_via: root's crontab is read through Proxmox, a refused sudo is mailed
         rc, txt = sh("sudo -n crontab -l -u root 2>&1")
         if rc == 0 or "no crontab for root" in txt:  # crontab vide : lisible, rien à lister
             add("crontab root", txt)
@@ -551,7 +552,7 @@ def agent_reports() -> dict:
 def scan_requests(meta: dict, hosts: dict[str, dict]) -> dict[str, dict]:
     """{id: what to read on that machine}."""
     # Machine « mount » (NAS monté sur la collectrice) : disque du point de montage seulement, ni cron ni discover
-    reqs: dict[str, dict] = {hid: {"locs": {}, "disks": True, "crons": not h.get("mount"), "mount": h.get("mount"),
+    reqs: dict[str, dict] = {hid: {"locs": {}, "disks": True, "crons": not h.get("mount"), "root_cron": not h.get("cron_via"), "mount": h.get("mount"),
                                    "discover": [] if h.get("mount") else meta.get("discover", []),
                                    "cron_ignore": meta.get("cron_ignore", [])}
                              for hid, h in hosts.items() if not h.get("api")}
@@ -570,7 +571,15 @@ def collect(meta: dict) -> tuple[dict, dict]:
         scan = agent_scan(hosts[hid], reqs[hid], reports)
         if scan is None and hosts[hid].get("agent"):   # no SSH on this machine: never read here instead
             return hid, (None, "agent : pas de relevé récent des sauvegardes")
-        return hid, (scan, "") if scan is not None else run_py(hosts[hid].get("ssh"), AGENT, json.dumps(reqs[hid]))
+        if scan is not None:
+            return hid, (scan, "")
+        alias, req = hosts[hid].get("ssh"), reqs[hid]
+        if nosudo.skipped(alias, "cron"):   # refused lately: sudo mails every refusal
+            req = {**req, "root_cron": False}
+        got = run_py(alias, AGENT, json.dumps(req))
+        if req.get("crons") and req.get("root_cron") and got[0] and got[0].get("user") != "root":
+            nosudo.record(alias, "cron", got[0].get("cron_root") == "non lisible")
+        return hid, got
 
     def st(node):
         return node["host"], run_py(hosts[node["host"]]["ssh"], ST_AGENT, node["conf"], node.get("sudo"))
