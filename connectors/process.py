@@ -10,6 +10,7 @@ import re
 import subprocess
 
 from connectors.base import Connector, ConnectorError, Field
+from msv.core import nosudo
 from msv.remote.sshmux import SSH_MUX, ssh_run
 
 # Process locaux sans intérêt dans l'annuaire (ports RPC/NFS éphémères, résolveur, docker)
@@ -29,14 +30,18 @@ def listening_processes(alias):
 def listening_read(alias):
     """(ports, hidden) : comme listening_processes, plus le nombre de ports en écoute dont `ss` cache le nom du process
     (compte sans root : il ne voit que ses propres process), pour dire que la lecture est partielle."""
-    cmd = ["ss", "-tlnpH"] if alias == "local" else \
-        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, LISTEN_SH]
+    # Over SSH, a refused sudo is told on stderr and not asked again for a day (nosudo): sudo mails every refusal
+    ask = alias != "local" and not nosudo.skipped(alias, "ss")
+    remote = "sudo -n ss -tlnpH 2>/dev/null || { echo NOSUDO >&2; ss -tlnpH; }" if ask else "ss -tlnpH"
+    cmd = ["ss", "-tlnpH"] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, remote]
     try:
         r = ssh_run("ports", alias, cmd, capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired:
         raise ConnectorError(f"{alias} : délai dépassé") from None
     if r.returncode != 0:
         raise ConnectorError(f"{alias} : {(r.stderr.strip() or f'code {r.returncode}')[-160:]}")
+    if ask:
+        nosudo.record(alias, "ss", "NOSUDO" in r.stderr)
     return parse_listening(r.stdout)
 
 

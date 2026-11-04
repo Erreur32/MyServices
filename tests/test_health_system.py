@@ -151,6 +151,17 @@ class NeedsRoot(unittest.TestCase):
         self.assertFalse(health.parse_fail2ban([], "u")["available"])
 
 
+class RefusedSudoNotAskedAgain(unittest.TestCase):
+    """A refused sudo is mailed by sudo at every try: over SSH the refused reads are left out (msv.core.nosudo)."""
+
+    def test_commande_sans_sudo_meme_resultat(self):
+        self.assertNotIn("sudo", health.system_cmd(("nr", "f2b")))
+        self.assertIn("sudo -n /usr/sbin/needrestart", health.system_cmd(("f2b",)))       # only the refused read is left out
+        self.assertNotIn("@@ROOT@@", health.SYSTEM_CMD)
+        out = "@@now %d\n@@user u\n@@nr\nNOSUDO\n@@f2b\nNOSUDO\n@@dkr\n" % NOW   # what the skipped reads print: the page keeps the rule to add
+        got = system(out)
+        self.assertEqual((got["needrestart"]["access"], got["fail2ban"]["access"]), (False, False))
+
 class OneConnection(unittest.TestCase):
     def test_lot_rejoue_chaque_commande(self):
         cmds = ["echo \"it's\"", "echo out; echo err >&2; exit 3", "printf '@@0 0\\nZm9v\\n'", "true"]

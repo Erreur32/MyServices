@@ -17,6 +17,7 @@ import urllib.parse
 import re
 
 from connectors.base import Connector, ConnectorError, Field
+from msv.core import nosudo
 
 CONF_IN_CONTAINER = "/opt/adguardhome/conf/AdGuardHome.yaml"
 
@@ -159,10 +160,22 @@ class AdGuard(Connector):
             return normalize(rewrites, rules)
         if read := agent_dns(self.conf.get("ip")).get("adguard"):   # its agent sends it: no SSH connection
             return {"rewrites": read.get("rewrites", []), "user_rules": read.get("user_rules", [])}
-        t = self.conf["target"]
-        sh = (f"cat {t} 2>/dev/null || sudo -n cat {t}" if t.startswith("/")
-              else f"docker exec {t} cat {CONF_IN_CONTAINER}")
-        return parse_yaml(self.ctx.ssh(self.conf["ssh"], sh, timeout=20))
+        t, alias = self.conf["target"], self.conf["ssh"]
+        if not t.startswith("/"):
+            return parse_yaml(self.ctx.ssh(alias, f"docker exec {t} cat {CONF_IN_CONTAINER}", timeout=20))
+        if nosudo.skipped(alias, "adguard"):   # refused lately: sudo mails every refusal
+            return parse_yaml(self.ctx.ssh(alias, f"cat {t}", timeout=20))
+        # cat as is, else through sudo; a failure ends with « @@FAIL » so that a refused sudo is told apart and remembered
+        out = self.ctx.ssh(alias, f"cat {t} 2>/dev/null || {{ echo @@SUDO; sudo -n cat {t} 2>&1 || echo @@FAIL; }}", timeout=20)
+        body = out.removeprefix("@@SUDO\n")
+        if body == out:   # read without sudo
+            return parse_yaml(out)
+        err = body.rstrip().removesuffix("@@FAIL")
+        failed = err != body.rstrip()
+        nosudo.record(alias, "adguard", failed and "sudo" in err)
+        if failed:
+            raise ConnectorError(f"SSH {alias} : {err.strip()[-200:]}")
+        return parse_yaml(body)
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

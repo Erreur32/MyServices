@@ -283,7 +283,8 @@ class AdGuardTests(unittest.TestCase):
         ctx.ssh = lambda alias, cmd, **kw: seen.append(cmd) or YAML
         meta = {"machines": {"10.0.0.3": {"name": "n", "ssh": "n", "adguard": "/opt/AdGuardHome/AdGuardHome.yaml"}}}
         connectors.instances({}, ctx=ctx, kind="dns", meta=meta)[0].collect()
-        self.assertEqual(seen, ["cat /opt/AdGuardHome/AdGuardHome.yaml 2>/dev/null || sudo -n cat /opt/AdGuardHome/AdGuardHome.yaml"])
+        self.assertEqual(seen, ["cat /opt/AdGuardHome/AdGuardHome.yaml 2>/dev/null || "
+                                "{ echo @@SUDO; sudo -n cat /opt/AdGuardHome/AdGuardHome.yaml 2>&1 || echo @@FAIL; }"])
 
     def test_rest_api_without_ssh(self):
         srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeAdGuard)

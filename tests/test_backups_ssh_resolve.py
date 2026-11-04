@@ -44,5 +44,11 @@ class Resolve(unittest.TestCase):
                 self.assertEqual((backups.ssh_aliases(), backups.machine_aliases()), (set(), {}))
 
 
+class RootCron(unittest.TestCase):
+    def test_cron_via_sans_sudo(self):   # root's crontab read through Proxmox: no refused sudo over SSH, it is mailed
+        reqs = backups.scan_requests({"sets": []}, {"vm": {"id": "vm", "ssh": "vm", "cron_via": "pve:101"}, "srv": {"id": "srv", "ssh": "srv"}})
+        self.assertEqual((reqs["vm"]["root_cron"], reqs["srv"]["root_cron"]), (False, True))
+
+
 if __name__ == "__main__":
     unittest.main()
