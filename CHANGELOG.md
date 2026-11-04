@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.38.1 (2026-11-04)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Windows agent shown as Linux on a machine's page**: a Windows PC whose settings had no system set (only its icon), and that the collector could not identify by itself, opened its agent block, the « Installer un agent » choice and a renewed key as Linux, with the Linux options. The machine's page now takes the type of its last known agent (the active one, else the newest revoked), so a Windows agent stays Windows, even right after it is deleted to be redone.
+
 ## v0.38.0 (2026-11-04)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
