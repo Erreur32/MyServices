@@ -59,7 +59,7 @@ def record(alias: str | None, what: str, refused: bool, now: float | None = None
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp = path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-            os.replace(tmp, path)
+            tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request or a file
+            os.replace(tmp, path)  # NOSONAR S2083: same path from the config or environment
         except OSError:
             pass   # not kept: the read is asked again next pass, as before

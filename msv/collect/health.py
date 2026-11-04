@@ -1623,23 +1623,9 @@ _EMPTY_HOST_EXTRAS = {
 }
 
 
-def collect_host(host: dict) -> dict:
-    if host.get("os") == "windows":
-        return collect_windows(host)
-    run = make_runner(host)
-    # One connection says whether the machine answers and whether it is an ESXi (no bash there: the batch below is not for it)
-    rc, first = run("echo ok; vmware -v 2>/dev/null; true", timeout=8)
-    if rc != 0 or not first.startswith("ok"):
-        return {"id": host["id"], "name": host["name"], "reachable": False,
-                "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False},
-                "level": "down", **_EMPTY_HOST_EXTRAS}
-    esxi = first[2:].strip()
-    if esxi.startswith("VMware ESXi"):
-        # ESXi: no apt, systemd nor Docker; its VMs and datastores are read by the collection (esxi_ssh.py, Virtualization tab)
-        return {"id": host["id"], "name": host["name"], "reachable": True, "os": "esxi", "esxi": esxi.strip()[:80],
-                "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False, "reason": "esxi"}, "level": "ok", **_EMPTY_HOST_EXTRAS}
-    # Every command in one connection, then SMART for all the disks in a second one; the collectors read the outputs like an agent report
-    # A sudo refused on this machine is not asked again for a day (nosudo): sudo mails every refusal
+def read_linux(run, host: dict) -> dict:
+    """Every command in one connection, then SMART for all the disks in a second one: {command: [rc, output]}, read like an agent report.
+    A sudo refused on this machine is not asked again for a day (nosudo): sudo mails every refusal."""
     alias = None if host.get("mode") == "local" else host.get("target")
     skip = tuple(k for k in ("nr", "f2b") if nosudo.skipped(alias, k))
     cmds = [system_cmd(skip) if c == SYSTEM_CMD else c for c in LINUX_AGENT_COMMANDS] if skip else LINUX_AGENT_COMMANDS
@@ -1656,7 +1642,25 @@ def collect_host(host: dict) -> dict:
         if smart:
             nosudo.record(alias, "smart", any("sudo" in str(o) for _, o in smart.values()))   # smartctl never prints « sudo »
         recorded.update(smart)
-    return collect_linux(host, replay_runner(recorded))
+    return recorded
+
+
+def collect_host(host: dict) -> dict:
+    if host.get("os") == "windows":
+        return collect_windows(host)
+    run = make_runner(host)
+    # One connection says whether the machine answers and whether it is an ESXi (no bash there: the batch below is not for it)
+    rc, first = run("echo ok; vmware -v 2>/dev/null; true", timeout=8)
+    if rc != 0 or not first.startswith("ok"):
+        return {"id": host["id"], "name": host["name"], "reachable": False,
+                "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False},
+                "level": "down", **_EMPTY_HOST_EXTRAS}
+    esxi = first[2:].strip()
+    if esxi.startswith("VMware ESXi"):
+        # ESXi: no apt, systemd nor Docker; its VMs and datastores are read by the collection (esxi_ssh.py, Virtualization tab)
+        return {"id": host["id"], "name": host["name"], "reachable": True, "os": "esxi", "esxi": esxi.strip()[:80],
+                "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False, "reason": "esxi"}, "level": "ok", **_EMPTY_HOST_EXTRAS}
+    return collect_linux(host, replay_runner(read_linux(run, host)))
 
 
 # Commands the Linux agent runs on its own machine (the SSH collectors' commands, fixed); smart_cmd(<disk>) is added per disk it finds.

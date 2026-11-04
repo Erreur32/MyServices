@@ -32,9 +32,8 @@ def listening_read(alias):
     (compte sans root : il ne voit que ses propres process), pour dire que la lecture est partielle."""
     # Over SSH, a refused sudo is told on stderr and not asked again for a day (nosudo): sudo mails every refusal
     ask = alias != "local" and not nosudo.skipped(alias, "ss")
-    cmd = ["ss", "-tlnpH"] if alias == "local" else \
-        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias,
-         "sudo -n ss -tlnpH 2>/dev/null || { echo NOSUDO >&2; ss -tlnpH; }" if ask else "ss -tlnpH"]
+    remote = "sudo -n ss -tlnpH 2>/dev/null || { echo NOSUDO >&2; ss -tlnpH; }" if ask else "ss -tlnpH"
+    cmd = ["ss", "-tlnpH"] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, remote]
     try:
         r = ssh_run("ports", alias, cmd, capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired:
