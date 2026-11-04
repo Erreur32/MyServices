@@ -424,8 +424,8 @@ export function RoleBadges({ roles }: Readonly<{ roles: string[] }>) {
 }
 
 /** The settings of one machine, in its page (#machines/<ip>): the access check, the notices and the form */
-function MachineRow({ ip, m, st, live, statuses, reload, focusTab, onAgent, scan, unfinished, agent, only }: Readonly<{
-  focusTab?: "access"; only?: AccessOnly; onAgent: () => void; agent?: AgentInfo; unfinished?: Unfinished; scan?: ScanInfo; ip: string; m: MachineConf; st: State; live?: Live; statuses: Statuses; reload: () => void;
+function MachineRow({ ip, m, st, live, statuses, reload, focusTab, onAgent, scan, unfinished, agent, agentKind, only }: Readonly<{
+  focusTab?: "access"; only?: AccessOnly; onAgent: () => void; agent?: AgentInfo; agentKind?: string; unfinished?: Unfinished; scan?: ScanInfo; ip: string; m: MachineConf; st: State; live?: Live; statuses: Statuses; reload: () => void;
 }>) {
   const [confirm, setConfirm] = useState(false);
   const [note, setNote] = useState<Note>(null);
@@ -446,7 +446,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focusTab, onAgent, scan
       <NoteLine note={note} />
       {lines && <CheckLines lines={lines} />}
       <RowNotices keyMissing={keyMissing} wrongPort={wrongPort} unfinished={unfinished} live={live} scan={scan} sshUser={sshUser} statuses={statuses} busy={busy} onFixPort={() => void fixPort()} />
-      <MachineForm tabbed focusTab={focusTab} only={only} onAgent={onAgent} agent={agent} connection={connection} report={setNote} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload}
+      <MachineForm tabbed focusTab={focusTab} only={only} onAgent={onAgent} agent={agent} connection={connection} report={setNote} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={agentKind === "windows" || osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload}
         actions={<RowActions ip={ip} busy={busy} confirm={confirm} setConfirm={setConfirm} setNote={setNote} reload={reload} verify={verify} canRemove={!only} />} />
     </div>
   );
@@ -1263,5 +1263,5 @@ export function MachineModal({ ip, snap, focusTab, only }: Readonly<{ ip: string
   try { passed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
   const unfinished = noToken ? { passed: passed.includes(ip) } : undefined;
   return <MachineRow focusTab={focusTab} only={only} unfinished={unfinished} ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onAgent={loadAgents}
-    agent={agents.find((a) => a.ip === ip && a.state !== "révoqué")} scan={scan ? { os: scan.os ?? undefined, apps: scan.apps ?? [], ssh: !!scan.ssh_port, sshPort: scan.ssh_port ?? undefined } : undefined} />;
+    agent={agents.find((a) => a.ip === ip && a.state !== "révoqué")} agentKind={agents.find((a) => a.ip === ip)?.kind /* active first, then the newest revoked: the type stays known after a delete */} scan={scan ? { os: scan.os ?? undefined, apps: scan.apps ?? [], ssh: !!scan.ssh_port, sshPort: scan.ssh_port ?? undefined } : undefined} />;
 }

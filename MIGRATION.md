@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.38.0 → 0.38.1
+
+**Nothing to do.** No setting, volume, agent or database change: only the web pages change. A Windows machine with a Windows agent now opens its agent block and a new agent command as Windows, even when its settings have no system set.
+
 ## 0.37.4 → 0.38.0
 
 **Nothing to do.** No volume, agent or database change. New per-machine setting (agent's ports → services, default `reachable`): a port an agent reports open that the collector has never reached itself no longer becomes a service nor alerts, so a line such as a browser's own port or a Windows service firewalled to its machine can disappear from Services and from Home's « À traiter maintenant ». Change the setting in the machine's own settings (Options) if you want every agent port followed, or none.
