@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.37.3 → 0.37.4
+
+**Nothing to do.** No setting, volume, agent or database change. Behaviour that changes by itself: a sudo refused over SSH (health, backups, ports, AdGuard Home file) is remembered in `state_dir/nosudo.json` and not asked again for 24 h, so sudo no longer mails a « SECURITY information » at every pass. « Relire » of one machine asks again at once, for instance after adding the sudo rule the page gives.
+
 ## 0.37.2 → 0.37.3
 
 **Nothing to do.** No setting, volume, agent or database change. Behaviour that changes by itself: a Shinobi camera picture is now taken at once by Shinobi (`/icon/` route), so « JPEG API » no longer has to be on for each camera. The Shinobi API key needs the « Can View Snapshots » permission for the pictures; without it, the tile now says so.

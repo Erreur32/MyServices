@@ -11,6 +11,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.37.4 (2026-11-04)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **No more sudo security mails at every pass**: an SSH account without a sudo rule got a « SECURITY information » mail from sudo at each pass of health, backups, ports or DNS (sudo mails every refused try, even with `-n`). A sudo refused over SSH is now remembered per machine and per read (`state_dir/nosudo.json`) and not asked again for 24 h; a success forgets it, and « Relire » of one machine asks again at once. Covered: needrestart, Fail2ban, SMART, the root crontab of the backups, the listening ports (`ss`) and a native AdGuard Home file.
+- **Backups, `cron_via`**: a machine whose root crontab is read through Proxmox (`cron_via`) no longer gets `sudo -n crontab -l -u root` over SSH.
+
 ## v0.37.3 (2026-11-03)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
