@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.38.2 (2026-11-04)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Windows agent v10: services of a Windows PC no longer flap** between « nouveau », « panne » and « disparu »: the agent kept the first 400 listening sockets in no fixed order, so a PC with many of them (a browser, Hyper-V, IPv4 and IPv6 of each port) lost a different subset at each report, and a port left out was taken for closed. Windows' dynamic ports (49152 and up, already ignored by the server) are now dropped before the cut, and the list is sorted by port. An agent with automatic update takes v10 at its next report.
+
 ## v0.38.1 (2026-11-04)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.38.1 → 0.38.2
+
+**Nothing to do.** No setting, volume or database change. The Windows agent moves to v10: with automatic update on, it updates itself at its next report; otherwise click « Mettre à jour » on its row in Machines › Agents. No new key needed. Its services stop coming and going on a PC with many listening ports.
+
 ## 0.38.0 → 0.38.1
 
 **Nothing to do.** No setting, volume, agent or database change: only the web pages change. A Windows machine with a Windows agent now opens its agent block and a new agent command as Windows, even when its settings have no system set.
