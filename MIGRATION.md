@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.37.4 → 0.38.0
+
+**Nothing to do.** No volume, agent or database change. New per-machine setting (agent's ports → services, default `reachable`): a port an agent reports open that the collector has never reached itself no longer becomes a service nor alerts, so a line such as a browser's own port or a Windows service firewalled to its machine can disappear from Services and from Home's « À traiter maintenant ». Change the setting in the machine's own settings (Options) if you want every agent port followed, or none.
+
 ## 0.37.3 → 0.37.4
 
 **Nothing to do.** No setting, volume, agent or database change. Behaviour that changes by itself: a sudo refused over SSH (health, backups, ports, AdGuard Home file) is remembered in `state_dir/nosudo.json` and not asked again for 24 h, so sudo no longer mails a « SECURITY information » at every pass. « Relire » of one machine asks again at once, for instance after adding the sudo rule the page gives.

@@ -11,6 +11,17 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.38.0 (2026-11-04)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **Machine setting, agent's ports → services**: a machine read by an agent gets a new setting (Machines → its settings → Options, « Ports de l'agent → services ») choosing whether every open port it reports becomes a followed service (`all`), only the ones the collector itself can reach (`reachable`, the default), or none (`none`); a list of program names (e.g. `brave`) can also be ignored whatever the choice.
+- **Source badge, Home and Services**: « À traiter maintenant » (Home) and the Services page now show the small « Lu par » badge already used in History next to a local service's state, naming what read it (an agent, SSH, Docker…), so a false alarm's origin is clear at a glance.
+
+### Fixed
+- **False « down » for a port an agent sees open but the collector cannot reach** (e.g. a browser's own port, or a service firewalled to its own machine): it is now shown up, marked « filtered by the firewall », instead of alerting; under the new default setting (`reachable`), such a port does not become a service at all, since the collector itself has never reached it.
+
 ## v0.37.4 (2026-11-04)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
