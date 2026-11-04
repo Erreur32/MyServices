@@ -35,7 +35,7 @@ class AgentPorts(unittest.TestCase):
     def test_state_from_the_report_and_nothing_without_it(self):
         row = {**self.row, "by_agent": True}
         self.assertEqual(pulse.agent_states([row], {"10.0.0.5": {22, 80}}), {"10.0.0.5:22": True})
-        self.assertEqual(pulse.agent_states([row], {"10.0.0.5": {80}}), {"10.0.0.5:22": False})
+        self.assertEqual(pulse.agent_states([row], {"10.0.0.5": {80}}), {})   # left out of the report: not taken for closed, the collection's state stays
         self.assertEqual(pulse.agent_states([row], {}), {})   # agent silent or no ports section: no state, so no false outage
 
 

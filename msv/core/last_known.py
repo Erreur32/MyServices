@@ -19,6 +19,15 @@ def _rows(path: str) -> list[dict]:
         return []
 
 
+def agent_ports(path: str) -> dict[str, dict[int, str]]:
+    """{ip: {port: process name}} of the rows an agent's report made in the data.json of `path` (agent_port); empty if absent or unreadable."""
+    out: dict[str, dict[int, str]] = {}
+    for r in _rows(path):
+        if r.get("agent_port") and r.get("ip") and isinstance(r.get("port"), int):
+            out.setdefault(r["ip"], {})[r["port"]] = str(r.get("name") or f'port {r["port"]}')
+    return out
+
+
 def target(r: dict) -> str | None:
     """« ip:port » visé par une ligne (forward d'un host NPM, port d'un service local) ; None sans adresse."""
     return f'{r["ip"]}:{r["port"]}' if r.get("ip") and r.get("port") else None

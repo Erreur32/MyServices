@@ -1324,16 +1324,19 @@ def main():
                     used.add((ip, hp))
                     rows.append(row("local", f"{ip}:{hp}", ip, hp, name=c["name"],
                                     service=docker_service(dict(c, inner=inner), "port")))
+    seen_by_agent = last_known_services.agent_ports(OUT)
     for ip, ports in procs.items():
         from_agent = ip in agent_listen
         conf = META_RAW.get("machines", {}).get(ip, {}) if from_agent else {}
         if conf.get("agent_ports") == "none":
             continue   # réglage de la machine : ses ports ne deviennent jamais des services
+        if from_agent:   # a port shown before that this report leaves out (Windows does not always list SMB 445, Hyper-V 2179): kept while it answers
+            ports = {**{port: {"name": name, "lan": True, "kept": True} for port, name in seen_by_agent.get(ip, {}).items()}, **ports}
         ignored = {x.casefold() for x in conf.get("agent_ignore") or []}
         for port, p in ports.items():
             if p["lan"] and (ip, port) not in used and p["name"].casefold() not in ignored:
                 used.add((ip, port))
-                rows.append(row("local", f"{ip}:{port}", ip, port, name=p["name"], agent_port=from_agent,
+                rows.append(row("local", f"{ip}:{port}", ip, port, name=p["name"], agent_port=from_agent, **({"_kept": True} if p.get("kept") else {}),
                                 service=None if p.get("port_only") else {"kind": "process", "name": p["name"]}))
                 if process.internal_bind(p.get("addr"), ip):   # bound to a bridge or container address: the collector cannot reach it, the process is up (seen by ss)
                     rows[-1].update(internal=True, listen_addr=p["addr"], ssh_active=True,
@@ -1424,7 +1427,9 @@ def main():
             r["backend"] = {"up": True, "internal": True, "via": "ssh"}
         elif r.get("internal"):
             r["backend"] = {"up": None, "internal": True}
-        if r.get("agent_port") and r.get("backend", {}).get("up") is False:
+        if r.pop("_kept", False) and r.get("backend", {}).get("up") is False:
+            r["_drop"] = True   # left out of the report and not answering: closed for real, whatever the setting
+        elif r.get("agent_port") and r.get("backend", {}).get("up") is False:
             mode = META_RAW.get("machines", {}).get(r["ip"], {}).get("agent_ports") or "reachable"
             r["backend"], r["_drop"] = agent_unreachable_backend(mode)
         if i in public:

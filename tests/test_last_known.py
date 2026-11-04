@@ -32,6 +32,16 @@ class LastKnown(unittest.TestCase):
         self.assertIsNone(out[("proxy", "13")]["service"])
         self.assertIsNone(out[("local", "10.0.0.5:80")]["service"])
 
+    def test_ports_vus_par_un_agent(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "data.json"
+            p.write_text(json.dumps({"hosts": [
+                {"type": "local", "id": "10.0.0.5:445", "ip": "10.0.0.5", "port": 445, "name": "System", "agent_port": True},
+                {"type": "local", "id": "10.0.0.6:22", "ip": "10.0.0.6", "port": 22, "name": "sshd", "agent_port": False},   # read over SSH
+            ]}), encoding="utf-8")
+            self.assertEqual(last_known.agent_ports(str(p)), {"10.0.0.5": {445: "System"}})
+            self.assertEqual(last_known.agent_ports(str(Path(d) / "absent.json")), {})
+
     def test_fichier_absent_ou_illisible(self):
         self.assertEqual(self.read(None), {})
         with tempfile.TemporaryDirectory() as d:
