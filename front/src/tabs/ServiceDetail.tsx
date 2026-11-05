@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { send } from "../api";
 import { NoteLine } from "../components/form";
 import { act, quiet, type Note } from "../lib/forms";
-import { CHECK, KIND_NAME, checks, detectedName, noIdentity, openUrl, status } from "../lib/status";
+import { CHECK, KIND_NAME, checks, detectedName, errText, noIdentity, openUrl, status } from "../lib/status";
 import { mergePorts } from "../lib/servicesState";
 import type { Host } from "../types";
 import { tx } from "../lib/i18n";
@@ -218,12 +218,12 @@ function backendRow(r: Host, npmOnly: boolean): Row {
   const b = r.backend || {};
   if (npmOnly) return [tx("Backend TCP"), "-", "mut"];
   if (b.internal) return [tx("Backend TCP"), tx("interne, testé via NPM"), "mut"];
-  return b.up ? [tx("Backend TCP"), tx("joignable · {0} ms", b.ms), "ok"] : [tx("Backend TCP"), tx("injoignable · {0}", b.err || "?"), "bad"];
+  return b.up ? [tx("Backend TCP"), tx("joignable · {0} ms", b.ms), "ok"] : [tx("Backend TCP"), tx("injoignable · {0}", errText(b.err)), "bad"];
 }
 
 function httpsRow(r: Host): Row {
   const p = r.public || {};
-  if (!p.code) return [tx("HTTPS via NPM"), p.err || "-", p.err ? "bad" : "mut"];
+  if (!p.code) return [tx("HTTPS via NPM"), p.err ? errText(p.err) : "-", p.err ? "bad" : "mut"];
   let tone: Tone = "ok";
   if (p.code >= 500) tone = "bad";
   else if (p.cert_ok === false || p.code >= 400) tone = "warn";

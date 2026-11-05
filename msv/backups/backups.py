@@ -886,7 +886,8 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
             d["level"] = "crit" if d["pct"] >= DISK_CRIT else "warn" if d["pct"] >= DISK_WARN else "ok"
             dlevel = max(dlevel, d["level"], key=RANK.get)
             if d["level"] != "ok":
-                issues.append({"level": d["level"], "set": h["label"], "host_id": h["id"], "text": f"disque {d['mount']} rempli à {d['pct']:g} %"})
+                issues.append({"level": d["level"], "set": h["label"], "host_id": h["id"], "ip": h.get("ip"), "kind": "disk",   # ip, kind: the home page leaves it to Health when Health reads that machine
+                               "text": f"disque {d['mount']} rempli à {d['pct']:g} %"})
         local = []
         ignored = meta.get("discover_ignore", {}).get(h["id"], [])
         for x in (r or {}).get("local", []):

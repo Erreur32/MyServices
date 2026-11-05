@@ -579,7 +579,7 @@ export interface BackupHost {
 export interface Backups {
   generated: string;
   summary: { ok: number; warn: number; crit: number; sets: number; hosts: number; volume: number; no_offsite: number; offsite_unknown?: number; local_dirs?: number; local_unlisted?: number };
-  issues: { level: Level; set: string; text: string; set_id?: string; host_id?: string }[];   // set_id: a followed set (editable in Settings → Backups); host_id: a machine
+  issues: { level: Level; set: string; text: string; set_id?: string; host_id?: string; ip?: string | null; kind?: "disk" }[];   // set_id: a followed set (editable in Settings → Backups); host_id: a machine, ip + kind « disk »: its disk filling up
   hosts?: BackupHost[];
   sets?: BackupSet[];
 }

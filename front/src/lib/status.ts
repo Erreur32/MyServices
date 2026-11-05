@@ -1,6 +1,6 @@
 // État d'un service et points à vérifier : même logique que la page actuelle (web/index.html, status() et
 // checks()), pour que les deux pages comptent pareil pendant la transition.
-import type { Dns, Host } from "../types";
+import type { Dns, Host, Probe } from "../types";
 import { tx } from "./i18n";
 
 export type StatusClass = "ok" | "warn" | "bad" | "off";
@@ -34,6 +34,25 @@ function httpLabel(c: number): string {
 /** Why a name did not resolve, from the errno of the probe (-3: no answer in time, -2: unknown name) */
 const DNS_CAUSE: Record<number, string> = { [-3]: tx(" (pas de réponse du DNS à temps)"), [-2]: tx(" (nom inconnu du DNS)") };
 
+/** The probes send the Python exception name (« ConnectionRefusedError ») : said in words, an unknown one kept as it is */
+const ERR_TEXT: Record<string, string> = {
+  ConnectionRefusedError: tx("connexion refusée (rien n'écoute sur ce port)"),
+  TimeoutError: tx("pas de réponse à temps"), timeout: tx("pas de réponse à temps"),
+  gaierror: tx("nom introuvable dans le DNS"),
+  ConnectionResetError: tx("connexion coupée par la machine"), ConnectionAbortedError: tx("connexion coupée par la machine"),
+  RemoteDisconnected: tx("connexion fermée sans réponse"),
+  SSLCertVerificationError: tx("certificat refusé"), SSLError: tx("échec de la connexion chiffrée"),
+  OSError: tx("machine injoignable"),
+};
+export const errText = (err?: string | null): string => (err ? ERR_TEXT[err] ?? err : "?");
+
+/** A name that does not resolve: « DNS absent » when no DNS server knows it, a missed resolution when they do */
+function dnsStatus(p: Probe): [StatusClass, string, string] {
+  const cause = DNS_CAUSE[p.errno ?? 0] ?? "";
+  return p.dns_ok ? ["off", tx("résolution ratée"), tx("les serveurs DNS répondent pour ce nom, la sonde ne l'a pas résolu à ce passage · non testé") + cause]
+    : ["warn", tx("DNS absent"), tx("le domaine ne résout pas (aucun enregistrement DNS)") + cause];
+}
+
 /** [classe, libellé court, explication] */
 export function status(r: Host): [StatusClass, string, string] {
   const p = r.public || {}, b = r.backend || {};
@@ -43,31 +62,28 @@ export function status(r: Host): [StatusClass, string, string] {
   if (!r.enabled) return ["off", tx("désactivé"), r.type === "redirect" ? tx("redirection désactivée dans NPM")
     : r.type === "dead" ? tx("host 404 désactivé dans NPM") : tx("désactivé dans NPM · backend {0}", b.up ? tx("toujours joignable") : tx("éteint"))];
   if (r.type === "dead") return p.code === 404 ? ["ok", tx("OK · 404 voulu"), tx("NPM répond 404 comme prévu")]
-    : ["warn", p.code ? `HTTP ${p.code}` : "erreur", p.err || tx("404 attendu")];
+    : ["warn", p.code ? `HTTP ${p.code}` : "erreur", p.err ? errText(p.err) : tx("404 attendu")];
   if (r.type === "stream") return b.up ? ["ok", tx("en ligne"), tx("stream :{0} → backend {1} ms", r.incoming_port, b.ms)]
-    : ["bad", tx("backend down"), tx("{0}:{1} injoignable", r.ip, r.port)];
+    : ["bad", tx("injoignable"), tx("NPM l'envoie vers {0}:{1}, injoignable", r.ip, r.port)];
   if (r.type === "redirect") {
     const f = r.follow || {}, svc = r.service ? tx(" · {0} actif", KIND_LABEL[r.service.kind] || r.service.kind) : "";
-    if (!p.code) return ["bad", tx("erreur"), p.err || "?"];
+    if (p.err === "gaierror") return dnsStatus(p);   // a redirect on a name absent from the DNS: the same « DNS absent » as a proxy, not a red error
+    if (!p.code) return ["bad", tx("erreur"), errText(p.err)];
     if ((f.code ?? 0) >= 500) return ["warn", `cible ${f.code}`, tx("HTTP {0} → {1} · page finale en erreur {2}", p.code, r.target, f.code)];
     return ["ok", tx("redirige"), tx("HTTP {0} → {1}{2}{3}", p.code, r.target, f.code ? tx(" · page finale {0}", f.code) : "", svc)];
   }
   if (r.type === "local" && b.internal && b.up) return ["ok", tx("en ligne"), tx("apache2 actif · écoute seulement sur {0}:{1}", r.listen_addr || "?", r.port)];
   if (r.type === "local" && b.internal) return ["off", tx("interne"), tx("écoute seulement sur {0}:{1} · non testable", r.listen_addr || "?", r.port)];
   if (r.type === "local") return b.up ? ["ok", tx("en ligne"), tx("TCP {0} ms · accès LAN direct", b.ms)]
-    : ["bad", "down", tx("{0}:{1} injoignable ({2})", r.ip, r.port, b.err || "?")];
+    : ["bad", "down", tx("{0}:{1} injoignable, {2}", r.ip, r.port, errText(b.err))];
   if (b.internal) return p.code && p.code < 500 ? ["ok", httpLabel(p.code), tx("HTTP {0} · backend interne docker, testé via NPM", p.code)]
     : ["bad", p.code ? `HTTP ${p.code}` : "erreur", tx("backend interne docker (joignable seulement par NPM)")];
-  if (b.up === false) return ["bad", tx("backend down"), tx("{0}:{1} injoignable ({2})", r.ip, r.port, b.err || "?")];
+  if (b.up === false) return ["bad", tx("injoignable"), tx("NPM l'envoie vers {0}:{1}, {2}", r.ip, r.port, errText(b.err))];
   if ((p.code ?? 0) >= 500) return ["bad", `erreur ${p.code}`, p.code === 502 ? tx("HTTP 502 : NPM ne joint pas le backend") : tx("HTTP {0} : erreur serveur", p.code)];
-  if (p.err === "gaierror") {
-    const cause = DNS_CAUSE[p.errno ?? 0] ?? "";
-    return p.dns_ok ? ["off", tx("résolution ratée"), tx("les serveurs DNS répondent pour ce nom, la sonde ne l'a pas résolu à ce passage · non testé") + cause]
-      : ["warn", tx("DNS absent"), tx("le domaine ne résout pas (aucun enregistrement DNS)") + cause];
-  }
+  if (p.err === "gaierror") return dnsStatus(p);
   if (p.err === "RemoteDisconnected") return r.closes_root ? ["ok", tx("OK · fermé"), tx("NPM ferme / sans répondre (return 444 voulu)")]
     : ["warn", tx("connexion coupée"), tx("certificat valide, mais NPM ferme la connexion sans réponse HTTP")];
-  if (p.err) return ["warn", tx("certificat"), tx("HTTPS refusé par NPM pour ce nom ({0}) : certificat absent ou invalide", p.err)];
+  if (p.err) return ["warn", tx("certificat"), tx("HTTPS refusé par NPM pour ce nom ({0}) : certificat absent ou invalide", errText(p.err))];
   if (p.cert_ok === false) return ["ok", httpLabel(p.code ?? 0), tx("HTTP {0} · certificat ≠ nom (wildcard LAN ?)", p.code)];
   return ["ok", httpLabel(p.code ?? 0), `HTTP ${p.code}`];
 }

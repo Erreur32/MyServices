@@ -41,8 +41,8 @@ describe("the words of the home page", () => {
   const many = (n: number) => Array.from({ length: n }, () => alert);
   it("the title follows how many alerts and how serious", () => {
     expect(storyTitle([crit], 0)).toBe("**Un point grave** demande ton attention.");
-    expect(storyTitle([crit, alert, alert], 0)).toBe("**Un point grave**, et **2** autre(s) point(s) à regarder ensuite.");
-    expect(storyTitle([backup, alert], 0)).toBe("**Une sauvegarde** à reprendre, et **1** autre(s) point(s) à voir.");   // a backup: worth a look, never « grave »
+    expect(storyTitle([crit, alert, alert], 0)).toBe("**Un point grave**, et **2 autres points** à regarder ensuite.");
+    expect(storyTitle([backup, alert], 0)).toBe("**Une sauvegarde** à reprendre, et **1 autre point** à voir.");   // a backup: worth a look, never « grave »
     expect(storyTitle([backup], 1)).toBe("Rien ne brûle, mais **une sauvegarde** attend un coup d'œil.");
     expect(storyTitle([backup, crit], 0)).toBe("**2 points graves** sur ton réseau.");
     expect(storyTitle([crit, crit], 1)).toBe("Ça sent le roussi : **2 points graves**.");
@@ -76,7 +76,7 @@ describe("the dated lines of the home page", () => {
   it("the latest copy of all sets, a date in the future left out", () => {
     expect(lastBackup(s(), NOW)).toBeNull();
     expect(lastBackup(s(set("a", null)), NOW)).toBeNull();
-    expect(lastBackup(s(set("a", (NOW - 3 * 86_400_000) / 1000), set("b", (NOW - 5 * 86_400_000) / 1000), set("c", (NOW + HOUR) / 1000)), NOW)).toBe("Dernière sauvegarde : **a**, il y a **3 jour(s)**.");
+    expect(lastBackup(s(set("a", (NOW - 3 * 86_400_000) / 1000), set("b", (NOW - 5 * 86_400_000) / 1000), set("c", (NOW + HOUR) / 1000)), NOW)).toBe("Dernière sauvegarde : **a**, il y a **3 jours**.");
     expect(lastBackup(s(set("a", (NOW - HOUR) / 1000)), NOW)).toContain("Dernière sauvegarde : **a**, à ");
   });
   it("Patch Tuesday and Sysadmin Day, other days nothing", () => {

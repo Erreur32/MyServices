@@ -7,7 +7,7 @@ import { LetterAvatar } from "./LetterAvatar";
 import { imageService, last24h, logoOf, serviceOfRow, sinceText, type Last24hRow } from "../lib/last24h";
 import { cardHash } from "../lib/serviceCards";
 import { tx } from "../lib/i18n";
-import type { TabId } from "../lib/summary";
+import { plural, type TabId } from "../lib/summary";
 import type { Host } from "../types";
 import { Rich } from "./Rich";
 import { Badge } from "./ui";
@@ -37,7 +37,7 @@ function Row({ row, now, hosts }: Readonly<{ row: Last24hRow; now: number; hosts
       </span>
       <span className="col-span-2 flex min-w-0 flex-wrap gap-1.5 pl-5 text-[13px] sm:col-span-1 sm:pl-0">
         {row.who.slice(0, WHO_SHOWN).map((w) => <Who key={w} name={w} row={row} hosts={hosts} />)}
-        {more > 0 && <span className="px-1 py-0.5 text-dim">{tx("+ {0} autre(s)", more)}</span>}
+        {more > 0 && <span className="px-1 py-0.5 text-dim">{`+ ${plural(more, "autre")}`}</span>}
       </span>
       <span className="row-start-1 col-start-2 whitespace-nowrap text-right text-xs tabular-nums text-dim sm:col-start-3">{sinceText(row.last, now)}</span>
     </li>

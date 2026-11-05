@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { read } from "../api";
 import { dateTime } from "../lib/format";
 import { tx } from "../lib/i18n";
+import { plural } from "../lib/summary";
 import { CHANNEL_ICON } from "../tabs/Alerts";
 import type { AlertsState } from "../types";
 
@@ -32,7 +33,7 @@ export function SentAlerts() {
                 <span className="w-[6.5rem] shrink-0 whitespace-nowrap text-xs text-dim">{dateTime(s.ts * 1000)}</span>
                 <span className="min-w-0 flex-1">
                   <span className={s.ok ? "text-txt" : "text-bad"}>{s.ok ? "" : "⚠ "}{s.summary.split("\n")[0] || s.rule}</span>
-                  {s.n > 1 && <span className="text-xs text-dim"> {tx("+{0} autre(s)", s.n - 1)}</span>}
+                  {s.n > 1 && <span className="text-xs text-dim"> {`+${plural(s.n - 1, "autre")}`}</span>}
                   <span className="block text-xs text-dim">{s.ok ? s.rule : `${s.rule} · ${s.info}`}</span>
                 </span>
               </li>

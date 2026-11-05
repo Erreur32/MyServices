@@ -21,7 +21,7 @@ describe("What changed since yesterday", () => {
     expect(html).toContain("Panne");
     expect(html).toContain("srv1.lan");
     expect(html).not.toContain("srv5.lan");   // the fifth and sixth names are counted, not listed
-    expect(html).toContain("+ 2 autre(s)");
+    expect(html).toContain("+ 2 autres");
     expect(html).toContain("sm:col-start-3");
   });
 });

@@ -8,7 +8,7 @@ import { pct, tileTone, type Report } from "../tabs/Availability";
 import type { Snapshot } from "../api";
 import { CLEANUP, checks, dnsSync, status } from "../lib/status";
 import { mState } from "../lib/machines";
-import type { TabId } from "../lib/summary";
+import { plural, type TabId } from "../lib/summary";
 import { tx } from "../lib/i18n";
 import { hasNetwork } from "../lib/network";
 import { dnsFigures } from "../lib/dnsState";
@@ -140,10 +140,10 @@ export function KeyFigures({ snap, go }: Readonly<{ snap: Snapshot; go: (t: TabI
   const k = keyCounts(snap), week = useWeekAvailability(snap.data.generated);
   return (
     <nav className="flex gap-2.5 overflow-x-auto pb-1" aria-label={tx("Chiffres clés")}>
-      <StatTile n={`${k.machinesUp}/${k.machines}`} label={tx("Machines joignables")} sub={tx("{0} éteinte(s) exprès", k.machinesOff)} tone={ratioTone(k.machinesUp, k.machines)} onClick={() => go("machines")} />
+      <StatTile n={`${k.machinesUp}/${k.machines}`} label={tx("Machines joignables")} sub={plural(k.machinesOff, "éteinte exprès", "éteintes exprès")} tone={ratioTone(k.machinesUp, k.machines)} onClick={() => go("machines")} />
       <StatTile n={`${k.servicesUp}/${k.services}`} label={tx("Services en ligne")} sub={tx("sites et applis du parc")} tone={ratioTone(k.servicesUp, k.services)} onClick={() => go("services")} />
       {k.health > 0 && <StatTile n={`${k.healthOk}/${k.health}`} label={tx("Santé")} sub={tx("disques et mémoire")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ratioTone(k.healthOk, k.health)} onClick={() => go("machines")} />}
-      {k.backups > 0 && <StatTile n={`${k.backupsOk}/${k.backups}`} label={tx("Sauvegardes à jour")} sub={tx("{0} jeu(x) suivis", k.backups)} tone={ratioTone(k.backupsOk, k.backups)} onClick={() => go("backups")} />}
+      {k.backups > 0 && <StatTile n={`${k.backupsOk}/${k.backups}`} label={tx("Sauvegardes à jour")} sub={plural(k.backups, "jeu suivi", "jeux suivis")} tone={ratioTone(k.backupsOk, k.backups)} onClick={() => go("backups")} />}
       {k.connectors > 0 && <StatTile n={`${k.connectorsOk}/${k.connectors}`} label={tx("Connecteurs qui répondent")} sub={tx("tes outils reliés")} tone={ratioTone(k.connectorsOk, k.connectors)} onClick={() => { location.hash = CONNECTORS; }} />}
       {week != null && <StatTile n={pct(week)} label={tx("Disponibilité sur 7 jours")} tone={tileTone(week)} sub={tx("services et machines")} onClick={() => { location.hash = "history/availability"; }} />}
     </nav>

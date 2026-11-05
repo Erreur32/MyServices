@@ -59,7 +59,7 @@ describe("accueil", () => {
   });
 
   it("pannes, santé et sauvegardes triées par gravité, avec les noms", () => {
-    const d = data([host({ domains: ["plex.lan"], backend: { up: false } }), host({ id: 2, domains: ["x.lan"], webcheck: { cert_days: 5 } })]);
+    const d = data([host({ domains: ["plex.lan"], ip: "10.0.0.9", port: 32400, backend: { up: false, err: "ConnectionRefusedError" } }), host({ id: 2, domains: ["x.lan"], webcheck: { cert_days: 5 } })]);
     const items = attention({
       data: d, now: NOW,
       health: { timestamp: "", hosts: [{ id: "srv", name: "srv · prod · 10.0.0.77", reachable: true, level: "warn",
@@ -69,7 +69,7 @@ describe("accueil", () => {
     });
     expect(items.map((i) => [i.level, i.tab])).toEqual([
       ["crit", "services"], ["crit", "backups"], ["warn", "services"], ["warn", "machines"]]);
-    expect(items[0].text).toBe("**plex.lan** ne répond plus (backend down), sur [[m:srv]]");
+    expect(items[0].text).toBe("**plex.lan** ne répond plus, sur [[m:srv]] : NPM l'envoie vers 10.0.0.9:32400, connexion refusée (rien n'écoute sur ce port)");   // the target and the cause in words: a wrong port reads at once
     expect(items[3].text).toBe("[[m:srv · prod]] disque / rempli à 91 %");  // nom avec « · » gardé entier
     expect(items[3].href).toBe("machines/10.0.0.77/watch/disk");   // the link opens on the frame of the trouble
     expect(items[3].fix).toEqual({ label: "Régler la machine", href: "machines/10.0.0.77/settings" });
@@ -165,5 +165,19 @@ describe("every attention line leads somewhere", () => {
     expect(texts).toHaveLength(3);
     expect(texts[1]).toContain("lecture périmée");
     expect(texts[2]).toContain("lecture partielle : ss without root");
+  });
+});
+
+describe("disk of a backup machine", () => {
+  const summary = { ok: 1, warn: 1, crit: 0, sets: 1, hosts: 2, volume: 0, no_offsite: 0 };
+  const backups = { generated: "", summary, issues: [
+    { level: "warn" as const, set: "Dev", host_id: "dev", ip: "10.0.0.2", kind: "disk" as const, text: "disque / rempli à 81 %" },
+    { level: "warn" as const, set: "NAS", host_id: "nas", ip: "10.0.0.3", kind: "disk" as const, text: "disque /data rempli à 90 %" }] };
+  const health = { timestamp: "", hosts: [{ id: "dev", name: "dev · 10.0.0.2", reachable: true, level: "warn" as const, disks: [{ mount: "/", used_pct: 85, warning: true }] }] };
+
+  it("is left to Health when Health reads that machine, kept with its own hint otherwise", () => {
+    const items = attention({ data: data([]), health, backups, now: NOW }).filter((i) => i.category === "sauvegardes");
+    expect(items.map((i) => i.text)).toEqual(["Sauvegarde **NAS** : disque /data rempli à 90 %"]);
+    expect(items[0].help).toContain("garde moins de copies");
   });
 });
