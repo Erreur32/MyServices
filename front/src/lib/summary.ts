@@ -87,8 +87,10 @@ function npmWarnings(hosts: Host[]): Attention[] {
   if (warn.length > NPM_LINES)
     return [{ category: "services", level: "warn", text: tx("{0} NPM avec avertissement : {1}", plural(warn.length, "entrée"), names(warn.map(hostName))), tab: "services", action: tx("Voir les entrées"), sel }];
   return warn.map((r) => {
-    const why = checks(r).filter((k) => !CLEANUP.includes(k)).map((k) => CHECK[k][0]).join(", ") || status(r)[1];
-    return { category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), why), tab: "services", action: tx("Voir le service"), sel, href: serviceHref(r), via: rowVia(r) };
+    const found = checks(r);
+    const why = found.filter((k) => !CLEANUP.includes(k)).map((k) => CHECK[k][0]).join(", ") || status(r)[1];
+    const help = found.includes("dns") ? tx("Crée ce nom dans la zone DNS du domaine, ou retire l'entrée de NPM si elle ne sert plus.") : undefined;   // not « check the service runs »: nothing runs behind a missing name
+    return { category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), why), tab: "services", action: tx("Voir le service"), sel, href: serviceHref(r), via: rowVia(r), help };
   });
 }
 
@@ -117,8 +119,8 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
     if (!m.ping && !m.off && !m.disabled) out.push({ category: "machines", level: "crit", text: tx("{0} ne répond plus au ping ({1})", machineTag(m.name), m.ip), tab: "machines", action: tx("Voir la machine"), sel: { state: ["down"] }, href: `machines/${m.ip}`, fix: machineFix(m.ip) });
   out.push(...npmWarnings(data.hosts));
   for (const r of data.hosts) {
-    const [cls, label] = status(r);
-    if (cls === "bad") out.push({ category: "services", level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", machineTag(r.machine)) : ""), tab: "services", action: tx("Voir le service"), sel: { status: ["bad"] }, href: serviceHref(r), fix: { label: tx("Régler le service"), href: `services/edit/${encodeURIComponent(serviceKey(r))}` }, via: rowVia(r) });
+    const [cls, , why] = status(r);   // the explanation, not the short label: where it points and why it fails (a wrong port reads at once)
+    if (cls === "bad") out.push({ category: "services", level: "crit", text: tx("**{0}** ne répond plus{1} : {2}", hostName(r), r.machine ? tx(", sur {0}", machineTag(r.machine)) : "", why), tab: "services", action: tx("Voir le service"), sel: { status: ["bad"] }, href: serviceHref(r), fix: { label: tx("Régler le service"), href: `services/edit/${encodeURIComponent(serviceKey(r))}` }, via: rowVia(r) });
     const cert = r.enabled && !r.paused ? certIssue(r) : "";
     if (cert) out.push({ category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), cert), tab: "services", action: tx("Voir le site"), sel: { status: ["warn"] }, href: serviceHref(r), via: rowVia(r) });
   }
@@ -138,8 +140,12 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
     if (s.cls !== "ok") out.push({ category: "dns", level: s.cls === "bad" ? "crit" : "warn", text: tx("DNS AdGuard : {0}", s.label), tab: "dns", action: tx("Voir le DNS"), sel: { alerts: ["on"] } });
     if (data.dns.orphans.length) out.push({ category: "dns", level: "warn", text: tx("{0}, sans host NPM actif ({1})", plural(data.dns.orphans.length, "réécriture AdGuard orpheline", "réécritures AdGuard orphelines"), names(data.dns.orphans.map((o) => o.domain))), tab: "dns", action: tx("Voir les réécritures"), sel: { alerts: ["on"] } });
   }
-  for (const i of backups?.issues || [])
-    out.push({ category: "sauvegardes", level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups", action: tx("Voir le jeu"), sel: i.set_id ? { alerts: ["on"] } : { state: ["crit", "down", "warn"] }, fix: i.set_id ? { label: tx("Régler le jeu"), href: "settings/backups" } : undefined });   // a set: the sets on Alerts; a machine (disk, unreachable): the machines in trouble
+  const healthIps = new Set((health?.hosts || []).map((h) => splitHostName(h.name)[1]));
+  for (const i of backups?.issues || []) {
+    if (i.kind === "disk" && i.ip && healthIps.has(i.ip)) continue;   // Health reads that disk too, with the machine's own thresholds: one line, not two figures
+    out.push({ category: "sauvegardes", level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups", action: tx("Voir le jeu"), sel: i.set_id ? { alerts: ["on"] } : { state: ["crit", "down", "warn"] }, fix: i.set_id ? { label: tx("Régler le jeu"), href: "settings/backups" } : undefined,   // a set: the sets on Alerts; a machine (disk, unreachable): the machines in trouble
+      help: i.kind === "disk" ? tx("Le disque qui garde les copies se remplit : fais de la place, ou garde moins de copies.") : undefined });
+  }
   const dockerOff = (data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
   if (dockerOff.length)
     out.push({ category: "connecteurs", level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "settings", action: tx("Voir l'accès"), dot: "machines", href: "settings/machines" });

@@ -3,7 +3,7 @@
 import type { Snapshot } from "../api";
 import { hm } from "./format";
 import { tx } from "./i18n";
-import type { Attention, Category } from "./summary";
+import { plural, type Attention, type Category } from "./summary";
 
 const pick = <T>(list: T[], seed: number): T => list[Math.abs(seed) % list.length];
 
@@ -33,14 +33,16 @@ function calmTitle(seed: number): string {
 /** Only backups in trouble: worth a look, not the top priority of the network */
 function backupTitle(crit: number, rest: number, seed: number): string {
   if (crit > 1) return pick([tx("**{0} sauvegardes** à reprendre, rien ne brûle.", crit), tx("Côté sauvegardes, **{0} jeux** demandent un coup d'œil.", crit)], seed);
-  if (rest) return pick([tx("**Une sauvegarde** à reprendre, et **{0}** autre(s) point(s) à voir.", rest), tx("Côté sauvegardes, **une copie** à vérifier, puis **{0}** autre(s) point(s).", rest)], seed);
+  const others = plural(rest, "autre point", "autres points");
+  if (rest) return pick([tx("**Une sauvegarde** à reprendre, et **{0}** à voir.", others), tx("Côté sauvegardes, **une copie** à vérifier, puis **{0}**.", others)], seed);
   return pick([tx("**Une sauvegarde** à reprendre quand tu peux."), tx("Rien ne brûle, mais **une sauvegarde** attend un coup d'œil.")], seed);
 }
 
 function seriousTitle(critical: Attention[], rest: number, seed: number): string {
   const crit = critical.length;
   if (critical.every((i) => i.category === "sauvegardes")) return backupTitle(crit, rest, seed);
-  if (crit === 1 && rest) return pick([tx("**Un point grave**, et **{0}** autre(s) point(s) à regarder ensuite.", rest), tx("**Une alerte sérieuse** d'abord, puis **{0}** autre(s) point(s).", rest)], seed);
+  const others = plural(rest, "autre point", "autres points");
+  if (crit === 1 && rest) return pick([tx("**Un point grave**, et **{0}** à regarder ensuite.", others), tx("**Une alerte sérieuse** d'abord, puis **{0}**.", others)], seed);
   if (crit === 1) return pick([tx("**Un point grave** demande ton attention."), tx("**Une alerte sérieuse** à traiter en priorité.")], seed);
   return pick([tx("**{0} points graves** sur ton réseau.", crit), tx("Ça sent le roussi : **{0} points graves**.", crit)], seed);
 }
@@ -79,7 +81,7 @@ export function lastBackup(snap: Snapshot, now: number): string | null {
   }
   if (!at) return null;
   const days = Math.floor((now - at) / DAY_MS);
-  return days ? tx("Dernière sauvegarde : **{0}**, il y a **{1} jour(s)**.", label, days) : tx("Dernière sauvegarde : **{0}**, à **{1}**.", label, hm(at));
+  return days ? tx("Dernière sauvegarde : **{0}**, il y a **{1}**.", label, plural(days, "jour")) : tx("Dernière sauvegarde : **{0}**, à **{1}**.", label, hm(at));
 }
 
 /** A day geeks know, or null: Patch Tuesday (second Tuesday of the month), Sysadmin Day (last Friday of July) */

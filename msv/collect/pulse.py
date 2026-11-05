@@ -58,13 +58,13 @@ def read_by_agent(r: dict, listening: dict[str, set[int]]) -> bool:
 
 
 def agent_states(hosts: list[dict], listening: dict[str, set[int]]) -> dict[str, bool]:
-    """{« ip:port »: listening} for the followed rows flagged `by_agent` whose machine has a fresh agent report with listening ports. A row
-    whose agent is silent or sends no ports is left out: it is neither probed nor announced down, the collection's state stays."""
+    """{« ip:port »: True} for the followed rows flagged `by_agent` that a fresh agent report shows listening. A port the report leaves out
+    is not taken for closed: Windows does not always list the kernel's listeners (SMB 445, Hyper-V 2179); that row keeps the collection's state."""
     out = {}
     for r in hosts:
         key = port_of(r)
-        if key and r.get("by_agent") and r["ip"] in listening:
-            out[key] = int(r["port"]) in listening[r["ip"]]
+        if key and r.get("by_agent") and int(r["port"]) in listening.get(r["ip"], ()):
+            out[key] = True
     return out
 
 

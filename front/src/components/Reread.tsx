@@ -6,6 +6,7 @@ import { quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
 import { serverText } from "../lib/serverText";
+import { errText } from "../lib/status";
 
 type Run = () => Promise<Note>;
 const NOTE_MS = 15000;   // the answer stays that long in the tooltip and on the colour of the icon
@@ -23,8 +24,8 @@ export const recheckMachine = (ip: string): Run => async () => {
 
 /** What a service answered: a page in server error counts as failed, a page asking for a login is a service that answers */
 export function tryNote(name: string, t: TryResult): Note {
-  if (!t.up) return { ok: false, text: tx("{0} ne répond pas ({1})", name, t.error ?? "?") };
-  if (t.code === null) return { ok: !t.error, text: t.error ? tx("{0} : port ouvert, page web en erreur ({1})", name, t.error) : tx("{0} répond en {1} ms", name, t.ms ?? 0) };
+  if (!t.up) return { ok: false, text: tx("{0} ne répond pas : {1}", name, errText(t.error)) };
+  if (t.code === null) return { ok: !t.error, text: t.error ? tx("{0} : port ouvert, page web en erreur ({1})", name, errText(t.error)) : tx("{0} répond en {1} ms", name, t.ms ?? 0) };
   return { ok: t.code < 500, text: tx("{0} répond : code {1} en {2} ms", name, t.code, t.ms ?? 0) };
 }
 

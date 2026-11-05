@@ -47,5 +47,6 @@ describe("isDate", () => {
 describe("dur", () => {
   it("keeps the two largest units, minutes under a day", () => {
     expect([dur(12 * 86400 + 4 * 3600 + 59), dur(4 * 3600 + 20 * 60), dur(12 * 60 + 5), dur(30), dur(null)]).toEqual(["12 j 4 h", "4 h 20 min", "12 min", "0 min", "-"]);
+    expect([dur(2 * 3600 + 30), dur(3 * 86400 + 600)]).toEqual(["2 h", "3 j"]);   // a round figure: no « 0 min », no « 0 h »
   });
 });

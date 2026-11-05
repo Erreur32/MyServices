@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.38.2 → 0.38.3
+
+**Nothing to do.** No setting, volume or database change. The Windows agent moves to v11: with automatic update on, it updates itself at its next report; otherwise click « Mettre à jour » on its row in Machines › Agents. No new key needed. Behaviour that changes by itself: a Windows report takes about 4 more seconds to collect (up to about 15 s on a PC whose listening table is broken), and a port missing from one agent report is no longer announced down nor removed while it still answers.
+
 ## 0.38.1 → 0.38.2
 
 **Nothing to do.** No setting, volume or database change. The Windows agent moves to v10: with automatic update on, it updates itself at its next report; otherwise click « Mettre à jour » on its row in Machines › Agents. No new key needed. Its services stop coming and going on a PC with many listening ports.

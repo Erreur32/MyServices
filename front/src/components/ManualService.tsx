@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { send } from "../api";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { errText } from "../lib/status";
 import type { Host, Machine } from "../types";
 import { NoteLine } from "./form";
 import { InfoNote } from "./InfoNote";
@@ -20,7 +21,7 @@ const SCHEMES: { v: string; label: string; hint: string }[] = [
 
 /** What « Try » found: reachable (and the page, for http or https) or not */
 function TryResultView({ tried, scheme }: Readonly<{ tried: TryResult; scheme: string }>) {
-  if (!tried.up) return <Badge tone="bad">{tx("injoignable ({0})", tried.error ?? "?")}</Badge>;
+  if (!tried.up) return <Badge tone="bad">{tx("injoignable : {0}", errText(tried.error))}</Badge>;
   let web: ReactNode = null;
   if (scheme !== "tcp") {
     web = tried.web

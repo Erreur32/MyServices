@@ -11,6 +11,18 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.38.3 (2026-11-06)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Windows agent v11: the listening ports list is complete again on PCs where Windows returns only part of it.** On some PCs (seen on one with Hyper-V), Windows hands back a different small part of its listening table at each read, for `Get-NetTCPConnection`, `netstat` and .NET alike, so a report held 5 ports out of 30. The agent now reads the table every 0.5 s until 6 reads in a row bring no new port (20 reads at most) and keeps the ports of all reads. A healthy PC pays six extra reads, about 4 seconds per report; a PC with the broken table up to about 15 seconds. An agent with automatic update takes v11 at its next report.
+- **Agent ports: a port left out of one report is no longer taken for closed.** The port pulse announced such a row « panne » and the next collection removed it, so the services of a Windows PC flapped between « nouveau », « panne » and « disparu ». The pulse now only trusts a port the report shows; the collection keeps a port an agent showed before while its TCP probe answers, and drops it once it does not. Checked on a Windows PC: 3 hours, 12 reports with incomplete lists, no false alert.
+- **Home alerts say where a service points and why it fails**: a service down names its target and the cause in words (« NPM l'envoie vers 10.0.0.5:8080, connexion refusée ») instead of « backend down » and a Python exception name; the same words after « Tester », on the service page and when adding a service by hand.
+- **NPM redirect on a name missing from the DNS**: shown « DNS absent » (warning), like a proxy host, instead of a red error; its hint says to create the name or remove the entry.
+- **Backup machine's disk shown once**: when Health reads that machine, the disk line is left to Health (one line, one figure); otherwise it gets its own hint.
+- **Wording**: Home page plurals agree (« 4 autres points », « 24 jeux suivis »), a round duration drops its zero (« 2 h », « 3 j »), and the Web-Check line reads « 92/92 sites à jour, aucun à recontrôler à ce passage » instead of « 0 site(s) checked, 92/92 up to date ».
+
 ## v0.38.2 (2026-11-04)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

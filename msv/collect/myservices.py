@@ -336,6 +336,19 @@ def ssh_methods(cache, ip, port, force):
     return methods
 
 
+def with_kept_ports(ports: dict, seen: dict) -> dict:
+    """Ports of an agent report plus the ones an earlier report showed and this one leaves out (Windows does not always list SMB 445,
+    Hyper-V 2179): those are marked "kept", the collection keeps them while they answer."""
+    return {**{port: {"name": name, "lan": True, "kept": True} for port, name in seen.items()}, **ports}
+
+
+def webcheck_message(fresh: int, total: int, due: int) -> str:
+    """Status line of the Web-Check connector: sites with a fresh result, and how many this pass checked again."""
+    if not due:
+        return f"{fresh}/{total} sites à jour, aucun à recontrôler à ce passage"
+    return f"{fresh}/{total} sites à jour, {due} contrôlé{'s' if due > 1 else ''} à ce passage"
+
+
 def agent_unreachable_backend(mode: str) -> tuple[dict, bool]:
     """A local row built from an agent's open ports (brave, HASS.Agent…) whose port the collector itself cannot reach (Windows firewall,
     a LAN-only rule…): shown as up, marked « filtré » (never a false « down »). `mode` (machine setting « agent_ports », PAGE) says whether
@@ -987,8 +1000,8 @@ def webcheck_rows(rows):
         if d in cache:
             for r in rs:
                 r["webcheck"] = dict(cache[d]["data"], checked=round(cache[d]["ts"]), domain=d)
-    CONNECTOR_STATUS.append(cbase.Status(wc.type, wc.name, err is None, err or f"{len(due)} site(s) contrôlé(s), "
-                                         f"{sum(1 for d in targets if d in cache)}/{len(targets)} à jour",
+    fresh = sum(1 for d in targets if d in cache)
+    CONNECTOR_STATUS.append(cbase.Status(wc.type, wc.name, err is None, err or webcheck_message(fresh, len(targets), len(due)),
                                          duration_s=round(time.time() - t0, 2)))
 
 
@@ -1324,16 +1337,19 @@ def main():
                     used.add((ip, hp))
                     rows.append(row("local", f"{ip}:{hp}", ip, hp, name=c["name"],
                                     service=docker_service(dict(c, inner=inner), "port")))
+    seen_by_agent = last_known_services.agent_ports(OUT)
     for ip, ports in procs.items():
         from_agent = ip in agent_listen
         conf = META_RAW.get("machines", {}).get(ip, {}) if from_agent else {}
         if conf.get("agent_ports") == "none":
             continue   # réglage de la machine : ses ports ne deviennent jamais des services
+        if from_agent:
+            ports = with_kept_ports(ports, seen_by_agent.get(ip, {}))
         ignored = {x.casefold() for x in conf.get("agent_ignore") or []}
         for port, p in ports.items():
             if p["lan"] and (ip, port) not in used and p["name"].casefold() not in ignored:
                 used.add((ip, port))
-                rows.append(row("local", f"{ip}:{port}", ip, port, name=p["name"], agent_port=from_agent,
+                rows.append(row("local", f"{ip}:{port}", ip, port, name=p["name"], agent_port=from_agent, **({"_kept": True} if p.get("kept") else {}),
                                 service=None if p.get("port_only") else {"kind": "process", "name": p["name"]}))
                 if process.internal_bind(p.get("addr"), ip):   # bound to a bridge or container address: the collector cannot reach it, the process is up (seen by ss)
                     rows[-1].update(internal=True, listen_addr=p["addr"], ssh_active=True,
@@ -1424,7 +1440,9 @@ def main():
             r["backend"] = {"up": True, "internal": True, "via": "ssh"}
         elif r.get("internal"):
             r["backend"] = {"up": None, "internal": True}
-        if r.get("agent_port") and r.get("backend", {}).get("up") is False:
+        if r.pop("_kept", False) and r.get("backend", {}).get("up") is False:
+            r["_drop"] = True   # left out of the report and not answering: closed for real, whatever the setting
+        elif r.get("agent_port") and r.get("backend", {}).get("up") is False:
             mode = META_RAW.get("machines", {}).get(r["ip"], {}).get("agent_ports") or "reachable"
             r["backend"], r["_drop"] = agent_unreachable_backend(mode)
         if i in public:

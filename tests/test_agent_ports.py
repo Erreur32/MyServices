@@ -36,6 +36,25 @@ class AgentPortsSetting(unittest.TestCase):
             machines_admin._clean({"name": "PC", "agent_ignore": ["brave; rm -rf"]})
 
 
+class KeptPorts(unittest.TestCase):
+    def test_port_left_out_is_kept_and_marked(self):
+        got = myservices.with_kept_ports({135: {"name": "svchost", "lan": True}}, {445: "System", 135: "old"})
+        self.assertEqual(got[445], {"name": "System", "lan": True, "kept": True})
+        self.assertEqual(got[135], {"name": "svchost", "lan": True})   # the report wins over the memory
+
+    def test_nothing_seen_before(self):
+        self.assertEqual(myservices.with_kept_ports({}, {}), {})
+
+
+class WebcheckMessage(unittest.TestCase):
+    def test_nothing_due(self):
+        self.assertEqual(myservices.webcheck_message(92, 92, 0), "92/92 sites à jour, aucun à recontrôler à ce passage")
+
+    def test_plural(self):
+        self.assertEqual(myservices.webcheck_message(90, 92, 1), "90/92 sites à jour, 1 contrôlé à ce passage")
+        self.assertEqual(myservices.webcheck_message(90, 92, 3), "90/92 sites à jour, 3 contrôlés à ce passage")
+
+
 class AgentUnreachableBackend(unittest.TestCase):
     def test_reachable_mode_is_hidden(self):
         backend, drop = myservices.agent_unreachable_backend("reachable")
