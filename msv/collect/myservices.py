@@ -987,8 +987,9 @@ def webcheck_rows(rows):
         if d in cache:
             for r in rs:
                 r["webcheck"] = dict(cache[d]["data"], checked=round(cache[d]["ts"]), domain=d)
-    CONNECTOR_STATUS.append(cbase.Status(wc.type, wc.name, err is None, err or f"{len(due)} site(s) contrôlé(s), "
-                                         f"{sum(1 for d in targets if d in cache)}/{len(targets)} à jour",
+    fresh = sum(1 for d in targets if d in cache)
+    done = f"{len(due)} contrôlé{'s' if len(due) > 1 else ''} à ce passage" if due else "aucun à recontrôler à ce passage"
+    CONNECTOR_STATUS.append(cbase.Status(wc.type, wc.name, err is None, err or f"{fresh}/{len(targets)} sites à jour, {done}",
                                          duration_s=round(time.time() - t0, 2)))
 
 
