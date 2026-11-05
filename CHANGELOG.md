@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+- **Windows agent v11: the listening ports list is complete again on PCs where Windows returns only part of it.** On some PCs (seen on one with Hyper-V), Windows hands back a different small part of its listening table at each read, for `Get-NetTCPConnection`, `netstat` and .NET alike, so a report held 5 ports out of 30. The agent now reads the table every 0.5 s until 6 reads in a row bring no new port (20 reads at most) and keeps the ports of all reads. A healthy PC pays six extra reads, about 4 seconds per report; a PC with the broken table up to about 15 seconds. An agent with automatic update takes v11 at its next report.
+
 ## v0.38.2 (2026-11-04)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

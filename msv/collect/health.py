@@ -1052,6 +1052,9 @@ def system_levels(sys_: dict) -> dict[str, str]:
 
 # Un seul script, en lecture. Erreurs ignorées une à une : un contrôle refusé ne masque pas les autres.
 # 4625 (échecs de connexion) : journal Sécurité, administrateurs seulement ; -1 = non lisible.
+# Ports: on some PCs Windows returns a different small part of its listening table at each read (seen on Gamer32, 2026-11-05):
+# the part changes every second or so, with up to 5 reads in a row bringing nothing new. The agent reads it every 0.5 s until 6 reads
+# in a row bring no new port (20 reads at most) and keeps the ports of all reads; the server keeps a port missing from one report.
 # MSV_UPD (agent, et SSH par le cache du serveur) : titres de la dernière recherche Windows Update, réutilisés pour ne la refaire qu'une fois par heure.
 # MSV_SKIP (agent) : le matériel, les disques physiques et les services en marche changent peu ; l'agent ne les relit que toutes les 6 h et le
 # serveur garde ceux du relevé précédent (agents.SLOW_KEYS). Une seule requête Win32_Service pour les services arrêtés et en marche.
@@ -1064,7 +1067,9 @@ $sa=@(Get-CimInstance Win32_Service);$o.svc=@($sa|?{$_.StartMode -eq 'Auto' -and
 $p=@(Get-CimInstance Win32_Processor);$o.cpu=($p|Measure-Object LoadPercentage -Average).Average;$o.ncpu=($p|Measure-Object NumberOfLogicalProcessors -Sum).Sum
 $w=Get-CimInstance Win32_OperatingSystem;$o.boot=$w.LastBootUpTime.ToUniversalTime().ToString('o');if($w.TotalVisibleMemorySize){$o.mem=[math]::Round(100*($w.TotalVisibleMemorySize-$w.FreePhysicalMemory)/$w.TotalVisibleMemorySize,1)}
 $o.os=@{n=$w.Caption;v=$w.Version;b=$w.BuildNumber;h=$env:COMPUTERNAME}
-$pm=@{};Get-Process|%{$pm[[int]$_.Id]=$_.ProcessName};$o.ports=@(Get-NetTCPConnection -State Listen|?{$_.LocalPort -lt 49152}|Sort-Object LocalPort|Select-Object -First 400|%{@{p=[int]$_.LocalPort;a=[string]$_.LocalAddress;n=$pm[[int]$_.OwningProcess]}})
+$pm=@{};Get-Process|%{$pm[[int]$_.Id]=$_.ProcessName};$ls={Get-NetTCPConnection -State Listen|?{$_.LocalPort -lt 49152}|%{'{0}|{1}|{2}' -f $_.LocalPort,$_.LocalAddress,$_.OwningProcess}}
+$seen=@{};$quiet=0;for($i=0;$i -lt 20 -and $quiet -lt 6;$i++){if($i){Start-Sleep -Milliseconds 500};$n=$seen.Count;&$ls|%{$seen[$_]=1};if($seen.Count -gt $n){$quiet=0}else{$quiet++}}
+$o.ports=@($seen.Keys|%{$f=$_ -split '\|';@{p=[int]$f[0];a=$f[1];n=$pm[[int]$f[2]]}}|Sort-Object {$_.p},{$_.a}|Select-Object -First 400)
 $k='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion';$o.reboot=(Test-Path "$k\WindowsUpdate\Auto Update\RebootRequired") -or (Test-Path "$k\Component Based Servicing\RebootPending")
 $slow=-not $env:MSV_SKIP
 if($slow){$o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})}

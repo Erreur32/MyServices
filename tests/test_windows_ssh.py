@@ -41,6 +41,7 @@ class Loader(unittest.TestCase):
         self.assertEqual(health.WIN_PS.count("Get-CimInstance Win32_Service"), 1)   # one query for stopped and running services
         self.assertIn("Id=4625;StartTime=$t} -MaxEvents 1000", health.WIN_PS)      # failed logons: counted up to 1000, never all of them
         self.assertIn("$slow=-not $env:MSV_SKIP", health.WIN_PS)
+        self.assertIn("$i -lt 20 -and $quiet -lt 6", health.WIN_PS)   # listening ports read until 6 reads bring nothing new: a broken Windows table gives a different part each time
 
 
 class CollectWindows(unittest.TestCase):
