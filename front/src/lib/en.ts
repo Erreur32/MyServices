@@ -4290,5 +4290,5 @@ export const EN: Record<string, string> = {
   "NPM l'envoie vers {0}:{1}, {2}": "NPM sends it to {0}:{1}, {2}",
   "**{0}** ne répond plus{1} : {2}": "**{0}** no longer answers{1}: {2}",
   "Le disque qui garde les copies se remplit : fais de la place, ou garde moins de copies.": "The disk that holds the copies is filling up: free some space, or keep fewer copies.",
-  "Crée ce nom dans la zone DNS du domaine, ou retire l'entrée de NPM si elle ne sert plus.": "Create this name in the domain's DNS zone, or remove the entry from NPM if it is no longer used.",
+  "Crée ce nom dans la zone DNS du domaine, ou retire l'entrée de NPM si elle ne sert plus ({0}).": "Create this name in the domain's DNS zone, or remove the entry from NPM if it is no longer used ({0}).",
 };
