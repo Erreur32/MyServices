@@ -136,6 +136,12 @@ describe("avertissements de l'accueil", () => {
     expect(a.map((x) => x.text)).toEqual(["**h1.lan** : DNS absent", "**h2.lan** : DNS absent"]);
     expect(a[0].level).toBe("warn");
     expect(a[0].href).toBe("services/all/proxy1");
+    expect(a[0].help).toContain("(NPM, Proxy Hosts n° 1)");
+  });
+  it("DNS absent sur une redirection : le conseil nomme le NPM, son onglet et le numéro", () => {
+    const r = host({ id: "npm_echosystem/2" as never, type: "redirect", npm: "npm_echosystem", domains: ["wiki.example.org"], public: { err: "gaierror" } });
+    const a = attention({ data: data([r]), now: NOW }).filter((x) => x.category === "services");
+    expect(a[0].help).toContain("(npm_echosystem, Redirection Hosts n° 2)");
   });
   it("beaucoup d'entrées NPM avec avertissement : une ligne groupée", () => {
     const a = attention({ data: data([1, 2, 3, 4].map(dnsLost)), now: NOW }).filter((x) => x.text.includes("NPM avec avertissement"));

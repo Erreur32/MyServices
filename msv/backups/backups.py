@@ -59,10 +59,25 @@ def _reference_files(src_files: list, each: bool, grace: float, now: float) -> l
     return [f for f in src_files if now - f["mtime"] >= grace][:1]
 
 
+# a weekday before the time of the « via » (« lun. 05:00 », « Mon 05:00 »): the copy runs once a week; whole words only (« Monitor 05:00 » is not one)
+WEEKDAYS = frozenset("lun mar mer jeu ven sam dim lundi mardi mercredi jeudi vendredi samedi dimanche "
+                     "mon tue wed thu fri sat sun monday tuesday wednesday thursday friday saturday sunday".split())
+
+
+def every_days_of(loc: dict) -> int:
+    """Days between two runs of a copy: its setting, else 7 when its « via » names a weekday, else 1 (daily).
+    shortcut: a weekday in the « via » cannot be overridden to daily by the setting (1 is not stored), edit the « via » text then"""
+    days = loc.get("every_days")
+    if isinstance(days, int) and days > 1:
+        return days
+    words = (loc.get("via") or "").lower().replace(".", " ").split()
+    return 7 if any(w in WEEKDAYS and COPY_TIME_RE.fullmatch(t) for w, t in zip(words, words[1:])) else 1
+
+
 def copy_grace_s(loc: dict) -> int:
     """Seconds a copy has to catch up with a fresh archive: a few hours, plus the days between two runs of a copy that is not daily (every_days)."""
-    days = loc.get("every_days")
-    extra = days * 86400 if isinstance(days, int) and 1 < days <= EVERY_DAYS_MAX else 0
+    days = every_days_of(loc)
+    extra = days * 86400 if 1 < days <= EVERY_DAYS_MAX else 0
     return GRACE_H * 3600 + extra
 
 

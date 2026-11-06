@@ -98,6 +98,7 @@ KERNEL_IGNORE_RE = re.compile(
     r"|CIFS: VFS: (Autodisabling the use of server inode numbers|The server doesn't seem to support them|Hardlinks will not be recognized)"   # a mount notice of a Samba share, not a fault
     r"|kernel:\s+(Not tainted|Tainted: [A-Z ]+) \d+\.\d+\S* #\d"   # the kernel version repeated under each report (hung task, oops): the report line itself stays
     r"|\"echo 0 > /proc/sys/kernel/hung_task_timeout_secs\" disables this message"   # how to silence a hung task report, printed under each one
+    r"|kernel:$"   # a kernel line with no text (printed at boot, seen on Tower 2026-11-06): nothing to report
 )
 # ───────────── Machines surveillées ─────────────
 

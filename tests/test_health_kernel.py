@@ -56,5 +56,10 @@ class KernelErrors(unittest.TestCase):
         self.assertEqual(health.collect_kernel_errors(lambda cmd, timeout=0: (0, "\n".join(lines))), {"has_errors": True, "samples": [report]})
 
 
+    def test_an_empty_kernel_line_is_not_a_kernel_error(self):
+        line = "nov. 06 11:36:23 deb13tower kernel: "
+        self.assertEqual(health.collect_kernel_errors(lambda cmd, timeout=0: (0, line)), {"has_errors": False, "samples": []})
+
+
 if __name__ == "__main__":
     unittest.main()

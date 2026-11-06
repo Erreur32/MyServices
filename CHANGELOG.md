@@ -11,6 +11,18 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.38.4 (2026-11-06)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Health: an empty kernel line is no longer a kernel error.** A line with no text, printed at boot, raised « erreurs noyau récentes » on a machine that had just restarted.
+- **Backups: a weekly copy is no longer « late » after an archive made by hand.** A copy whose « via » names a weekday (« rsync lun. 05:00 ») is judged on a 7 day rhythm when none is set, and its settings show 7 days.
+
+### Changed
+- **Home: « DNS absent » says which NPM holds the entry.** The hint names the NPM, its page (Proxy Hosts, Redirection Hosts…) and the entry number, so an entry kept on a second NPM is found at once.
+- **Services: the follow button shows the state.** An open eye in green for a followed service, a crossed eye in orange for a hidden one; a click switches it.
+
 ## v0.38.3 (2026-11-06)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

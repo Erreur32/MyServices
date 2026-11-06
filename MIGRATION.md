@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.38.3 → 0.38.4
+
+**Nothing to do.** No setting, volume, agent or database change. Behaviour that changes by itself: a backup copy whose « via » names a weekday (« rsync lun. 05:00 ») and has no rhythm set is judged weekly, so it is no longer « late » a day after an archive made by hand, and its settings show 7 days. To keep such a copy daily, remove the weekday from its « via ». An empty kernel line printed at boot no longer raises « erreurs noyau récentes ».
+
 ## 0.38.2 → 0.38.3
 
 **Nothing to do.** No setting, volume or database change. The Windows agent moves to v11: with automatic update on, it updates itself at its next report; otherwise click « Mettre à jour » on its row in Machines › Agents. No new key needed. Behaviour that changes by itself: a Windows report takes about 4 more seconds to collect (up to about 15 s on a PC whose listening table is broken), and a port missing from one agent report is no longer announced down nor removed while it still answers.

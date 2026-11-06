@@ -81,6 +81,9 @@ const serviceHref = (r: Host) => `services/all/${encodeURIComponent(serviceKey(r
 /** What read this service row: NPM for a proxied entry, else what read the local port (localVia) */
 const rowVia = (r: Host): string[] => (r.type === "local" ? localVia(r.service?.kind, r.by_agent) : ["NPM"]);
 
+/** The NPM admin page that lists each kind of entry */
+const NPM_TAB: Partial<Record<Host["type"], string>> = { proxy: "Proxy Hosts", redirect: "Redirection Hosts", dead: "404 Hosts", stream: "Streams" };
+
 /** NPM entries in warning: each with its exact reason and its link, or one line when there are many */
 function npmWarnings(hosts: Host[]): Attention[] {
   const warn = hosts.filter((r) => r.type !== "local" && r.enabled && !r.paused && status(r)[0] === "warn"), sel = { src: ["npm"], status: ["warn"] };
@@ -89,7 +92,8 @@ function npmWarnings(hosts: Host[]): Attention[] {
   return warn.map((r) => {
     const found = checks(r);
     const why = found.filter((k) => !CLEANUP.includes(k)).map((k) => CHECK[k][0]).join(", ") || status(r)[1];
-    const help = found.includes("dns") ? tx("Crée ce nom dans la zone DNS du domaine, ou retire l'entrée de NPM si elle ne sert plus.") : undefined;   // not « check the service runs »: nothing runs behind a missing name
+    const where = `${r.npm ?? "NPM"}, ${NPM_TAB[r.type] ?? "Proxy Hosts"} n° ${String(r.id).split("/").pop()}`;   // which NPM and where in it: several NPM can be read
+    const help = found.includes("dns") ? tx("Crée ce nom dans la zone DNS du domaine, ou retire l'entrée de NPM si elle ne sert plus ({0}).", where) : undefined;   // not « check the service runs »: nothing runs behind a missing name
     return { category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), why), tab: "services", action: tx("Voir le service"), sel, href: serviceHref(r), via: rowVia(r), help };
   });
 }
