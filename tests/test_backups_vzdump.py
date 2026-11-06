@@ -193,6 +193,15 @@ class Analyse(unittest.TestCase):
         self.assertEqual(backups.copy_due({"via": "rsync"}, at(2, 0, 30)), at(2, 0, 30) + grace)   # no time given: as before
         self.assertEqual(backups.copy_due({"via": "lun. 09:00", "every_days": 7}, at(2, 0, 30)), at(2, 0, 30) + backups.copy_grace_s({"every_days": 7}))
 
+    def test_copie_dont_le_via_donne_un_jour_est_hebdomadaire(self):
+        self.assertEqual(backups.every_days_of({"via": "rsync depuis Dev lun. 05:00"}), 7)
+        self.assertEqual(backups.every_days_of({"via": "rsync Mon 05:00"}), 7)
+        self.assertEqual(backups.every_days_of({"via": "rsync tiré par Proxmox 10:30"}), 1)
+        self.assertEqual(backups.every_days_of({"via": "lun. 05:00", "every_days": 14}), 14)
+        at = lambda d, h, m=0: datetime(2026, 11, d, h, m).timestamp()
+        # archive made by hand on Thursday: the Monday copy is not late on Friday
+        self.assertGreater(backups.copy_due({"via": "rsync depuis Dev lun. 05:00"}, at(5, 16, 6)), at(9, 5))
+
     def test_dump_sur_stockage_reseau_compte_hors_machine(self):
         sets, _ = self.run_analyse([])
         self.assertEqual((sets["db"]["level"], sets["db"]["offsite"]), ("ok", 1))

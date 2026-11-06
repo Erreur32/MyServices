@@ -195,10 +195,11 @@ def current() -> dict:
 
 def _location_out(i: int, loc: dict, s: dict, hosts: dict) -> dict:
     """One place of a set as the settings page shows it: where, what is read there, and whether the page may change it (a folder only)"""
+    from msv.backups.backups import every_days_of
     h = hosts.get(loc.get("host"), {})
     return {"index": i, "host": h.get("label", loc.get("host", "")), "ip": h.get("ip"), "path": loc.get("path"), "pattern": loc.get("pattern", "*"),
             "depth": loc.get("depth", 1), "via": loc.get("via", ""), "encrypted": bool(loc.get("encrypted")),
-            "every_days": loc.get("every_days") or 1, "offsite": i > 0 and (loc.get("host") != s.get("origin") or bool(loc.get("offsite"))),
+            "every_days": every_days_of(loc), "offsite": i > 0 and (loc.get("host") != s.get("origin") or bool(loc.get("offsite"))),
             "editable": bool(loc.get("path")) and not any(loc.get(k) for k in SOURCE_KEYS), "remote": h.get("api") == "remote"}
 
 
