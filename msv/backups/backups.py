@@ -59,8 +59,10 @@ def _reference_files(src_files: list, each: bool, grace: float, now: float) -> l
     return [f for f in src_files if now - f["mtime"] >= grace][:1]
 
 
-# a weekday before the time of the « via » (« lun. 05:00 », « Mon 05:00 »): the copy runs once a week
-WEEKLY_VIA_RE = re.compile(r"\b(?:lun|mar|mer|jeu|ven|sam|dim|mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s+(?:[01]?\d|2[0-3]):[0-5]\d\b", re.IGNORECASE)
+# a weekday before the time of the « via » (« lun. 05:00 », « Mon 05:00 »): the copy runs once a week; whole words only (« Monitor 05:00 » is not one)
+WEEKDAYS = frozenset("lun mar mer jeu ven sam dim lundi mardi mercredi jeudi vendredi samedi dimanche "
+                     "mon tue wed thu fri sat sun monday tuesday wednesday thursday friday saturday sunday".split())
+WORD_BEFORE_TIME_RE = re.compile(r"([a-z]+)\.?\s+\d{1,2}:\d\d", re.IGNORECASE)
 
 
 def every_days_of(loc: dict) -> int:
@@ -69,7 +71,7 @@ def every_days_of(loc: dict) -> int:
     days = loc.get("every_days")
     if isinstance(days, int) and days > 1:
         return days
-    return 7 if WEEKLY_VIA_RE.search(loc.get("via") or "") else 1
+    return 7 if any(w.lower() in WEEKDAYS for w in WORD_BEFORE_TIME_RE.findall(loc.get("via") or "")) else 1
 
 
 def copy_grace_s(loc: dict) -> int:

@@ -197,6 +197,8 @@ class Analyse(unittest.TestCase):
         self.assertEqual(backups.every_days_of({"via": "rsync depuis Dev lun. 05:00"}), 7)
         self.assertEqual(backups.every_days_of({"via": "rsync Mon 05:00"}), 7)
         self.assertEqual(backups.every_days_of({"via": "rsync tiré par Proxmox 10:30"}), 1)
+        self.assertEqual(backups.every_days_of({"via": "rsync depuis Monitor 05:00"}), 1)   # a word that starts like a day is not one
+        self.assertEqual(backups.every_days_of({"via": "Dimanche 23:30"}), 7)
         self.assertEqual(backups.every_days_of({"via": "lun. 05:00", "every_days": 14}), 14)
         at = lambda d, h, m=0: datetime(2026, 11, d, h, m).timestamp()
         # archive made by hand on Thursday: the Monday copy is not late on Friday
