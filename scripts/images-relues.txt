@@ -248,3 +248,6 @@ cba36395d4b376f0f42bc48c1247715a  front/public/icons/porkbun.svg
 c06a8893c25a37ffc52afb96b76e57cd  front/public/icons/vultr.svg
 2641efa97a47b6bb9bece81a4779b7c7  front/public/icons/reolink.svg
 13c1fe985109849eff342c5388ff66ee  front/public/icons/onvif.svg
+3f3f362ccdf0254cac1a27e1cb5e3d9f  front/public/pwa-192.png
+951b82c71cf586ece081a9cf87d37ed6  front/public/pwa-512.png
+391bcc6c3fbedbefdd79f3da2c96610c  front/public/pwa-maskable-512.png

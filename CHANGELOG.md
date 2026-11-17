@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.38.6 (2026-11-17)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **Installable web app (PWA).** MyServices now ships a web app manifest and icons (192 and 512 px, plus a maskable one), so Chrome and Edge offer « Install MyServices » and open it in its own window without the browser bars. The manifest and icons are served without login (the browser asks for them without a cookie). No service worker, so nothing is cached and an update is seen at once. The browser only offers the install on a secure address: HTTPS (for instance behind a reverse proxy on your domain) or `localhost`; a plain `http://IP:port` address does not qualify.
+
 ## v0.38.5 (2026-11-17)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

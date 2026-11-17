@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.38.5 → 0.38.6
+
+**Nothing to do.** No setting, volume, agent or database change. New: MyServices can be installed as a web app from Chrome or Edge (install icon in the address bar, or menu › Install MyServices). The browser only offers it on HTTPS or `localhost`, not on a plain `http://IP:port` address. Nothing changes if you do not use it.
+
 ## 0.38.3 → 0.38.4
 
 **Nothing to do.** No setting, volume, agent or database change. Behaviour that changes by itself: a backup copy whose « via » names a weekday (« rsync lun. 05:00 ») and has no rhythm set is judged weekly, so it is no longer « late » a day after an archive made by hand, and its settings show 7 days. To keep such a copy daily, remove the weekday from its « via ». An empty kernel line printed at boot no longer raises « erreurs noyau récentes ».
