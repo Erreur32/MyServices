@@ -540,7 +540,7 @@
     "CrowdSec": "CrowdSec",
     "Créer un compte dédié : Paramètres → Personnes → onglet Utilisateurs → Ajouter un utilisateur (nom « myservices », sans les droits d'administrateur).": "Create a dedicated account: Settings → People → Users tab → Add user (name “myservices”, without administrator rights).",
     "Créer, si possible, un compte en lecture seule. Freebox : activer le serveur FTP (Paramètres de la Freebox → Partage de fichiers), le dossier est celui du disque.": "If possible, create a read-only account. Freebox: enable the FTP server (Freebox Settings → File sharing), the folder is the disk's.",
-    "Dans Arcane : Settings → API Keys → nouvelle clé « MyServices ».": "In Arcane: Settings → API Keys → new key “MyServices”.",
+    "Dans Arcane : Settings → API Keys → nouvelle clé « MyServices », avec les droits de lecture environments:list, environments:read et containers:list.": "In Arcane: Settings → API Keys → new key “MyServices”, with read permissions environments:list, environments:read and containers:list.",
     "Dans Bazarr : Settings → General → Security → copier « API Key ». MyServices ne fait que des GET.": "In Bazarr: Settings → General → Security → copy “API Key”. MyServices only makes GET requests.",
     "Dans DSM : Panneau de configuration → Utilisateur et groupe → créer « myservices », groupe « users » seulement.": "In DSM: Control Panel → User & Group → create “myservices”, group “users” only.",
     "Dans Dockhand : Profil → API tokens → créer un jeton nommé « MyServices ».": "In Dockhand: Profile → API tokens → create a token named “MyServices”.",

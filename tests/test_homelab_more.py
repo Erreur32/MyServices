@@ -84,29 +84,43 @@ class Pulse(Base):
 
 
 class Arcane(Base):
-    def test_environments_containers_updates(self):
-        self.route("/api/version", {"currentVersion": "v2.15.1", "newestVersion": "v2.16.0", "updateAvailable": True})
-        self.route("/api/environments", {"success": True, "data": [{"id": "0", "name": "local", "status": "online", "apiUrl": "http://localhost:3552"},
-                                                                   {"id": "2", "name": "nas", "status": "online", "apiUrl": "http://10.0.0.7:3553"},
-                                                                   {"id": "3", "name": "off", "status": "offline", "apiUrl": "http://10.0.0.8:3553"}]})
-        self.route("/api/environments/0/containers?start=0&limit=200&includeInternal=true", {"success": True, "data": [
+    def test_agents_containers_updates(self):
+        """Arcane 3 renamed the environment routes to /api/agents."""
+        self.route("/api/version", {"currentVersion": "v3.0.1", "newestVersion": "v3.1.0", "updateAvailable": True})
+        self.route("/api/agents", {"success": True, "data": [{"id": "0", "name": "local", "status": "online", "apiUrl": "http://localhost:3552"},
+                                                            {"id": "2", "name": "nas", "status": "online", "apiUrl": "http://10.0.0.7:3553"},
+                                                            {"id": "3", "name": "off", "status": "offline", "apiUrl": "http://10.0.0.8:3553"}],
+                                  "pagination": {"totalItems": 3}})
+        self.route("/api/agents/0/containers?start=0&limit=200&includeInternal=true", {"success": True, "data": [
             {"id": "a", "names": ["/web"], "image": "nginx:latest", "state": "running", "status": "Up 2 days (healthy)",
              "updateInfo": {"hasUpdate": True, "latestVersion": "1.29"}},
             {"id": "b", "names": ["/db"], "image": "postgres:16", "state": "running", "status": "Up 1 hour (unhealthy)"},
             {"id": "c", "names": ["/old"], "image": "x", "state": "exited", "status": "Exited (0)"}], "pagination": {"totalItems": 3}})
-        self.route("/api/environments/2/containers/counts", {"success": True, "data": {"runningContainers": 5, "stoppedContainers": 1, "totalContainers": 6}})
+        self.route("/api/agents/2/containers/counts", {"success": True, "data": {"runningContainers": 5, "stoppedContainers": 1, "totalContainers": 6}})
         d = self.conn("arcane", api_key=KEY).collect()
         local, nas, off = d["environments"]
         self.assertEqual(local["containers"], {"total": 3, "running": 2, "stopped": 1, "paused": 0, "unhealthy": 1})
         self.assertEqual((local["host"], local["updates"]), (None, [{"container": "web", "image": "nginx:latest", "newer": "1.29"}]))
         self.assertEqual((nas["host"], nas["containers"]["total"], nas["containers"]["running"]), ("http://10.0.0.7:3553", 6, 5))
         self.assertFalse(off["available"])
-        self.assertEqual((d["updates"], d["app_update"]), (1, "v2.16.0"))
+        self.assertEqual((d["updates"], d["app_update"]), (1, "v3.1.0"))
         self.assertEqual({k.lower(): v for k, v in SEEN[-1][2].items()}.get("x-api-key"), KEY)
+        self.assertFalse([x for x in SEEN if "/api/environments" in x[1]])
         r = self.conn("arcane", api_key=KEY).test()
         self.assertTrue(r.ok, r.message)
-        self.assertEqual(r.version, "2.15.1")
+        self.assertEqual(r.version, "3.0.1")
         self.assertIn("3 environnement(s), 9 conteneur(s), 1 mise(s) à jour d'image ; mise à jour d'Arcane disponible", r.message)
+
+    def test_arcane_2_environments_still_read(self):
+        """An Arcane 2 has no /api/agents: the connector keeps its /api/environments routes."""
+        self.route("/api/version", {"currentVersion": "v2.17.3", "newestVersion": "v2.17.3", "updateAvailable": False})
+        self.route("/api/environments", {"success": True, "data": [{"id": "0", "name": "local", "status": "online", "apiUrl": "http://localhost:3552"}]})
+        self.route("/api/environments/0/containers?start=0&limit=200&includeInternal=true", {"success": True, "data": [
+            {"id": "a", "names": ["/web"], "image": "nginx:latest", "state": "running", "status": "Up 2 days (healthy)"}],
+            "pagination": {"totalItems": 1}})
+        d = self.conn("arcane", api_key=KEY).collect()
+        self.assertEqual(d["environments"][0]["containers"]["total"], 1)
+        self.assertTrue([x for x in SEEN if "/api/agents" in x[1]])
 
     def test_not_arcane(self):
         self.route("/api/version", {"autre": 1})
