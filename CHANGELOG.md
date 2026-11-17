@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.38.5 (2026-11-17)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Arcane 3: environments are read from `/api/agents`.** Arcane 3 renamed its environment routes; the connector now uses the new ones and still falls back to `/api/environments` on Arcane 2.
+
 ## v0.38.4 (2026-11-06)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
