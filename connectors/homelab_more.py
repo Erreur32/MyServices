@@ -149,8 +149,9 @@ def _pulse_load(r: dict, px: dict) -> dict:
 class Arcane(StatusConnector):
     """Arcane (Docker manager): its environments (local Docker, remote agents) as a container source, like Dockhand: containers
     running, stopped, unhealthy, image updates found by Arcane. API key (X-Api-Key). Routes (GET): /api/version (public),
-    /api/environments, /api/environments/<id>/containers (paged list: state, status « (unhealthy) », updateInfo.hasUpdate),
-    /api/environments/<id>/containers/counts when the list is unreadable."""
+    /api/agents (Arcane 3: the environments, paged), /api/agents/<id>/containers (paged list: state, status « (unhealthy) »,
+    updateInfo.hasUpdate), /api/agents/<id>/containers/counts when the list is unreadable. Arcane 2 (same routes under
+    /api/environments) is still read when /api/agents is missing."""
     type = "arcane"
     label = "Arcane"
     kinds = ("containers",)
@@ -161,7 +162,8 @@ class Arcane(StatusConnector):
         VERIFY,
     )
     setup_fields = ("url", "api_key")
-    guide = ("Dans Arcane : Settings → API Keys → nouvelle clé « MyServices ».",
+    guide = ("Dans Arcane : Settings → API Keys → nouvelle clé « MyServices », avec les droits de lecture "
+             "environments:list, environments:read et containers:list.",
              "MyServices ne fait que des GET (version, environnements, liste des conteneurs et leurs mises à jour d'image).")
     PAGE = 200
 
@@ -179,11 +181,21 @@ class Arcane(StatusConnector):
     def version(self) -> str | None:
         return str(self._version()["currentVersion"]).lstrip("v")
 
-    def _containers(self, eid) -> list[dict] | None:
+    def _envs(self) -> tuple[str, list[dict]]:
+        """Base path of the environments and their first page: /api/agents on Arcane 3, /api/environments on Arcane 2."""
+        if getattr(self, "_env_base", None) is None:
+            got = self.get_opt(f"/api/agents?start=0&limit={self.PAGE}", self._h())
+            self._env_base = ("/api/agents", got) if got is not None else ("/api/environments", self.get_opt("/api/environments", self._h()))
+        base, got = self._env_base
+        if got is None:
+            raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Arcane")
+        return base, rows(got)[:50]
+
+    def _containers(self, base, eid) -> list[dict] | None:
         """Every container of one environment ({name, state, health, update, image, newer}), None when the list is unreadable."""
         out, start = [], 0
         while True:
-            got = self.get_opt(f"/api/environments/{eid}/containers?start={start}&limit={self.PAGE}&includeInternal=true", self._h())
+            got = self.get_opt(f"{base}/{eid}/containers?start={start}&limit={self.PAGE}&includeInternal=true", self._h())
             if got is None:
                 return None
             page = rows(got)
@@ -194,17 +206,18 @@ class Arcane(StatusConnector):
 
     def collect(self) -> dict:
         ver = self._version()
+        base, envs_rows = self._envs()
         envs = []
-        for e in rows(self.get("/api/environments", self._h()))[:50]:
+        for e in envs_rows:
             eid, name = e.get("id"), e.get("name") or e.get("id") or "?"
             api = str(e.get("apiUrl") or "")
             host = None if not api or "localhost" in api or "127.0.0.1" in api else api   # local Docker: Arcane's own machine (matching.py)
             if str(e.get("status", "online")).lower() not in ("online", "connected", "ok", ""):
                 envs.append(container_env(eid, name, host, [], available=False))
                 continue
-            got = self._containers(eid)
+            got = self._containers(base, eid)
             if got is None:   # list unreadable (older Arcane): counts only
-                c = _data(self.get_opt(f"/api/environments/{eid}/containers/counts", self._h())) or {}
+                c = _data(self.get_opt(f"{base}/{eid}/containers/counts", self._h())) or {}
                 env = container_env(eid, name, host, [])
                 env["containers"].update({"total": int(num(c.get("totalContainers"), 0)), "running": int(num(c.get("runningContainers"), 0)),
                                           "stopped": int(num(c.get("stoppedContainers"), 0))})
